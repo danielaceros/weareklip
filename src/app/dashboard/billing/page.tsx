@@ -6,21 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getAuth } from "firebase/auth";
-import firebaseApp from "@/lib/firebase" // Asegúrate de que esta sea la ruta correcta
+import firebaseApp from "@/lib/firebase"; // Asegúrate de que esta sea la ruta correcta
 
 export default function BillingPage() {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);  // Agregamos el estado para el userId
 
-  // Obtener el email del usuario autenticado
+  // Obtener el email y el userId del usuario autenticado
   useEffect(() => {
     const auth = getAuth(firebaseApp);
     const user = auth.currentUser;
     if (user) {
       setUserEmail(user.email); // Si hay un usuario autenticado, obtenemos su email
+      setUserId(user.uid); // Guardamos el userId
     } else {
       setUserEmail(null);
+      setUserId(null);  // Limpiamos el userId si no está autenticado
       toast.error("No estás autenticado. Por favor, inicia sesión.");
     }
   }, []);
@@ -28,8 +31,8 @@ export default function BillingPage() {
   const handleCheckout = async () => {
     setLoading(true);
     const priceId = process.env.NEXT_PUBLIC_STRIPE_ONE_TIME_PRICE_ID;
-    if (!priceId || !userEmail) {
-      toast.error("No se ha configurado el precio o no estás autenticado.");
+    if (!priceId || !userEmail || !userId) {  // Asegúrate de que el userId esté disponible
+      toast.error("No se ha configurado el precio, o no estás autenticado.");
       setLoading(false);
       return;
     }
@@ -44,6 +47,7 @@ export default function BillingPage() {
           quantity,
           priceId,
           email: userEmail,  // Pasamos el correo del usuario autenticado
+          userId,  // Pasamos el userId también
         }),
       });
 
