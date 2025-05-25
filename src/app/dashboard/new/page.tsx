@@ -12,9 +12,11 @@ import { db, auth } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
+// Definir las opciones de formato
 const formatOptions = ["Reel", "TikTok", "YouTube", "Otro"] as const;
 type FormatType = (typeof formatOptions)[number];
 
+// Esquema de validación con Zod
 const schema = z.object({
   title: z.string().min(3),
   description: z.string().min(10),
@@ -22,35 +24,42 @@ const schema = z.object({
   format: z.enum(formatOptions),
 });
 
+// Inferir el tipo de los datos del formulario
+type FormData = z.infer<typeof schema>;
+
 export default function NewOrderPage() {
   const router = useRouter();
-  type FormData = z.infer<typeof schema>;
-    const {
+
+  // Inicializar react-hook-form con Zod
+  const {
     register,
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-    } = useForm<FormData>({
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-        title: "",
-        description: "",
-        audience: "",
-        format: "Reel",
+      title: "",
+      description: "",
+      audience: "",
+      format: "Reel",
     },
-    });
+  });
 
-  const onSubmit = async (data: any) => {
+  // Función de envío del formulario
+  const onSubmit = async (data: FormData) => { // Usar FormData en lugar de any
     const user = auth.currentUser;
     if (!user) return alert("Usuario no autenticado");
 
     try {
+      // Crear el nuevo pedido en Firestore
       await addDoc(collection(db, "orders"), {
         ...data,
         userId: user.uid,
         status: "pendiente",
         createdAt: serverTimestamp(),
       });
+      // Redirigir a la lista de pedidos
       router.push("/dashboard/orders");
     } catch (err) {
       alert("Error al crear pedido");
@@ -82,21 +91,21 @@ export default function NewOrderPage() {
 
         <div>
           <Label>Formato</Label>
-            <Select
+          <Select
             onValueChange={(value: FormatType) => setValue("format", value)}
             defaultValue="Reel"
-            >
+          >
             <SelectTrigger>
-                <SelectValue placeholder="Selecciona un formato" />
+              <SelectValue placeholder="Selecciona un formato" />
             </SelectTrigger>
             <SelectContent>
-                {formatOptions.map((opt) => (
+              {formatOptions.map((opt) => (
                 <SelectItem key={opt} value={opt}>
-                    {opt}
+                  {opt}
                 </SelectItem>
-                ))}
+              ))}
             </SelectContent>
-            </Select>
+          </Select>
 
           {errors.format && <p className="text-sm text-red-500">{errors.format.message}</p>}
         </div>

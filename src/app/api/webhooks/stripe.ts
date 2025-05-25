@@ -18,8 +18,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Definir el tipo para `session`
+interface SessionData {
+  customer_email: string;
+  customer_name: string;
+  id: string;
+  amount_total: number;
+}
+
 // Función para enviar el correo personalizado
-const sendConfirmationEmail = async (customerEmail: string, session: any) => {
+const sendConfirmationEmail = async (customerEmail: string, session: SessionData) => {
   const mailOptions = {
     from: process.env.EMAIL_USER, // Tu correo de IONOS
     to: customerEmail,
@@ -127,7 +135,7 @@ export async function POST(req: NextRequest) {
     
     if (customerEmail) {
       try {
-        await sendConfirmationEmail(customerEmail, session);
+        await sendConfirmationEmail(customerEmail, session as unknown as SessionData); // Asegúrate de que `session` tenga el tipo adecuado
         console.log('Correo de confirmación enviado a:', customerEmail);
       } catch (error) {
         console.error('Error al enviar correo:', error);

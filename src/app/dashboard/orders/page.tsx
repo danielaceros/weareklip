@@ -6,7 +6,6 @@ import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 type Order = {
@@ -85,17 +84,17 @@ export default function OrdersPage() {
               </p>
               {order.deliveredUrl ? (
                 <a
-                    href={order.deliveredUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  href={order.deliveredUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                    <Button size="sm" variant="secondary">
+                  <Button size="sm" variant="secondary">
                     Ver entrega
-                    </Button>
+                  </Button>
                 </a>
-                ) : (
+              ) : (
                 <Badge variant="outline">Aún no entregado</Badge>
-                )}
+              )}
             </div>
           </CardContent>
         </Card>

@@ -1,4 +1,5 @@
 "use client";
+
 import { createUserIfNotExists } from "@/lib/createUserIfNotExists";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FcGoogle } from "react-icons/fc";
+import { FirebaseError } from "firebase/app";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  // Función para manejar el envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -33,19 +36,28 @@ export default function LoginPage() {
       }
       await createUserIfNotExists(auth.currentUser!);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) { // Tipo de error como 'unknown'
+      if (err instanceof FirebaseError) {
+        setError(err.message); // Acceder al mensaje de error de Firebase
+      } else {
+        setError("Error desconocido");
+      }
     }
   };
 
+  // Función para manejar el login con Google
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
       await createUserIfNotExists(auth.currentUser!);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) { // Tipo de error como 'unknown'
+      if (err instanceof FirebaseError) {
+        setError(err.message); // Acceder al mensaje de error de Firebase
+      } else {
+        setError("Error desconocido");
+      }
     }
   };
 
