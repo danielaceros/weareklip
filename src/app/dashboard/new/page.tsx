@@ -61,9 +61,11 @@ export default function NewOrderPage() {
       });
       // Redirigir a la lista de pedidos
       router.push("/dashboard/orders");
-    } catch (err) {
+    } catch (err: unknown) {
       alert("Error al crear pedido");
-      console.error(err);
+      if (err instanceof Error) {
+        console.error(err.message);
+      }
     }
   };
 

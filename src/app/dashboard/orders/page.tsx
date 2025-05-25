@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
+// Elimina la importación de 'Link' si no se usa
+// import Link from "next/link"; // <--- Eliminar esta línea
+
 type Order = {
   id: string;
   title: string;

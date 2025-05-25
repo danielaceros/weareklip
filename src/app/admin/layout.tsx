@@ -26,7 +26,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     };
 
     checkRole();
-  }, [router]); // Agrega `router` como dependencia
+  }, []); // Dependencia vacía para evitar advertencia de router
 
   if (!allowed) return null;
   return <div className="p-6">{children}</div>;

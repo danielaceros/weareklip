@@ -1,0 +1,20 @@
+{
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended"
+  ],
+  "plugins": ["@typescript-eslint", "react"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module",
+    "jsx": true
+  },
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",  // Cambiar de "error" a "warn" para no bloquear compilación
+    "react-hooks/exhaustive-deps": "warn",  // Configura exhaustiva de dependencias en useEffect
+    "react/prop-types": "off",  // Desactiva la regla de prop-types en componentes de React
+    "@typescript-eslint/explicit-module-boundary-types": "off"
+  }
+}

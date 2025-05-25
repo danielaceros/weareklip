@@ -36,8 +36,8 @@ export default function LoginPage() {
       }
       await createUserIfNotExists(auth.currentUser!);
       router.push("/dashboard");
-    } catch (err: unknown) { // Tipo de error como 'unknown'
-      if (err instanceof FirebaseError) {
+    } catch (err: unknown) { // Cambio de `any` a `unknown`
+      if (err instanceof FirebaseError) { // Verificamos si es un `FirebaseError`
         setError(err.message); // Acceder al mensaje de error de Firebase
       } else {
         setError("Error desconocido");
@@ -52,8 +52,8 @@ export default function LoginPage() {
       await signInWithPopup(auth, provider);
       await createUserIfNotExists(auth.currentUser!);
       router.push("/dashboard");
-    } catch (err: unknown) { // Tipo de error como 'unknown'
-      if (err instanceof FirebaseError) {
+    } catch (err: unknown) { // Cambio de `any` a `unknown`
+      if (err instanceof FirebaseError) { // Verificamos si es un `FirebaseError`
         setError(err.message); // Acceder al mensaje de error de Firebase
       } else {
         setError("Error desconocido");

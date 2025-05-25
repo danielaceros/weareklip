@@ -1,3 +1,5 @@
+"use client";
+
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import nodemailer from "nodemailer";
@@ -121,8 +123,11 @@ export async function POST(req: NextRequest) {
   try {
     // Verifica la firma del webhook
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
-  } catch (err) {
-    console.error("Webhook signature verification failed.", err);
+  } catch (err: unknown) {
+    // Si el error es una instancia de Error, se accede a su mensaje
+    if (err instanceof Error) {
+      console.error("Webhook signature verification failed.", err.message);
+    }
     return NextResponse.json({ error: "Webhook signature verification failed" }, { status: 400 });
   }
 
@@ -135,7 +140,8 @@ export async function POST(req: NextRequest) {
     
     if (customerEmail) {
       try {
-        await sendConfirmationEmail(customerEmail, session as unknown as SessionData); // Asegúrate de que `session` tenga el tipo adecuado
+        // Asegúrate de que `session` tenga el tipo adecuado
+        await sendConfirmationEmail(customerEmail, session as unknown as SessionData);
         console.log('Correo de confirmación enviado a:', customerEmail);
       } catch (error) {
         console.error('Error al enviar correo:', error);
