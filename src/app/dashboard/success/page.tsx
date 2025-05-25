@@ -1,4 +1,5 @@
-"use client"
+"use client";
+
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -11,11 +12,15 @@ export default function SuccessPage() {
 
   useEffect(() => {
     if (userId && quantity) {
-      updateCredits();
+      updateCredits(userId, quantity); // Pasamos las dependencias necesarias
     }
-  }, [userId, quantity]);
+  }, [userId, quantity]); // `updateCredits` no es necesario en la lista de dependencias
 
-  const updateCredits = async () => {
+  const updateCredits = async (userId: string | null, quantity: string | null) => {
+    if (!userId || !quantity) {
+      toast.error("Datos inválidos para actualizar los créditos.");
+      return;
+    }
     try {
       const response = await fetch("/api/stripe/confirm-purchase", {
         method: "POST",

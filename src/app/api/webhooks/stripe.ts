@@ -15,12 +15,26 @@ const transporter = nodemailer.createTransport({
   secure: true, // Usa `true` para SSL/TLS en el puerto 465, o `false` para STARTTLS en el puerto 587
   auth: {
     user: process.env.EMAIL_USER, // Tu correo de IONOS
-    pass: process.env.EMAIL_PASS, // La contraseña de tu cuenta de IONOS
+    pass: process.env.EMAIL_PASS, // La contraseña de tu cuenta de IONOS o contraseña de aplicación
   },
 });
 
+// Definir el tipo para `session` (datos que recibimos de Stripe)
+interface StripeSession {
+  customer_email: string;
+  customer_name: string;
+  id: string;
+  line_items: {
+    data: Array<{
+      quantity: number;
+    }>;
+  };
+  client_reference_id: string; // El ID del usuario que vamos a usar
+  amount_total: number;
+}
+
 // Función para enviar el correo personalizado
-const sendConfirmationEmail = async (customerEmail: string, session: any) => {
+const sendConfirmationEmail = async (customerEmail: string, session: StripeSession) => {
   const mailOptions = {
     from: process.env.EMAIL_USER, // Tu correo de IONOS
     to: customerEmail,
@@ -115,23 +129,20 @@ export async function POST(req: NextRequest) {
     // Verifica la firma del webhook
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
   } catch (err: unknown) {
-    // Si el error es una instancia de Error, se accede a su mensaje
     if (err instanceof Error) {
       console.error("Webhook signature verification failed.", err.message);
     }
     return NextResponse.json({ error: "Webhook signature verification failed" }, { status: 400 });
   }
 
-  // Procesar los eventos de Stripe
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
+    const session = event.data.object as unknown as StripeSession;
 
-    // Obtener el correo del cliente y la cantidad de productos (reels)
     const customerEmail = session.customer_email;
-    const userId = session.client_reference_id; // Aquí tenemos el ID del usuario
+    const userId = session.client_reference_id;
 
     // Obtener la cantidad de productos comprados (puedes personalizar esto si tu estructura es diferente)
-    const quantity = session.line_items?.data[0]?.quantity || 0; // Usamos la cantidad del primer item, si existe
+    const quantity = session.line_items.data[0]?.quantity || 0; // Usamos la cantidad del primer item, si existe
 
     // Obtener el documento de usuario en Firestore para actualizar los créditos
     const userRef = db.collection("users").doc(userId!);
@@ -139,12 +150,11 @@ export async function POST(req: NextRequest) {
     const userData = userSnap.data();
 
     if (userData) {
-      // Actualizar los créditos del usuario (puedes personalizar esto según tu modelo de datos)
-      const creditsPurchased = quantity;  // Cada reel cuenta como un crédito
+      const creditsPurchased = quantity;
       const updatedCredits = (userData.credits || 0) + creditsPurchased;
 
       await userRef.update({
-        credits: updatedCredits,  // Actualiza la cantidad de créditos
+        credits: updatedCredits,
       });
       console.log("Créditos actualizados para el usuario:", userId);
 
