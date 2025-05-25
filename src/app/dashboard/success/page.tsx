@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function SuccessPage() {
@@ -46,12 +46,14 @@ export default function SuccessPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      {loading ? (
-        <p>Cargando...</p>
-      ) : (
-        <p>Gracias por tu compra, tus créditos han sido actualizados.</p>
-      )}
-    </div>
+    <Suspense fallback={<p>Cargando...</p>}>
+      <div className="flex min-h-screen items-center justify-center">
+        {loading ? (
+          <p>Cargando...</p>
+        ) : (
+          <p>Gracias por tu compra, tus créditos han sido actualizados.</p>
+        )}
+      </div>
+    </Suspense>
   );
 }
