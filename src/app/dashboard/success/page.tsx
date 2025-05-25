@@ -1,20 +1,27 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function SuccessPage() {
-  const searchParams = useSearchParams();
-  const userId = searchParams!.get('userId');
-  const quantity = searchParams!.get('quantity');
+  const [isClient, setIsClient] = useState(false);
   const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // This will only run on the client side
+    setIsClient(true);
+  }, []);
+
+  const userId = searchParams?.get('userId');
+  const quantity = searchParams?.get('quantity');
 
   useEffect(() => {
     if (userId && quantity) {
-      updateCredits(userId, quantity); // Pasamos las dependencias necesarias
+      updateCredits(userId, quantity);
     }
-  }, [userId, quantity]); // `updateCredits` no es necesario en la lista de dependencias
+  }, [userId, quantity]);
 
   const updateCredits = async (userId: string | null, quantity: string | null) => {
     if (!userId || !quantity) {
@@ -45,15 +52,17 @@ export default function SuccessPage() {
     }
   };
 
+  if (!isClient) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <Suspense fallback={<p>Cargando...</p>}>
-      <div className="flex min-h-screen items-center justify-center">
-        {loading ? (
-          <p>Cargando...</p>
-        ) : (
-          <p>Gracias por tu compra, tus créditos han sido actualizados.</p>
-        )}
-      </div>
-    </Suspense>
+    <div className="flex min-h-screen items-center justify-center">
+      {loading ? (
+        <p>Cargando...</p>
+      ) : (
+        <p>Gracias por tu compra, tus créditos han sido actualizados.</p>
+      )}
+    </div>
   );
 }
