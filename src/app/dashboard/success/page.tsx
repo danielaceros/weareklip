@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 
 export default function SuccessPage() {
@@ -38,7 +38,7 @@ export default function SuccessPage() {
       } else {
         toast.error("Hubo un error al actualizar tus créditos.");
       }
-    } catch {
+    } catch (error) {
       toast.error("Error al procesar la compra.");
     } finally {
       setLoading(false);
