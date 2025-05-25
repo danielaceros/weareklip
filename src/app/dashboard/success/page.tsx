@@ -38,7 +38,7 @@ export default function SuccessPage() {
       } else {
         toast.error("Hubo un error al actualizar tus créditos.");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error al procesar la compra.");
     } finally {
       setLoading(false);
