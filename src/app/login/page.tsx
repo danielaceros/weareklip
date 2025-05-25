@@ -1,7 +1,7 @@
 "use client";
 
 import { createUserIfNotExists } from "@/lib/createUserIfNotExists";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
@@ -35,10 +35,9 @@ export default function LoginPage() {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       await createUserIfNotExists(auth.currentUser!);
-      router.push("/dashboard");
-    } catch (err: unknown) { // Cambio de `any` a `unknown`
-      if (err instanceof FirebaseError) { // Verificamos si es un `FirebaseError`
-        setError(err.message); // Acceder al mensaje de error de Firebase
+    } catch (err: unknown) {
+      if (err instanceof FirebaseError) {
+        setError(err.message);
       } else {
         setError("Error desconocido");
       }
@@ -51,15 +50,25 @@ export default function LoginPage() {
     try {
       await signInWithPopup(auth, provider);
       await createUserIfNotExists(auth.currentUser!);
-      router.push("/dashboard");
-    } catch (err: unknown) { // Cambio de `any` a `unknown`
-      if (err instanceof FirebaseError) { // Verificamos si es un `FirebaseError`
-        setError(err.message); // Acceder al mensaje de error de Firebase
+    } catch (err: unknown) {
+      if (err instanceof FirebaseError) {
+        setError(err.message);
       } else {
         setError("Error desconocido");
       }
     }
   };
+
+  // Redirigir al dashboard si el usuario ya está autenticado
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        router.push("/dashboard");  // Redirige al dashboard si el usuario está logueado
+      }
+    });
+
+    return () => unsubscribe();  // Limpiar el listener cuando se desmonte el componente
+  }, [router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
