@@ -1,8 +1,7 @@
-"use client";
-
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import nodemailer from "nodemailer";
+import { db } from "@/lib/firebaseAdmin"; // Asegúrate de que esta sea la ruta correcta
+import Stripe from "stripe";
 
 // Instancia de Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -15,21 +14,13 @@ const transporter = nodemailer.createTransport({
   port: 465, // o usa 587 si prefieres STARTTLS
   secure: true, // Usa `true` para SSL/TLS en el puerto 465, o `false` para STARTTLS en el puerto 587
   auth: {
-    user: process.env.EMAIL_USER, // Tu correo de IONOS (ejemplo: hello@weareklip.com)
-    pass: process.env.EMAIL_PASS, // La contraseña de tu cuenta de IONOS o contraseña de aplicación
+    user: process.env.EMAIL_USER, // Tu correo de IONOS
+    pass: process.env.EMAIL_PASS, // La contraseña de tu cuenta de IONOS
   },
 });
 
-// Definir el tipo para `session`
-interface SessionData {
-  customer_email: string;
-  customer_name: string;
-  id: string;
-  amount_total: number;
-}
-
 // Función para enviar el correo personalizado
-const sendConfirmationEmail = async (customerEmail: string, session: SessionData) => {
+const sendConfirmationEmail = async (customerEmail: string, session: any) => {
   const mailOptions = {
     from: process.env.EMAIL_USER, // Tu correo de IONOS
     to: customerEmail,
@@ -135,16 +126,32 @@ export async function POST(req: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    // Obtener detalles del cliente y enviar el correo
+    // Obtener el correo del cliente y la cantidad de productos (reels)
     const customerEmail = session.customer_email;
-    
-    if (customerEmail) {
-      try {
-        // Asegúrate de que `session` tenga el tipo adecuado
-        await sendConfirmationEmail(customerEmail, session as unknown as SessionData);
+    const userId = session.client_reference_id; // Aquí tenemos el ID del usuario
+
+    // Obtener la cantidad de productos comprados (puedes personalizar esto si tu estructura es diferente)
+    const quantity = session.line_items?.data[0]?.quantity || 0; // Usamos la cantidad del primer item, si existe
+
+    // Obtener el documento de usuario en Firestore para actualizar los créditos
+    const userRef = db.collection("users").doc(userId!);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data();
+
+    if (userData) {
+      // Actualizar los créditos del usuario (puedes personalizar esto según tu modelo de datos)
+      const creditsPurchased = quantity;  // Cada reel cuenta como un crédito
+      const updatedCredits = (userData.credits || 0) + creditsPurchased;
+
+      await userRef.update({
+        credits: updatedCredits,  // Actualiza la cantidad de créditos
+      });
+      console.log("Créditos actualizados para el usuario:", userId);
+
+      // Enviar correo de confirmación
+      if (customerEmail) {
+        await sendConfirmationEmail(customerEmail, session);
         console.log('Correo de confirmación enviado a:', customerEmail);
-      } catch (error) {
-        console.error('Error al enviar correo:', error);
       }
     }
   }
