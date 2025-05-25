@@ -1,10 +1,11 @@
-import { useRouter } from "next/router";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function SuccessPage() {
-  const router = useRouter();
-  const { userId, quantity } = router.query;
+  const searchParams = useSearchParams();
+  const userId = searchParams!.get('userId');
+  const quantity = searchParams!.get('quantity');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function SuccessPage() {
 
       if (data.success) {
         toast.success("Compra exitosa! Tus créditos han sido actualizados.");
-        router.push("/dashboard");
+        window.location.href = "/dashboard"; // Redirigir al dashboard
       } else {
         toast.error("Hubo un error al actualizar tus créditos.");
       }
