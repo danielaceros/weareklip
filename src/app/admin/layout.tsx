@@ -1,34 +1,45 @@
-"use client";
+"use client"
 
-import { useEffect, useState, useRef } from "react";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
-import { useRouter } from "next/navigation";
-import { ReactNode } from "react";
+import { useEffect, useState } from "react"
+import { auth, db } from "@/lib/firebase"
+import { doc, getDoc } from "firebase/firestore"
+import { useRouter } from "next/navigation"
+import { ReactNode } from "react"
+import { AdminSidebar } from "@/components/shared/adminsidebar"
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const [allowed, setAllowed] = useState(false);
-  const router = useRouter();
-  const routerRef = useRef(router);  // Use useRef to store router
+  const [allowed, setAllowed] = useState(false)
+  const [checking, setChecking] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    const checkRole = async () => {
-      const user = auth.currentUser;
-      if (!user) return routerRef.current.push("/");  // Use routerRef
-
-      const ref = doc(db, "users", user.uid);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists() || snap.data().role !== "admin") {
-        return routerRef.current.push("/");  // Use routerRef
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        router.push("/")
+        return
       }
 
-      setAllowed(true);
-    };
+      const ref = doc(db, "users", user.uid)
+      const snap = await getDoc(ref)
 
-    checkRole();
-  }, []);  // Empty dependency array to avoid repeated effect
+      if (!snap.exists() || snap.data().role !== "admin") {
+        router.push("/")
+        return
+      }
 
-  if (!allowed) return null;
-  return <div className="p-6">{children}</div>;
+      setAllowed(true)
+      setChecking(false)
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  if (checking || !allowed) return null
+
+  return (
+    <div className="flex min-h-screen">
+      <AdminSidebar />
+      <main className="flex-1 bg-muted p-6">{children}</main>
+    </div>
+  )
 }

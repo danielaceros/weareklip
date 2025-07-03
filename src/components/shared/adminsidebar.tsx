@@ -1,25 +1,24 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase"
 
 const links = [
-  { href: "/dashboard", label: "Inicio" },
-  { href: "/dashboard/scripts", label: "Mis Guiones" },
-  { href: "/dashboard/videos", label: "Mis Vídeos" },
-  { href: "/dashboard/billing", label: "Mi Subscripción" },
-];
+  { href: "/admin", label: "Pedidos" },
+  { href: "/admin/scripts", label: "Crear Guiones" },
+  { href: "/admin/usuarios", label: "Usuarios" }, // si quieres más adelante
+]
 
-export function Sidebar() {
-  const pathname = usePathname();
+export function AdminSidebar() {
+  const pathname = usePathname()
 
   return (
     <aside className="w-64 bg-white border-r p-4 flex flex-col justify-between">
       <div>
-        <h2 className="text-lg font-bold mb-6">Panel Cliente</h2>
+        <h2 className="text-lg font-bold mb-6">Panel Admin</h2>
         <nav className="flex flex-col gap-2">
           {links.map((link) => (
             <Link
@@ -38,5 +37,5 @@ export function Sidebar() {
         Cerrar sesión
       </Button>
     </aside>
-  );
+  )
 }

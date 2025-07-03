@@ -8,7 +8,6 @@ import {
   getDocs,
   doc,
   updateDoc,
-  DocumentData,
 } from "firebase/firestore"
 import {
   Dialog,
@@ -20,15 +19,17 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
 interface Guion {
   firebaseId: string
   titulo: string
   contenido: string
+  estado: number // 0: Nuevo, 1: Cambios, 2: Aprobado
   createdAt?: string
 }
-
 
 export default function GuionesPage() {
   const [userId, setUserId] = useState<string | null>(null)
@@ -38,6 +39,7 @@ export default function GuionesPage() {
   const [selectedGuion, setSelectedGuion] = useState<Guion | null>(null)
   const [tituloEditado, setTituloEditado] = useState("")
   const [contenidoEditado, setContenidoEditado] = useState("")
+  const [estadoEditado, setEstadoEditado] = useState("0")
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -70,12 +72,15 @@ export default function GuionesPage() {
       }
 
       const data: Guion[] = snapshot.docs.map((doc) => {
-        const docData = doc.data() as Omit<Guion, "firebaseId">
+        const d = doc.data()
         return {
-            firebaseId: doc.id,
-            ...docData,
+          firebaseId: doc.id,
+          titulo: d.titulo ?? "Sin título",
+          contenido: d.contenido ?? "",
+          estado: d.estado ?? 0,
+          createdAt: d.createdAt ?? null,
         }
-        })
+      })
 
       setGuiones(data)
     } catch (error) {
@@ -92,6 +97,7 @@ export default function GuionesPage() {
     setSelectedGuion(guion)
     setTituloEditado(guion.titulo)
     setContenidoEditado(guion.contenido)
+    setEstadoEditado(String(guion.estado ?? 0))
     setOpen(true)
   }
 
@@ -103,12 +109,18 @@ export default function GuionesPage() {
       await updateDoc(ref, {
         titulo: tituloEditado,
         contenido: contenidoEditado,
+        estado: parseInt(estadoEditado),
       })
 
       // Actualizar en el estado local
       const nuevosGuiones = guiones.map((g) =>
         g.firebaseId === selectedGuion.firebaseId
-          ? { ...g, titulo: tituloEditado, contenido: contenidoEditado }
+          ? {
+              ...g,
+              titulo: tituloEditado,
+              contenido: contenidoEditado,
+              estado: parseInt(estadoEditado),
+            }
           : g
       )
       setGuiones(nuevosGuiones)
@@ -117,6 +129,19 @@ export default function GuionesPage() {
     } catch (error) {
       console.error("Error al actualizar guion:", error)
       toast.error("Error al guardar cambios")
+    }
+  }
+
+  const renderEstado = (estado: number) => {
+    switch (estado) {
+      case 0:
+        return <Badge className="bg-red-500">Nuevo</Badge>
+      case 1:
+        return <Badge className="bg-yellow-400">Necesita Cambios</Badge>
+      case 2:
+        return <Badge className="bg-green-500">Aprobado</Badge>
+      default:
+        return <Badge variant="secondary">Desconocido</Badge>
     }
   }
 
@@ -134,8 +159,11 @@ export default function GuionesPage() {
               className="cursor-pointer hover:shadow-lg transition"
               onClick={() => openEditor(guion)}
             >
-              <CardContent className="p-4">
-                <h2 className="font-semibold text-lg mb-2">{guion.titulo}</h2>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h2 className="font-semibold text-lg">{guion.titulo}</h2>
+                  {renderEstado(guion.estado)}
+                </div>
                 <p className="text-sm text-muted-foreground line-clamp-4">
                   {guion.contenido}
                 </p>
@@ -166,6 +194,17 @@ export default function GuionesPage() {
               rows={6}
               placeholder="Contenido del guion"
             />
+            <Select value={estadoEditado} onValueChange={setEstadoEditado}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Nuevo</SelectItem>
+                <SelectItem value="1">Necesita Cambios</SelectItem>
+                <SelectItem value="2">Aprobado</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button onClick={guardarCambios}>Guardar cambios</Button>
           </div>
         </DialogContent>
