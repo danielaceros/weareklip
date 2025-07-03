@@ -11,7 +11,6 @@ import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { db } from "@/lib/firebase"
 import {
-  collection,
   collectionGroup,
   doc,
   getDoc,
