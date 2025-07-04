@@ -9,7 +9,9 @@ import { auth } from "@/lib/firebase"
 const links = [
   { href: "/admin", label: "Pedidos" },
   { href: "/admin/scripts", label: "Crear Guiones" },
-  { href: "/admin/usuarios", label: "Usuarios" }, // si quieres más adelante
+  { href: "/admin/videos", label: "Crear Videos" },
+  { href: "/admin/users", label: "Usuarios" },
+  { href: "/admin/clients", label: "Clientes Activos" } // si quieres más adelante
 ]
 
 export function AdminSidebar() {
