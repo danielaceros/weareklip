@@ -133,7 +133,7 @@ export function AdminSidebar() {
           </div>
 
           {dropdownOpen && (
-            <div className="absolute left-0 top-full mt-2 w-full bg-white border rounded shadow-md z-10">
+            <div className="absolute left-0 bottom-full mb-2 w-full bg-white border rounded shadow-md z-10">
               <button
                 onClick={() => signOut(auth)}
                 className="flex items-center gap-2 px-4 py-2 w-full text-left hover:bg-gray-100"
