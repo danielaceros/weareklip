@@ -69,7 +69,7 @@ export function Sidebar() {
     { href: "/dashboard", label: "Inicio" },
     { href: "/dashboard/scripts", label: "Mis Guiones" },
     { href: "/dashboard/videos", label: "Mis Vídeos" },
-    { href: "/dashboard/billing", label: "Mi Subscripción" },
+    { href: "/dashboard/user", label: "Mi Cuenta" },
   ];
 
   return (
