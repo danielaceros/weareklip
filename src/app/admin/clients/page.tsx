@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import {
   Select,
   SelectTrigger,
@@ -19,6 +20,7 @@ type Client = {
   role: string
   subStatus: string
   planName: string | null
+  stripeCustomerId?: string
 }
 
 function getBadgeVariant(status: string): "default" | "destructive" | "outline" | "secondary" {
@@ -41,6 +43,27 @@ function getBadgeVariant(status: string): "default" | "destructive" | "outline" 
 const isActive = (status: string) =>
   ["active", "trialing", "past_due", "unpaid"].includes(status)
 
+function deduplicateClients(clients: Client[]): Client[] {
+  const map = new Map<string, Client>()
+
+  for (const client of clients) {
+    const existing = map.get(client.email)
+
+    if (!existing) {
+      map.set(client.email, client)
+    } else {
+      const existingIsActive = isActive(existing.subStatus)
+      const currentIsActive = isActive(client.subStatus)
+
+      if (!existingIsActive && currentIsActive) {
+        map.set(client.email, client) // Reemplazar por activo
+      }
+    }
+  }
+
+  return Array.from(map.values())
+}
+
 export default function ClientsAdminPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [search, setSearch] = useState("")
@@ -62,26 +85,30 @@ export default function ClientsAdminPage() {
         if (lastId && !reset) params.append("starting_after", lastId)
 
         const res = await fetch(`/api/stripe/clients?${params.toString()}`)
-        const { data, lastId: newLastId, hasMore: more } = await res.json()
+        const json = await res.json()
 
-        if (reset) {
-          setClients(data)
-        } else {
-          setClients((prev) => [...prev, ...data])
+        if (!res.ok || !json.data) {
+          throw new Error(json.error || "Error al obtener clientes")
         }
 
-        setLastId(newLastId)
+        const { data, lastId: newLastId, hasMore: more } = json
+
+        const updatedList = reset ? data : [...clients, ...data]
+        const deduplicated = deduplicateClients(updatedList)
+
+        setClients(deduplicated)
+        setLastId(newLastId || null)
         setHasMore(more)
       } catch (error) {
-        console.error("Error fetching clients:", error)
+        console.error(error)
+        toast.error("Error al cargar clientes")
       } finally {
         setLoading(false)
       }
     },
-    [loading, lastId, hasMore]
+    [clients, loading, lastId, hasMore]
   )
 
-  // Buscar manual
   const handleSearch = () => {
     setClients([])
     setLastId(null)
@@ -93,7 +120,6 @@ export default function ClientsAdminPage() {
     fetchClients()
   }, [fetchClients])
 
-  // Paginación infinita
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -129,7 +155,9 @@ export default function ClientsAdminPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-64"
         />
-        <Button onClick={handleSearch}>Buscar</Button>
+        <Button onClick={handleSearch} disabled={loading}>
+          {loading ? "Buscando..." : "Buscar"}
+        </Button>
 
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-[160px]">
@@ -148,7 +176,10 @@ export default function ClientsAdminPage() {
       )}
 
       {filteredClients.map((c) => (
-        <Card key={c.uid} className="p-4 space-y-1">
+        <Card
+          key={c.stripeCustomerId || c.uid}
+          className="p-4 space-y-1"
+        >
           <div className="flex justify-between items-center">
             <div>
               <p>

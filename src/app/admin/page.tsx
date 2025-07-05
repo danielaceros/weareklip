@@ -1,108 +1,161 @@
-"use client";
-import { uploadFile } from "@/lib/uploadToStorage";
-import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+"use client"
+
+import { useEffect, useState } from "react"
+import { db } from "@/lib/firebase"
+import { collectionGroup, getDocs, query } from "firebase/firestore"
+import { toast } from "sonner"
+import { Card, CardContent } from "@/components/ui/card"
+import { Bar, Pie } from "react-chartjs-2"
 import {
-  collection,
-  getDocs,
-  updateDoc,
-  doc,
-  orderBy,
-  query,
-} from "firebase/firestore";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  Chart,
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+  Title,
+} from "chart.js"
 
-type Order = {
-  id: string;
-  title: string;
-  format: string;
-  status: string;
-  userId: string;
-  deliveredUrl?: string;
-};
+Chart.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title)
 
-const estados = ["pendiente", "en_producción", "entregado"];
+type StripeClient = {
+  email: string
+  subStatus: string
+}
 
-export default function AdminPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+export default function AdminDashboardPage() {
+  const [scriptCount, setScriptCount] = useState(0)
+  const [videoCount, setVideoCount] = useState(0)
+  const [clientsStats, setClientsStats] = useState({
+    active: 0,
+    inactive: 0,
+    total: 0,
+  })
 
-  const fetchOrders = async () => {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Order[];
-    setOrders(data);
-  };
-
-  const updateStatus = async (id: string, status: string) => {
-    await updateDoc(doc(db, "orders", id), { status });
-    fetchOrders();
-  };
-
-  const updateUrl = async (id: string, url: string) => {
-    await updateDoc(doc(db, "orders", id), { deliveredUrl: url });
-    fetchOrders();
-  };
+  const isActive = (status: string) =>
+    ["active", "trialing", "past_due", "unpaid"].includes(status)
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    const fetchData = async () => {
+      try {
+        await Promise.all([fetchFirestoreData(), fetchStripeClients()])
+      } catch {
+        toast.error("Error al cargar el dashboard.")
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  const fetchFirestoreData = async () => {
+    try {
+      const scriptsSnap = await getDocs(query(collectionGroup(db, "guiones")))
+      const videosSnap = await getDocs(query(collectionGroup(db, "videos")))
+
+      setScriptCount(scriptsSnap.size)
+      setVideoCount(videosSnap.size)
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al cargar datos de Firestore")
+    }
+  }
+
+  const fetchStripeClients = async () => {
+    try {
+      const res = await fetch("/api/stripe/clients")
+      if (!res.ok) throw new Error("Fallo en la consulta a Stripe")
+
+      const { data }: { data: StripeClient[] } = await res.json()
+      const uniqueEmails = new Map<string, StripeClient>()
+
+      data.forEach((client) => {
+        const current = uniqueEmails.get(client.email)
+        if (!current || isActive(client.subStatus)) {
+          uniqueEmails.set(client.email, client)
+        }
+      })
+
+      const deduplicated = Array.from(uniqueEmails.values())
+      const active = deduplicated.filter((c) => isActive(c.subStatus)).length
+      const inactive = deduplicated.length - active
+
+      setClientsStats({ active, inactive, total: deduplicated.length })
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al obtener clientes de Stripe")
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Panel Admin – Pedidos</h1>
-      {orders.map((order) => (
-        <Card key={order.id}>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="font-semibold">{order.title}</h2>
-                <p className="text-sm text-muted-foreground">{order.userId}</p>
-              </div>
-              <Badge>{order.format}</Badge>
-            </div>
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">📊 Panel de Administración</h1>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Estado:</span>
-              {estados.map((estado) => (
-                <Button
-                  key={estado}
-                  size="sm"
-                  variant={order.status === estado ? "default" : "outline"}
-                  onClick={() => updateStatus(order.id, estado)}
-                >
-                  {estado}
-                </Button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-1">
-            <Label>Entrega (URL manual o archivo):</Label>
-            <Input
-                placeholder="https://..."
-                defaultValue={order.deliveredUrl}
-                onBlur={(e) => updateUrl(order.id, e.target.value)}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Totales */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Totales del Sistema</h2>
+            <Bar
+              data={{
+                labels: ["Guiones", "Vídeos", "Clientes"],
+                datasets: [
+                  {
+                    label: "Total",
+                    data: [scriptCount, videoCount, clientsStats.total],
+                    backgroundColor: ["#3b82f6", "#8b5cf6", "#10b981"],
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                plugins: {
+                  legend: { display: false },
+                  title: {
+                    display: true,
+                    text: "Resumen General",
+                    font: { size: 16 },
+                  },
+                },
+                scales: {
+                  y: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+              }}
             />
-            <Input
-                type="file"
-                onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                const url = await uploadFile(file, `deliveries/${order.id}/${file.name}`);
-                await updateUrl(order.id, url);
-                }}
-            />
-            </div>
           </CardContent>
         </Card>
-      ))}
+
+        {/* Clientes activos/inactivos */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Clientes por Estado</h2>
+            <Pie
+              data={{
+                labels: ["Activos", "Inactivos"],
+                datasets: [
+                  {
+                    data: [clientsStats.active, clientsStats.inactive],
+                    backgroundColor: ["#22c55e", "#ef4444"],
+                    borderColor: "#fff",
+                    borderWidth: 2,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                plugins: {
+                  legend: { position: "bottom" },
+                  title: {
+                    display: true,
+                    text: "Distribución de Clientes",
+                    font: { size: 16 },
+                  },
+                },
+              }}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  );
+  )
 }

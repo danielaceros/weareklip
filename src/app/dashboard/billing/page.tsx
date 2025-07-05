@@ -37,27 +37,37 @@ export default function BillingPage() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (!user) {
-        toast.error("No estás autenticado")
+        toast.error("No estás autenticado", {
+          description: "Inicia sesión para ver tus datos de suscripción.",
+        })
         setLoading(false)
         return
       }
 
-      const token = await user.getIdToken()
-      const res = await fetch("/api/stripe/subscription", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      try {
+        const token = await user.getIdToken()
+        const res = await fetch("/api/stripe/subscription", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
 
-      if (!res.ok) {
-        toast.error("No se pudo cargar la suscripción")
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err?.error || "No se pudo obtener la suscripción")
+        }
+
+        const data: StripeSubscription = await res.json()
+        setSub(data)
+      } catch (error: unknown) {
+        const err = error as { message?: string }
+        console.error("Error al cargar la suscripción:", err)
+        toast.error("Error al obtener la suscripción", {
+          description: err.message ?? "Ocurrió un error inesperado.",
+        })
+      } finally {
         setLoading(false)
-        return
       }
-
-      const data = await res.json()
-      setSub(data)
-      setLoading(false)
     })
 
     return () => unsubscribe()
@@ -101,7 +111,7 @@ export default function BillingPage() {
       <h1 className="text-2xl font-bold">Mi Suscripción</h1>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando...</p>
+        <p className="text-muted-foreground animate-pulse">Cargando suscripción...</p>
       ) : sub ? (
         <>
           {/* Datos del cliente */}

@@ -5,8 +5,8 @@ import { auth, db } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import {
   collection,
-  doc,
   getDocs,
+  doc,
   updateDoc,
 } from "firebase/firestore"
 import {
@@ -37,17 +37,31 @@ type Video = {
 export default function VideosPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [videos, setVideos] = useState<Video[]>([])
+  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Video | null>(null)
   const [estadoEditado, setEstadoEditado] = useState("0")
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      if (!user) {
+        toast.error("No autenticado", {
+          description: "Inicia sesión para acceder a tus vídeos.",
+        })
+        setLoading(false)
+        return
+      }
+
+      try {
         setUserId(user.uid)
         await fetchVideos(user.uid)
-      } else {
-        toast.error("No autenticado")
+      } catch (err) {
+        console.error("Error al cargar vídeos:", err)
+        toast.error("No se pudieron cargar los vídeos", {
+          description: "Intenta recargar la página.",
+        })
+      } finally {
+        setLoading(false)
       }
     })
 
@@ -58,6 +72,12 @@ export default function VideosPage() {
     try {
       const ref = collection(db, "users", uid, "videos")
       const snapshot = await getDocs(ref)
+
+      if (snapshot.empty) {
+        toast("Aún no tienes vídeos", {
+          description: "Cuando estén listos, los verás aquí.",
+        })
+      }
 
       const data: Video[] = snapshot.docs.map((doc) => {
         const d = doc.data()
@@ -70,8 +90,11 @@ export default function VideosPage() {
       })
 
       setVideos(data)
-    } catch {
-      toast.error("Error cargando vídeos")
+    } catch (error) {
+      console.error("Error obteniendo vídeos:", error)
+      toast.error("Error al cargar los vídeos", {
+        description: "Verifica tu conexión o intenta de nuevo.",
+      })
     }
   }
 
@@ -82,13 +105,16 @@ export default function VideosPage() {
   }
 
   const guardarCambios = async () => {
-    if (!userId || !selected) return
+    if (!userId || !selected) {
+      toast.error("No se puede guardar", {
+        description: "Falta información del usuario o vídeo.",
+      })
+      return
+    }
 
     try {
       const ref = doc(db, "users", userId, "videos", selected.firebaseId)
-      await updateDoc(ref, {
-        estado: parseInt(estadoEditado),
-      })
+      await updateDoc(ref, { estado: parseInt(estadoEditado) })
 
       setVideos((prev) =>
         prev.map((v) =>
@@ -98,10 +124,11 @@ export default function VideosPage() {
         )
       )
 
-      toast.success("Estado actualizado")
+      toast.success("Estado actualizado correctamente")
       setOpen(false)
-    } catch {
-      toast.error("Error actualizando")
+    } catch (error) {
+      console.error("Error guardando cambios:", error)
+      toast.error("No se pudo actualizar el estado del vídeo")
     }
   }
 
@@ -122,7 +149,9 @@ export default function VideosPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Mis Vídeos</h1>
 
-      {videos.length > 0 ? (
+      {loading ? (
+        <p className="text-muted-foreground animate-pulse">Cargando vídeos...</p>
+      ) : videos.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {videos.map((video) => (
             <Card
@@ -148,7 +177,7 @@ export default function VideosPage() {
           ))}
         </div>
       ) : (
-        <p className="text-muted-foreground">No hay vídeos aún.</p>
+        <p className="text-muted-foreground">No hay vídeos disponibles.</p>
       )}
 
       {/* Modal */}

@@ -7,7 +7,7 @@ import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 
 const links = [
-  { href: "/admin", label: "Pedidos" },
+  { href: "/admin", label: "Home" },
   { href: "/admin/scripts", label: "Crear Guiones" },
   { href: "/admin/videos", label: "Crear Videos" },
   { href: "/admin/users", label: "Usuarios" },

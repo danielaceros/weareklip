@@ -27,7 +27,7 @@ interface Guion {
   firebaseId: string
   titulo: string
   contenido: string
-  estado: number // 0: Nuevo, 1: Cambios, 2: Aprobado
+  estado: number
   createdAt?: string
 }
 
@@ -44,30 +44,32 @@ export default function GuionesPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUserId(user.uid)
-        await fetchGuiones(user.uid)
-      } else {
+      if (!user) {
+        toast.error("No autenticado", {
+          description: "Debes iniciar sesión para ver tus guiones.",
+        })
         setUserId(null)
         setGuiones([])
         setLoading(false)
-        toast.error("No estás autenticado", {
-          description: "Por favor inicia sesión para ver tus guiones.",
-        })
+        return
       }
+
+      setUserId(user.uid)
+      await fetchGuiones(user.uid)
     })
 
     return () => unsubscribe()
   }, [])
 
   const fetchGuiones = async (uid: string) => {
+    setLoading(true)
     try {
       const ref = collection(db, "users", uid, "guiones")
       const snapshot = await getDocs(ref)
 
       if (snapshot.empty) {
         toast("Aún no tienes guiones", {
-          description: "Cuando los generes, aparecerán aquí.",
+          description: "Cuando se generen, aparecerán aquí.",
         })
       }
 
@@ -86,7 +88,7 @@ export default function GuionesPage() {
     } catch (error) {
       console.error("Error al obtener guiones:", error)
       toast.error("Error al cargar guiones", {
-        description: "Intenta recargar la página.",
+        description: "Intenta recargar la página o contacta soporte.",
       })
     } finally {
       setLoading(false)
@@ -102,7 +104,12 @@ export default function GuionesPage() {
   }
 
   const guardarCambios = async () => {
-    if (!userId || !selectedGuion) return
+    if (!userId || !selectedGuion) {
+      toast.error("No se pudo guardar", {
+        description: "Falta información del usuario o guion.",
+      })
+      return
+    }
 
     try {
       const ref = doc(db, "users", userId, "guiones", selectedGuion.firebaseId)
@@ -112,23 +119,26 @@ export default function GuionesPage() {
         estado: parseInt(estadoEditado),
       })
 
-      // Actualizar en el estado local
-      const nuevosGuiones = guiones.map((g) =>
-        g.firebaseId === selectedGuion.firebaseId
-          ? {
-              ...g,
-              titulo: tituloEditado,
-              contenido: contenidoEditado,
-              estado: parseInt(estadoEditado),
-            }
-          : g
+      setGuiones((prev) =>
+        prev.map((g) =>
+          g.firebaseId === selectedGuion.firebaseId
+            ? {
+                ...g,
+                titulo: tituloEditado,
+                contenido: contenidoEditado,
+                estado: parseInt(estadoEditado),
+              }
+            : g
+        )
       )
-      setGuiones(nuevosGuiones)
-      toast.success("Guion actualizado")
+
+      toast.success("Cambios guardados correctamente")
       setOpen(false)
     } catch (error) {
-      console.error("Error al actualizar guion:", error)
-      toast.error("Error al guardar cambios")
+      console.error("Error al guardar guion:", error)
+      toast.error("Error al guardar", {
+        description: "Verifica tu conexión o vuelve a intentarlo.",
+      })
     }
   }
 
@@ -137,7 +147,7 @@ export default function GuionesPage() {
       case 0:
         return <Badge className="bg-red-500">Nuevo</Badge>
       case 1:
-        return <Badge className="bg-yellow-400">Necesita Cambios</Badge>
+        return <Badge className="bg-yellow-400">Cambios</Badge>
       case 2:
         return <Badge className="bg-green-500">Aprobado</Badge>
       default:
@@ -150,7 +160,7 @@ export default function GuionesPage() {
       <h1 className="text-2xl font-bold mb-6">Mis Guiones</h1>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando...</p>
+        <p className="text-muted-foreground animate-pulse">Cargando guiones...</p>
       ) : guiones.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {guiones.map((guion) => (

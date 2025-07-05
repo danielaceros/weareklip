@@ -8,7 +8,12 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { db } from "@/lib/firebase"
 import {
   collectionGroup,
@@ -19,8 +24,9 @@ import {
   Timestamp,
   collection,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -31,6 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
+import { Pencil, Trash } from "lucide-react"
 
 type Video = {
   firebaseId: string
@@ -41,71 +49,159 @@ type Video = {
   userId: string
 }
 
+type ClienteActivo = {
+  email: string
+  uid: string
+  planName?: string
+  subStatus?: string
+}
+
 export default function VideoAdminPage() {
   const [videosByEmail, setVideosByEmail] = useState<Record<string, Video[]>>({})
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null)
 
   const [email, setEmail] = useState("")
   const [titulo, setTitulo] = useState("")
   const [url, setUrl] = useState("")
   const [estado, setEstado] = useState("0")
   const [loading, setLoading] = useState(false)
+  const [clientesActivos, setClientesActivos] = useState<ClienteActivo[]>([])
+
+  const isActive = (status: string) =>
+    ["active", "trialing", "past_due", "unpaid"].includes(status)
 
   const fetchVideos = async () => {
-    const q = collectionGroup(db, "videos")
-    const snapshot = await getDocs(q)
-    const tempGrouped: Record<string, Video[]> = {}
+    try {
+      const snapshot = await getDocs(collectionGroup(db, "videos"))
+      const tempGrouped: Record<string, Video[]> = {}
 
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data() as Video
-      const path = docSnap.ref.path
-      const uid = path.split("/")[1]
-      const firebaseId = docSnap.id
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data() as Video
+        const uid = docSnap.ref.path.split("/")[1]
+        const firebaseId = docSnap.id
+        const userSnap = await getDoc(doc(db, "users", uid))
 
-      const userRef = doc(db, "users", uid)
-      const userSnap = await getDoc(userRef)
-      const email = userSnap.exists() ? userSnap.data().email || uid : uid
+        if (!userSnap.exists()) continue
 
-      const videoWithMeta: Video = { ...data, userId: uid, firebaseId }
+        const userData = userSnap.data()
+        const userEmail = userData?.email || uid
+        const videoWithMeta: Video = { ...data, userId: uid, firebaseId }
 
-      if (!tempGrouped[email]) tempGrouped[email] = []
-      tempGrouped[email].push(videoWithMeta)
+        if (!tempGrouped[userEmail]) tempGrouped[userEmail] = []
+        tempGrouped[userEmail].push(videoWithMeta)
+      }
+
+      setVideosByEmail(tempGrouped)
+    } catch (err) {
+      console.error("Error cargando vídeos:", err)
+      toast.error("No se pudieron cargar los vídeos.")
     }
-
-    setVideosByEmail(tempGrouped)
   }
 
-  const handleCreate = async () => {
+  const fetchActivos = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stripe/clients")
+      if (!res.ok) throw new Error("No se pudo acceder a los clientes.")
+      const { data } = await res.json()
+      const map = new Map<string, ClienteActivo>()
+      for (const c of data) {
+        if (!map.has(c.email) || isActive(c.subStatus)) {
+          map.set(c.email, c)
+        }
+      }
+
+      setClientesActivos(Array.from(map.values()).filter(c => isActive(c.subStatus!)))
+    } catch (err) {
+      console.error("Error al cargar clientes activos:", err)
+      toast.error("No se pudieron cargar los clientes.")
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchVideos()
+    fetchActivos()
+  }, [fetchActivos]) // ✅ Corregido: añadido fetchActivos como dependencia
+
+  const clienteOptions = clientesActivos.map((c) => ({
+    label: `${c.email} (${c.planName ?? "Sin plan"})`,
+    value: c.email,
+    badge: "Activo",
+  }))
+
+  const handleCreateOrUpdate = async () => {
     if (!email || !titulo || !url) {
-      toast.error("Completa todos los campos")
+      toast.warning("Todos los campos son obligatorios.")
       return
     }
 
     try {
       setLoading(true)
-      const res = await fetch(`/api/get-uid-by-email?email=${email}`)
-      const { uid } = await res.json()
-      if (!uid) throw new Error("UID no encontrado")
+      const userSnap = await getDocs(collection(db, "users"))
+      let uid: string | null = null
 
-      await addDoc(collection(db, `users/${uid}/videos`), {
+      userSnap.forEach((doc) => {
+        const user = doc.data()
+        if (user?.email === email) {
+          uid = doc.id
+        }
+      })
+
+      if (!uid) throw new Error("No se encontró ningún usuario con ese email.")
+
+      const data = {
         titulo,
         url,
         estado: parseInt(estado),
         createdAt: Timestamp.now(),
-      })
+      }
 
-      toast.success("Vídeo creado")
-      setEmail("")
-      setTitulo("")
-      setUrl("")
-      setEstado("0")
-      setModalOpen(false)
+      if (editingVideo) {
+        const ref = doc(db, `users/${editingVideo.userId}/videos/${editingVideo.firebaseId}`)
+        await updateDoc(ref, data)
+        toast.success("Vídeo actualizado correctamente.")
+      } else {
+        await addDoc(collection(db, `users/${uid}/videos`), data)
+        toast.success("Vídeo creado correctamente.")
+      }
+
+      resetForm()
       fetchVideos()
-    } catch (error) {
-      console.error(error)
-      toast.error("Error al crear vídeo")
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al guardar el vídeo. Verifica que el email sea válido.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const resetForm = () => {
+    setEmail("")
+    setTitulo("")
+    setUrl("")
+    setEstado("0")
+    setEditingVideo(null)
+    setModalOpen(false)
+  }
+
+  const handleEdit = (video: Video) => {
+    setEditingVideo(video)
+    setEmail(video.userId) // Se puede mejorar buscando email por UID si es necesario
+    setTitulo(video.titulo)
+    setUrl(video.url)
+    setEstado(video.estado.toString())
+    setModalOpen(true)
+  }
+
+  const handleDelete = async (video: Video) => {
+    try {
+      const ref = doc(db, `users/${video.userId}/videos/${video.firebaseId}`)
+      await deleteDoc(ref)
+      toast.success("Vídeo eliminado correctamente.")
+      fetchVideos()
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al eliminar el vídeo.")
     }
   }
 
@@ -118,39 +214,43 @@ export default function VideoAdminPage() {
       await updateDoc(doc(db, "users", userId, "videos", videoId), {
         estado: parseInt(newEstado),
       })
-      toast.success("Estado actualizado")
+      toast.success("Estado actualizado.")
       fetchVideos()
     } catch (err) {
-      console.error(err)
-      toast.error("Error actualizando estado")
+      console.error("Error actualizando estado:", err)
+      toast.error("No se pudo actualizar el estado del vídeo.")
     }
   }
 
-  useEffect(() => {
-    fetchVideos()
-  }, [])
-
   return (
-    <div className="relative">
-      <h1 className="text-2xl font-bold mb-6">Vídeos por Usuario</h1>
+    <div className="relative p-6">
+      <h1 className="text-2xl font-bold mb-6">📽️ Vídeos por Usuario</h1>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogTrigger asChild>
-          <Button className="absolute top-0 right-0">+ Añadir Vídeo</Button>
+          <Button className="absolute top-6 right-6">
+            + {editingVideo ? "Editar" : "Añadir"} Vídeo
+          </Button>
         </DialogTrigger>
         <DialogContent>
-          <DialogTitle>Añadir Vídeo</DialogTitle>
+          <DialogTitle>{editingVideo ? "✏️ Editar" : "🆕 Añadir"} Vídeo</DialogTitle>
           <div className="space-y-4 mt-4">
             <div>
-              <Label>Email del usuario</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label>Cliente</Label>
+              <Combobox
+                options={clienteOptions}
+                value={email}
+                onValueChange={setEmail}
+                placeholder="Selecciona o escribe un email"
+                allowCustom
+              />
             </div>
             <div>
               <Label>Título</Label>
               <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
             </div>
             <div>
-              <Label>URL (Frame.io, YouTube...)</Label>
+              <Label>URL</Label>
               <Input value={url} onChange={(e) => setUrl(e.target.value)} />
             </div>
             <div>
@@ -166,8 +266,8 @@ export default function VideoAdminPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleCreate} disabled={loading}>
-              {loading ? "Subiendo..." : "Crear"}
+            <Button onClick={handleCreateOrUpdate} disabled={loading}>
+              {loading ? "Guardando..." : editingVideo ? "Actualizar" : "Crear"}
             </Button>
           </div>
         </DialogContent>
@@ -178,8 +278,16 @@ export default function VideoAdminPage() {
           <AccordionItem key={email} value={email}>
             <AccordionTrigger>{email}</AccordionTrigger>
             <AccordionContent className="space-y-4">
-              {videos.map((video, index) => (
-                <Card key={index} className="p-4 space-y-2">
+              {videos.map((video) => (
+                <Card key={video.firebaseId} className="p-4 space-y-2 relative">
+                  <div className="absolute top-3 right-3 flex gap-2">
+                    <Button size="icon" variant="ghost" onClick={() => handleEdit(video)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={() => handleDelete(video)}>
+                      <Trash className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
                   <p className="font-semibold">{video.titulo}</p>
                   <a
                     href={video.url}
