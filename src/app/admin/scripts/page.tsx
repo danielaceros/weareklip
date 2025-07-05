@@ -6,7 +6,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-// import { Badge } from "@/components/ui/badge" // ❌ Eliminado porque no se usa
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -42,6 +41,8 @@ import { useEffect, useState, useCallback } from "react"
 import { toast } from "sonner"
 import { Pencil, Trash } from "lucide-react"
 
+// tipos
+
 type Script = {
   firebaseId: string
   titulo: string
@@ -56,6 +57,22 @@ type ClienteActivo = {
   uid: string
   planName?: string
   subStatus?: string
+}
+
+const notifyScriptAction = async (email: string, subject: string, content: string) => {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: email,
+        subject,
+        content,
+      }),
+    })
+  } catch (err) {
+    console.error("Error enviando email:", err)
+  }
 }
 
 export default function ScriptAdminPage() {
@@ -98,7 +115,7 @@ export default function ScriptAdminPage() {
   useEffect(() => {
     fetchScripts()
     fetchActivos()
-  }, [fetchActivos]) // ✅ Incluido en dependencias
+  }, [fetchActivos])
 
   const fetchScripts = async () => {
     try {
@@ -168,9 +185,11 @@ export default function ScriptAdminPage() {
       if (editingScript) {
         await updateDoc(doc(db, `users/${uid}/guiones/${editingScript.firebaseId}`), payload)
         toast.success("Guión actualizado.")
+        await notifyScriptAction(email, "✏️ Tu guión ha sido actualizado", `El guión "${titulo}" ha sido actualizado por el equipo.`)
       } else {
         await addDoc(collection(db, `users/${uid}/guiones`), payload)
         toast.success("Guión creado correctamente.")
+        await notifyScriptAction(email, "📜 Nuevo guión disponible", `Se ha creado un nuevo guión titulado "${titulo}". Revísalo en tu panel.`)
       }
 
       resetForm()
@@ -184,10 +203,11 @@ export default function ScriptAdminPage() {
     }
   }
 
-  const handleDeleteScript = async (uid: string, scriptId: string) => {
+  const handleDeleteScript = async (uid: string, scriptId: string, email: string, titulo: string) => {
     try {
       await deleteDoc(doc(db, `users/${uid}/guiones/${scriptId}`))
       toast.success("Guión eliminado.")
+      await notifyScriptAction(email, "🗑️ Guión eliminado", `El guión "${titulo}" ha sido eliminado por el equipo.`)
       fetchScripts()
     } catch (err) {
       console.error("Error al eliminar guión:", err)
@@ -198,7 +218,9 @@ export default function ScriptAdminPage() {
   const handleEstadoChange = async (
     newEstado: string,
     userId: string,
-    scriptId: string
+    scriptId: string,
+    email: string,
+    titulo: string
   ) => {
     try {
       await updateDoc(doc(db, `users/${userId}/guiones/${scriptId}`), {
@@ -206,6 +228,12 @@ export default function ScriptAdminPage() {
       })
       toast.success("Estado actualizado.")
       fetchScripts()
+      const estados: Record<string, string> = {
+        "0": "🆕 Nuevo",
+        "1": "✏️ Cambios",
+        "2": "✅ Aprobado"
+      }
+      await notifyScriptAction(email, `🎯 Estado actualizado: ${estados[newEstado]}`, `Tu guión "${titulo}" ahora está marcado como: <strong>${estados[newEstado]}</strong>`)
     } catch (err) {
       console.error("Error actualizando estado:", err)
       toast.error("No se pudo actualizar el estado del guión.")
@@ -301,7 +329,7 @@ export default function ScriptAdminPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteScript(script.userId, script.firebaseId)}
+                        onClick={() => handleDeleteScript(script.userId, script.firebaseId, email, script.titulo)}
                       >
                         <Trash className="w-4 h-4 text-red-500" />
                       </Button>
@@ -315,7 +343,7 @@ export default function ScriptAdminPage() {
                       <Select
                         value={String(script.estado)}
                         onValueChange={(value) =>
-                          handleEstadoChange(value, script.userId, script.firebaseId)
+                          handleEstadoChange(value, script.userId, script.firebaseId, email, script.titulo)
                         }
                       >
                         <SelectTrigger className="w-48 mt-1">

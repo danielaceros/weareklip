@@ -40,6 +40,23 @@ import {
 import { Combobox } from "@/components/ui/combobox"
 import { Pencil, Trash } from "lucide-react"
 
+const sendNotificationEmail = async (to: string, subject: string, content: string) => {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, content }),
+    })
+  } catch (err) {
+    console.error("Error enviando correo:", err)
+  }
+}
+
+const getEmailByUid = async (uid: string) => {
+  const userSnap = await getDoc(doc(db, "users", uid))
+  return userSnap.exists() ? userSnap.data()?.email || uid : uid
+}
+
 type Video = {
   firebaseId: string
   titulo: string
@@ -121,7 +138,7 @@ export default function VideoAdminPage() {
   useEffect(() => {
     fetchVideos()
     fetchActivos()
-  }, [fetchActivos]) // ✅ Corregido: añadido fetchActivos como dependencia
+  }, [fetchActivos])
 
   const clienteOptions = clientesActivos.map((c) => ({
     label: `${c.email} (${c.planName ?? "Sin plan"})`,
@@ -160,9 +177,20 @@ export default function VideoAdminPage() {
         const ref = doc(db, `users/${editingVideo.userId}/videos/${editingVideo.firebaseId}`)
         await updateDoc(ref, data)
         toast.success("Vídeo actualizado correctamente.")
+        const to = await getEmailByUid(editingVideo.userId)
+        await sendNotificationEmail(
+          to,
+          "🎬 Tu vídeo ha sido actualizado",
+          `<p>El vídeo <strong>${titulo}</strong> ha sido editado correctamente. Puedes verlo en tu panel.</p>`
+        )
       } else {
         await addDoc(collection(db, `users/${uid}/videos`), data)
         toast.success("Vídeo creado correctamente.")
+        await sendNotificationEmail(
+          email,
+          "🎬 Nuevo vídeo disponible",
+          `<p>Se ha creado un nuevo vídeo llamado <strong>${titulo}</strong>. Puedes verlo en tu panel.</p>`
+        )
       }
 
       resetForm()
@@ -186,7 +214,7 @@ export default function VideoAdminPage() {
 
   const handleEdit = (video: Video) => {
     setEditingVideo(video)
-    setEmail(video.userId) // Se puede mejorar buscando email por UID si es necesario
+    setEmail(video.userId)
     setTitulo(video.titulo)
     setUrl(video.url)
     setEstado(video.estado.toString())
@@ -199,6 +227,12 @@ export default function VideoAdminPage() {
       await deleteDoc(ref)
       toast.success("Vídeo eliminado correctamente.")
       fetchVideos()
+      const to = await getEmailByUid(video.userId)
+      await sendNotificationEmail(
+        to,
+        "🗑️ Tu vídeo ha sido eliminado",
+        `<p>El vídeo <strong>${video.titulo}</strong> ha sido eliminado por el equipo de KLIP.</p>`
+      )
     } catch (err) {
       console.error(err)
       toast.error("Error al eliminar el vídeo.")
@@ -216,6 +250,20 @@ export default function VideoAdminPage() {
       })
       toast.success("Estado actualizado.")
       fetchVideos()
+
+      const to = await getEmailByUid(userId)
+      const estadoTexto =
+        newEstado === "0"
+          ? "🆕 Nuevo"
+          : newEstado === "1"
+          ? "✏️ En revisión"
+          : "✅ Aprobado"
+
+      await sendNotificationEmail(
+        to,
+        `🎯 Tu vídeo ha cambiado de estado: ${estadoTexto}`,
+        `<p>El equipo de KLIP ha actualizado el estado de uno de tus vídeos a <strong>${estadoTexto}</strong>.</p>`
+      )
     } catch (err) {
       console.error("Error actualizando estado:", err)
       toast.error("No se pudo actualizar el estado del vídeo.")
