@@ -77,8 +77,8 @@ export async function POST(req: Request) {
       port: 465,
       secure: true,
       auth: {
-        user: process.env.IONOS_USER || "hello@weareklip.com",
-        pass: process.env.IONOS_PASS || "Tegucigalpa12$$",
+        user: process.env.IONOS_USER,
+        pass: process.env.IONOS_PASS,
       },
     })
 
