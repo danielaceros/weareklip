@@ -113,7 +113,7 @@ export default function Home() {
 
       <div className="relative z-10 px-6 text-center max-w-lg">
         <h1 className="text-5xl font-extrabold leading-tight mb-4">
-          {isLogin ? "Bienvenido/a a KLIP" : "Crea tu cuenta en KLIP"}
+          {isLogin ? "Bienvenido/a a KLIP" : "Empieza en KLIP"}
         </h1>
         <p className="text-lg mb-8">🤖 Automatizamos TODO tu contenido en redes.</p>
 
