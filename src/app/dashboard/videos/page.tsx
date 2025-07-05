@@ -3,12 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { auth, db } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-} from "firebase/firestore"
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 import {
   Dialog,
   DialogContent,
@@ -26,6 +21,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import { Download } from "lucide-react"
 
 type Video = {
   firebaseId: string
@@ -39,6 +35,7 @@ export default function VideosPage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Video | null>(null)
+  const [tituloEditado, setTituloEditado] = useState("")
   const [estadoEditado, setEstadoEditado] = useState("0")
   const [open, setOpen] = useState(false)
 
@@ -92,8 +89,9 @@ export default function VideosPage() {
     return () => unsubscribe()
   }, [fetchVideos])
 
-  const openEditor = (video: Video) => {
+  const openModal = (video: Video) => {
     setSelected(video)
+    setTituloEditado(video.titulo)
     setEstadoEditado(String(video.estado))
     setOpen(true)
   }
@@ -106,23 +104,52 @@ export default function VideosPage() {
       return
     }
 
+    if (tituloEditado.trim() === "") {
+      toast.warning("El título no puede estar vacío.")
+      return
+    }
+
     try {
       const ref = doc(db, "users", userId, "videos", selected.firebaseId)
-      await updateDoc(ref, { estado: parseInt(estadoEditado) })
+      await updateDoc(ref, { 
+        estado: parseInt(estadoEditado),
+        titulo: tituloEditado.trim(),
+      })
 
       setVideos((prev) =>
         prev.map((v) =>
           v.firebaseId === selected.firebaseId
-            ? { ...v, estado: parseInt(estadoEditado) }
+            ? { ...v, estado: parseInt(estadoEditado), titulo: tituloEditado.trim() }
             : v
         )
       )
 
-      toast.success("Estado actualizado correctamente")
+      toast.success("Cambios guardados correctamente")
       setOpen(false)
     } catch (error) {
       console.error("Error guardando cambios:", error)
-      toast.error("No se pudo actualizar el estado del vídeo")
+      toast.error("No se pudo actualizar el vídeo")
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!selected) return
+    try {
+      const response = await fetch(`/api/download-video?url=${encodeURIComponent(selected.url)}`)
+      if (!response.ok) throw new Error("Error al descargar")
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${tituloEditado || selected.titulo}.mp4`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error descargando vídeo:", error)
+      toast.error("No se pudo descargar el vídeo")
     }
   }
 
@@ -146,26 +173,24 @@ export default function VideosPage() {
       {loading ? (
         <p className="text-muted-foreground animate-pulse">Cargando vídeos...</p>
       ) : videos.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {videos.map((video) => (
             <Card
               key={video.firebaseId}
               className="cursor-pointer hover:shadow-lg transition"
-              onClick={() => openEditor(video)}
+              onClick={() => openModal(video)}
             >
-              <CardContent className="p-4 space-y-2">
+              <CardContent className="p-2 space-y-1">
                 <div className="flex justify-between items-center">
-                  <h2 className="font-semibold text-lg truncate">{video.titulo}</h2>
+                  <h2 className="font-semibold text-base truncate">{video.titulo}</h2>
                   {renderEstado(video.estado)}
                 </div>
-                <a
-                  href={video.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm underline text-blue-600"
-                >
-                  Ver en Frame.io
-                </a>
+                <video
+                  src={video.url}
+                  className="w-full max-w-[180px] max-h-[320px] rounded object-contain mt-2"
+                  controls
+                  preload="metadata"
+                />
               </CardContent>
             </Card>
           ))}
@@ -176,25 +201,53 @@ export default function VideosPage() {
 
       {/* Modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Estado del Vídeo</DialogTitle>
+            <DialogTitle>
+              <input
+                type="text"
+                value={tituloEditado}
+                onChange={(e) => setTituloEditado(e.target.value)}
+                className="w-110 border-b border-gray-300 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 rounded"
+                placeholder="Editar título"
+              />
+            </DialogTitle>
           </DialogHeader>
 
-          <Select value={estadoEditado} onValueChange={setEstadoEditado}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">🆕 Nuevo</SelectItem>
-              <SelectItem value="1">✏️ Cambios</SelectItem>
-              <SelectItem value="2">✅ Aprobado</SelectItem>
-            </SelectContent>
-          </Select>
+          {selected && (
+            <>
+              <video
+                src={selected.url}
+                controls
+                className="w-full max-w-[320px] max-h-[568px] rounded mx-auto object-contain"
+                preload="metadata"
+              />
 
-          <Button className="mt-4" onClick={guardarCambios}>
-            Guardar cambios
-          </Button>
+              <div className="mt-4 flex flex-col sm:flex-row sm:justify-between gap-4 items-center">
+                <Button
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  aria-label="Descargar vídeo"
+                >
+                  <Download className="w-5 h-5" />
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Select value={estadoEditado} onValueChange={setEstadoEditado}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Selecciona estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">🆕 Nuevo</SelectItem>
+                      <SelectItem value="1">✏️ Cambios</SelectItem>
+                      <SelectItem value="2">✅ Aprobado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={guardarCambios}>Guardar cambios</Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

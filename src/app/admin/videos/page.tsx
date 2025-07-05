@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { db } from "@/lib/firebase"
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import {
   collectionGroup,
   doc,
@@ -26,10 +27,9 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore"
-import { useEffect, useState, useCallback } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -39,6 +39,9 @@ import {
 } from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
 import { Pencil, Trash } from "lucide-react"
+import { v4 as uuidv4 } from "uuid"
+
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 const sendNotificationEmail = async (to: string, subject: string, content: string) => {
   try {
@@ -80,10 +83,16 @@ export default function VideoAdminPage() {
 
   const [email, setEmail] = useState("")
   const [titulo, setTitulo] = useState("")
-  const [url, setUrl] = useState("")
   const [estado, setEstado] = useState("0")
+
   const [loading, setLoading] = useState(false)
   const [clientesActivos, setClientesActivos] = useState<ClienteActivo[]>([])
+
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [fileUrl, setFileUrl] = useState("") // URL video subido
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const isActive = (status: string) =>
     ["active", "trialing", "past_due", "unpaid"].includes(status)
@@ -146,38 +155,113 @@ export default function VideoAdminPage() {
     badge: "Activo",
   }))
 
-  const handleCreateOrUpdate = async () => {
-    if (!email || !titulo || !url) {
-      toast.warning("Todos los campos son obligatorios.")
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    const selectedFile = e.target.files[0]
+
+    if (!email) {
+      toast.error("Selecciona un cliente antes de subir un archivo.")
+      e.target.value = "" // reset input
+      return
+    }
+
+    // Validación tipo .mp4
+    if (selectedFile.type !== "video/mp4") {
+      toast.error("Solo se permiten archivos .mp4")
+      e.target.value = "" // reset input
+      return
+    }
+
+    // Validación tamaño max 100MB
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      toast.error("El archivo no puede superar los 100 MB")
+      e.target.value = "" // reset input
       return
     }
 
     try {
-      setLoading(true)
+      setUploading(true)
+      setUploadProgress(0)
+
+      // Obtener uid del email seleccionado
       const userSnap = await getDocs(collection(db, "users"))
       let uid: string | null = null
-
       userSnap.forEach((doc) => {
         const user = doc.data()
         if (user?.email === email) {
           uid = doc.id
         }
       })
+      if (!uid) throw new Error("No se encontró usuario para subir video.")
 
+      // Generar id para el archivo en storage
+      const videoId = editingVideo ? editingVideo.firebaseId : uuidv4()
+
+      const storage = getStorage()
+      const fileRef = storageRef(storage, `users/${uid}/videos/${videoId}.mp4`)
+
+      const uploadTask = uploadBytesResumable(fileRef, selectedFile)
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(progress)
+        },
+        (error) => {
+          console.error("Error subiendo archivo:", error)
+          toast.error("Error subiendo archivo.")
+          setUploading(false)
+          setUploadProgress(0)
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setFileUrl(downloadURL)
+          toast.success("Archivo subido correctamente.")
+          setUploading(false)
+          setUploadProgress(100)
+        }
+      )
+    } catch (err) {
+      console.error(err)
+      toast.error("Error durante la subida del archivo.")
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  const handleCreateOrUpdate = async () => {
+    if (!email || !titulo || !fileUrl) {
+      toast.warning("Todos los campos son obligatorios, incluyendo el archivo subido.")
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      // Obtener uid del email
+      const userSnap = await getDocs(collection(db, "users"))
+      let uid: string | null = null
+      userSnap.forEach((doc) => {
+        const user = doc.data()
+        if (user?.email === email) {
+          uid = doc.id
+        }
+      })
       if (!uid) throw new Error("No se encontró ningún usuario con ese email.")
 
       const data = {
         titulo,
-        url,
+        url: fileUrl,
         estado: parseInt(estado),
-        createdAt: Timestamp.now(),
+        createdAt: editingVideo ? editingVideo.createdAt : Timestamp.now(),
       }
 
       if (editingVideo) {
-        const ref = doc(db, `users/${editingVideo.userId}/videos/${editingVideo.firebaseId}`)
+        const ref = doc(db, `users/${uid}/videos/${editingVideo.firebaseId}`)
         await updateDoc(ref, data)
         toast.success("Vídeo actualizado correctamente.")
-        const to = await getEmailByUid(editingVideo.userId)
+        const to = await getEmailByUid(uid)
         await sendNotificationEmail(
           to,
           "🎬 Tu vídeo ha sido actualizado",
@@ -206,19 +290,23 @@ export default function VideoAdminPage() {
   const resetForm = () => {
     setEmail("")
     setTitulo("")
-    setUrl("")
     setEstado("0")
+    setFileUrl("")
+    setUploading(false)
+    setUploadProgress(0)
     setEditingVideo(null)
     setModalOpen(false)
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleEdit = (video: Video) => {
     setEditingVideo(video)
     setEmail(video.userId)
     setTitulo(video.titulo)
-    setUrl(video.url)
     setEstado(video.estado.toString())
+    setFileUrl(video.url)
     setModalOpen(true)
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleDelete = async (video: Video) => {
@@ -295,11 +383,38 @@ export default function VideoAdminPage() {
             </div>
             <div>
               <Label>Título</Label>
-              <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+              <input
+                type="text"
+                className="w-full rounded border px-3 py-2 text-sm"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+              />
             </div>
             <div>
-              <Label>URL</Label>
-              <Input value={url} onChange={(e) => setUrl(e.target.value)} />
+              <Label>Archivo de vídeo (drag & drop o click, solo .mp4 hasta 100MB)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".mp4"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="block w-full rounded border border-dashed border-gray-400 p-8 text-center cursor-pointer hover:border-blue-500"
+              />
+              {uploading && (
+                <p className="text-sm mt-2 text-muted-foreground">
+                  Subiendo archivo... {uploadProgress.toFixed(0)}%
+                </p>
+              )}
+              {!uploading && fileUrl && (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline text-sm mt-1 block"
+                >
+                  Ver vídeo subido
+                </a>
+              )}
             </div>
             <div>
               <Label>Estado</Label>
@@ -314,8 +429,8 @@ export default function VideoAdminPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleCreateOrUpdate} disabled={loading}>
-              {loading ? "Guardando..." : editingVideo ? "Actualizar" : "Crear"}
+            <Button onClick={handleCreateOrUpdate} disabled={loading || uploading}>
+              {loading || uploading ? "Guardando..." : editingVideo ? "Actualizar" : "Crear"}
             </Button>
           </div>
         </DialogContent>
