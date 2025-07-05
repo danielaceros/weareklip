@@ -55,50 +55,56 @@ export default function DashboardPage() {
   })
 
   const fetchData = useCallback(async (user: User) => {
-    try {
-      const token = await user.getIdToken()
-      const res = await fetch("/api/stripe/subscription", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+  try {
+    const token = await user.getIdToken()
+    const res = await fetch("/api/stripe/subscription", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      const data = await res.json()
-      if (!res.ok || !data?.status) {
-        throw new Error(data?.error || "No se pudo obtener la suscripción.")
-      }
+    const data = await res.json()
 
-      // Aquí puedes reemplazar los datos mockeados con datos reales de Firestore
-      const guiones = { nuevos: 3, cambios: 1, aprobados: 6 }
-      const videos = 12
-
-      setStats({
-        guiones,
-        videos,
-        subscripcion: {
-          status: data.status ?? "no_active",
-          plan: data.plan ?? "Desconocido",
-          renovacion: data.current_period_end
-            ? new Date(data.current_period_end * 1000).toLocaleDateString("es-ES")
-            : "Desconocida",
-        },
-      })
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Error desconocido"
-      console.error("Error al cargar dashboard:", error)
-      toast.error("Error al cargar la suscripción", { description: message })
-
-      setStats((prev) => ({
-        ...prev,
-        subscripcion: {
-          status: "no_active",
-          plan: "No activa",
-          renovacion: "Desconocida",
-        },
-      }))
-    } finally {
-      setLoading(false)
+    // Si no es ok o no tiene status, lanza error con mensaje del backend o genérico
+    if (!res.ok || !data?.status) {
+      throw new Error(data?.error || "No se pudo obtener la suscripción.")
     }
+
+    // Datos de ejemplo (reemplaza con tus datos reales)
+    const guiones = { nuevos: 3, cambios: 1, aprobados: 6 }
+    const videos = 12
+
+    setStats({
+      guiones,
+      videos,
+      subscripcion: {
+        status: data.status ?? "no_active",
+        plan: data.plan ?? "Desconocido",
+        renovacion: data.current_period_end
+          ? new Date(data.current_period_end * 1000).toLocaleDateString("es-ES")
+          : "Desconocida",
+      },
+    })
+  } catch (error: unknown) {
+    const message = "Error desconocido"
+    console.error("Error al cargar dashboard:", error)
+    toast.error("No se pudo cargar la suscripción", {
+      description: message,
+      duration: 8000,
+    })
+
+    // Establece un estado claro para subscripción inactiva o sin datos
+    setStats((prev) => ({
+      ...prev,
+      subscripcion: {
+        status: "no_active",
+        plan: "No activa",
+        renovacion: "Desconocida",
+      },
+    }))
+  } finally {
+    setLoading(false)
+  }
   }, [])
 
   useEffect(() => {
