@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
 
-type FirestoreUserData = {
-  [key: string]: unknown
-}
+type FirestoreUserData = Record<string, unknown>
 
 type UserResult = {
   id: string
@@ -41,7 +39,7 @@ export default function AdminUsersPage() {
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.error || "Error en la consulta")
+        throw new Error(json?.error || "Error en la consulta")
       }
 
       if (!json?.id || !json?.data) {
@@ -49,11 +47,16 @@ export default function AdminUsersPage() {
         throw new Error("No se encontró ningún usuario con ese correo.")
       }
 
-      setUser({ id: json.id, data: json.data as FirestoreUserData })
+      setUser({
+        id: json.id,
+        data: json.data as FirestoreUserData,
+      })
       toast.success("✅ Usuario encontrado")
-    } catch (err: any) {
-      console.error("Error buscando usuario:", err)
-      toast.error(err.message || "Error inesperado al buscar usuario")
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Error inesperado al buscar usuario"
+      toast.error(message)
+      console.error("Error buscando usuario:", error)
     } finally {
       setLoading(false)
     }

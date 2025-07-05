@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { auth } from "@/lib/firebase"
+import type { User } from "firebase/auth"
 import { onAuthStateChanged } from "firebase/auth"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
@@ -53,7 +54,7 @@ export default function DashboardPage() {
     },
   })
 
-  const fetchData = useCallback(async (user: any) => {
+  const fetchData = useCallback(async (user: User) => {
     try {
       const token = await user.getIdToken()
       const res = await fetch("/api/stripe/subscription", {
@@ -67,7 +68,7 @@ export default function DashboardPage() {
         throw new Error(data?.error || "No se pudo obtener la suscripción.")
       }
 
-      // Aquí podrías reemplazar con datos reales desde Firestore
+      // Aquí puedes reemplazar los datos mockeados con datos reales de Firestore
       const guiones = { nuevos: 3, cambios: 1, aprobados: 6 }
       const videos = 12
 
@@ -82,11 +83,11 @@ export default function DashboardPage() {
             : "Desconocida",
         },
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error desconocido"
       console.error("Error al cargar dashboard:", error)
-      toast.error("Error al cargar la suscripción", {
-        description: error?.message ?? "Error desconocido",
-      })
+      toast.error("Error al cargar la suscripción", { description: message })
+
       setStats((prev) => ({
         ...prev,
         subscripcion: {
@@ -109,8 +110,10 @@ export default function DashboardPage() {
         setLoading(false)
         return
       }
+
       fetchData(user)
     })
+
     return () => unsubscribe()
   }, [fetchData])
 
@@ -183,12 +186,10 @@ export default function DashboardPage() {
         <Card className="p-4 space-y-2">
           <h2 className="font-semibold mb-2">Tu Suscripción 💳</h2>
           <p>
-            Plan:{" "}
-            <strong className="text-primary">{stats.subscripcion.plan}</strong>
+            Plan: <strong className="text-primary">{stats.subscripcion.plan}</strong>
           </p>
           <p>
-            Renovación:{" "}
-            <strong className="text-primary">{stats.subscripcion.renovacion}</strong>
+            Renovación: <strong className="text-primary">{stats.subscripcion.renovacion}</strong>
           </p>
           {renderBadge(stats.subscripcion.status)}
         </Card>

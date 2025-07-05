@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { db } from "@/lib/firebase"
 import { collectionGroup, getDocs, query } from "firebase/firestore"
 import { toast } from "sonner"
@@ -36,58 +36,58 @@ export default function AdminDashboardPage() {
   const isActive = (status: string) =>
     ["active", "trialing", "past_due", "unpaid"].includes(status)
 
-  useEffect(() => {
-    const loadData = async () => {
-      const [firestoreResult, stripeResult] = await Promise.allSettled([
-        fetchFirestoreData(),
-        fetchStripeClients(),
-      ])
+  const fetchFirestoreData = useCallback(async () => {
+    try {
+      const scriptsSnap = await getDocs(query(collectionGroup(db, "guiones")))
+      const videosSnap = await getDocs(query(collectionGroup(db, "videos")))
 
-      if (firestoreResult.status === "rejected") {
-        toast.error("Error al cargar datos de Firestore")
-        console.error(firestoreResult.reason)
-      }
-
-      if (stripeResult.status === "rejected") {
-        toast.error("Error al obtener clientes de Stripe")
-        console.error(stripeResult.reason)
-      }
+      setScriptCount(scriptsSnap.size)
+      setVideoCount(videosSnap.size)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error desconocido"
+      toast.error("Error al cargar datos de Firestore")
+      console.error(message)
     }
-
-    loadData()
   }, [])
 
-  const fetchFirestoreData = async () => {
-    const scriptsSnap = await getDocs(query(collectionGroup(db, "guiones")))
-    const videosSnap = await getDocs(query(collectionGroup(db, "videos")))
+  const fetchStripeClients = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stripe/clients")
 
-    setScriptCount(scriptsSnap.size)
-    setVideoCount(videosSnap.size)
-  }
-
-  const fetchStripeClients = async () => {
-    const res = await fetch("/api/stripe/clients")
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err?.error || "Fallo al consultar Stripe")
-    }
-
-    const { data }: { data: StripeClient[] } = await res.json()
-    const uniqueClients = new Map<string, StripeClient>()
-
-    for (const client of data) {
-      const current = uniqueClients.get(client.email)
-      if (!current || isActive(client.subStatus)) {
-        uniqueClients.set(client.email, client)
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err?.error || "Fallo al consultar Stripe")
       }
+
+      const { data }: { data: StripeClient[] } = await res.json()
+
+      const uniqueClients = new Map<string, StripeClient>()
+
+      for (const client of data) {
+        const current = uniqueClients.get(client.email)
+        if (!current || isActive(client.subStatus)) {
+          uniqueClients.set(client.email, client)
+        }
+      }
+
+      const deduped = Array.from(uniqueClients.values())
+      const active = deduped.filter((c) => isActive(c.subStatus)).length
+      const inactive = deduped.length - active
+
+      setClientsStats({ active, inactive, total: deduped.length })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error desconocido"
+      toast.error("Error al obtener clientes de Stripe")
+      console.error(message)
     }
+  }, [])
 
-    const deduped = Array.from(uniqueClients.values())
-    const active = deduped.filter((c) => isActive(c.subStatus)).length
-    const inactive = deduped.length - active
-
-    setClientsStats({ active, inactive, total: deduped.length })
-  }
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([fetchFirestoreData(), fetchStripeClients()])
+    }
+    loadData()
+  }, [fetchFirestoreData, fetchStripeClients])
 
   return (
     <div className="p-6 space-y-6">
