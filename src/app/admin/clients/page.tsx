@@ -13,6 +13,28 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { db, storage } from "@/lib/firebase"
+import {
+  getDoc,
+  updateDoc,
+  doc,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  deleteDoc,
+} from "firebase/firestore"
+import { ref as storageRef, deleteObject } from "firebase/storage"
+import { FiDownload, FiEye, FiTrash2 } from "react-icons/fi"
 
 type Client = {
   uid: string
@@ -21,6 +43,20 @@ type Client = {
   subStatus: string
   planName: string | null
   stripeCustomerId?: string
+}
+
+interface UserData {
+  name?: string
+  instagramUser?: string
+  phone?: string
+  photoURL?: string
+}
+
+interface ClonacionVideo {
+  id: string
+  titulo: string
+  url: string
+  storagePath: string
 }
 
 const isActive = (status: string) =>
@@ -82,6 +118,18 @@ export default function ClientsAdminPage() {
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [lastId, setLastId] = useState<string | null>(null)
+
+  // Modal y detalles usuario
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [realUid, setRealUid] = useState<string | null>(null)
+  const [userData, setUserData] = useState<UserData | null>(null)
+  const [videos, setVideos] = useState<ClonacionVideo[]>([])
+  const [loadingUserData, setLoadingUserData] = useState(false)
+  const [savingUserData, setSavingUserData] = useState(false)
+
+  // Modal confirmación eliminación
+  const [videoToDelete, setVideoToDelete] = useState<ClonacionVideo | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -154,6 +202,130 @@ export default function ClientsAdminPage() {
     return true
   })
 
+  // Obtiene UID real de usuario por email
+  const fetchUidByEmail = async (email: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/get-uid-by-email?email=${encodeURIComponent(email)}`)
+      if (!res.ok) {
+        toast.error("No se pudo obtener UID para el email seleccionado.")
+        return null
+      }
+      const data = await res.json()
+      return data.uid ?? null
+    } catch (e) {
+      console.error("Error fetchUidByEmail", e)
+      toast.error("Error obteniendo UID del usuario")
+      return null
+    }
+  }
+
+  // Carga datos usuario y videos clonacion al seleccionar cliente
+  useEffect(() => {
+    if (!selectedClient) {
+      setUserData(null)
+      setVideos([])
+      setRealUid(null)
+      return
+    }
+    setLoadingUserData(true)
+    setUserData(null)
+    setVideos([])
+    setRealUid(null)
+
+    fetchUidByEmail(selectedClient.email).then((uid) => {
+      if (!uid) {
+        setLoadingUserData(false)
+        return
+      }
+      setRealUid(uid)
+
+      getDoc(doc(db, "users", uid))
+        .then((docSnap) => {
+          if (docSnap.exists()) setUserData(docSnap.data() as UserData)
+          else setUserData(null)
+        })
+        .catch(() => {
+          toast.error("Error cargando datos del usuario")
+          setUserData(null)
+        })
+
+      const q = query(collection(db, "users", uid, "clonacion"), orderBy("createdAt", "desc"))
+      getDocs(q)
+        .then((qs) => {
+          const vids: ClonacionVideo[] = []
+          qs.forEach((d) => {
+            const data = d.data()
+            vids.push({
+              id: d.id,
+              titulo: data.titulo ?? "Sin título",
+              url: data.url,
+              storagePath: data.storagePath,
+            })
+          })
+          setVideos(vids)
+        })
+        .catch(() => {
+          toast.error("Error cargando vídeos del usuario")
+          setVideos([])
+        })
+        .finally(() => setLoadingUserData(false))
+    })
+  }, [selectedClient])
+
+  // Guardar datos usuario
+  const saveUserData = async () => {
+    if (!realUid) return
+    setSavingUserData(true)
+    try {
+      await updateDoc(doc(db, "users", realUid), {
+        name: userData?.name?.trim() ?? "",
+        instagramUser: userData?.instagramUser?.trim() ?? "",
+        phone: userData?.phone?.trim() ?? "",
+        photoURL: userData?.photoURL ?? "",
+      })
+      toast.success("Datos de usuario actualizados")
+    } catch (e) {
+      console.error(e)
+      toast.error("Error guardando datos")
+    } finally {
+      setSavingUserData(false)
+    }
+  }
+
+  // Descargar vídeo usando endpoint proxy
+  const handleDownloadVideo = (video: ClonacionVideo) => {
+    const downloadUrl = `/api/download-video?url=${encodeURIComponent(video.url)}`
+    const link = document.createElement("a")
+    link.href = downloadUrl
+    link.download = `video.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Confirmar y eliminar vídeo
+  const confirmDeleteVideo = (video: ClonacionVideo) => {
+    setVideoToDelete(video)
+  }
+
+  const handleDeleteConfirmed = async () => {
+    if (!realUid || !videoToDelete) return
+    setDeleting(true)
+    try {
+      await deleteDoc(doc(db, "users", realUid, "clonacion", videoToDelete.id))
+      const videoRef = storageRef(storage, videoToDelete.storagePath)
+      await deleteObject(videoRef)
+      setVideos((v) => v.filter((x) => x.id !== videoToDelete.id))
+      toast.success("Vídeo eliminado")
+      setVideoToDelete(null)
+    } catch (e) {
+      console.error(e)
+      toast.error("Error eliminando vídeo")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold">Lista de Clientes</h1>
@@ -186,7 +358,17 @@ export default function ClientsAdminPage() {
       )}
 
       {filteredClients.map((c) => (
-        <Card key={c.stripeCustomerId || c.uid} className="p-4 space-y-1">
+        <Card
+          key={c.stripeCustomerId || c.uid}
+          className="p-4 space-y-1 cursor-pointer hover:bg-gray-50"
+          onClick={() => setSelectedClient(c)}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setSelectedClient(c)
+          }}
+          role="button"
+          aria-label={`Ver detalles de cliente ${c.email}`}
+        >
           <div className="flex justify-between items-center">
             <div>
               <p>
@@ -208,6 +390,135 @@ export default function ClientsAdminPage() {
       )}
 
       <div ref={bottomRef} className="h-10" />
+
+      {/* Modal detalles cliente */}
+      {selectedClient && (
+        <Dialog open={true} onOpenChange={(open) => !open && setSelectedClient(null)}>
+          <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <DialogHeader>
+              <DialogTitle>Detalles de {selectedClient.email}</DialogTitle>
+            </DialogHeader>
+
+            {loadingUserData ? (
+              <p>Cargando datos...</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Datos editable */}
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Nombre</Label>
+                    <Input
+                      id="name"
+                      value={userData?.name || ""}
+                      onChange={(e) =>
+                        setUserData((d) => ({ ...(d ?? {}), name: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="instagramUser">Usuario Instagram</Label>
+                    <Input
+                      id="instagramUser"
+                      value={userData?.instagramUser || ""}
+                      onChange={(e) =>
+                        setUserData((d) => ({ ...(d ?? {}), instagramUser: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="phone">Teléfono</Label>
+                    <Input
+                      id="phone"
+                      value={userData?.phone || ""}
+                      onChange={(e) =>
+                        setUserData((d) => ({ ...(d ?? {}), phone: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <Button onClick={saveUserData} disabled={savingUserData}>
+                    {savingUserData ? "Guardando..." : "Guardar cambios"}
+                  </Button>
+                </div>
+
+                {/* Videos clonacion simplificado */}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Vídeos de Clonación ({videos.length})
+                  </h3>
+
+                  {videos.length === 0 && <p>No hay vídeos subidos.</p>}
+
+                  <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+                    {videos.map((video) => (
+                      <div
+                        key={video.id}
+                        className="flex items-center justify-end gap-2 border rounded p-2"
+                      >
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-label="Ver vídeo"
+                          onClick={() => window.open(video.url, "_blank", "noopener")}
+                        >
+                          <FiEye />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          aria-label="Descargar vídeo"
+                          onClick={() => handleDownloadVideo(video)}
+                        >
+                          <FiDownload />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          aria-label="Eliminar vídeo"
+                          onClick={() => confirmDeleteVideo(video)}
+                        >
+                          <FiTrash2 />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal confirmación eliminación vídeo */}
+      <Dialog open={!!videoToDelete} onOpenChange={() => !videoToDelete && setVideoToDelete(null)}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+          </DialogHeader>
+          <p>
+            ¿Estás seguro que quieres eliminar el vídeo{" "}
+            <strong>{videoToDelete?.titulo}</strong>? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setVideoToDelete(null)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirmed}
+              disabled={deleting}
+            >
+              {deleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
