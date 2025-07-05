@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { auth } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import { toast } from "sonner"
@@ -53,8 +53,55 @@ export default function DashboardPage() {
     },
   })
 
+  const fetchData = useCallback(async (user: any) => {
+    try {
+      const token = await user.getIdToken()
+      const res = await fetch("/api/stripe/subscription", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data?.status) {
+        throw new Error(data?.error || "No se pudo obtener la suscripción.")
+      }
+
+      // Aquí podrías reemplazar con datos reales desde Firestore
+      const guiones = { nuevos: 3, cambios: 1, aprobados: 6 }
+      const videos = 12
+
+      setStats({
+        guiones,
+        videos,
+        subscripcion: {
+          status: data.status ?? "no_active",
+          plan: data.plan ?? "Desconocido",
+          renovacion: data.current_period_end
+            ? new Date(data.current_period_end * 1000).toLocaleDateString("es-ES")
+            : "Desconocida",
+        },
+      })
+    } catch (error: any) {
+      console.error("Error al cargar dashboard:", error)
+      toast.error("Error al cargar la suscripción", {
+        description: error?.message ?? "Error desconocido",
+      })
+      setStats((prev) => ({
+        ...prev,
+        subscripcion: {
+          status: "no_active",
+          plan: "No activa",
+          renovacion: "Desconocida",
+        },
+      }))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
         toast.error("No autenticado", {
           description: "Debes iniciar sesión para ver tu panel.",
@@ -62,59 +109,10 @@ export default function DashboardPage() {
         setLoading(false)
         return
       }
-
-      try {
-        const token = await user.getIdToken()
-        const res = await fetch("/api/stripe/subscription", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          console.error("Stripe error:", data)
-          throw new Error(data?.error || "No se pudo obtener la suscripción.")
-        }
-
-        setStats({
-          guiones: {
-            nuevos: 3,
-            cambios: 1,
-            aprobados: 6,
-          },
-          videos: 12,
-          subscripcion: {
-            status: data.status ?? "no_active",
-            plan: data.plan ?? "Desconocido",
-            renovacion: data.current_period_end
-              ? new Date(data.current_period_end * 1000).toLocaleDateString("es-ES")
-              : "Desconocida",
-          },
-        })
-      } catch (error: unknown) {
-        const err = error as { message?: string }
-        console.error("Error al cargar dashboard:", err)
-        toast.error("No se pudo cargar la suscripción", {
-          description: err?.message ?? "Error desconocido",
-        })
-
-        setStats((prev) => ({
-          ...prev,
-          subscripcion: {
-            status: "no_active",
-            plan: "No activa",
-            renovacion: "Desconocida",
-          },
-        }))
-      } finally {
-        setLoading(false)
-      }
+      fetchData(user)
     })
-
     return () => unsubscribe()
-  }, [])
+  }, [fetchData])
 
   const pieData = {
     labels: ["Nuevos", "Cambios", "Aprobados"],
@@ -142,14 +140,6 @@ export default function DashboardPage() {
     ],
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 text-center text-muted-foreground animate-pulse">
-        <p className="text-lg">🔄 Cargando tu dashboard...</p>
-      </div>
-    )
-  }
-
   const renderBadge = (status: SubscriptionStatus) => {
     switch (status) {
       case "active":
@@ -162,6 +152,14 @@ export default function DashboardPage() {
       default:
         return <Badge variant="destructive">Inactiva o cancelada</Badge>
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-muted-foreground animate-pulse">
+        <p className="text-lg">🔄 Cargando tu dashboard...</p>
+      </div>
+    )
   }
 
   return (

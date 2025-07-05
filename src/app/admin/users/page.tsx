@@ -21,8 +21,13 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
   const handleSearch = async () => {
-    if (!email.trim()) {
+    const sanitizedEmail = email.trim().toLowerCase()
+
+    if (!isValidEmail(sanitizedEmail)) {
       toast.error("Introduce un correo válido")
       return
     }
@@ -32,19 +37,23 @@ export default function AdminUsersPage() {
     setNotFound(false)
 
     try {
-      const res = await fetch(`/api/get-user-by-email?email=${encodeURIComponent(email)}`)
+      const res = await fetch(`/api/get-user-by-email?email=${encodeURIComponent(sanitizedEmail)}`)
       const json = await res.json()
 
-      if (!res.ok || !json.id || !json.data) {
+      if (!res.ok) {
+        throw new Error(json.error || "Error en la consulta")
+      }
+
+      if (!json?.id || !json?.data) {
         setNotFound(true)
-        throw new Error(json.error || "Usuario no encontrado")
+        throw new Error("No se encontró ningún usuario con ese correo.")
       }
 
       setUser({ id: json.id, data: json.data as FirestoreUserData })
-      toast.success("Usuario encontrado")
-    } catch (err) {
+      toast.success("✅ Usuario encontrado")
+    } catch (err: any) {
       console.error("Error buscando usuario:", err)
-      toast.error((err as Error).message || "Error inesperado")
+      toast.error(err.message || "Error inesperado al buscar usuario")
     } finally {
       setLoading(false)
     }
@@ -56,6 +65,7 @@ export default function AdminUsersPage() {
 
       <div className="flex gap-2">
         <Input
+          type="email"
           placeholder="correo@cliente.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -74,7 +84,7 @@ export default function AdminUsersPage() {
       {user && (
         <Card className="mt-6 p-4 space-y-2 bg-white shadow">
           <h2 className="font-semibold text-lg text-blue-600">🆔 ID del Usuario:</h2>
-          <p className="mb-4">{user.id}</p>
+          <p className="mb-4 break-all">{user.id}</p>
           <div className="space-y-1">
             {Object.entries(user.data).map(([key, value]) => (
               <p key={key}>

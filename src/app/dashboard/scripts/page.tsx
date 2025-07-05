@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { auth, db } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -42,26 +42,7 @@ export default function GuionesPage() {
   const [estadoEditado, setEstadoEditado] = useState("0")
   const [open, setOpen] = useState(false)
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        toast.error("No autenticado", {
-          description: "Debes iniciar sesión para ver tus guiones.",
-        })
-        setUserId(null)
-        setGuiones([])
-        setLoading(false)
-        return
-      }
-
-      setUserId(user.uid)
-      await fetchGuiones(user.uid)
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const fetchGuiones = async (uid: string) => {
+  const fetchGuiones = useCallback(async (uid: string) => {
     setLoading(true)
     try {
       const ref = collection(db, "users", uid, "guiones")
@@ -93,7 +74,26 @@ export default function GuionesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        toast.error("No autenticado", {
+          description: "Debes iniciar sesión para ver tus guiones.",
+        })
+        setUserId(null)
+        setGuiones([])
+        setLoading(false)
+        return
+      }
+
+      setUserId(user.uid)
+      await fetchGuiones(user.uid)
+    })
+
+    return () => unsubscribe()
+  }, [fetchGuiones])
 
   const openEditor = (guion: Guion) => {
     setSelectedGuion(guion)
@@ -145,11 +145,11 @@ export default function GuionesPage() {
   const renderEstado = (estado: number) => {
     switch (estado) {
       case 0:
-        return <Badge className="bg-red-500">Nuevo</Badge>
+        return <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>
       case 1:
-        return <Badge className="bg-yellow-400">Cambios</Badge>
+        return <Badge className="bg-yellow-400 text-black">✏️ Cambios</Badge>
       case 2:
-        return <Badge className="bg-green-500">Aprobado</Badge>
+        return <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>
       default:
         return <Badge variant="secondary">Desconocido</Badge>
     }
@@ -171,10 +171,10 @@ export default function GuionesPage() {
             >
               <CardContent className="p-4 space-y-2">
                 <div className="flex justify-between items-center">
-                  <h2 className="font-semibold text-lg">{guion.titulo}</h2>
+                  <h2 className="font-semibold text-lg truncate">{guion.titulo}</h2>
                   {renderEstado(guion.estado)}
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-4">
+                <p className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">
                   {guion.contenido}
                 </p>
               </CardContent>
@@ -185,7 +185,6 @@ export default function GuionesPage() {
         <p className="text-muted-foreground">No hay guiones disponibles.</p>
       )}
 
-      {/* Modal de edición */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -209,13 +208,15 @@ export default function GuionesPage() {
                 <SelectValue placeholder="Selecciona estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">Nuevo</SelectItem>
-                <SelectItem value="1">Necesita Cambios</SelectItem>
-                <SelectItem value="2">Aprobado</SelectItem>
+                <SelectItem value="0">🆕 Nuevo</SelectItem>
+                <SelectItem value="1">✏️ Cambios</SelectItem>
+                <SelectItem value="2">✅ Aprobado</SelectItem>
               </SelectContent>
             </Select>
 
-            <Button onClick={guardarCambios}>Guardar cambios</Button>
+            <Button className="mt-2" onClick={guardarCambios}>
+              Guardar cambios
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

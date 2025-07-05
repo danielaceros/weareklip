@@ -23,7 +23,10 @@ type Client = {
   stripeCustomerId?: string
 }
 
-function getBadgeVariant(status: string): "default" | "destructive" | "outline" | "secondary" {
+const isActive = (status: string) =>
+  ["active", "trialing", "past_due", "unpaid"].includes(status)
+
+const getBadgeVariant = (status: string): "default" | "destructive" | "outline" | "secondary" => {
   switch (status) {
     case "active":
     case "trialing":
@@ -31,8 +34,8 @@ function getBadgeVariant(status: string): "default" | "destructive" | "outline" 
     case "past_due":
     case "unpaid":
       return "destructive"
-    case "none":
     case "cancelled":
+    case "none":
       return "secondary"
     case "no_customer":
     default:
@@ -40,27 +43,35 @@ function getBadgeVariant(status: string): "default" | "destructive" | "outline" 
   }
 }
 
-const isActive = (status: string) =>
-  ["active", "trialing", "past_due", "unpaid"].includes(status)
+const getBadgeLabel = (status: string): string => {
+  switch (status) {
+    case "active":
+      return "Activa"
+    case "trialing":
+      return "En prueba"
+    case "past_due":
+      return "Pago vencido"
+    case "unpaid":
+      return "Impago"
+    case "cancelled":
+      return "Cancelada"
+    case "none":
+      return "Sin suscripción"
+    case "no_customer":
+      return "No registrado"
+    default:
+      return "Desconocido"
+  }
+}
 
-function deduplicateClients(clients: Client[]): Client[] {
+const deduplicateClients = (clients: Client[]): Client[] => {
   const map = new Map<string, Client>()
-
   for (const client of clients) {
     const existing = map.get(client.email)
-
-    if (!existing) {
+    if (!existing || (!isActive(existing.subStatus) && isActive(client.subStatus))) {
       map.set(client.email, client)
-    } else {
-      const existingIsActive = isActive(existing.subStatus)
-      const currentIsActive = isActive(client.subStatus)
-
-      if (!existingIsActive && currentIsActive) {
-        map.set(client.email, client) // Reemplazar por activo
-      }
     }
   }
-
   return Array.from(map.values())
 }
 
@@ -77,7 +88,6 @@ export default function ClientsAdminPage() {
   const fetchClients = useCallback(
     async (term = "", reset = false) => {
       if (loading || (!hasMore && !reset)) return
-
       setLoading(true)
       try {
         const params = new URLSearchParams()
@@ -113,7 +123,7 @@ export default function ClientsAdminPage() {
     setClients([])
     setLastId(null)
     setHasMore(true)
-    fetchClients(search, true)
+    fetchClients(search.trim(), true)
   }
 
   useEffect(() => {
@@ -176,10 +186,7 @@ export default function ClientsAdminPage() {
       )}
 
       {filteredClients.map((c) => (
-        <Card
-          key={c.stripeCustomerId || c.uid}
-          className="p-4 space-y-1"
-        >
+        <Card key={c.stripeCustomerId || c.uid} className="p-4 space-y-1">
           <div className="flex justify-between items-center">
             <div>
               <p>
@@ -188,11 +195,7 @@ export default function ClientsAdminPage() {
               <p>Plan: {c.planName || "-"}</p>
             </div>
             <Badge variant={getBadgeVariant(c.subStatus)}>
-              {c.subStatus === "no_customer"
-                ? "No registrado"
-                : c.subStatus === "none"
-                ? "Sin suscripción"
-                : c.subStatus.charAt(0).toUpperCase() + c.subStatus.slice(1)}
+              {getBadgeLabel(c.subStatus)}
             </Badge>
           </div>
         </Card>

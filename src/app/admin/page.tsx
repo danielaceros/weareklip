@@ -37,54 +37,56 @@ export default function AdminDashboardPage() {
     ["active", "trialing", "past_due", "unpaid"].includes(status)
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await Promise.all([fetchFirestoreData(), fetchStripeClients()])
-      } catch {
-        toast.error("Error al cargar el dashboard.")
+    const loadData = async () => {
+      const [firestoreResult, stripeResult] = await Promise.allSettled([
+        fetchFirestoreData(),
+        fetchStripeClients(),
+      ])
+
+      if (firestoreResult.status === "rejected") {
+        toast.error("Error al cargar datos de Firestore")
+        console.error(firestoreResult.reason)
+      }
+
+      if (stripeResult.status === "rejected") {
+        toast.error("Error al obtener clientes de Stripe")
+        console.error(stripeResult.reason)
       }
     }
 
-    fetchData()
+    loadData()
   }, [])
 
   const fetchFirestoreData = async () => {
-    try {
-      const scriptsSnap = await getDocs(query(collectionGroup(db, "guiones")))
-      const videosSnap = await getDocs(query(collectionGroup(db, "videos")))
+    const scriptsSnap = await getDocs(query(collectionGroup(db, "guiones")))
+    const videosSnap = await getDocs(query(collectionGroup(db, "videos")))
 
-      setScriptCount(scriptsSnap.size)
-      setVideoCount(videosSnap.size)
-    } catch (err) {
-      console.error(err)
-      toast.error("Error al cargar datos de Firestore")
-    }
+    setScriptCount(scriptsSnap.size)
+    setVideoCount(videosSnap.size)
   }
 
   const fetchStripeClients = async () => {
-    try {
-      const res = await fetch("/api/stripe/clients")
-      if (!res.ok) throw new Error("Fallo en la consulta a Stripe")
-
-      const { data }: { data: StripeClient[] } = await res.json()
-      const uniqueEmails = new Map<string, StripeClient>()
-
-      data.forEach((client) => {
-        const current = uniqueEmails.get(client.email)
-        if (!current || isActive(client.subStatus)) {
-          uniqueEmails.set(client.email, client)
-        }
-      })
-
-      const deduplicated = Array.from(uniqueEmails.values())
-      const active = deduplicated.filter((c) => isActive(c.subStatus)).length
-      const inactive = deduplicated.length - active
-
-      setClientsStats({ active, inactive, total: deduplicated.length })
-    } catch (err) {
-      console.error(err)
-      toast.error("Error al obtener clientes de Stripe")
+    const res = await fetch("/api/stripe/clients")
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err?.error || "Fallo al consultar Stripe")
     }
+
+    const { data }: { data: StripeClient[] } = await res.json()
+    const uniqueClients = new Map<string, StripeClient>()
+
+    for (const client of data) {
+      const current = uniqueClients.get(client.email)
+      if (!current || isActive(client.subStatus)) {
+        uniqueClients.set(client.email, client)
+      }
+    }
+
+    const deduped = Array.from(uniqueClients.values())
+    const active = deduped.filter((c) => isActive(c.subStatus)).length
+    const inactive = deduped.length - active
+
+    setClientsStats({ active, inactive, total: deduped.length })
   }
 
   return (

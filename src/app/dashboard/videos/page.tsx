@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { auth, db } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import {
@@ -42,33 +42,8 @@ export default function VideosPage() {
   const [estadoEditado, setEstadoEditado] = useState("0")
   const [open, setOpen] = useState(false)
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        toast.error("No autenticado", {
-          description: "Inicia sesión para acceder a tus vídeos.",
-        })
-        setLoading(false)
-        return
-      }
-
-      try {
-        setUserId(user.uid)
-        await fetchVideos(user.uid)
-      } catch (err) {
-        console.error("Error al cargar vídeos:", err)
-        toast.error("No se pudieron cargar los vídeos", {
-          description: "Intenta recargar la página.",
-        })
-      } finally {
-        setLoading(false)
-      }
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const fetchVideos = async (uid: string) => {
+  const fetchVideos = useCallback(async (uid: string) => {
+    setLoading(true)
     try {
       const ref = collection(db, "users", uid, "videos")
       const snapshot = await getDocs(ref)
@@ -95,8 +70,27 @@ export default function VideosPage() {
       toast.error("Error al cargar los vídeos", {
         description: "Verifica tu conexión o intenta de nuevo.",
       })
+    } finally {
+      setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        toast.error("No autenticado", {
+          description: "Inicia sesión para acceder a tus vídeos.",
+        })
+        setLoading(false)
+        return
+      }
+
+      setUserId(user.uid)
+      await fetchVideos(user.uid)
+    })
+
+    return () => unsubscribe()
+  }, [fetchVideos])
 
   const openEditor = (video: Video) => {
     setSelected(video)
@@ -135,11 +129,11 @@ export default function VideosPage() {
   const renderEstado = (estado: number) => {
     switch (estado) {
       case 0:
-        return <Badge className="bg-red-500">Nuevo</Badge>
+        return <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>
       case 1:
-        return <Badge className="bg-yellow-400">Cambios</Badge>
+        return <Badge className="bg-yellow-400 text-black">✏️ Cambios</Badge>
       case 2:
-        return <Badge className="bg-green-500">Aprobado</Badge>
+        return <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>
       default:
         return <Badge variant="secondary">Desconocido</Badge>
     }
@@ -161,7 +155,7 @@ export default function VideosPage() {
             >
               <CardContent className="p-4 space-y-2">
                 <div className="flex justify-between items-center">
-                  <h2 className="font-semibold text-lg">{video.titulo}</h2>
+                  <h2 className="font-semibold text-lg truncate">{video.titulo}</h2>
                   {renderEstado(video.estado)}
                 </div>
                 <a
@@ -192,13 +186,15 @@ export default function VideosPage() {
               <SelectValue placeholder="Selecciona estado" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="0">Nuevo</SelectItem>
-              <SelectItem value="1">Necesita Cambios</SelectItem>
-              <SelectItem value="2">Aprobado</SelectItem>
+              <SelectItem value="0">🆕 Nuevo</SelectItem>
+              <SelectItem value="1">✏️ Cambios</SelectItem>
+              <SelectItem value="2">✅ Aprobado</SelectItem>
             </SelectContent>
           </Select>
 
-          <Button onClick={guardarCambios}>Guardar cambios</Button>
+          <Button className="mt-4" onClick={guardarCambios}>
+            Guardar cambios
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

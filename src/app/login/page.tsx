@@ -42,15 +42,31 @@ export default function Home() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const validateForm = (): boolean => {
+    if (!email || !password) {
+      toast.warning("Completa todos los campos.")
+      return false
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      toast.warning("Introduce un correo válido.")
+      return false
+    }
+
+    if (password.length < 6) {
+      toast.warning("La contraseña debe tener al menos 6 caracteres.")
+      return false
+    }
+
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    if (!validateForm()) return
 
-    if (!email || !password) {
-      toast.warning("Completa todos los campos")
-      setLoading(false)
-      return
-    }
+    setLoading(true)
 
     try {
       if (isLogin) {
@@ -60,6 +76,7 @@ export default function Home() {
         await createUserWithEmailAndPassword(auth, email, password)
         toast.success("Cuenta creada correctamente")
       }
+
       await createUserIfNotExists(auth.currentUser!)
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -69,8 +86,8 @@ export default function Home() {
   }
 
   const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider()
     setLoading(true)
+    const provider = new GoogleAuthProvider()
 
     try {
       await signInWithPopup(auth, provider)
@@ -98,9 +115,7 @@ export default function Home() {
         <h1 className="text-5xl font-extrabold leading-tight mb-4">
           {isLogin ? "Bienvenido/a a KLIP" : "Crea tu cuenta en KLIP"}
         </h1>
-        <p className="text-lg mb-8">
-          🤖 Automatizamos TODO tu contenido en redes.
-        </p>
+        <p className="text-lg mb-8">🤖 Automatizamos TODO tu contenido en redes.</p>
 
         <Card className="w-full max-w-md shadow-xl">
           <CardContent className="py-8 px-6">
@@ -120,7 +135,11 @@ export default function Home() {
                 required
               />
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button
+                type="submit"
+                className={`w-full ${loading ? "animate-pulse" : ""}`}
+                disabled={loading}
+              >
                 {loading
                   ? "Procesando..."
                   : isLogin

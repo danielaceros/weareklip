@@ -59,11 +59,10 @@ export default function BillingPage() {
 
         const data: StripeSubscription = await res.json()
         setSub(data)
-      } catch (error: unknown) {
-        const err = error as { message?: string }
-        console.error("Error al cargar la suscripción:", err)
+      } catch (error: any) {
+        console.error("Error al cargar la suscripción:", error)
         toast.error("Error al obtener la suscripción", {
-          description: err.message ?? "Ocurrió un error inesperado.",
+          description: error.message ?? "Ocurrió un error inesperado.",
         })
       } finally {
         setLoading(false)
