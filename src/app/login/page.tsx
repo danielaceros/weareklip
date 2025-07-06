@@ -7,10 +7,14 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
   User,
-  ConfirmationResult,
+  RecaptchaVerifier,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  multiFactor,
+  getMultiFactorResolver,
+  MultiFactorResolver,
+  MultiFactorError,
 } from "firebase/auth"
 import { FirebaseError } from "firebase/app"
 import { auth, db } from "@/lib/firebase"
@@ -20,9 +24,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FcGoogle } from "react-icons/fc"
 import { toast } from "sonner"
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"
+
 import PhoneInput from "react-phone-number-input"
 import "react-phone-number-input/style.css"
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"
+import { isValidPhoneNumber } from "react-phone-number-input"
 
 declare global {
   interface Window {
@@ -41,6 +47,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   "auth/network-request-failed": "Error de red. Revisa tu conexión.",
   "auth/invalid-verification-code": "Código de verificación inválido.",
   "auth/missing-verification-code": "Falta el código de verificación.",
+  "auth/multi-factor-auth-required": "Se requiere autenticación multifactor.",
 }
 
 function getErrorMessage(error: unknown): string {
@@ -50,34 +57,80 @@ function getErrorMessage(error: unknown): string {
   return "Error desconocido. Intenta nuevamente."
 }
 
+async function createOrUpdateUserInFirestore(user: User) {
+  try {
+    const userDocRef = doc(db, "users", user.uid)
+    const userDoc = await getDoc(userDocRef)
+
+    if (!userDoc.exists()) {
+      await setDoc(
+        userDocRef,
+        {
+          uid: user.uid,
+          email: user.email || "",
+          name: "",
+          role: "client",
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+    } else {
+      await setDoc(
+        userDocRef,
+        {
+          email: user.email || "",
+        },
+        { merge: true }
+      )
+    }
+  } catch (error) {
+    console.error("Error actualizando Firestore:", error)
+    toast.error("Error interno. Intenta nuevamente más tarde.")
+  }
+}
+
 export default function Home() {
   const router = useRouter()
+
+  // States principales
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [phoneNumber, setPhoneNumber] = useState<string | undefined>()
-  const [showVerification, setShowVerification] = useState(false)
-  const [showAddPhone, setShowAddPhone] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState<string | undefined>(undefined)
   const [verificationCode, setVerificationCode] = useState<string[]>(["", "", "", "", "", ""])
-  const confirmationResultRef = useRef<ConfirmationResult | null>(null)
-  const pendingUserRef = useRef<User | null>(null)
+  const [showMfaDialog, setShowMfaDialog] = useState(false)
+  const [showEnrollPhone, setShowEnrollPhone] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null)
+  const [verificationId, setVerificationId] = useState<string | null>(null)
+  const [isEnrollingMfa, setIsEnrollingMfa] = useState(false)
+  const [recaptchaVisible, setRecaptchaVisible] = useState(false)
+
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
+  // Inicializar reCAPTCHA invisible, render solo una vez
   useEffect(() => {
     if (!window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-          size: "invisible",
-          badge: "bottomleft",
-          callback: () => {},
-          "expired-callback": () => {
-            toast.error("reCAPTCHA expiró, intenta nuevamente.")
-          },
-        })
-      } catch (e) {
-        console.warn("Error inicializando reCAPTCHA:", e)
-      }
+      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+        callback: () => {
+          setRecaptchaVisible(false) // Captcha resuelto sin challenge visual
+        },
+        "expired-callback": () => {
+          toast.error("reCAPTCHA expiró, intenta nuevamente.")
+          setRecaptchaVisible(false)
+        },
+        "error-callback": () => {
+          toast.error("Error con reCAPTCHA. Intenta nuevamente.")
+          setRecaptchaVisible(false)
+        },
+      })
+      verifier.render().then(() => {
+        window.recaptchaVerifier = verifier
+      }).catch(err => {
+        console.error("Error renderizando reCAPTCHA:", err)
+        toast.error("Error inicializando seguridad. Intenta recargar.")
+      })
     }
     return () => {
       if (window.recaptchaVerifier) {
@@ -87,14 +140,133 @@ export default function Home() {
     }
   }, [])
 
-  useEffect(() => {
-    if (showVerification || showAddPhone) {
-      requestAnimationFrame(() => {
-        inputsRef.current[0]?.focus()
-      })
+  // Manejo de inputs MFA (códigos)
+  const onOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return
+    const newCode = [...verificationCode]
+    newCode[index] = value.slice(-1)
+    setVerificationCode(newCode)
+    if (value && index < 5) inputsRef.current[index + 1]?.focus()
+    if (!value && index > 0) inputsRef.current[index - 1]?.focus()
+  }
+  const onOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === "Backspace" && !verificationCode[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus()
     }
-  }, [showVerification, showAddPhone])
+  }
 
+  // Verificar código MFA para login
+  const verifyMfaCode = async () => {
+    if (verificationCode.some((d) => d === "")) {
+      toast.warning("Completa los 6 dígitos del código.")
+      return
+    }
+    if (!mfaResolver || !verificationId) {
+      toast.error("No hay proceso de autenticación multifactor activo.")
+      return
+    }
+    setLoading(true)
+    try {
+      const code = verificationCode.join("")
+      const cred = PhoneAuthProvider.credential(verificationId, code)
+      const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(cred)
+      const userCredential = await mfaResolver.resolveSignIn(multiFactorAssertion)
+      await createOrUpdateUserInFirestore(userCredential.user)
+      toast.success("Autenticación multifactor completada")
+      setShowMfaDialog(false)
+      setVerificationCode(["", "", "", "", "", ""])
+      setMfaResolver(null)
+      setVerificationId(null)
+      router.push("/dashboard")
+    } catch (error) {
+      console.error("Error verificando MFA:", error)
+      toast.error(getErrorMessage(error))
+    } finally {
+      setLoading(false)
+      setRecaptchaVisible(false)
+    }
+  }
+
+  // Enroll MFA para usuario nuevo con teléfono
+  async function enrollMfaForUser(user: User, phone: string) {
+    if (!phone || !isValidPhoneNumber(phone)) {
+      toast.error("Ingresa un número de teléfono válido.")
+      return
+    }
+    setLoading(true)
+    try {
+      setIsEnrollingMfa(true)
+      const mfaSession = await multiFactor(user).getSession()
+      const phoneInfoOptions = { phoneNumber: phone, session: mfaSession }
+      const phoneAuthProvider = new PhoneAuthProvider(auth)
+
+      setRecaptchaVisible(true) // Mostrar recaptcha para interacción
+
+      const verificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, window.recaptchaVerifier!)
+      setVerificationId(verificationId)
+      setShowEnrollPhone(false)
+      setShowMfaDialog(true)
+      setMfaResolver(null)
+    } catch (error) {
+      console.error("Error inscribiendo MFA:", error)
+      toast.error(getErrorMessage(error))
+      setLoading(false)
+      setIsEnrollingMfa(false)
+      setRecaptchaVisible(false)
+    }
+  }
+
+  // Completar inscripción MFA
+  const completeEnrollMfa = async () => {
+    if (verificationCode.some((d) => d === "")) {
+      toast.warning("Completa los 6 dígitos del código.")
+      return
+    }
+    if (!verificationId) {
+      toast.error("No hay proceso de verificación activo.")
+      return
+    }
+    setLoading(true)
+    try {
+      const code = verificationCode.join("")
+      const cred = PhoneAuthProvider.credential(verificationId, code)
+      const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(cred)
+      const user = auth.currentUser
+      if (!user) throw new Error("No hay usuario autenticado")
+
+      await multiFactor(user).enroll(multiFactorAssertion, "Teléfono principal")
+      toast.success("MFA inscrito correctamente")
+      setShowEnrollPhone(false)
+      setVerificationCode(["", "", "", "", "", ""])
+      setIsEnrollingMfa(false)
+      router.push("/dashboard")
+    } catch (error) {
+      console.error("Error completando inscripción MFA:", error)
+      toast.error(getErrorMessage(error))
+      setIsEnrollingMfa(false)
+    } finally {
+      setLoading(false)
+      setRecaptchaVisible(false)
+    }
+  }
+
+  // Comprobar si usuario ya tiene MFA, sino pedir teléfono
+  async function checkAndEnrollMfaIfMissing(user: User) {
+    try {
+      const mfaUser = multiFactor(user)
+      if (mfaUser.enrolledFactors.length === 0) {
+        setShowEnrollPhone(true)
+      } else {
+        router.push("/dashboard")
+      }
+    } catch (error) {
+      console.error("Error verificando MFA usuario:", error)
+      toast.error("Error de autenticación. Intenta nuevamente.")
+      setLoading(false)
+    }
+  }
+
+  // Validación del formulario login/registro
   const validateForm = (): boolean => {
     if (!email || !password) {
       toast.warning("Completa todos los campos.")
@@ -112,176 +284,128 @@ export default function Home() {
     return true
   }
 
-  const sendOtpForLogin = async (user: User) => {
+  // Registro con email+pass
+  const handleRegister = async () => {
+    if (!validateForm()) return
     setLoading(true)
     try {
-      const userDoc = await getDoc(doc(db, "users", user.uid))
-      const phone = userDoc.exists() ? userDoc.data().phone : user.phoneNumber
-      if (!phone) {
-        toast.warning(
-          "No tienes número de teléfono asociado. Por favor, añádelo para activar 2FA."
-        )
-        pendingUserRef.current = user
-        setShowAddPhone(true)
-        setLoading(false)
-        return
-      }
-      pendingUserRef.current = user
-      const appVerifier = window.recaptchaVerifier!
-      confirmationResultRef.current = await signInWithPhoneNumber(auth, phone, appVerifier)
-      setVerificationCode(["", "", "", "", "", ""])
-      setShowVerification(true)
-    } catch (error: unknown) {
-      console.error("Error en sendOtpForLogin:", error)
-      if (error instanceof FirebaseError) {
-        toast.error(getErrorMessage(error))
-      } else {
-        toast.error("Error al enviar OTP para 2FA.")
-      }
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      await createOrUpdateUserInFirestore(userCredential.user)
+      toast.success("Cuenta creada correctamente")
+      await checkAndEnrollMfaIfMissing(userCredential.user)
+    } catch (error) {
+      console.error("Error en registro:", error)
+      toast.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
   }
 
+  // Login con email+pass
+  const handleLogin = async () => {
+    if (!validateForm()) return
+    setLoading(true)
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      await createOrUpdateUserInFirestore(userCredential.user)
+      await checkAndEnrollMfaIfMissing(userCredential.user)
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as MultiFactorError).code === "auth/multi-factor-auth-required"
+      ) {
+        try {
+          const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
+          setMfaResolver(resolver)
+
+          const phoneInfoOptions = {
+            multiFactorHint: resolver.hints[0],
+            session: resolver.session,
+          }
+          const phoneAuthProvider = new PhoneAuthProvider(auth)
+          const recaptchaVerifier = window.recaptchaVerifier!
+          setRecaptchaVisible(true)
+          const verificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier)
+          setVerificationId(verificationId)
+          setShowMfaDialog(true)
+        } catch (err: unknown) {
+          console.error("Error iniciando MFA:", err)
+          toast.error("Error iniciando verificación 2FA.")
+          setRecaptchaVisible(false)
+        }
+      } else {
+        console.error("Error auth:", error)
+        if (error instanceof FirebaseError) {
+          toast.error(getErrorMessage(error))
+        } else if (error instanceof Error) {
+          toast.error(error.message)
+        } else {
+          toast.error("Error desconocido. Intenta nuevamente.")
+        }
+      }
+    } finally {
+          setLoading(false)
+        }
+      }
+
+  // Login con Google + MFA
+  const handleGoogleLogin = async () => {
+    setLoading(true)
+      try {
+        const provider = new GoogleAuthProvider()
+        const userCredential = await signInWithPopup(auth, provider)
+        await createOrUpdateUserInFirestore(userCredential.user)
+        await checkAndEnrollMfaIfMissing(userCredential.user)
+      } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "auth/multi-factor-auth-required"
+    ) {
+      try {
+        const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
+        setMfaResolver(resolver)
+
+        const phoneInfoOptions = {
+          multiFactorHint: resolver.hints[0],
+          session: resolver.session,
+        }
+        const phoneAuthProvider = new PhoneAuthProvider(auth)
+        const recaptchaVerifier = window.recaptchaVerifier!
+        setRecaptchaVisible(true)
+        const verificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier)
+        setVerificationId(verificationId)
+        setShowMfaDialog(true)
+      } catch (err: unknown) {
+        console.error("Error iniciando MFA Google:", err)
+        toast.error("Error iniciando verificación 2FA.")
+        setRecaptchaVisible(false)
+      }
+    } else {
+      console.error("Error login Google:", error)
+      if (error instanceof FirebaseError) {
+        toast.error(getErrorMessage(error))
+      } else if (error instanceof Error) {
+        toast.error(error.message)
+      } else {
+        toast.error("Error desconocido. Intenta nuevamente.")
+      }
+    }
+  } finally {
+      setLoading(false)
+    }
+  }
+
+  // Submit único para login/registro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
-
-    setLoading(true)
-
-    try {
-      if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password)
-        toast.success("Email y contraseña correctos. Verifica con código OTP.")
-        await sendOtpForLogin(userCredential.user)
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-        pendingUserRef.current = userCredential.user
-        toast.success("Cuenta creada. Añade tu teléfono para activar 2FA.")
-        setShowAddPhone(true)
-      }
-    } catch (error: unknown) {
-      console.error("Error en handleSubmit:", error)
-      if (error instanceof FirebaseError) {
-        toast.error(getErrorMessage(error))
-      } else {
-        toast.error("Error desconocido. Intenta nuevamente.")
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const onOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return
-    const newCode = [...verificationCode]
-    newCode[index] = value.slice(-1)
-    setVerificationCode(newCode)
-    if (value && index < 5) inputsRef.current[index + 1]?.focus()
-    if (!value && index > 0) inputsRef.current[index - 1]?.focus()
-  }
-
-  const onOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === "Backspace" && !verificationCode[index] && index > 0) {
-      inputsRef.current[index - 1]?.focus()
-    }
-  }
-
-  const verifyCodeAndFinalize = async () => {
-    if (verificationCode.some((d) => d === "")) {
-      toast.warning("Completa los 6 dígitos del código.")
-      return
-    }
-    setLoading(true)
-    try {
-      if (!confirmationResultRef.current) {
-        toast.error("No hay proceso de verificación activo.")
-        setLoading(false)
-        return
-      }
-      const code = verificationCode.join("")
-      await confirmationResultRef.current.confirm(code)
-
-      const currentUser = auth.currentUser
-      if (!currentUser) {
-        toast.error("No se pudo obtener usuario autenticado.")
-        setLoading(false)
-        return
-      }
-
-      await setDoc(
-        doc(db, "users", currentUser.uid),
-        {
-          uid: currentUser.uid,
-          email: currentUser.email || "",
-          phone: phoneNumber || "",
-          name: "",
-          role: "client",
-          createdAt: serverTimestamp(),
-        },
-        { merge: true }
-      )
-
-      toast.success("Autenticación completada")
-      setShowVerification(false)
-      setShowAddPhone(false)
-      pendingUserRef.current = null
-      router.push("/dashboard")
-    } catch (error: unknown) {
-      console.error("Error al verificar OTP:", error)
-      if (error instanceof FirebaseError) {
-        toast.error(getErrorMessage(error))
-      } else {
-        toast.error("Error desconocido. Intenta nuevamente.")
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const sendOtpToNewPhone = async () => {
-    if (!phoneNumber) {
-      toast.warning("Ingresa un número de teléfono válido.")
-      return
-    }
-    setLoading(true)
-    try {
-      const appVerifier = window.recaptchaVerifier!
-      confirmationResultRef.current = await signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-      setVerificationCode(["", "", "", "", "", ""])
-      setShowAddPhone(false)
-      setShowVerification(true)
-    } catch (error: unknown) {
-      console.error("Error al enviar OTP al nuevo teléfono:", error)
-      if (error instanceof FirebaseError) {
-        toast.error(getErrorMessage(error))
-      } else {
-        toast.error("Error desconocido. Intenta nuevamente.")
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGoogleLogin = async () => {
-    if (!window.recaptchaVerifier) {
-      toast.error("reCAPTCHA no está listo, intenta recargar la página.")
-      return
-    }
-    setLoading(true)
-    try {
-      const provider = new GoogleAuthProvider()
-      const userCredential = await signInWithPopup(auth, provider)
-      toast.success("Inicio de sesión con Google exitoso. Verifica con código OTP.")
-      await sendOtpForLogin(userCredential.user)
-    } catch (error: unknown) {
-      if (error instanceof FirebaseError) {
-        toast.error(getErrorMessage(error))
-      } else {
-        toast.error("Error desconocido. Intenta nuevamente.")
-      }
-    } finally {
-      setLoading(false)
+    if (isLogin) {
+      await handleLogin()
+    } else {
+      await handleRegister()
     }
   }
 
@@ -291,9 +415,23 @@ export default function Home() {
 
   return (
     <>
-      <main className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 min-h-screen flex items-center justify-center text-white">
-        <div id="recaptcha-container"></div>
+      <style>{`
+        #recaptcha-container {
+          position: fixed !important;
+          top: 10px;
+          right: 10px;
+          width: 304px !important;
+          height: 78px !important;
+          z-index: 999999 !important;
+          opacity: ${recaptchaVisible ? 1 : 0};
+          pointer-events: ${recaptchaVisible ? "auto" : "none"};
+          transition: opacity 0.3s ease;
+          background: transparent !important;
+        }
+      `}</style>
 
+      <main className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 min-h-screen flex items-center justify-center text-white">
+        <div id="recaptcha-container" />
         <div className="relative z-10 px-6 text-center max-w-lg">
           <h1 className="text-5xl font-extrabold leading-tight mb-4">
             {isLogin ? "Bienvenido/a a KLIP" : "Empieza en KLIP"}
@@ -302,7 +440,7 @@ export default function Home() {
 
           <Card className="w-full max-w-md shadow-xl">
             <CardContent className="py-8 px-6">
-              {!showVerification && !showAddPhone ? (
+              {!showEnrollPhone ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <Input
                     type="email"
@@ -333,7 +471,7 @@ export default function Home() {
                 </form>
               ) : null}
 
-              {!showVerification && !showAddPhone && (
+              {!showEnrollPhone && (
                 <>
                   <div className="my-4 flex items-center justify-center">
                     <span className="text-sm text-muted-foreground">o continuar con</span>
@@ -353,12 +491,7 @@ export default function Home() {
                   <p className="mt-6 text-center text-sm text-muted-foreground">
                     {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
                     <span
-                      onClick={() => {
-                        setIsLogin(!isLogin)
-                        setShowVerification(false)
-                        setShowAddPhone(false)
-                        setVerificationCode(["", "", "", "", "", ""])
-                      }}
+                      onClick={() => setIsLogin(!isLogin)}
                       className="text-blue-600 hover:underline cursor-pointer"
                     >
                       {isLogin ? "Regístrate" : "Inicia sesión"}
@@ -371,19 +504,20 @@ export default function Home() {
         </div>
       </main>
 
+      {/* Modal MFA código */}
       <Dialog
-        open={showVerification}
+        open={showMfaDialog}
         onOpenChange={(open) => {
-          if (!loading) setShowVerification(open)
+          if (!loading) setShowMfaDialog(open)
         }}
       >
-        <DialogContent className="max-w-sm" aria-describedby="otp-desc">
+        <DialogContent className="max-w-sm" aria-describedby="mfa-desc">
           <DialogHeader>
-            <DialogTitle>Verifica tu teléfono</DialogTitle>
+            <DialogTitle>Verificación en dos pasos</DialogTitle>
           </DialogHeader>
 
-          <p id="otp-desc" className="mb-4">
-            Ingresa el código de 6 dígitos que recibiste por SMS para verificar tu teléfono.
+          <p id="mfa-desc" className="mb-4">
+            Ingresa el código de 6 dígitos enviado a tu teléfono.
           </p>
 
           <div className="flex justify-center gap-2">
@@ -407,7 +541,7 @@ export default function Home() {
           <div className="mt-4 flex gap-2">
             <Button
               className={`flex-1 ${loading ? "animate-pulse" : ""}`}
-              onClick={verifyCodeAndFinalize}
+              onClick={isEnrollingMfa ? completeEnrollMfa : verifyMfaCode}
               disabled={loading || verificationCode.some((d) => d === "")}
             >
               {loading ? "Verificando..." : "Verificar código"}
@@ -415,7 +549,7 @@ export default function Home() {
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => !loading && setShowVerification(false)}
+              onClick={() => !loading && (isEnrollingMfa ? setShowEnrollPhone(false) : setShowMfaDialog(false))}
               disabled={loading}
             >
               Cancelar
@@ -424,44 +558,54 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal inscripción teléfono MFA */}
       <Dialog
-        open={showAddPhone}
+        open={showEnrollPhone}
         onOpenChange={(open) => {
-          if (!loading) setShowAddPhone(open)
+          if (!loading) setShowEnrollPhone(open)
         }}
       >
-        <DialogContent className="max-w-sm" aria-describedby="add-phone-desc">
+        <DialogContent className="max-w-sm" aria-describedby="enroll-phone-desc">
           <DialogHeader>
-            <DialogTitle>Agrega tu teléfono</DialogTitle>
+            <DialogTitle>Registra tu teléfono para 2FA</DialogTitle>
           </DialogHeader>
 
-          <p id="add-phone-desc" className="mb-4">
-            Para activar 2FA, por favor añade tu número de teléfono y verifica con el código que
-            recibirás.
+          <p id="enroll-phone-desc" className="mb-4">
+            Para mayor seguridad, ingresa tu número de teléfono para activar la autenticación en dos pasos.
           </p>
 
           <PhoneInput
-            international
-            defaultCountry="ES"
+            placeholder="Introduce tu número de teléfono"
             value={phoneNumber}
             onChange={setPhoneNumber}
-            placeholder="Número de teléfono"
-            className="text-black rounded p-2 w-full mb-4"
+            defaultCountry="ES"
+            international
+            countryCallingCodeEditable={false}
             disabled={loading}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-black"
           />
 
-          <div className="flex justify-center gap-2 mb-4">
+          {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
+            <p className="mt-1 text-sm text-red-500">Número de teléfono inválido</p>
+          )}
+
+          <div className="mt-4 flex gap-2">
             <Button
-              className={`flex-1 ${loading ? "animate-pulse" : ""}`}
-              onClick={sendOtpToNewPhone}
-              disabled={loading || !phoneNumber}
+              onClick={() => {
+                if (phoneNumber) {
+                  enrollMfaForUser(auth.currentUser!, phoneNumber)
+                } else {
+                  toast.error("Ingresa un número de teléfono válido")
+                }
+              }}
+              disabled={loading || !phoneNumber || !isValidPhoneNumber(phoneNumber)}
             >
-              {loading ? "Enviando OTP..." : "Enviar código"}
+              Enviar código
             </Button>
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => !loading && setShowAddPhone(false)}
+              onClick={() => !loading && setShowEnrollPhone(false)}
               disabled={loading}
             >
               Cancelar
