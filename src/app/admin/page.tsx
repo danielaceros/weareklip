@@ -215,22 +215,24 @@ export default function AdminDashboardPage() {
       </div>
 
       <Card>
-        <CardContent className="p-6 overflow-x-auto">
-          <h2 className="text-lg font-semibold mb-4">Clientes detallados</h2>
-          <table className="min-w-full text-sm border border-gray-300 rounded-lg overflow-hidden">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-2 text-left">Nombre</th>
-                <th className="px-4 py-2 text-left">Correo</th>
-                <th className="px-4 py-2 text-left">Estado</th>
-                <th className="px-4 py-2 text-left">Pack</th>
-                <th className="px-4 py-2 text-left">Subscripción</th>
-                <th className="px-4 py-2 text-left">Notas</th>
-                <th className="px-4 py-2 text-left">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((client) => (
+      <CardContent className="p-6 overflow-x-auto">
+        <h2 className="text-lg font-semibold mb-4">Clientes activos</h2>
+        <table className="min-w-full text-sm border border-gray-300 rounded-lg overflow-hidden mb-6">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 text-left">Nombre</th>
+              <th className="px-4 py-2 text-left">Correo</th>
+              <th className="px-4 py-2 text-left">Estado</th>
+              <th className="px-4 py-2 text-left">Pack</th>
+              <th className="px-4 py-2 text-left">Subscripción</th>
+              <th className="px-4 py-2 text-left">Notas</th>
+              <th className="px-4 py-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients
+              .filter((client) => isActive(client.subStatus || ""))
+              .map((client) => (
                 <tr key={client.uid} className="border-t">
                   <td className="px-4 py-2">{client.name || "-"}</td>
                   <td className="px-4 py-2">{client.email}</td>
@@ -238,23 +240,35 @@ export default function AdminDashboardPage() {
                     <select
                       value={client.estado || ""}
                       onChange={(e) => handleChange(client.uid, "estado", e.target.value)}
-                      className="bg-white border border-gray-300 rounded px-2 py-1"
+                      className="bg-white border border-gray-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Sin estado</option>
-                      <option value="activo">Activo</option>
-                      <option value="pendiente">Pendiente</option>
-                      <option value="cancelado">Cancelado</option>
+                      <option value="">🟡 Sin estado</option>
+                      <option value="Nuevo Cliente">🆕 Nuevo Cliente</option>
+                      <option value="Onboarding">🚀 Onboarding</option>
+                      <option value="Enviar Vídeo Dani">🎥 Enviar Vídeo Dani</option>
+                      <option value="Generar Guión">✍️ Generar Guión</option>
+                      <option value="Esperando Confirmación Guión">⏳ Confirmación Guión</option>
+                      <option value="Esperando Clonación">🧬 Esperando Clonación</option>
+                      <option value="Generar Vídeo">🎬 Generar Vídeo</option>
+                      <option value="Enviado a Editor">🛠️ Enviado a Editor</option>
+                      <option value="Revisar Vídeo">🔍 Revisar Vídeo</option>
+                      <option value="Programado">📅 Programado</option>
+                      <option value="Finalizado">✅ Finalizado</option>
                     </select>
                   </td>
                   <td className="px-4 py-2">{client.planName || "-"}</td>
                   <td className="px-4 py-2">
-                    {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "-"}
+                    {client.createdAt
+                      ? new Date(client.createdAt).toLocaleDateString()
+                      : "-"}
                   </td>
                   <td className="px-4 py-2">
                     <input
                       type="text"
                       value={client.notas || ""}
-                      onChange={(e) => handleChange(client.uid, "notas", e.target.value)}
+                      onChange={(e) =>
+                        handleChange(client.uid, "notas", e.target.value)
+                      }
                       className="w-full bg-white border border-gray-300 rounded px-2 py-1"
                     />
                   </td>
@@ -268,22 +282,22 @@ export default function AdminDashboardPage() {
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+          </tbody>
+        </table>
 
-          {hasMore && (
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => loadStripeClients(lastId)}
-                disabled={loadingMore}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
-              >
-                {loadingMore ? "Cargando..." : "Cargar más"}
-              </button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {hasMore && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => loadStripeClients(lastId)}
+              disabled={loadingMore}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+            >
+              {loadingMore ? "Cargando..." : "Cargar más"}
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
     </div>
   )
 }
