@@ -15,6 +15,7 @@ import {
   getMultiFactorResolver,
   MultiFactorResolver,
   MultiFactorError,
+  sendEmailVerification
 } from "firebase/auth"
 import { FirebaseError } from "firebase/app"
 import { auth, db } from "@/lib/firebase"
@@ -105,7 +106,8 @@ export default function Home() {
   const [verificationId, setVerificationId] = useState<string | null>(null)
   const [isEnrollingMfa, setIsEnrollingMfa] = useState(false)
   const [recaptchaVisible, setRecaptchaVisible] = useState(false)
-
+  const [loadingLogin, setLoadingLogin] = useState(false)
+  const [loadingMfa, setLoadingMfa] = useState(false)
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   // Inicializar reCAPTCHA invisible, render solo una vez
@@ -157,35 +159,37 @@ export default function Home() {
 
   // Verificar código MFA para login
   const verifyMfaCode = async () => {
-    if (verificationCode.some((d) => d === "")) {
-      toast.warning("Completa los 6 dígitos del código.")
-      return
-    }
-    if (!mfaResolver || !verificationId) {
-      toast.error("No hay proceso de autenticación multifactor activo.")
-      return
-    }
-    setLoading(true)
-    try {
-      const code = verificationCode.join("")
-      const cred = PhoneAuthProvider.credential(verificationId, code)
-      const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(cred)
-      const userCredential = await mfaResolver.resolveSignIn(multiFactorAssertion)
-      await createOrUpdateUserInFirestore(userCredential.user)
-      toast.success("Autenticación multifactor completada")
-      setShowMfaDialog(false)
-      setVerificationCode(["", "", "", "", "", ""])
-      setMfaResolver(null)
-      setVerificationId(null)
-      router.push("/dashboard")
-    } catch (error) {
-      console.error("Error verificando MFA:", error)
-      toast.error(getErrorMessage(error))
-    } finally {
-      setLoading(false)
-      setRecaptchaVisible(false)
-    }
+  if (verificationCode.some((d) => d === "")) {
+    toast.warning("Completa los 6 dígitos del código.")
+    return
   }
+  if (!mfaResolver || !verificationId) {
+    toast.error("No hay proceso de autenticación multifactor activo.")
+    return
+  }
+
+  setLoadingMfa(true)
+  try {
+    const code = verificationCode.join("")
+    const cred = PhoneAuthProvider.credential(verificationId, code)
+    const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(cred)
+    const userCredential = await mfaResolver.resolveSignIn(multiFactorAssertion)
+    await createOrUpdateUserInFirestore(userCredential.user)
+
+    toast.success("Autenticación multifactor completada")
+    setShowMfaDialog(false)
+    setVerificationCode(["", "", "", "", "", ""])
+    setMfaResolver(null)
+    setVerificationId(null)
+    router.push("/dashboard")
+  } catch (error) {
+    console.error("Error verificando MFA:", error)
+    toast.error(getErrorMessage(error))
+  } finally {
+    setLoadingMfa(false)
+    setRecaptchaVisible(false)
+  }
+}
 
   // Enroll MFA para usuario nuevo con teléfono
   async function enrollMfaForUser(user: User, phone: string) {
@@ -244,8 +248,8 @@ export default function Home() {
       console.error("Error completando inscripción MFA:", error)
       toast.error(getErrorMessage(error))
       setIsEnrollingMfa(false)
-    } finally {
       setLoading(false)
+    } finally {
       setRecaptchaVisible(false)
     }
   }
@@ -303,52 +307,66 @@ export default function Home() {
 
   // Login con email+pass
   const handleLogin = async () => {
-    if (!validateForm()) return
-    setLoading(true)
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      await createOrUpdateUserInFirestore(userCredential.user)
-      await checkAndEnrollMfaIfMissing(userCredential.user)
-    } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as MultiFactorError).code === "auth/multi-factor-auth-required"
-      ) {
-        try {
-          const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
-          setMfaResolver(resolver)
+  if (!validateForm()) return
+  setLoadingLogin(true)
 
-          const phoneInfoOptions = {
-            multiFactorHint: resolver.hints[0],
-            session: resolver.session,
-          }
-          const phoneAuthProvider = new PhoneAuthProvider(auth)
-          const recaptchaVerifier = window.recaptchaVerifier!
-          setRecaptchaVisible(true)
-          const verificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier)
-          setVerificationId(verificationId)
-          setShowMfaDialog(true)
-        } catch (err: unknown) {
-          console.error("Error iniciando MFA:", err)
-          toast.error("Error iniciando verificación 2FA.")
-          setRecaptchaVisible(false)
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password)
+
+    if (!userCredential.user.emailVerified) {
+      await sendEmailVerification(userCredential.user)
+      toast.error("Verifica tu correo antes de iniciar sesión. Se ha reenviado el email.")
+      return
+    }
+
+    await createOrUpdateUserInFirestore(userCredential.user)
+    await checkAndEnrollMfaIfMissing(userCredential.user)
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as MultiFactorError).code === "auth/multi-factor-auth-required"
+    ) {
+      try {
+        const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
+        setMfaResolver(resolver)
+
+        const phoneInfoOptions = {
+          multiFactorHint: resolver.hints[0],
+          session: resolver.session,
         }
+
+        const phoneAuthProvider = new PhoneAuthProvider(auth)
+        const recaptchaVerifier = window.recaptchaVerifier!
+        setRecaptchaVisible(true)
+        const verificationId = await phoneAuthProvider.verifyPhoneNumber(
+          phoneInfoOptions,
+          recaptchaVerifier
+        )
+
+        setVerificationId(verificationId)
+        setShowMfaDialog(true)
+      } catch (err: unknown) {
+        console.error("Error iniciando MFA:", err)
+        toast.error("Error iniciando verificación 2FA.")
+        setRecaptchaVisible(false)
+      }
+    } else {
+      console.error("Error auth:", error)
+      if (error instanceof FirebaseError) {
+        toast.error(getErrorMessage(error))
+      } else if (error instanceof Error) {
+        toast.error(error.message)
       } else {
-        console.error("Error auth:", error)
-        if (error instanceof FirebaseError) {
-          toast.error(getErrorMessage(error))
-        } else if (error instanceof Error) {
-          toast.error(error.message)
-        } else {
-          toast.error("Error desconocido. Intenta nuevamente.")
-        }
+        toast.error("Error desconocido. Intenta nuevamente.")
       }
-    } finally {
-          setLoading(false)
-        }
-      }
+    }
+  } finally {
+    setLoadingLogin(false)
+  }
+}
+
 
   // Login con Google + MFA
   const handleGoogleLogin = async () => {
@@ -463,7 +481,7 @@ export default function Home() {
 
                   <Button
                     type="submit"
-                    className={`w-full ${loading ? "animate-pulse" : ""}`}
+                    className={`w-full`}
                     disabled={loading}
                   >
                     {loading ? "Procesando..." : isLogin ? "Entrar" : "Registrarse"}
@@ -533,18 +551,19 @@ export default function Home() {
                 ref={setInputRef(i)}
                 className="w-12 h-12 text-center text-2xl font-mono"
                 autoFocus={i === 0}
-                disabled={loading}
+                disabled={loadingMfa}  // ✅ Solo se desactivan si estás verificando el código, no cuando cargó el modal
               />
             ))}
           </div>
 
           <div className="mt-4 flex gap-2">
             <Button
+              type="submit"
               className={`flex-1 ${loading ? "animate-pulse" : ""}`}
               onClick={isEnrollingMfa ? completeEnrollMfa : verifyMfaCode}
-              disabled={loading || verificationCode.some((d) => d === "")}
+              disabled={loadingMfa || verificationCode.some((d) => d === "")}
             >
-              {loading ? "Verificando..." : "Verificar código"}
+              {loadingLogin ? "Verificando..." : isLogin ? "Entrar" : "Registrarse"}
             </Button>
             <Button
               variant="outline"
