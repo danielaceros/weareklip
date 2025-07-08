@@ -128,11 +128,14 @@ export default function Home() {
         },
       })
       verifier.render().then(() => {
-        window.recaptchaVerifier = verifier
-      }).catch(err => {
-        console.error("Error renderizando reCAPTCHA:", err)
-        toast.error("Error inicializando seguridad. Intenta recargar.")
-      })
+      window.recaptchaVerifier = verifier
+      setTimeout(() => {
+        const iframe = document.querySelector("iframe[src*='recaptcha']");
+        if (iframe) {
+          setRecaptchaVisible(true); // 👈 Forzar que sea visible si aparece challenge
+        }
+      }, 1000)
+    })
     }
     return () => {
       if (window.recaptchaVerifier) {
@@ -434,22 +437,25 @@ export default function Home() {
   return (
     <>
       <style>{`
-        #recaptcha-container {
-          position: fixed !important;
-          top: 10px;
-          right: 10px;
-          width: 304px !important;
-          height: 78px !important;
-          z-index: 999999 !important;
-          opacity: ${recaptchaVisible ? 1 : 0};
-          pointer-events: ${recaptchaVisible ? "auto" : "none"};
-          transition: opacity 0.3s ease;
-          background: transparent !important;
-        }
-      `}</style>
+      #recaptcha-container {
+        position: fixed !important;
+        top: 10px;
+        right: 10px;
+        width: 304px !important;
+        height: 78px !important;
+        z-index: 2147483647 !important; /* Prioridad máxima */
+        opacity: ${recaptchaVisible ? 1 : 0};
+        pointer-events: ${recaptchaVisible ? "auto" : "auto"}; /* Siempre interactivo si está visible */
+        transition: opacity 0.3s ease;
+        background: transparent !important;
+      }
 
+      #recaptcha-container iframe {
+        z-index: 2147483647 !important;
+      }
+    `}</style>
+      <div id="recaptcha-container" />
       <main className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 min-h-screen flex items-center justify-center text-white">
-        <div id="recaptcha-container" />
         <div className="relative z-10 px-6 text-center max-w-lg">
           <h1 className="text-5xl font-extrabold leading-tight mb-4">
             {isLogin ? "Bienvenido/a a KLIP" : "Empieza en KLIP"}
