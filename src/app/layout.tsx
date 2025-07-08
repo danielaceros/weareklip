@@ -34,6 +34,7 @@ export default function RootLayout({
           {children}
         </AuthProvider>
         <Toaster /> {/* Sonner notifications */}
+        <div id="recaptcha-container" />
       </body>
     </html>
   );

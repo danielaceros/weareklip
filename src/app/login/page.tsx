@@ -454,7 +454,6 @@ export default function Home() {
         z-index: 2147483647 !important;
       }
     `}</style>
-      <div id="recaptcha-container" />
       <main className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 min-h-screen flex items-center justify-center text-white">
         <div className="relative z-10 px-6 text-center max-w-lg">
           <h1 className="text-5xl font-extrabold leading-tight mb-4">
