@@ -1,8 +1,7 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
 import {
   doc,
   getDoc,
@@ -15,25 +14,29 @@ import {
 import {
   ref,
   uploadBytesResumable,
-  getDownloadURL
+  getDownloadURL,
 } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
-import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { useDropzone } from "react-dropzone"
-
-// Tipos
+import ClienteDatosForm from "@/components/shared/clientdatosform"
+import GuionesSection from "@/components/shared/guionesection"
+import VideosSection from "@/components/shared/videosection"
+import EditarGuionModal from "@/components/shared/editarguion"
+import EditarVideoModal from "@/components/shared/editarvideo"
+import ClonacionVideosSection from "@/components/shared/dropzonecl"
 
 type Cliente = {
   email: string
   name?: string
   stripeId?: string
   stripeLink?: string
+  createdAt?: number
+  estado?: string
+  instagramUser?: string
+  notas?: string
+  phone?: string
+  role?: string
 }
 
 type Guion = {
@@ -56,14 +59,11 @@ export default function ClientProfilePage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null)
   const [modalGuionOpen, setModalGuionOpen] = useState(false)
   const [modalVideoOpen, setModalVideoOpen] = useState(false)
-
-  const [nuevoGuion, setNuevoGuion] = useState({ titulo: "", contenido: "" })
   const [nuevoVideoTitulo, setNuevoVideoTitulo] = useState("")
   const [archivoVideo, setArchivoVideo] = useState<File | null>(null)
-
   const [guionSeleccionado, setGuionSeleccionado] = useState<Guion | null>(null)
   const [videoSeleccionado, setVideoSeleccionado] = useState<Video | null>(null)
   const [nuevoArchivoVideo, setNuevoArchivoVideo] = useState<File | null>(null)
@@ -71,54 +71,79 @@ export default function ClientProfilePage() {
   const rawParams = useParams()
   const uid = Array.isArray(rawParams.uid) ? rawParams.uid[0] : rawParams.uid
 
-  const fetchData = useCallback(async () => {
-  if (!uid) return toast.error("UID inválido.")
-  try {
-    const userDocRef = doc(db, "users", uid)
-    const userSnap = await getDoc(userDocRef)
-    if (!userSnap.exists()) throw new Error("Cliente no encontrado.")
-    const userData = userSnap.data() as Cliente
-    setCliente(userData)
-
-    const guionesSnap = await getDocs(collection(userDocRef, "guiones"))
-    const guionesData = guionesSnap.docs.map(doc => ({
-      firebaseId: doc.id,
-      ...doc.data()
-    })) as Guion[]
-    setGuiones(guionesData)
-
-    const videosSnap = await getDocs(collection(userDocRef, "videos"))
-    const videosData = videosSnap.docs.map(doc => ({
-      firebaseId: doc.id,
-      ...doc.data()
-    })) as Video[]
-    setVideos(videosData)
-  } catch (err) {
-    console.error(err)
-    toast.error("Error al cargar la ficha del cliente.")
-  } finally {
-    setLoading(false)
-  }
-}, [uid])
-
-  const handleCreateGuion = async () => {
-    if (!uid || typeof uid !== "string") return toast.error("UID inválido.")
-    const { titulo, contenido } = nuevoGuion
-    if (!titulo.trim() || !contenido.trim()) return toast.error("Completa todos los campos.")
+  const fetchSubscription = useCallback(async (email: string) => {
     try {
-      const refCol = collection(db, "users", uid, "guiones")
-      await addDoc(refCol, {
+      const res = await fetch(`/api/stripe/email?email=${encodeURIComponent(email)}`)
+      const json = await res.json()
+      setSubscriptionPlan(json?.plan || "Sin plan")
+    } catch {
+      setSubscriptionPlan("Error")
+    }
+  }, [])
+
+  const fetchData = useCallback(async () => {
+    if (!uid) return toast.error("UID inválido.")
+    try {
+      const userDocRef = doc(db, "users", uid)
+      const userSnap = await getDoc(userDocRef)
+      if (!userSnap.exists()) throw new Error("Cliente no encontrado.")
+      const userData = userSnap.data() as Cliente
+      setCliente(userData)
+
+      if (userData.email) fetchSubscription(userData.email)
+
+      const guionesSnap = await getDocs(collection(userDocRef, "guiones"))
+      setGuiones(guionesSnap.docs.map(doc => ({
+        firebaseId: doc.id,
+        ...doc.data()
+      })) as Guion[])
+
+      const videosSnap = await getDocs(collection(userDocRef, "videos"))
+      setVideos(videosSnap.docs.map(doc => ({
+        firebaseId: doc.id,
+        ...doc.data()
+      })) as Video[])
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al cargar la ficha del cliente.")
+    } finally {
+      setLoading(false)
+    }
+  }, [uid, fetchSubscription])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const handleSaveCliente = async (): Promise<void> => {
+    if (!uid || !cliente) {
+      toast.error("Faltan datos.")
+      return
+    }
+    try {
+      await updateDoc(doc(db, "users", uid), cliente)
+      toast.success("Datos actualizados.")
+      fetchData()
+    } catch (err) {
+      console.error(err)
+      toast.error("No se pudo guardar.")
+    }
+  }
+
+  const handleCreateGuion = async (titulo: string, contenido: string) => {
+    if (!uid || !titulo || !contenido) return
+    try {
+      await addDoc(collection(db, "users", uid, "guiones"), {
         titulo,
         contenido,
         estado: 0,
-        creadoEn: new Date()
+        creadoEn: new Date(),
       })
-      setNuevoGuion({ titulo: "", contenido: "" })
-      setModalGuionOpen(false)
       toast.success("Guion creado.")
+      setModalGuionOpen(false)
       fetchData()
     } catch (err) {
-      console.error("Error al crear guion:", err)
+      console.error(err)
       toast.error("Error al crear guion.")
     }
   }
@@ -126,8 +151,8 @@ export default function ClientProfilePage() {
   const handleUpdateGuion = async () => {
     if (!uid || !guionSeleccionado) return
     try {
-      const ref = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId)
-      await updateDoc(ref, {
+      const refDoc = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId)
+      await updateDoc(refDoc, {
         titulo: guionSeleccionado.titulo,
         contenido: guionSeleccionado.contenido,
       })
@@ -140,20 +165,69 @@ export default function ClientProfilePage() {
     }
   }
 
+  const handleUploadVideo = async () => {
+    if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
+      toast.error("Completa todos los campos.")
+      return
+    }
+
+    if (archivoVideo.size > 100 * 1024 * 1024) {
+      toast.error("El archivo no debe superar los 100MB.")
+      return
+    }
+
+    try {
+      const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`)
+      const uploadTask = uploadBytesResumable(storageRef, archivoVideo)
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(progress)
+        },
+        () => {
+          toast.error("Error al subir el video.")
+          setUploadProgress(null)
+        },
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref)
+          await addDoc(collection(db, "users", uid, "videos"), {
+            titulo: nuevoVideoTitulo,
+            url,
+            estado: "pendiente",
+            creadoEn: new Date(),
+          })
+          toast.success("Video subido con éxito.")
+          setUploadProgress(null)
+          setModalVideoOpen(false)
+          setArchivoVideo(null)
+          setNuevoVideoTitulo("")
+          fetchData()
+        }
+      )
+    } catch (err) {
+      console.error(err)
+      toast.error("Error al guardar video.")
+      setUploadProgress(null)
+    }
+  }
+
   const handleUpdateVideo = async () => {
     if (!uid || !videoSeleccionado) return
     try {
-      let newURL = videoSeleccionado.url
+      let url = videoSeleccionado.url
       if (nuevoArchivoVideo) {
         const storageRef = ref(storage, `users/${uid}/videos/${nuevoArchivoVideo.name}`)
         const uploadTask = await uploadBytesResumable(storageRef, nuevoArchivoVideo)
-        newURL = await getDownloadURL(uploadTask.ref)
+        url = await getDownloadURL(uploadTask.ref)
       }
-      const refDoc = doc(db, "users", uid, "videos", videoSeleccionado.firebaseId)
-      await updateDoc(refDoc, {
+
+      await updateDoc(doc(db, "users", uid, "videos", videoSeleccionado.firebaseId), {
         titulo: videoSeleccionado.titulo,
-        url: newURL,
+        url,
       })
+
       toast.success("Video actualizado")
       setVideoSeleccionado(null)
       setNuevoArchivoVideo(null)
@@ -164,87 +238,20 @@ export default function ClientProfilePage() {
     }
   }
 
-  const handleUploadVideo = async () => {
-    if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
-      toast.error("Completa todos los campos y sube un archivo.")
-      return
-    }
-    if (archivoVideo.size > 100 * 1024 * 1024) {
-      toast.error("El archivo no debe superar los 100MB.")
-      return
-    }
-    try {
-      const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`)
-      const uploadTask = uploadBytesResumable(storageRef, archivoVideo)
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(progress)
-        },
-        (error) => {
-          console.error("Error al subir archivo:", error)
-          toast.error("Error al subir el video.")
-          setUploadProgress(null)
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          const refCol = collection(db, "users", uid, "videos")
-          await addDoc(refCol, {
-            titulo: nuevoVideoTitulo.trim(),
-            url: downloadURL,
-            estado: "pendiente",
-            creadoEn: new Date()
-          })
-          toast.success("Video subido con éxito.")
-          setModalVideoOpen(false)
-          setArchivoVideo(null)
-          setNuevoVideoTitulo("")
-          setUploadProgress(null)
-          fetchData()
-        }
-      )
-    } catch (err) {
-      console.error("Upload error:", err)
-      toast.error("Error al guardar video.")
-      setUploadProgress(null)
-    }
-  }
-
   const handleDelete = async (type: "guiones" | "videos", id: string) => {
+    if (!uid || typeof uid !== "string") {
+      toast.error("UID inválido.")
+      return
+    }
+
     try {
-      const docRef = doc(db, "users", uid as string, type, id)
-      await deleteDoc(docRef)
+      await deleteDoc(doc(db, "users", uid, type, id))
       fetchData()
-    } catch {
+    } catch (err) {
+      console.error(err)
       toast.error("Error al eliminar.")
     }
   }
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "video/*": [] },
-    maxSize: 100 * 1024 * 1024,
-    onDrop: (files) => {
-      if (files.length) {
-        setArchivoVideo(files[0])
-      }
-    },
-  })
-
-  const { getRootProps: getEditDropProps, getInputProps: getEditInputProps } = useDropzone({
-    accept: { "video/*": [] },
-    maxSize: 100 * 1024 * 1024,
-    onDrop: (files) => {
-      if (files.length) {
-        setNuevoArchivoVideo(files[0])
-      }
-    },
-  })
-
-  useEffect(() => {
-    fetchData()
-    }, [fetchData])
-
 
   if (loading) {
     return (
@@ -263,103 +270,72 @@ export default function ClientProfilePage() {
     <div className="p-6 space-y-8">
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">👤 Cliente: {cliente.email}</h1>
-        {cliente.name && <p>Nombre: {cliente.name}</p>}
         {cliente.stripeLink && (
-          <p>
-            <a href={cliente.stripeLink} target="_blank" className="text-blue-600 underline">Ver en Stripe</a>
-          </p>
+          <a href={cliente.stripeLink} target="_blank" className="text-blue-600 underline">
+            Ver en Stripe
+          </a>
         )}
-      </div>
-
-      {/* GUIONES */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-semibold">📜 Guiones</h2>
-          <Dialog open={modalGuionOpen} onOpenChange={setModalGuionOpen}>
-            <DialogTrigger asChild><Button>+ Crear</Button></DialogTrigger>
-            <DialogContent>
-              <h3 className="font-semibold text-lg mb-2">Nuevo Guion</h3>
-              <Input placeholder="Título" value={nuevoGuion.titulo} onChange={(e) => setNuevoGuion((prev) => ({ ...prev, titulo: e.target.value }))} />
-              <Textarea placeholder="Contenido" value={nuevoGuion.contenido} onChange={(e) => setNuevoGuion((prev) => ({ ...prev, contenido: e.target.value }))} />
-              <Button onClick={handleCreateGuion} className="mt-2">Guardar</Button>
-            </DialogContent>
-          </Dialog>
-        </div>
-        {guiones.length === 0 ? (
-          <p className="text-muted-foreground">Este cliente no tiene guiones aún.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {guiones.map((g) => (
-              <Card key={g.firebaseId} className="p-3 cursor-pointer" onClick={() => setGuionSeleccionado(g)}>
-                <p className="font-semibold text-base">{g.titulo}</p>
-                <p className="text-muted-foreground whitespace-pre-line">{g.contenido}</p>
-              </Card>
-            ))}
+        {subscriptionPlan && (
+          <div className="bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full w-fit">
+            {subscriptionPlan}
           </div>
         )}
       </div>
 
-      {/* VIDEOS */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-semibold">🎬 Videos</h2>
-          <Dialog open={modalVideoOpen} onOpenChange={setModalVideoOpen}>
-            <DialogTrigger asChild><Button>+ Crear</Button></DialogTrigger>
-            <DialogContent>
-              <h3 className="font-semibold text-lg mb-2">Subir video</h3>
-              <Input placeholder="Título del video" value={nuevoVideoTitulo} onChange={(e) => setNuevoVideoTitulo(e.target.value)} />
-              <div {...getRootProps()} className={`border border-dashed rounded-md p-4 text-center cursor-pointer ${isDragActive ? "border-blue-500" : "border-gray-300"}`}>
-                <input {...getInputProps()} />
-                {archivoVideo ? <p className="text-sm">{archivoVideo.name}</p> : <p className="text-sm text-muted-foreground">Arrastra un video aquí o haz clic para seleccionar uno (máx. 100MB)</p>}
-              </div>
-              <Button onClick={handleUploadVideo} className="mt-2 w-full" disabled={uploadProgress !== null}>
-                {uploadProgress !== null ? `Subiendo... ${uploadProgress.toFixed(0)}%` : "Subir"}
-              </Button>
-            </DialogContent>
-          </Dialog>
-        </div>
-        {videos.length === 0 ? (
-          <p className="text-muted-foreground">Este cliente no tiene videos aún.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {videos.map((v) => (
-              <Card key={v.firebaseId} className="p-3 cursor-pointer" onClick={() => setVideoSeleccionado(v)}>
-                <p className="font-semibold text-base">{v.titulo}</p>
-                <video controls src={v.url} className="rounded w-full aspect-[9/16] object-cover" />
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      <ClienteDatosForm
+        cliente={cliente}
+        setCliente={setCliente}
+        uid={uid as string}
+        onSave={handleSaveCliente}
+      />
 
-      {/* MODALES EDICIÓN */}
-      <Dialog open={!!guionSeleccionado} onOpenChange={() => setGuionSeleccionado(null)}>
-        <DialogContent>
-          <h3 className="text-lg font-bold mb-2">Editar Guion</h3>
-          <Input value={guionSeleccionado?.titulo || ""} onChange={(e) => setGuionSeleccionado(prev => prev && ({ ...prev, titulo: e.target.value }))} />
-          <Textarea value={guionSeleccionado?.contenido || ""} onChange={(e) => setGuionSeleccionado(prev => prev && ({ ...prev, contenido: e.target.value }))} />
-          <div className="flex gap-2 mt-3">
-            <Button variant="destructive" onClick={() => handleDelete("guiones", guionSeleccionado!.firebaseId)}>Eliminar</Button>
-            <Button onClick={handleUpdateGuion}>Guardar Cambios</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <GuionesSection
+        guiones={guiones}
+        modalOpen={modalGuionOpen}
+        setModalOpen={setModalGuionOpen}
+        onCreate={handleCreateGuion}
+        onSelect={setGuionSeleccionado}
+      />
 
-      <Dialog open={!!videoSeleccionado} onOpenChange={() => { setVideoSeleccionado(null); setNuevoArchivoVideo(null); }}>
-        <DialogContent>
-          <h3 className="text-lg font-bold mb-2">Editar Video</h3>
-          <Input value={videoSeleccionado?.titulo || ""} onChange={(e) => setVideoSeleccionado(prev => prev && ({ ...prev, titulo: e.target.value }))} />
-          <video controls src={videoSeleccionado?.url} className="rounded w-full aspect-[9/16] object-cover my-2" />
-          <div {...getEditDropProps()} className="border border-dashed rounded-md p-4 text-center cursor-pointer">
-            <input {...getEditInputProps()} />
-            {nuevoArchivoVideo ? <p className="text-sm">{nuevoArchivoVideo.name}</p> : <p className="text-sm text-muted-foreground">Sube nueva versión del video (opcional)</p>}
-          </div>
-          <div className="flex gap-2 mt-3">
-            <Button variant="destructive" onClick={() => handleDelete("videos", videoSeleccionado!.firebaseId)}>Eliminar</Button>
-            <Button onClick={handleUpdateVideo}>Guardar Cambios</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <VideosSection
+        videos={videos}
+        modalOpen={modalVideoOpen}
+        setModalOpen={setModalVideoOpen}
+        onUpload={(file, title) => {
+          setArchivoVideo(file)
+          setNuevoVideoTitulo(title)
+          handleUploadVideo()
+        }}
+        uploadProgress={uploadProgress}
+        archivoVideo={archivoVideo}
+        setArchivoVideo={setArchivoVideo}
+        nuevoTitulo={nuevoVideoTitulo}
+        setNuevoTitulo={setNuevoVideoTitulo}
+        onSelect={setVideoSeleccionado}
+      />
+
+      <EditarGuionModal
+        guion={guionSeleccionado}
+        onClose={() => setGuionSeleccionado(null)}
+        onChange={setGuionSeleccionado}
+        onDelete={(id) => handleDelete("guiones", id)}
+        onSave={handleUpdateGuion}
+      />
+
+      <EditarVideoModal
+        video={videoSeleccionado}
+        onClose={() => {
+          setVideoSeleccionado(null)
+          setNuevoArchivoVideo(null)
+        }}
+        onChange={setVideoSeleccionado}
+        onDelete={(id) => handleDelete("videos", id)}
+        onSave={handleUpdateVideo}
+        onFileSelect={setNuevoArchivoVideo}
+        nuevoArchivoVideo={nuevoArchivoVideo}
+      />
+
+      <ClonacionVideosSection uid={uid as string} />
     </div>
   )
 }

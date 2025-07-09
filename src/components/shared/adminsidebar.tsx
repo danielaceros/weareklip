@@ -1,61 +1,60 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useEffect, useState, useRef } from "react";
-import { ChevronDown, LogOut } from "lucide-react";
+import Link from "next/link"
+import Image from "next/image"
+import { usePathname } from "next/navigation"
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+import { useEffect, useState, useRef } from "react"
+import { ChevronDown, LogOut } from "lucide-react"
 
 interface UserInfo {
-  email: string;
-  photoURL?: string;
-  plan?: string;
+  email: string
+  photoURL?: string
+  plan?: string
+  uid?: string
 }
 
 const links = [
   { href: "/admin", label: "Home" },
-  { href: "/admin/scripts", label: "Crear Guiones" },
-  { href: "/admin/videos", label: "Crear Videos" },
-  { href: "/admin/users", label: "Usuarios" },
-  { href: "/admin/clients", label: "Clientes Activos" }, // para más adelante
-];
+  { href: "/admin/clients", label: "Clientes" },
+  { href: "/admin/tasks", label: "Tareas" },
+]
 
 export function AdminSidebar() {
-  const pathname = usePathname();
-
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname()
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          const res = await fetch("/api/stripe/subscription", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await res.json();
-          setUserInfo({
-            email: user.email ?? "Sin email",
-            photoURL: user.photoURL ?? "",
-            plan: data?.plan || "Sin plan",
-          });
-        } catch {
-          setUserInfo({
-            email: user.email ?? "Sin email",
-            photoURL: user.photoURL ?? "",
-            plan: "Sin plan",
-          });
-        }
-      } else {
-        setUserInfo(null);
+      if (!user) return setUserInfo(null)
+
+      try {
+        const token = await user.getIdToken()
+        const res = await fetch("/api/stripe/subscription", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json()
+        setUserInfo({
+          email: user.email ?? "Sin email",
+          photoURL: user.photoURL ?? "",
+          plan: data?.plan || "Sin plan",
+          uid: user.uid,
+        })
+      } catch {
+        setUserInfo({
+          email: user.email ?? "Sin email",
+          photoURL: user.photoURL ?? "",
+          plan: "Sin plan",
+          uid: user.uid,
+        })
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -64,21 +63,22 @@ export function AdminSidebar() {
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node)
       ) {
-        setDropdownOpen(false);
+        setDropdownOpen(false)
       }
-    };
-    if (dropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
     }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [dropdownOpen]);
+
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [dropdownOpen])
 
   return (
     <aside className="w-64 bg-white border-r p-4 flex flex-col justify-between">
-      {/* Menú principal arriba */}
+      {/* Menú principal */}
       <div>
         <h2 className="text-lg font-bold mb-6">Panel Admin</h2>
-
         <nav className="flex flex-col gap-2">
           {links.map((link) => (
             <Link
@@ -94,7 +94,7 @@ export function AdminSidebar() {
         </nav>
       </div>
 
-      {/* Perfil abajo */}
+      {/* Perfil */}
       {userInfo ? (
         <div
           ref={dropdownRef}
@@ -103,8 +103,8 @@ export function AdminSidebar() {
           onClick={() => setDropdownOpen(!dropdownOpen)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setDropdownOpen(!dropdownOpen);
+              e.preventDefault()
+              setDropdownOpen(!dropdownOpen)
             }
           }}
           aria-haspopup="true"
@@ -137,12 +137,10 @@ export function AdminSidebar() {
               <button
                 onClick={() => signOut(auth)}
                 className="flex items-center gap-2 px-4 py-2 w-full text-left hover:bg-gray-100"
-                aria-label="Cerrar sesión"
               >
                 <LogOut className="w-4 h-4" />
                 Cerrar sesión
               </button>
-              {/* Opciones adicionales pueden ir aquí */}
             </div>
           )}
         </div>
@@ -150,5 +148,5 @@ export function AdminSidebar() {
         <p className="text-gray-600">No autenticado</p>
       )}
     </aside>
-  );
+  )
 }

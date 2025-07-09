@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import { ReactNode } from "react"
 import { AdminSidebar } from "@/components/shared/adminsidebar"
+import { TaskInboxFloating } from "@/components/shared/floating"
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [allowed, setAllowed] = useState(false)
@@ -49,6 +50,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen">
       <AdminSidebar />
       <main className="flex-1 bg-muted p-6">{children}</main>
+      <TaskInboxFloating />
     </div>
   )
 }
