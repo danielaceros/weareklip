@@ -4,24 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import VideoCard from "@/components/shared/videocard";
+import VideoEditorModal from "@/components/shared/videomodal";
 
 type Video = {
   firebaseId: string;
@@ -40,7 +25,6 @@ export default function VideosPage() {
   const [estadoEditado, setEstadoEditado] = useState("0");
   const [open, setOpen] = useState(false);
 
-  // Función para enviar mail de notificación
   const sendNotificationEmail = async (
     to: string,
     subject: string,
@@ -145,7 +129,6 @@ export default function VideosPage() {
         )
       );
 
-      // Enviar correo notificando el cambio
       const subject = `Vídeo modificado por ${userEmail}`;
       const content = `
         El usuario con email <strong>${userEmail}</strong> ha modificado el vídeo:
@@ -189,31 +172,6 @@ export default function VideosPage() {
     }
   };
 
-  const renderEstado = (estado: number) => {
-    switch (estado) {
-      case 0:
-        return (
-          <Badge className="bg-red-500 text-white" aria-label="Estado nuevo">
-            🆕 Nuevo
-          </Badge>
-        );
-      case 1:
-        return (
-          <Badge className="bg-yellow-400 text-black" aria-label="Estado con cambios">
-            ✏️ Cambios
-          </Badge>
-        );
-      case 2:
-        return (
-          <Badge className="bg-green-500 text-white" aria-label="Estado aprobado">
-            ✅ Aprobado
-          </Badge>
-        );
-      default:
-        return <Badge variant="secondary">Desconocido</Badge>;
-    }
-  };
-
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Mis Vídeos</h1>
@@ -221,91 +179,34 @@ export default function VideosPage() {
       {loading ? (
         <p className="text-muted-foreground animate-pulse">Cargando vídeos...</p>
       ) : videos.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {videos.map((video) => (
-            <Card
+            <VideoCard
               key={video.firebaseId}
-              className="cursor-pointer hover:shadow-lg transition"
+              titulo={video.titulo}
+              url={video.url}
+              estado={video.estado}
               onClick={() => openModal(video)}
-              tabIndex={0}
-              role="button"
-              aria-label={`Editar vídeo ${video.titulo}`}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") openModal(video);
-              }}
-            >
-              <CardContent className="p-2 space-y-1">
-                <div className="flex justify-between items-center">
-                  <h2 className="font-semibold text-base truncate">{video.titulo}</h2>
-                  {renderEstado(video.estado)}
-                </div>
-                <video
-                  src={video.url}
-                  className="w-full max-w-[180px] max-h-[320px] rounded object-contain mt-2"
-                  controls
-                  preload="metadata"
-                />
-              </CardContent>
-            </Card>
+            />
           ))}
         </div>
       ) : (
         <p className="text-muted-foreground">No hay vídeos disponibles.</p>
       )}
 
-      {/* Modal */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              <input
-                type="text"
-                value={tituloEditado}
-                onChange={(e) => setTituloEditado(e.target.value)}
-                className="w-110 border-b border-gray-300 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 rounded"
-                placeholder="Editar título"
-                aria-label="Editar título del vídeo"
-              />
-            </DialogTitle>
-          </DialogHeader>
-
-          {selected && (
-            <>
-              <video
-                src={selected.url}
-                controls
-                className="w-full max-w-[320px] max-h-[568px] rounded mx-auto object-contain"
-                preload="metadata"
-                aria-label={`Previsualización del video ${tituloEditado}`}
-              />
-
-              <div className="mt-4 flex flex-col sm:flex-row sm:justify-between gap-4 items-center">
-                <Button
-                  onClick={handleDownload}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  aria-label="Descargar vídeo"
-                >
-                  <Download className="w-5 h-5" />
-                </Button>
-
-                <div className="flex items-center gap-2">
-                  <Select value={estadoEditado} onValueChange={setEstadoEditado}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Selecciona estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">🆕 Nuevo</SelectItem>
-                      <SelectItem value="1">✏️ Cambios</SelectItem>
-                      <SelectItem value="2">✅ Aprobado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={guardarCambios}>Guardar cambios</Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selected && (
+        <VideoEditorModal
+          open={open}
+          onOpenChange={setOpen}
+          titulo={tituloEditado}
+          url={selected.url}
+          estado={estadoEditado}
+          onTituloChange={setTituloEditado}
+          onEstadoChange={setEstadoEditado}
+          onDownload={handleDownload}
+          onGuardar={guardarCambios}
+        />
+      )}
     </div>
   );
 }
