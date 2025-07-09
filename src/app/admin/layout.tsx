@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { auth, db } from "@/lib/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { collection, getDocs } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import { ReactNode } from "react"
 import { AdminSidebar } from "@/components/shared/adminsidebar"
@@ -19,16 +19,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         return
       }
 
-      const ref = doc(db, "users", user.uid)
-      const snap = await getDoc(ref)
+      try {
+        // Comprobamos si el email está en la colección `admin`
+        const adminsSnap = await getDocs(collection(db, "admin"))
+        const isAdmin = adminsSnap.docs.some(
+          (doc) => doc.data()?.email?.toLowerCase() === user.email?.toLowerCase()
+        )
 
-      if (!snap.exists() || snap.data().role !== "admin") {
+        if (!isAdmin) {
+          router.push("/")
+          return
+        }
+
+        setAllowed(true)
+      } catch (error) {
+        console.error("Error verificando admin:", error)
         router.push("/")
-        return
+      } finally {
+        setChecking(false)
       }
-
-      setAllowed(true)
-      setChecking(false)
     })
 
     return () => unsubscribe()

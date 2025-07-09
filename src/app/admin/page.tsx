@@ -9,6 +9,7 @@ import {
   getDocs,
   query,
   setDoc,
+  where,
 } from "firebase/firestore"
 import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
@@ -69,20 +70,55 @@ export default function AdminDashboardPage() {
     return await res.json()
   }
 
+  const sendNotificationEmail = async (
+    to: string,
+    subject: string,
+    content: string
+  ) => {
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, content }),
+      });
+    } catch (err) {
+      console.error("Error enviando correo:", err);
+    }
+  };
+
+  const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
+    const usersSnap = await getDocs(query(collection(db, "users"), where("email", "==", client.email)))
+    if (!usersSnap.empty) return usersSnap.docs[0].id
+
+    const docRef = doc(collection(db, "users"))
+    await setDoc(docRef, {
+      email: client.email,
+      name: client.name || "",
+      phone: "",
+      instagramUser: "",
+      role: "client",
+      estado: "",
+      notas: "",
+      createdAt: Date.now(),
+    })
+    return docRef.id
+  }
+
   const loadStripeClients = useCallback(
     async (startingAfter: string | null = null) => {
       try {
         setLoadingMore(true)
 
-        const [stripeRes, firestoreUsers] = await Promise.all([
-          fetchStripeClientsPage(startingAfter),
-          fetchFirestoreUsers(),
-        ])
+        const stripeRes = await fetchStripeClientsPage(startingAfter)
+        const firestoreUsers = await fetchFirestoreUsers()
 
-        const merged = stripeRes.data.map((stripeClient) => {
+        const merged: ClienteCompleto[] = []
+
+        for (const stripeClient of stripeRes.data) {
+          const uid = await ensureUserExists(stripeClient)
           const match = firestoreUsers.find((u) => u.email === stripeClient.email)
-          return { ...stripeClient, ...match }
-        })
+          merged.push({ ...stripeClient, ...match, uid })
+        }
 
         setClients((prev) => {
           const newClients = merged.filter(
@@ -124,28 +160,45 @@ export default function AdminDashboardPage() {
     }
   }, [])
 
-  const handleChange = (uid: string, field: "estado" | "notas", value: string) => {
+  const handleChange = async (
+    uid: string,
+    field: "estado" | "notas",
+    value: string
+  ) => {
     setClients((prev) =>
       prev.map((c) => (c.uid === uid ? { ...c, [field]: value } : c))
-    )
-  }
+    );
 
-  const handleSave = async (uid: string) => {
-    const client = clients.find((c) => c.uid === uid)
-    if (!client) return
+    const client = clients.find((c) => c.uid === uid);
+    if (!client) return;
+
     try {
       await setDoc(
         doc(db, "users", uid),
-        {
-          estado: client.estado || "",
-          notas: client.notas || "",
-        },
+        { [field]: value },
         { merge: true }
-      )
-      toast.success("Cliente actualizado")
+      );
+      toast.success(`Campo "${field}" actualizado`);
+
+      if (field === "estado") {
+        const name = client.name || "cliente";
+        const estado = value || "Sin estado";
+
+        const htmlContent = `
+          Hola ${name},<br/><br/>
+          Tu estado ahora es: <strong>${estado}</strong>.<br/><br/>
+          Puedes consultar tu panel en cualquier momento para seguir el proceso.
+        `;
+
+        await sendNotificationEmail(
+          "rubengomezklip@gmail.com",
+          "Tu estado ha sido actualizado",
+          htmlContent
+        );
+      }
     } catch (err) {
-      console.error(err)
-      toast.error("Error al guardar cambios")
+      console.error("Error al guardar cambios:", err);
+      toast.error("Error al guardar cambios");
     }
   }
 
@@ -217,30 +270,29 @@ export default function AdminDashboardPage() {
       <Card>
       <CardContent className="p-6 overflow-x-auto">
         <h2 className="text-lg font-semibold mb-4">Clientes activos</h2>
-        <table className="min-w-full text-sm border border-gray-300 rounded-lg overflow-hidden mb-6">
-          <thead className="bg-gray-100">
+        <table className="w-full text-sm text-gray-700 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500 tracking-wider">
             <tr>
-              <th className="px-4 py-2 text-left">Nombre</th>
-              <th className="px-4 py-2 text-left">Correo</th>
-              <th className="px-4 py-2 text-left">Estado</th>
-              <th className="px-4 py-2 text-left">Pack</th>
-              <th className="px-4 py-2 text-left">Subscripción</th>
-              <th className="px-4 py-2 text-left">Notas</th>
-              <th className="px-4 py-2 text-left">Acciones</th>
+              <th className="px-4 py-3 text-left">Nombre</th>
+              <th className="px-4 py-3 text-left">Correo</th>
+              <th className="px-4 py-3 text-left">Estado</th>
+              <th className="px-4 py-3 text-left">Pack</th>
+              <th className="px-4 py-3 text-left">Subscripción</th>
+              <th className="px-4 py-3 text-left">Notas</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-100">
             {clients
               .filter((client) => isActive(client.subStatus || ""))
               .map((client) => (
-                <tr key={client.uid} className="border-t">
-                  <td className="px-4 py-2">{client.name || "-"}</td>
-                  <td className="px-4 py-2">{client.email}</td>
-                  <td className="px-4 py-2">
+                <tr key={client.uid} className="hover:bg-gray-50 transition">
+                  <td className="px-4 py-3">{client.name || "-"}</td>
+                  <td className="px-4 py-3">{client.email}</td>
+                  <td className="px-4 py-3">
                     <select
                       value={client.estado || ""}
                       onChange={(e) => handleChange(client.uid, "estado", e.target.value)}
-                      className="bg-white border border-gray-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">🟡 Sin estado</option>
                       <option value="Nuevo Cliente">🆕 Nuevo Cliente</option>
@@ -256,34 +308,27 @@ export default function AdminDashboardPage() {
                       <option value="Finalizado">✅ Finalizado</option>
                     </select>
                   </td>
-                  <td className="px-4 py-2">{client.planName || "-"}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">{client.planName || "-"}</td>
+                  <td className="px-4 py-3">
                     {client.createdAt
                       ? new Date(client.createdAt).toLocaleDateString()
                       : "-"}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">
                     <input
                       type="text"
                       value={client.notas || ""}
                       onChange={(e) =>
                         handleChange(client.uid, "notas", e.target.value)
                       }
-                      className="w-full bg-white border border-gray-300 rounded px-2 py-1"
+                      className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                  </td>
-                  <td className="px-4 py-2">
-                    <button
-                      onClick={() => handleSave(client.uid)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm"
-                    >
-                      Guardar
-                    </button>
                   </td>
                 </tr>
               ))}
           </tbody>
         </table>
+
 
         {hasMore && (
           <div className="mt-6 text-center">

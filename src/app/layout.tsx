@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/context/authContext"; // Asegúrate de ajustar la ruta al contexto de autenticación
+import { SyncStripe } from "@/components/shared/syncstripe"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
       >
         {/* Envolvemos la aplicación con el AuthProvider */}
         <AuthProvider>
+          <SyncStripe />
           {children}
         </AuthProvider>
         <Toaster /> {/* Sonner notifications */}

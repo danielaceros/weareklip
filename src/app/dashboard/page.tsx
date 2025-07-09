@@ -65,11 +65,6 @@ export default function DashboardPage() {
 
     const data = await res.json()
 
-    // Si no es ok o no tiene status, lanza error con mensaje del backend o genérico
-    if (!res.ok || !data?.status) {
-      throw new Error(data?.error || "No se pudo obtener la suscripción.")
-    }
-
     // Datos de ejemplo (reemplaza con tus datos reales)
     const guiones = { nuevos: 3, cambios: 1, aprobados: 6 }
     const videos = 12

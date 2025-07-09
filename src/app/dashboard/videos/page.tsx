@@ -156,7 +156,7 @@ export default function VideosPage() {
         </ul>
       `;
 
-      await sendNotificationEmail("klipprueba@gmail.com", subject, content);
+      await sendNotificationEmail("rubengomezklip@gmail.com", subject, content);
 
       toast.success("Cambios guardados correctamente");
       setOpen(false);

@@ -14,6 +14,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No token provided" }, { status: 401 })
     }
 
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not defined")
+    }
+
     const decoded = await adminAuth.verifyIdToken(token)
     const email = decoded.email
 
