@@ -1,5 +1,5 @@
 "use client"
-
+import type { Video } from "@/types/video";
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import {
@@ -46,12 +46,6 @@ type Guion = {
   estado: number
 }
 
-type Video = {
-  firebaseId: string
-  titulo: string
-  url: string
-  estado?: string
-}
 
 export default function ClientProfilePage() {
   const [cliente, setCliente] = useState<Cliente | null>(null)
@@ -325,15 +319,13 @@ export default function ClientProfilePage() {
       <EditarVideoModal
         video={videoSeleccionado}
         onClose={() => {
-          setVideoSeleccionado(null)
-          setNuevoArchivoVideo(null)
+            setVideoSeleccionado(null)
+            setNuevoArchivoVideo(null)
         }}
-        onChange={setVideoSeleccionado}
         onDelete={(id) => handleDelete("videos", id)}
         onSave={handleUpdateVideo}
-        onFileSelect={setNuevoArchivoVideo}
-        nuevoArchivoVideo={nuevoArchivoVideo}
-      />
+        />
+
 
       <ClonacionVideosSection uid={uid as string} />
     </div>

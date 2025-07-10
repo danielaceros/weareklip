@@ -1,5 +1,5 @@
 "use client";
-
+import type { Video } from "@/types/video";
 import { useEffect, useState, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -7,13 +7,6 @@ import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import VideoCard from "@/components/shared/videocard";
 import VideoEditorModal from "@/components/shared/videomodal";
-
-type Video = {
-  firebaseId: string;
-  titulo: string;
-  url: string;
-  estado: number;
-};
 
 export default function VideosPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -23,6 +16,7 @@ export default function VideosPage() {
   const [selected, setSelected] = useState<Video | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
   const [estadoEditado, setEstadoEditado] = useState("0");
+  const [notasEditadas, setNotasEditadas] = useState("");
   const [open, setOpen] = useState(false);
 
   const sendNotificationEmail = async (
@@ -60,6 +54,7 @@ export default function VideosPage() {
           titulo: d.titulo ?? "Sin título",
           url: d.url ?? "",
           estado: d.estado ?? 0,
+          notas: d.notas ?? "",
         };
       });
 
@@ -96,6 +91,7 @@ export default function VideosPage() {
     setSelected(video);
     setTituloEditado(video.titulo);
     setEstadoEditado(String(video.estado));
+    setNotasEditadas(video.notas ?? "");
     setOpen(true);
   };
 
@@ -119,12 +115,18 @@ export default function VideosPage() {
       await updateDoc(ref, {
         estado: nuevoEstado,
         titulo: tituloEditado.trim(),
+        notas: notasEditadas.trim(),
       });
 
       setVideos((prev) =>
         prev.map((v) =>
           v.firebaseId === selected.firebaseId
-            ? { ...v, estado: nuevoEstado, titulo: tituloEditado.trim() }
+            ? {
+                ...v,
+                estado: nuevoEstado,
+                titulo: tituloEditado.trim(),
+                notas: notasEditadas.trim(),
+              }
             : v
         )
       );
@@ -136,6 +138,7 @@ export default function VideosPage() {
           <li><strong>ID:</strong> ${selected.firebaseId}</li>
           <li><strong>Título nuevo:</strong> ${tituloEditado.trim()}</li>
           <li><strong>Estado nuevo:</strong> ${nuevoEstado}</li>
+          <li><strong>Notas:</strong> ${notasEditadas.trim() || "Sin notas"}</li>
         </ul>
       `;
 
@@ -186,6 +189,7 @@ export default function VideosPage() {
               titulo={video.titulo}
               url={video.url}
               estado={video.estado}
+              correcciones={video.notas}
               onClick={() => openModal(video)}
             />
           ))}
@@ -201,6 +205,8 @@ export default function VideosPage() {
           titulo={tituloEditado}
           url={selected.url}
           estado={estadoEditado}
+          notas={notasEditadas}
+          onNotasChange={setNotasEditadas}
           onTituloChange={setTituloEditado}
           onEstadoChange={setEstadoEditado}
           onDownload={handleDownload}

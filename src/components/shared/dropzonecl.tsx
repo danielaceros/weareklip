@@ -1,128 +1,131 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback } from "react"
+import type { Video } from "@/types/video";
+import { useEffect, useState, useCallback } from "react";
 import {
   collection,
   getDocs,
   addDoc,
   deleteDoc,
   doc,
-} from "firebase/firestore"
+} from "firebase/firestore";
 import {
   ref,
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
-} from "firebase/storage"
-import { useDropzone } from "react-dropzone"
-import { toast } from "sonner"
-import { db, storage } from "@/lib/firebase"
-import { Card } from "@/components/ui/card"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from "firebase/storage";
+import { useDropzone } from "react-dropzone";
+import { toast } from "sonner";
+import { db, storage } from "@/lib/firebase";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface Props {
-  uid: string
-}
-
-type Video = {
-  id: string
-  titulo: string
-  url: string
+  uid: string;
 }
 
 export default function ClonacionVideosSection({ uid }: Props) {
-  const [videos, setVideos] = useState<Video[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null)
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
 
   const fetchVideos = useCallback(async () => {
     try {
-      const snap = await getDocs(collection(db, "users", uid, "clonacion"))
-      const data = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Video[]
-      setVideos(data)
+      const snap = await getDocs(collection(db, "users", uid, "clonacion"));
+      const data = snap.docs.map(doc => {
+        const d = doc.data();
+        return {
+          firebaseId: doc.id,
+          titulo: d.titulo ?? "Sin título",
+          url: d.url,
+          estado: typeof d.estado === "number" ? d.estado : 0,
+          notas: d.notas ?? "",
+        } as Video;
+      });
+      setVideos(data);
     } catch {
-      toast.error("Error al cargar videos")
+      toast.error("Error al cargar videos");
     }
-  }, [uid])
+  }, [uid]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    setUploading(true)
+    setUploading(true);
     for (const file of acceptedFiles) {
       if (file.size > 100 * 1024 * 1024) {
-        toast.error(`${file.name} excede los 100MB`)
-        continue
+        toast.error(`${file.name} excede los 100MB`);
+        continue;
       }
 
-      const storageRef = ref(storage, `users/${uid}/clonacion/${file.name}`)
-      const uploadTask = uploadBytesResumable(storageRef, file)
+      const storageRef = ref(storage, `users/${uid}/clonacion/${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
-      toast.info(`Subiendo ${file.name}...`)
+      toast.info(`Subiendo ${file.name}...`);
 
       uploadTask.on(
         "state_changed",
         snapshot => {
           const progress = Math.round(
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          )
-          setUploadProgress(prev => ({ ...prev, [file.name]: progress }))
+          );
+          setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
         },
         () => {
-          toast.error(`Error al subir ${file.name}`)
+          toast.error(`Error al subir ${file.name}`);
           setUploadProgress(prev => {
-            const newState = { ...prev }
-            delete newState[file.name]
-            return newState
-          })
+            const newState = { ...prev };
+            delete newState[file.name];
+            return newState;
+          });
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref)
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
           const docRef = await addDoc(collection(db, "users", uid, "clonacion"), {
             titulo: file.name,
             url,
+            estado: 0,
+            notas: "",
             creadoEn: new Date(),
-          })
-          setVideos(prev => [...prev, { id: docRef.id, titulo: file.name, url }])
+          });
+          setVideos(prev => [...prev, { firebaseId: docRef.id, titulo: file.name, url, estado: 0, notas: "" }]);
           setUploadProgress(prev => {
-            const newState = { ...prev }
-            delete newState[file.name]
-            return newState
-          })
-          toast.success(`${file.name} subido correctamente`)
+            const newState = { ...prev };
+            delete newState[file.name];
+            return newState;
+          });
+          toast.success(`${file.name} subido correctamente`);
         }
-      )
+      );
     }
-    setUploading(false)
-  }, [uid])
+    setUploading(false);
+  }, [uid]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "video/*": [] },
     maxSize: 100 * 1024 * 1024,
     multiple: true,
     onDrop,
-  })
+  });
 
   const handleDelete = async (id: string, url: string) => {
     try {
       const path = decodeURIComponent(
         new URL(url).pathname.split("/o/")[1].split("?")[0]
-      )
-      await deleteObject(ref(storage, path))
-      await deleteDoc(doc(db, "users", uid, "clonacion", id))
-      setVideos(prev => prev.filter(v => v.id !== id))
-      toast.success("Video eliminado")
+      );
+      await deleteObject(ref(storage, path));
+      await deleteDoc(doc(db, "users", uid, "clonacion", id));
+      setVideos(prev => prev.filter(v => v.firebaseId !== id));
+      toast.success("Video eliminado");
     } catch {
-      toast.error("Error al eliminar")
+      toast.error("Error al eliminar");
     }
-  }
+  };
 
   useEffect(() => {
-    fetchVideos()
-  }, [fetchVideos])
+    fetchVideos();
+  }, [fetchVideos]);
 
   return (
     <div className="space-y-4 mt-10">
@@ -159,7 +162,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {videos.map(video => (
-            <Card key={video.id} className="p-2 relative group">
+            <Card key={video.firebaseId} className="p-2 relative group">
               <video
                 src={video.url}
                 className="rounded aspect-square object-cover w-full cursor-pointer"
@@ -169,7 +172,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
                 size="sm"
                 variant="destructive"
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition"
-                onClick={() => handleDelete(video.id, video.url)}
+                onClick={() => handleDelete(video.firebaseId, video.url)}
               >
                 ✕
               </Button>
@@ -192,5 +195,5 @@ export default function ClonacionVideosSection({ uid }: Props) {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
