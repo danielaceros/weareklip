@@ -63,15 +63,17 @@ export default function EditarVideoModal({
       <DialogTitle>Editar Vídeo</DialogTitle>
       <DialogContent className="max-w-6xl w-full h-[85vh] p-4">
         <div className="flex h-full gap-4">
-          {/* Panel izquierdo: Vídeo */}
-          <div className="w-1/2 bg-black relative rounded-lg overflow-hidden flex items-center justify-center">
-            <video
-              controls
-              src={previewUrl || video?.url}
-              className="w-full h-full object-contain"
-              preload="metadata"
-              aria-label={`Previsualización del vídeo ${localTitulo}`}
-            />
+          {/* Panel izquierdo: Vídeo con proporción 9:16 */}
+          <div className="w-1/2 flex items-center justify-center bg-black rounded-lg overflow-hidden">
+            <div className="aspect-[9/16] w-full max-w-[360px] relative">
+              <video
+                controls
+                src={previewUrl || video?.url}
+                className="absolute top-0 left-0 w-full h-full object-cover"
+                preload="metadata"
+                aria-label={`Previsualización del vídeo ${localTitulo}`}
+              />
+            </div>
           </div>
 
           {/* Panel derecho: Formulario */}
