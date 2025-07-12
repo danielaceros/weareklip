@@ -12,7 +12,8 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { toast } from "sonner";
-import VideoCard from "@/components/shared/videocard";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import VideoEditorModal from "@/components/shared/videomodal";
 
 export default function VideosPage() {
@@ -25,6 +26,12 @@ export default function VideosPage() {
   const [estadoEditado, setEstadoEditado] = useState("0");
   const [notasEditadas, setNotasEditadas] = useState("");
   const [open, setOpen] = useState(false);
+
+  const estados: Record<number, React.ReactNode> = {
+    0: <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>,
+    1: <Badge className="bg-yellow-400 text-black">✏️ Cambios</Badge>,
+    2: <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>,
+  };
 
   const sendNotificationEmail = async (
     to: string,
@@ -216,25 +223,44 @@ export default function VideosPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Mis Vídeos</h1>
+      <h1 className="text-2xl font-bold mb-6">🎬 Mis Vídeos</h1>
 
       {loading ? (
         <p className="text-muted-foreground animate-pulse">Cargando vídeos...</p>
-      ) : videos.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {videos.map((video) => (
-            <VideoCard
-              key={video.firebaseId}
-              titulo={video.titulo}
-              url={video.url}
-              estado={video.estado}
-              correcciones={video.notas}
-              onClick={() => openModal(video)}
-            />
+      ) : videos.length === 0 ? (
+        <p className="text-muted-foreground">No hay vídeos disponibles.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {videos.map((v) => (
+            <Card
+              key={v.firebaseId}
+              className="p-3 cursor-pointer"
+              onClick={() => openModal(v)}
+              tabIndex={0}
+              role="button"
+              aria-label={`Seleccionar video ${v.titulo}`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openModal(v);
+              }}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <p className="font-semibold text-base truncate">{v.titulo}</p>
+                {v.estado !== undefined ? (
+                  estados[v.estado] ?? (
+                    <Badge variant="secondary">Desconocido</Badge>
+                  )
+                ) : null}
+              </div>
+              <video
+                controls
+                src={v.url}
+                className="rounded w-full aspect-[9/16] object-cover"
+                preload="metadata"
+                aria-label={`Video: ${v.titulo}`}
+              />
+            </Card>
           ))}
         </div>
-      ) : (
-        <p className="text-muted-foreground">No hay vídeos disponibles.</p>
       )}
 
       {selected && (
