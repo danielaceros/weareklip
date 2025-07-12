@@ -60,7 +60,6 @@ export default function ClientProfilePage() {
   const [archivoVideo, setArchivoVideo] = useState<File | null>(null)
   const [guionSeleccionado, setGuionSeleccionado] = useState<Guion | null>(null)
   const [videoSeleccionado, setVideoSeleccionado] = useState<Video | null>(null)
-  const [nuevoArchivoVideo, setNuevoArchivoVideo] = useState<File | null>(null)
 
   const rawParams = useParams()
   const uid = Array.isArray(rawParams.uid) ? rawParams.uid[0] : rawParams.uid
@@ -207,30 +206,40 @@ export default function ClientProfilePage() {
     }
   }
 
-  const handleUpdateVideo = async () => {
-    if (!uid || !videoSeleccionado) return
-    try {
-      let url = videoSeleccionado.url
-      if (nuevoArchivoVideo) {
-        const storageRef = ref(storage, `users/${uid}/videos/${nuevoArchivoVideo.name}`)
-        const uploadTask = await uploadBytesResumable(storageRef, nuevoArchivoVideo)
-        url = await getDownloadURL(uploadTask.ref)
+  const handleUpdateVideo = async (updatedVideo: Video & { nuevoArchivo?: File }) => {
+  if (!uid || !updatedVideo) return
+
+  try {
+    let url = updatedVideo.url
+
+    // Si hay nuevo archivo, subirlo
+    if (updatedVideo.nuevoArchivo) {
+      if (updatedVideo.nuevoArchivo.size > 100 * 1024 * 1024) {
+        toast.error("El archivo no debe superar los 100MB.")
+        return
       }
 
-      await updateDoc(doc(db, "users", uid, "videos", videoSeleccionado.firebaseId), {
-        titulo: videoSeleccionado.titulo,
-        url,
-      })
-
-      toast.success("Video actualizado")
-      setVideoSeleccionado(null)
-      setNuevoArchivoVideo(null)
-      fetchData()
-    } catch (err) {
-      console.error(err)
-      toast.error("Error al actualizar video")
+      const storageRef = ref(storage, `users/${uid}/videos/${updatedVideo.nuevoArchivo.name}`)
+      const uploadTask = await uploadBytesResumable(storageRef, updatedVideo.nuevoArchivo)
+      url = await getDownloadURL(uploadTask.ref)
     }
+
+    await updateDoc(doc(db, "users", uid, "videos", updatedVideo.firebaseId), {
+      titulo: updatedVideo.titulo,
+      estado: updatedVideo.estado,
+      notas: updatedVideo.notas || "",
+      url,
+    })
+
+    toast.success("Video actualizado correctamente.")
+    setVideoSeleccionado(null)
+    fetchData()
+  } catch (err) {
+    console.error(err)
+    toast.error("Error al actualizar video")
   }
+}
+
 
   const handleDelete = async (type: "guiones" | "videos", id: string) => {
     if (!uid || typeof uid !== "string") {
@@ -319,12 +328,11 @@ export default function ClientProfilePage() {
       <EditarVideoModal
         video={videoSeleccionado}
         onClose={() => {
-            setVideoSeleccionado(null)
-            setNuevoArchivoVideo(null)
+          setVideoSeleccionado(null)
         }}
         onDelete={(id) => handleDelete("videos", id)}
         onSave={handleUpdateVideo}
-        />
+      />
 
 
       <ClonacionVideosSection uid={uid as string} />

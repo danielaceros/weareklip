@@ -9,8 +9,7 @@ type Props = {
   video: Video | null;
   onClose: () => void;
   onDelete: (id: string) => void;
-  onSave: (video: Video) => void;
-  // Se eliminaron onChange, onFileSelect y nuevoArchivoVideo porque no se usan
+  onSave: (video: Video & { nuevoArchivo?: File }) => void;
 };
 
 export default function EditarVideoModal({
@@ -22,23 +21,36 @@ export default function EditarVideoModal({
   const [localEstado, setLocalEstado] = useState<number>(video?.estado ?? 0);
   const [localNotas, setLocalNotas] = useState<string>(video?.notas ?? "");
   const [localTitulo, setLocalTitulo] = useState<string>(video?.titulo ?? "");
+  const [nuevoArchivo, setNuevoArchivo] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (video) {
       setLocalEstado(video.estado);
       setLocalNotas(video.notas ?? "");
       setLocalTitulo(video.titulo);
+      setNuevoArchivo(null);
+      setPreviewUrl(null);
     }
   }, [video]);
 
   const handleGuardar = () => {
     if (!video) return;
-    onSave({ 
-      ...video, 
-      estado: localEstado, 
-      notas: localNotas, 
-      titulo: localTitulo.trim() 
+    onSave({
+      ...video,
+      estado: localEstado,
+      notas: localNotas,
+      titulo: localTitulo.trim(),
+      ...(nuevoArchivo && { nuevoArchivo }),
     });
+  };
+
+  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNuevoArchivo(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
   };
 
   const showCorrecciones = localEstado === 1;
@@ -49,18 +61,25 @@ export default function EditarVideoModal({
         <DialogTitle className="text-lg font-bold mb-4">Editar Video</DialogTitle>
 
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Video a la izquierda */}
+          {/* Vista previa del vídeo */}
           <div className="md:flex-1 max-h-[50vh]">
             <video
               controls
-              src={video?.url}
+              src={previewUrl || video?.url}
               className="w-full h-full object-contain rounded"
               preload="metadata"
               aria-label={`Previsualización del vídeo ${localTitulo}`}
             />
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleArchivoChange}
+              className="mt-4"
+              aria-label="Reemplazar vídeo"
+            />
           </div>
 
-          {/* Información y controles a la derecha */}
+          {/* Información y controles */}
           <div className="md:flex-1 flex flex-col">
             <input
               type="text"
