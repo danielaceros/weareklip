@@ -23,6 +23,7 @@ interface Guion {
   titulo: string
   contenido: string
   estado: number
+  notas?: string
   createdAt?: string
 }
 
@@ -42,12 +43,14 @@ export default function ScriptEditorModal({
   const [titulo, setTitulo] = useState(guion.titulo)
   const [contenido, setContenido] = useState(guion.contenido)
   const [estado, setEstado] = useState(String(guion.estado))
+  const [notas, setNotas] = useState(guion.notas ?? "")
 
   useEffect(() => {
     if (open) {
       setTitulo(guion.titulo)
       setContenido(guion.contenido)
       setEstado(String(guion.estado))
+      setNotas(guion.notas ?? "")
     }
   }, [guion, open])
 
@@ -57,6 +60,7 @@ export default function ScriptEditorModal({
       titulo,
       contenido,
       estado: parseInt(estado),
+      notas: estado === "1" ? notas : "", // solo guardar notas si es estado "Cambios"
     })
     onOpenChange(false)
   }
@@ -75,6 +79,7 @@ export default function ScriptEditorModal({
             placeholder="Título"
             aria-label="Editar título del guion"
           />
+
           <Textarea
             value={contenido}
             onChange={(e) => setContenido(e.target.value)}
@@ -82,6 +87,7 @@ export default function ScriptEditorModal({
             placeholder="Contenido del guion"
             aria-label="Editar contenido del guion"
           />
+
           <Select value={estado} onValueChange={setEstado}>
             <SelectTrigger aria-label="Selecciona estado">
               <SelectValue placeholder="Selecciona estado" />
@@ -92,6 +98,16 @@ export default function ScriptEditorModal({
               <SelectItem value="2">✅ Aprobado</SelectItem>
             </SelectContent>
           </Select>
+
+          {estado === "1" && (
+            <Textarea
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              rows={4}
+              placeholder="Indica los cambios que deseas o instrucciones al equipo"
+              aria-label="Notas para cambios"
+            />
+          )}
 
           <Button className="mt-2" onClick={handleGuardar}>
             Guardar cambios

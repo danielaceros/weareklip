@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { Video } from "@/types/video";
-import { useState, useEffect } from "react";
+import { Replace, Trash, Save } from "lucide-react";
 
 type Props = {
   video: Video | null;
@@ -23,6 +24,8 @@ export default function EditarVideoModal({
   const [localTitulo, setLocalTitulo] = useState<string>(video?.titulo ?? "");
   const [nuevoArchivo, setNuevoArchivo] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (video) {
@@ -57,75 +60,100 @@ export default function EditarVideoModal({
 
   return (
     <Dialog open={!!video} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-auto">
-        <DialogTitle className="text-lg font-bold mb-4">Editar Video</DialogTitle>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Vista previa del vídeo */}
-          <div className="md:flex-1 max-h-[50vh]">
+      <DialogContent className="max-w-6xl w-full h-[85vh] p-4">
+        <div className="flex h-full gap-4">
+          {/* Panel izquierdo: Vídeo */}
+          <div className="w-1/2 bg-black relative rounded-lg overflow-hidden flex items-center justify-center">
             <video
               controls
               src={previewUrl || video?.url}
-              className="w-full h-full object-contain rounded"
+              className="w-full h-full object-contain"
               preload="metadata"
               aria-label={`Previsualización del vídeo ${localTitulo}`}
             />
-            <input
-              type="file"
-              accept="video/*"
-              onChange={handleArchivoChange}
-              className="mt-4"
-              aria-label="Reemplazar vídeo"
-            />
           </div>
 
-          {/* Información y controles */}
-          <div className="md:flex-1 flex flex-col">
-            <input
-              type="text"
-              value={localTitulo}
-              onChange={(e) => setLocalTitulo(e.target.value)}
-              className="mb-4 p-2 border rounded w-full"
-              placeholder="Título del vídeo"
-              aria-label="Editar título del vídeo"
-            />
+          {/* Panel derecho: Formulario */}
+          <div className="w-1/2 bg-white rounded-lg p-4 flex flex-col justify-between border shadow-sm">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+              <DialogTitle className="text-xl font-semibold">Editar Video</DialogTitle>
 
-            <label className="block mb-2 font-semibold">
-              Estado:
-              <select
-                className="ml-2 p-1 border rounded"
-                value={localEstado}
-                onChange={(e) => setLocalEstado(Number(e.target.value))}
-                aria-label="Seleccionar estado del vídeo"
-              >
-                <option value={0}>🆕 Nuevo</option>
-                <option value={1}>✏️ Necesita Cambios</option>
-                <option value={2}>✅ Aprobado</option>
-              </select>
-            </label>
+              <input
+                type="text"
+                value={localTitulo}
+                onChange={(e) => setLocalTitulo(e.target.value)}
+                className="p-2 border rounded w-full"
+                placeholder="Título del vídeo"
+                aria-label="Editar título del vídeo"
+              />
 
-            {showCorrecciones && (
-              <label className="block mt-4 flex-grow">
-                Notas para correcciones:
-                <textarea
-                  className="w-full mt-1 p-2 border rounded resize-y h-full"
-                  rows={4}
-                  value={localNotas}
-                  onChange={(e) => setLocalNotas(e.target.value)}
-                  placeholder="Escribe las correcciones necesarias..."
-                  aria-label="Notas para correcciones"
+              <div>
+                <label className="font-semibold block mb-1">Estado:</label>
+                <select
+                  className="p-2 border rounded w-full"
+                  value={localEstado}
+                  onChange={(e) => setLocalEstado(Number(e.target.value))}
+                  aria-label="Seleccionar estado del vídeo"
+                >
+                  <option value={0}>🆕 Nuevo</option>
+                  <option value={1}>✏️ Necesita Cambios</option>
+                  <option value={2}>✅ Aprobado</option>
+                </select>
+              </div>
+
+              {showCorrecciones && (
+                <div>
+                  <label className="block font-semibold mb-1">Notas para correcciones:</label>
+                  <textarea
+                    className="w-full p-2 border rounded resize-y"
+                    rows={4}
+                    value={localNotas}
+                    onChange={(e) => setLocalNotas(e.target.value)}
+                    placeholder="Escribe las correcciones necesarias..."
+                    aria-label="Notas para correcciones"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-6 mt-4">
+              {/* Botón reemplazar */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Reemplazar vídeo"
+                >
+                  <Replace className="w-4 h-4" />
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleArchivoChange}
+                  className="hidden"
                 />
-              </label>
-            )}
+                {nuevoArchivo && (
+                  <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                    {nuevoArchivo.name}
+                  </span>
+                )}
+              </div>
 
-            <div className="flex gap-2 mt-6">
-              <Button
-                variant="destructive"
-                onClick={() => video && onDelete(video.firebaseId)}
-              >
-                Eliminar
-              </Button>
-              <Button onClick={handleGuardar}>Guardar Cambios</Button>
+              {/* Botones de acción */}
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={() => video && onDelete(video.firebaseId)}
+                  title="Eliminar vídeo"
+                >
+                  <Trash className="w-4 h-4" />
+                </Button>
+                <Button onClick={handleGuardar} title="Guardar cambios">
+                  <Save className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

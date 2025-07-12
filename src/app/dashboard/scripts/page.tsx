@@ -18,8 +18,10 @@ export interface Guion {
   titulo: string;
   contenido: string;
   estado: number;
+  notas?: string; // ← ✅ Añadido
   createdAt?: string;
 }
+
 
 export default function GuionesPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export default function GuionesPage() {
           titulo: d.titulo ?? "Sin título",
           contenido: d.contenido ?? "",
           estado: d.estado ?? 0,
+          notas: d.notas ?? "", // ← ✅ Añadido
           createdAt: d.createdAt ?? null,
         };
       });
@@ -92,6 +95,7 @@ export default function GuionesPage() {
         titulo: updatedGuion.titulo,
         contenido: updatedGuion.contenido,
         estado: updatedGuion.estado,
+        notas: updatedGuion.estado === 1 ? updatedGuion.notas ?? "" : "", // ← ✅ Condicional
       });
 
       setGuiones((prev) =>
