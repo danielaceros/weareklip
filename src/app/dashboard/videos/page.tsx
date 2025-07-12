@@ -1,9 +1,16 @@
 "use client";
+
 import type { Video } from "@/types/video";
 import { useEffect, useState, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { toast } from "sonner";
 import VideoCard from "@/components/shared/videocard";
 import VideoEditorModal from "@/components/shared/videomodal";
@@ -131,9 +138,9 @@ export default function VideosPage() {
         )
       );
 
-      const subject = `Vídeo modificado por ${userEmail}`;
+      const subject = `🎬 Vídeo editado por ${userEmail}`;
       const content = `
-        El usuario con email <strong>${userEmail}</strong> ha modificado el vídeo:
+        El usuario con email <strong>${userEmail}</strong> ha <strong>modificado un vídeo</strong>:
         <ul>
           <li><strong>ID:</strong> ${selected.firebaseId}</li>
           <li><strong>Título nuevo:</strong> ${tituloEditado.trim()}</li>
@@ -149,6 +156,38 @@ export default function VideosPage() {
     } catch (error) {
       console.error("Error guardando cambios:", error);
       toast.error("No se pudo actualizar el vídeo");
+    }
+  };
+
+  const handleDeleteVideo = async () => {
+    if (!userId || !selected || !userEmail) return;
+
+    try {
+      const ref = doc(db, "users", userId, "videos", selected.firebaseId);
+      await deleteDoc(ref);
+
+      setVideos((prev) =>
+        prev.filter((v) => v.firebaseId !== selected.firebaseId)
+      );
+
+      const subject = `🗑 Vídeo eliminado por ${userEmail}`;
+      const content = `
+        El usuario con email <strong>${userEmail}</strong> ha <strong>eliminado un vídeo</strong>:
+        <ul>
+          <li><strong>ID:</strong> ${selected.firebaseId}</li>
+          <li><strong>Título:</strong> ${selected.titulo}</li>
+          <li><strong>Estado:</strong> ${selected.estado}</li>
+          <li><strong>Notas:</strong> ${selected.notas || "Sin notas"}</li>
+        </ul>
+      `;
+
+      await sendNotificationEmail("rubengomezklip@gmail.com", subject, content);
+
+      toast.success("Vídeo eliminado correctamente");
+      setOpen(false);
+    } catch (err) {
+      console.error("Error al eliminar vídeo:", err);
+      toast.error("No se pudo eliminar el vídeo");
     }
   };
 
@@ -211,6 +250,7 @@ export default function VideosPage() {
           onEstadoChange={setEstadoEditado}
           onDownload={handleDownload}
           onGuardar={guardarCambios}
+          onEliminar={handleDeleteVideo}
         />
       )}
     </div>

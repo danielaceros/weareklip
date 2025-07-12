@@ -8,6 +8,7 @@ import {
   getDocs,
   doc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { toast } from "sonner";
 import ScriptCard from "@/components/shared/scriptscard";
@@ -18,10 +19,29 @@ export interface Guion {
   titulo: string;
   contenido: string;
   estado: number;
-  notas?: string; // ← ✅ Añadido
+  notas?: string;
   createdAt?: string;
 }
 
+// 📧 Notificación
+const sendNotificationEmail = async (
+  subject: string,
+  content: string
+) => {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: "rubengomezklip@gmail.com",
+        subject,
+        content,
+      }),
+    });
+  } catch (err) {
+    console.error("Error enviando notificación:", err);
+  }
+};
 
 export default function GuionesPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -50,7 +70,7 @@ export default function GuionesPage() {
           titulo: d.titulo ?? "Sin título",
           contenido: d.contenido ?? "",
           estado: d.estado ?? 0,
-          notas: d.notas ?? "", // ← ✅ Añadido
+          notas: d.notas ?? "",
           createdAt: d.createdAt ?? null,
         };
       });
@@ -95,7 +115,7 @@ export default function GuionesPage() {
         titulo: updatedGuion.titulo,
         contenido: updatedGuion.contenido,
         estado: updatedGuion.estado,
-        notas: updatedGuion.estado === 1 ? updatedGuion.notas ?? "" : "", // ← ✅ Condicional
+        notas: updatedGuion.estado === 1 ? updatedGuion.notas ?? "" : "",
       });
 
       setGuiones((prev) =>
@@ -103,11 +123,40 @@ export default function GuionesPage() {
       );
 
       toast.success("Cambios guardados correctamente");
+
+      const estadoTexto =
+        updatedGuion.estado === 0
+          ? "🆕 Nuevo"
+          : updatedGuion.estado === 1
+          ? "✏️ Cambios solicitados"
+          : "✅ Aprobado";
+
+      await sendNotificationEmail(
+        `✍️ Guion actualizado por ${userEmail}`,
+        `Se ha actualizado el guion "${updatedGuion.titulo}".\n\nEstado: ${estadoTexto}\nNotas: ${updatedGuion.notas || "Sin notas"}`
+      );
     } catch (error) {
       console.error("Error al guardar guion:", error);
       toast.error("Error al guardar", {
         description: "Verifica tu conexión o vuelve a intentarlo.",
       });
+    }
+  };
+
+  const handleDeleteGuion = async (guionId: string, titulo: string) => {
+    if (!userId || !userEmail) return;
+    try {
+      await deleteDoc(doc(db, "users", userId, "guiones", guionId));
+      setGuiones((prev) => prev.filter((g) => g.firebaseId !== guionId));
+      toast.success("Guion eliminado");
+
+      await sendNotificationEmail(
+        `🗑️ Guion eliminado por ${userEmail}`,
+        `El cliente ha eliminado el guion titulado: "${titulo}".`
+      );
+    } catch (error) {
+      console.error("Error al eliminar guion:", error);
+      toast.error("Error al eliminar guion.");
     }
   };
 
@@ -126,9 +175,10 @@ export default function GuionesPage() {
               contenido={guion.contenido}
               estado={guion.estado}
               onClick={() => {
-                setSelectedGuion(guion)
-                setModalOpen(true)
+                setSelectedGuion(guion);
+                setModalOpen(true);
               }}
+              onDelete={() => handleDeleteGuion(guion.firebaseId, guion.titulo)}
             />
           ))}
         </div>

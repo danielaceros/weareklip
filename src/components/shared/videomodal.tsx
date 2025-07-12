@@ -29,6 +29,7 @@ interface VideoEditorModalProps {
   onEstadoChange: (val: string) => void;
   onDownload: () => Promise<void>;
   onGuardar: () => Promise<void>;
+  onEliminar: () => Promise<void>; // ✅ Nuevo
 }
 
 export default function VideoEditorModal({
@@ -43,34 +44,35 @@ export default function VideoEditorModal({
   onEstadoChange,
   onDownload,
   onGuardar,
+  onEliminar,
 }: VideoEditorModalProps) {
   const showCorrecciones = estado === "1"; // Mostrar textarea solo si estado = Necesita Cambios
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
-            <Input
-              type="text"
-              value={titulo}
-              onChange={(e) => onTituloChange(e.target.value)}
-              placeholder="Título del vídeo"
-              aria-label="Editar título del vídeo"
-              className="text-lg font-semibold"
-            />
-          </DialogTitle>
+          <DialogTitle>Editar vídeo</DialogTitle>
         </DialogHeader>
+
+        <Input
+          type="text"
+          value={titulo}
+          onChange={(e) => onTituloChange(e.target.value)}
+          placeholder="Título del vídeo"
+          aria-label="Editar título del vídeo"
+          className="text-lg font-semibold"
+        />
 
         <video
           src={url}
           controls
-          className="w-full max-h-[400px] rounded mb-4 object-contain"
+          className="w-full max-h-[400px] rounded object-contain mt-4"
           preload="metadata"
           aria-label={`Previsualización del vídeo ${titulo}`}
         />
 
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex flex-wrap items-center gap-4 mt-4">
           <Select value={estado} onValueChange={onEstadoChange}>
             <SelectTrigger aria-label="Selecciona estado" className="w-48">
               <SelectValue placeholder="Selecciona estado" />
@@ -82,11 +84,13 @@ export default function VideoEditorModal({
             </SelectContent>
           </Select>
 
-          <Button onClick={onDownload}>Descargar vídeo</Button>
+          <Button variant="outline" onClick={onDownload}>
+            Descargar vídeo
+          </Button>
         </div>
 
         {showCorrecciones && (
-          <div className="mb-4">
+          <div className="mt-4 w-full">
             <label htmlFor="notas" className="block font-medium mb-1">
               Correcciones
             </label>
@@ -100,9 +104,12 @@ export default function VideoEditorModal({
           </div>
         )}
 
-        <Button className="w-full" onClick={onGuardar}>
-          Guardar cambios
-        </Button>
+        <div className="flex justify-between mt-6">
+          <Button onClick={onEliminar} variant="destructive">
+            🗑 Eliminar vídeo
+          </Button>
+          <Button onClick={onGuardar}>💾 Guardar cambios</Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

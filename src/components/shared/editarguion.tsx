@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -59,9 +59,8 @@ export default function EditarGuionModal({
 
   return (
     <Dialog open={!!guion} onOpenChange={onClose}>
+      <DialogTitle>Editar Guion</DialogTitle>
       <DialogContent>
-        <h3 className="text-lg font-bold mb-2">Editar Guion</h3>
-
         <Input
           value={guion?.titulo || ""}
           onChange={(e) =>

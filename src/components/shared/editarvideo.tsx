@@ -60,6 +60,7 @@ export default function EditarVideoModal({
 
   return (
     <Dialog open={!!video} onOpenChange={onClose}>
+      <DialogTitle>Editar Vídeo</DialogTitle>
       <DialogContent className="max-w-6xl w-full h-[85vh] p-4">
         <div className="flex h-full gap-4">
           {/* Panel izquierdo: Vídeo */}
