@@ -3,7 +3,7 @@
 import { useDropzone } from "react-dropzone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/types/video";
@@ -60,6 +60,7 @@ export default function VideosSection({
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-semibold">🎬 Videos</h2>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+          <DialogTitle className="text-xl font-semibold">Videos</DialogTitle>
           <DialogTrigger asChild>
             <Button>+ Crear</Button>
           </DialogTrigger>

@@ -52,7 +52,7 @@ export default function VideoEditorModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Editar vídeo</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Editar Vídeo</DialogTitle>
         </DialogHeader>
 
         <Input

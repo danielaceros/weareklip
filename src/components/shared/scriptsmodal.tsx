@@ -67,9 +67,9 @@ export default function ScriptEditorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTitle className="text-xl font-semibold">Editar Guión</DialogTitle>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar Guion</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

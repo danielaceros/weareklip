@@ -59,7 +59,7 @@ export default function EditarGuionModal({
 
   return (
     <Dialog open={!!guion} onOpenChange={onClose}>
-      <DialogTitle>Editar Guion</DialogTitle>
+      <DialogTitle className="text-xl font-semibold">Editar Guión</DialogTitle>
       <DialogContent>
         <Input
           value={guion?.titulo || ""}

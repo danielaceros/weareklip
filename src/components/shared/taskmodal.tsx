@@ -86,6 +86,7 @@ export default function TaskModal({ open, onOpenChange, adminId, task }: TaskMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTitle className="text-xl font-semibold">Crear Tarea</DialogTitle>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{task ? "Editar tarea" : "Nueva tarea"}</DialogTitle>

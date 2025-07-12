@@ -19,7 +19,7 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { db, storage } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -183,6 +183,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
       )}
 
       <Dialog open={!!selectedUrl} onOpenChange={() => setSelectedUrl(null)}>
+        <DialogTitle className="text-xl font-semibold">Vídeo</DialogTitle>
         <DialogContent className="max-w-3xl w-full">
           {selectedUrl && (
             <video

@@ -133,7 +133,7 @@ export default function TaskInbox({ adminId }: Props) {
       <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Tarea</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Editar Tarea</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <Input
