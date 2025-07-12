@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import nodemailer from "nodemailer"
+import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
 
 function renderEmailHTML(title: string, content: string): string {
   return `
@@ -61,44 +61,39 @@ function renderEmailHTML(title: string, content: string): string {
         </div>
       </body>
     </html>
-  `
+  `;
 }
 
 export async function POST(req: Request) {
   try {
-    const { to, subject, content } = await req.json()
+    const { to, subject, content } = await req.json();
 
     if (!to || !subject || !content) {
-      return NextResponse.json({ error: "Faltan campos obligatorios." }, { status: 400 })
+      return NextResponse.json({ error: "Faltan campos obligatorios." }, { status: 400 });
     }
 
     const transporter = nodemailer.createTransport({
-      host: "smtp.zoho.eu",
-      port: 465,
+      host: "smtp.mailgun.org", // Mailgun SMTP
+      port: 465, // o 587 si prefieres STARTTLS
       secure: true,
       auth: {
-        user: process.env.IONOS_USER,
-        pass: process.env.IONOS_PASS,
+        user: "notifications@weareklip.com",
+        pass: process.env.MAILGUN_SMTP_PASS, // pon la contraseña aquí
       },
-    })
+    });
 
-    const html = renderEmailHTML(subject, content)
+    const html = renderEmailHTML(subject, content);
 
     const info = await transporter.sendMail({
-      from: '"KLIP" <hello@weareklip.com>',
+      from: '"KLIP Notificaciones" <notifications@weareklip.com>',
       to,
       subject,
       html,
-    })
+    });
 
-    return NextResponse.json({ success: true, messageId: info.messageId })
+    return NextResponse.json({ success: true, messageId: info.messageId });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error("Error al enviar correo:", error.message)
-    } else {
-      console.error("Error desconocido al enviar correo:", error)
-    }
-
-    return NextResponse.json({ error: "Error al enviar el correo." }, { status: 500 })
+    console.error("Error al enviar correo:", error);
+    return NextResponse.json({ error: "Error al enviar el correo." }, { status: 500 });
   }
 }
