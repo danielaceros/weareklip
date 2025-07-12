@@ -9,7 +9,6 @@ function renderEmailHTML(title: string, content: string): string {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
           body {
             margin: 0;
             padding: 2rem;
@@ -20,31 +19,19 @@ function renderEmailHTML(title: string, content: string): string {
           .container {
             max-width: 600px;
             margin: auto;
-            border: 1px solid #00000020;
+            border: 1px solid #ddd;
             padding: 2rem;
             border-radius: 8px;
           }
-          h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-          }
-          p {
-            font-size: 1rem;
-            line-height: 1.5;
-          }
+          h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; }
+          p { font-size: 1rem; line-height: 1.5; }
           .footer {
             margin-top: 2rem;
             font-size: 0.875rem;
-            color: #666666;
-            border-top: 1px solid #eeeeee;
+            color: #666;
+            border-top: 1px solid #eee;
             padding-top: 1rem;
             text-align: center;
-          }
-          .footer-address {
-            margin-top: 0.5rem;
-            font-size: 0.75rem;
-            color: #888888;
           }
         </style>
       </head>
@@ -53,15 +40,12 @@ function renderEmailHTML(title: string, content: string): string {
           <h1>${title}</h1>
           <p>${content}</p>
           <div class="footer">
-            Este correo fue enviado desde KLIP. No respondas directamente a este mensaje.
-            <div class="footer-address">
-              Calle del Cidro, 3. Oficina 114, 28044 Madrid
-            </div>
+            Este correo fue enviado desde KLIP.
+            <div>Calle del Cidro, 3. Oficina 114, 28044 Madrid</div>
           </div>
         </div>
       </body>
-    </html>
-  `;
+    </html>`;
 }
 
 export async function POST(req: Request) {
@@ -73,26 +57,26 @@ export async function POST(req: Request) {
     }
 
     const transporter = nodemailer.createTransport({
-      host: "smtp.mailgun.org", // Mailgun SMTP
-      port: 465, // o 587 si prefieres STARTTLS
+      host: "email-smtp.eu-north-1.amazonaws.com", // Reemplaza si tu región es otra
+      port: 465,
       secure: true,
       auth: {
-        user: "notifications@weareklip.com",
-        pass: process.env.MAILGUN_SMTP_PASS, // pon la contraseña aquí
+        user: process.env.SES_SMTP_USER!,
+        pass: process.env.SES_SMTP_PASS!,
       },
     });
 
     const html = renderEmailHTML(subject, content);
 
     const info = await transporter.sendMail({
-      from: '"KLIP Notificaciones" <notifications@weareklip.com>',
+      from: '"KLIP Notificaciones" <notifications@weareklip.com>', // ✅ Verifica que este dominio esté verificado en SES
       to,
       subject,
       html,
     });
 
     return NextResponse.json({ success: true, messageId: info.messageId });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Error al enviar correo:", error);
     return NextResponse.json({ error: "Error al enviar el correo." }, { status: 500 });
   }
