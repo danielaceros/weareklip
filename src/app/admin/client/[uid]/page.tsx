@@ -26,6 +26,7 @@ import VideosSection from "@/components/shared/videosection";
 import EditarGuionModal from "@/components/shared/editarguion";
 import EditarVideoModal from "@/components/shared/editarvideo";
 import ClonacionVideosSection from "@/components/shared/dropzonecl";
+import CalendarioMensual from "@/components/shared/CalendarioMensual";
 
 // 📧 Notificaciones
 const sendNotificationEmail = async (
@@ -363,6 +364,11 @@ export default function ClientProfilePage() {
       />
 
       <ClonacionVideosSection uid={uid as string} />
+
+      <div className="mt-10">
+        <h2 className="text-2xl font-bold mb-4">📅 Calendario de Publicación</h2>
+        <CalendarioMensual uid={uid as string} guiones={guiones} videos={videos} />
+      </div>
     </div>
   );
 }

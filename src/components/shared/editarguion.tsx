@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -59,8 +60,10 @@ export default function EditarGuionModal({
 
   return (
     <Dialog open={!!guion} onOpenChange={onClose}>
-      <DialogTitle className="text-xl font-semibold">Editar Guión</DialogTitle>
       <DialogContent>
+        <VisuallyHidden>
+          <DialogTitle>Editar Guión</DialogTitle>
+       </VisuallyHidden>
         <Input
           value={guion?.titulo || ""}
           onChange={(e) =>

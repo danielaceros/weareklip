@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import type { Video } from "@/types/video";
 import { Replace, Trash, Save } from "lucide-react";
 
@@ -60,7 +61,9 @@ export default function EditarVideoModal({
 
   return (
     <Dialog open={!!video} onOpenChange={onClose}>
-      <DialogTitle className="text-xl font-semibold">Editar Vídeo</DialogTitle>
+      <VisuallyHidden>
+        <DialogTitle>Editar Video</DialogTitle>
+      </VisuallyHidden>
       <DialogContent className="max-w-6xl w-full h-[85vh] p-4">
         <div className="flex h-full gap-4">
           {/* Panel izquierdo: Vídeo con proporción 9:16 */}

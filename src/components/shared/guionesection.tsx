@@ -6,6 +6,9 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import EmptyState from "@/components/shared/EmptyState"
+
+
 
 type Guion = {
   firebaseId: string
@@ -70,7 +73,21 @@ export default function GuionesSection({
       </div>
 
       {guiones.length === 0 ? (
-        <p className="text-muted-foreground">Este cliente no tiene guiones aún.</p>
+        <EmptyState>
+          <p>📜 Aún no hay guiones para este cliente.</p>
+          <p className="mt-2">
+             → Usa el botón{" "}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setModalOpen(true)}
+              className="hover:bg-black hover:text-white"
+            >
+              + Crear
+            </Button>
+            para añadir el primero.
+          </p>
+        </EmptyState>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {guiones.map((g) => (

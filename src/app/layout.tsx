@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider } from "@/context/authContext"; // Asegúrate de ajustar la ruta al contexto de autenticación
+import { AuthProvider } from "@/context/authContext"; 
 import { SyncStripe } from "@/components/shared/syncstripe"
 
 const geistSans = Geist({
