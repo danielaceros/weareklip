@@ -297,51 +297,82 @@ export default function UserPanel() {
   };
 
   // Upload video to Firebase Storage + Firestore with uid_random.ext naming
-  const uploadVideo = (file: File, title: string, ext: string) => {
-    if (!userId) return;
-    setUploadingVideo(true);
-    setVideoUploadProgress(0);
+ const uploadVideo = (file: File, title: string, ext: string) => {
+  if (!userId) return;
+  setUploadingVideo(true);
+  setVideoUploadProgress(0);
 
-    const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
-    const videoRef = storageRef(storage, videoPath);
+  const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
+  const videoRef = storageRef(storage, videoPath);
 
-    const uploadTask = uploadBytesResumable(videoRef, file);
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setVideoUploadProgress(prog);
-      },
-      (error) => {
-        console.error("Error subiendo video:", error);
-        toast.error("Error subiendo video.");
-        setUploadingVideo(false);
-      },
-      async () => {
+  const uploadTask = uploadBytesResumable(videoRef, file);
+  uploadTask.on(
+    "state_changed",
+    (snapshot) => {
+      const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      setVideoUploadProgress(prog);
+    },
+    (error) => {
+      console.error("Error subiendo video:", error);
+      toast.error("Error subiendo video.");
+      setUploadingVideo(false);
+    },
+    async () => {
+      try {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        const docRef = await addDoc(collection(db, "users", userId, "clonacion"), {
+          titulo: title,
+          url,
+          storagePath: videoPath,
+          createdAt: Date.now(),
+        });
+        setClonacionVideos((prev) => [
+          { id: docRef.id, titulo: title, url, storagePath: videoPath },
+          ...prev,
+        ]);
+        setEditTitles((prev) => ({ ...prev, [docRef.id]: title }));
+        toast.success("Vídeo subido correctamente.");
+
+        // AQUÍ ESTÁ LA NUEVA FUNCIONALIDAD
+        // Asignar tarea a Rubén después de subir el video
         try {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          const docRef = await addDoc(collection(db, "users", userId, "clonacion"), {
-            titulo: title,
-            url,
-            storagePath: videoPath,
-            createdAt: Date.now(),
-          });
-          setClonacionVideos((prev) => [
-            { id: docRef.id, titulo: title, url, storagePath: videoPath },
-            ...prev,
-          ]);
-          setEditTitles((prev) => ({ ...prev, [docRef.id]: title }));
-          toast.success("Vídeo subido correctamente.");
-        } catch (e) {
-          console.error(e);
-          toast.error("Error guardando video en base de datos.");
-        }
-        setUploadingVideo(false);
-        setVideoUploadProgress(0);
-      }
-    );
-  };
+          const token = await auth.currentUser?.getIdToken();
+          if (!token) throw new Error("No autenticado");
 
+          const res = await fetch("/api/assign-task", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              description: "📥 Revisar nuevo material de clonación subido",
+            }),
+          });
+
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || "Error en la respuesta del servidor");
+          }
+
+          const data = await res.json();
+          console.log("Tarea asignada:", data);
+        } catch (error) {
+          console.error("Error al asignar tarea:", error);
+          toast.error("Error al crear tarea de revisión", {
+            description: "El video se subió, pero no se pudo asignar la tarea automática",
+          });
+        }
+
+      } catch (e) {
+        console.error(e);
+        toast.error("Error guardando video en base de datos.");
+      }
+      setUploadingVideo(false);
+      setVideoUploadProgress(0);
+    }
+  );
+};
   // Handle delete with modal confirmation
   const confirmDeleteVideo = (video: ClonacionVideo) => {
     setVideoToDelete(video);

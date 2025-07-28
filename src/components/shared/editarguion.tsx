@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 
 type Guion = {
   firebaseId: string
@@ -38,10 +39,13 @@ export default function EditarGuionModal({
   onSave,
 }: Props) {
   const [estado, setEstado] = useState("0")
+  const [estadoAnterior, setEstadoAnterior] = useState("0")
+  const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (guion) {
       setEstado(String(guion.estado))
+      setEstadoAnterior(String(guion.estado))
     }
   }, [guion])
 
@@ -58,18 +62,71 @@ export default function EditarGuionModal({
     }
   }
 
+  // Función para asignar tareas a Rubén y Hello
+  const asignarTareasAdmin = async () => {
+    if (!guion) return
+    
+    try {
+      const res = await fetch('/api/assign-task', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description: guion.titulo
+        })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Error al asignar tareas")
+      }
+      
+      return await res.json()
+    } catch (error) {
+      console.error("Error asignando tareas:", error)
+      throw error
+    }
+  }
+
+  const handleSave = async () => {
+    if (!guion) return
+    setGuardando(true)
+    
+    try {
+      // Guardar cambios normales
+      onSave()
+      
+      // Verificar si el estado cambió a "necesita cambios" (1)
+      if (estado === "1" && estadoAnterior !== "1") {
+        await asignarTareasAdmin()
+        toast.success("Tareas creadas para Rubén y Hello")
+      }
+      
+      // Actualizar estado anterior
+      setEstadoAnterior(estado)
+      
+    } catch (error) {
+      console.error("Error guardando:", error)
+      toast.error("Error al procesar la solicitud")
+    } finally {
+      setGuardando(false)
+    }
+  }
+
   return (
     <Dialog open={!!guion} onOpenChange={onClose}>
       <DialogContent>
         <VisuallyHidden>
           <DialogTitle>Editar Guión</DialogTitle>
-       </VisuallyHidden>
+        </VisuallyHidden>
         <Input
           value={guion?.titulo || ""}
           onChange={(e) =>
             guion && onChange({ ...guion, titulo: e.target.value })
           }
           placeholder="Título"
+          disabled={guardando}
         />
 
         <Textarea
@@ -78,9 +135,14 @@ export default function EditarGuionModal({
             guion && onChange({ ...guion, contenido: e.target.value })
           }
           placeholder="Contenido"
+          disabled={guardando}
         />
 
-        <Select value={estado} onValueChange={handleEstadoChange}>
+        <Select 
+          value={estado} 
+          onValueChange={handleEstadoChange}
+          disabled={guardando}
+        >
           <SelectTrigger className="mt-2">
             <SelectValue placeholder="Selecciona estado" />
           </SelectTrigger>
@@ -98,6 +160,7 @@ export default function EditarGuionModal({
             onChange={(e) => handleNotasChange(e.target.value)}
             placeholder="Describe los cambios que deseas o instrucciones para rehacer el guion"
             rows={4}
+            disabled={guardando}
           />
         )}
 
@@ -105,10 +168,16 @@ export default function EditarGuionModal({
           <Button
             variant="destructive"
             onClick={() => guion && onDelete(guion.firebaseId)}
+            disabled={guardando}
           >
             Eliminar
           </Button>
-          <Button onClick={onSave}>Guardar Cambios</Button>
+          <Button 
+            onClick={handleSave}
+            disabled={guardando}
+          >
+            {guardando ? "Guardando..." : "Guardar Cambios"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

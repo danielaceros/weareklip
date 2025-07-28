@@ -26,8 +26,10 @@ export default function ClienteCard({ uid, email, name, planName, createdAt }: P
       <div className="mt-2 flex flex-wrap gap-2 text-sm">
         <Badge variant="outline">{planName || "Sin plan"}</Badge>
         <Badge variant="default">
-          {createdAt ? format(new Date(createdAt), "dd/MM/yyyy") : "Sin fecha"}
-        </Badge>
+  {createdAt && !isNaN(createdAt) 
+    ? format(new Date(createdAt), "dd/MM/yyyy") 
+    : "Sin fecha"}
+</Badge>
       </div>
     </Card>
   )

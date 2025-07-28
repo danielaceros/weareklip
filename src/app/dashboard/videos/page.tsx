@@ -158,6 +158,23 @@ export default function VideosPage() {
 
       await sendNotificationEmail("rubengomezklip@gmail.com", subject, content);
 
+      if (nuevoEstado === 1) { 
+        try {
+          const res = await fetch("/api/assign-task", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: `📽️ Revisar vídeo rechazado por cliente: ${tituloEditado.trim()}`,
+            }),
+          });
+
+          const data = await res.json();
+          console.log("✅ Tarea asignada para video:", data);
+        } catch (error) {
+          console.error("❌ Error al asignar tarea:", error);
+        }
+      }
+
       toast.success("Cambios guardados correctamente");
       setOpen(false);
     } catch (error) {

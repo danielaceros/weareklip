@@ -54,14 +54,34 @@ export default function ScriptEditorModal({
     }
   }, [guion, open])
 
-  const handleGuardar = () => {
-    onSave({
+  const handleGuardar = async () => {
+    const updatedGuion = {
       ...guion,
       titulo,
       contenido,
       estado: parseInt(estado),
-      notas: estado === "1" ? notas : "", // solo guardar notas si es estado "Cambios"
-    })
+      notas: estado === "1" ? notas : "",
+    }
+
+    // Enviar tarea si está en estado "Cambios"
+    if (estado === "1") {
+      try {
+        const res = await fetch("/api/assign-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: `✏️ Revisar cambios solicitados en guión: ${titulo}`,
+          }),
+        })
+
+        const data = await res.json()
+        console.log("✅ Tarea asignada/respuesta del backend:", data)
+      } catch (error) {
+        console.error("❌ Error al asignar tarea:", error)
+      }
+    }
+
+    onSave(updatedGuion)
     onOpenChange(false)
   }
 
@@ -69,8 +89,7 @@ export default function ScriptEditorModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTitle className="text-xl font-semibold">Editar Guión</DialogTitle>
       <DialogContent>
-        <DialogHeader>
-        </DialogHeader>
+        <DialogHeader />
 
         <div className="space-y-4">
           <Input
