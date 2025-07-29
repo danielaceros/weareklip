@@ -11,10 +11,12 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import VideoEditorModal from "@/components/shared/videomodal";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 export default function VideosPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -26,6 +28,8 @@ export default function VideosPage() {
   const [estadoEditado, setEstadoEditado] = useState("0");
   const [notasEditadas, setNotasEditadas] = useState("");
   const [open, setOpen] = useState(false);
+  const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const estados: Record<number, React.ReactNode> = {
     0: <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>,
@@ -33,8 +37,8 @@ export default function VideosPage() {
     2: <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>,
   };
 
+  // 📧 Notificación por email
   const sendNotificationEmail = async (
-    to: string,
     subject: string,
     content: string
   ) => {
@@ -42,10 +46,14 @@ export default function VideosPage() {
       await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to, subject, content }),
+        body: JSON.stringify({
+          to: "rubengomezklip@gmail.com",
+          subject,
+          content,
+        }),
       });
     } catch (err) {
-      console.error("Error enviando correo:", err);
+      console.error("Error enviando notificación:", err);
     }
   };
 
@@ -56,9 +64,7 @@ export default function VideosPage() {
       const snapshot = await getDocs(ref);
 
       if (snapshot.empty) {
-        toast("Aún no tienes vídeos", {
-          description: "Cuando estén listos, los verás aquí.",
-        });
+        toast("Aún no tienes vídeos. Cuando estén listos, los verás aquí.");
       }
 
       const data: Video[] = snapshot.docs.map((doc) => {
@@ -75,9 +81,7 @@ export default function VideosPage() {
       setVideos(data);
     } catch (error) {
       console.error("Error obteniendo vídeos:", error);
-      toast.error("Error al cargar los vídeos", {
-        description: "Verifica tu conexión o intenta de nuevo.",
-      });
+      handleError(error, "Error al cargar los vídeos");
     } finally {
       setLoading(false);
     }
@@ -86,9 +90,10 @@ export default function VideosPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        toast.error("No autenticado", {
-          description: "Inicia sesión para acceder a tus vídeos.",
-        });
+        handleError(null, "Inicia sesión para acceder a tus vídeos.");
+        setUserId(null);
+        setUserEmail(null);
+        setVideos([]);
         setLoading(false);
         return;
       }
@@ -111,17 +116,16 @@ export default function VideosPage() {
 
   const guardarCambios = async () => {
     if (!userId || !selected || !userEmail) {
-      toast.error("No se puede guardar", {
-        description: "Falta información del usuario o vídeo.",
-      });
+      handleError(null, "Falta información del usuario o vídeo.");
       return;
     }
 
     if (tituloEditado.trim() === "") {
-      toast.warning("El título no puede estar vacío.");
+      toast.error("El título no puede estar vacío.");
       return;
     }
 
+    const loadingToast = showLoading("Guardando cambios...");
     try {
       const ref = doc(db, "users", userId, "videos", selected.firebaseId);
       const nuevoEstado = parseInt(estadoEditado);
@@ -129,34 +133,35 @@ export default function VideosPage() {
       await updateDoc(ref, {
         estado: nuevoEstado,
         titulo: tituloEditado.trim(),
-        notas: notasEditadas.trim(),
+        notas: estadoEditado === "1" ? notasEditadas.trim() : "",
       });
+
+      const updatedVideo = {
+        ...selected,
+        estado: nuevoEstado,
+        titulo: tituloEditado.trim(),
+        notas: estadoEditado === "1" ? notasEditadas.trim() : "",
+      };
 
       setVideos((prev) =>
         prev.map((v) =>
-          v.firebaseId === selected.firebaseId
-            ? {
-                ...v,
-                estado: nuevoEstado,
-                titulo: tituloEditado.trim(),
-                notas: notasEditadas.trim(),
-              }
-            : v
+          v.firebaseId === selected.firebaseId ? updatedVideo : v
         )
       );
 
-      const subject = `🎬 Vídeo editado por ${userEmail}`;
-      const content = `
-        El usuario con email <strong>${userEmail}</strong> ha <strong>modificado un vídeo</strong>:
-        <ul>
-          <li><strong>ID:</strong> ${selected.firebaseId}</li>
-          <li><strong>Título nuevo:</strong> ${tituloEditado.trim()}</li>
-          <li><strong>Estado nuevo:</strong> ${nuevoEstado}</li>
-          <li><strong>Notas:</strong> ${notasEditadas.trim() || "Sin notas"}</li>
-        </ul>
-      `;
+      showSuccess("Cambios guardados correctamente");
 
-      await sendNotificationEmail("rubengomezklip@gmail.com", subject, content);
+      const estadoTexto =
+        nuevoEstado === 0
+          ? "🆕 Nuevo"
+          : nuevoEstado === 1
+          ? "✏️ Cambios solicitados"
+          : "✅ Aprobado";
+
+      await sendNotificationEmail(
+        `🎬 Video actualizado por ${userEmail}`,
+        `Se ha actualizado el video "${tituloEditado.trim()}".\n\nEstado: ${estadoTexto}\nNotas: ${updatedVideo.notas || "Sin notas"}`
+      );
 
       if (nuevoEstado === 1) { 
         try {
@@ -164,59 +169,71 @@ export default function VideosPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              description: `📽️ Revisar vídeo rechazado por cliente: ${tituloEditado.trim()}`,
+              description: `📽️ Revisar cambios solicitados en video: ${tituloEditado.trim()}`,
             }),
           });
 
-          const data = await res.json();
-          console.log("✅ Tarea asignada para video:", data);
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Error ${res.status}: ${errorText}`);
+          }
+
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            console.log("✅ Tarea asignada para video:", data);
+          }
         } catch (error) {
           console.error("❌ Error al asignar tarea:", error);
         }
       }
 
-      toast.success("Cambios guardados correctamente");
       setOpen(false);
     } catch (error) {
       console.error("Error guardando cambios:", error);
-      toast.error("No se pudo actualizar el vídeo");
+      handleError(error, "No se pudo actualizar el vídeo");
+    } finally {
+      toast.dismiss(loadingToast);
     }
   };
 
-  const handleDeleteVideo = async () => {
-    if (!userId || !selected || !userEmail) return;
+  const handleDeleteConfirmado = async () => {
+    if (!userId || !userEmail || !videoToDelete) return;
+
+    setIsDeleting(true);
+    const loadingToast = showLoading("Eliminando video...");
 
     try {
-      const ref = doc(db, "users", userId, "videos", selected.firebaseId);
-      await deleteDoc(ref);
-
-      setVideos((prev) =>
-        prev.filter((v) => v.firebaseId !== selected.firebaseId)
-      );
-
-      const subject = `🗑 Vídeo eliminado por ${userEmail}`;
-      const content = `
-        El usuario con email <strong>${userEmail}</strong> ha <strong>eliminado un vídeo</strong>:
-        <ul>
-          <li><strong>ID:</strong> ${selected.firebaseId}</li>
-          <li><strong>Título:</strong> ${selected.titulo}</li>
-          <li><strong>Estado:</strong> ${selected.estado}</li>
-          <li><strong>Notas:</strong> ${selected.notas || "Sin notas"}</li>
-        </ul>
-      `;
-
-      await sendNotificationEmail("rubengomezklip@gmail.com", subject, content);
-
-      toast.success("Vídeo eliminado correctamente");
+      await deleteDoc(doc(db, "users", userId, "videos", videoToDelete.firebaseId));
+      
+      // Actualizar UI inmediatamente
+      setVideos(prev => prev.filter(v => v.firebaseId !== videoToDelete.firebaseId));
+      
+      // Cerrar todos los modales
       setOpen(false);
-    } catch (err) {
-      console.error("Error al eliminar vídeo:", err);
-      toast.error("No se pudo eliminar el vídeo");
+      setSelected(null);
+      
+      // Mostrar feedback
+      showSuccess(" Video eliminado permanentemente");
+      
+      // Notificar por email
+      await sendNotificationEmail(
+        `🗑️ Video eliminado por ${userEmail}`,
+        `El cliente ha eliminado el video titulado: "${videoToDelete.titulo}".`
+      );
+    } catch (error) {
+      console.error("Error al eliminar video:", error);
+      handleError(error, "❌ Error al eliminar el video");
+    } finally {
+      setIsDeleting(false);
+      toast.dismiss(loadingToast);
+      setVideoToDelete(null);
     }
   };
 
   const handleDownload = async () => {
     if (!selected) return;
+    const loadingToast = showLoading("Preparando descarga...");
     try {
       const response = await fetch(
         `/api/download-video?url=${encodeURIComponent(selected.url)}`
@@ -234,7 +251,9 @@ export default function VideosPage() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error descargando vídeo:", error);
-      toast.error("No se pudo descargar el vídeo");
+      handleError(error, "No se pudo descargar el vídeo");
+    } finally {
+      toast.dismiss(loadingToast);
     }
   };
 
@@ -293,8 +312,49 @@ export default function VideosPage() {
           onEstadoChange={setEstadoEditado}
           onDownload={handleDownload}
           onGuardar={guardarCambios}
-          onEliminar={handleDeleteVideo}
+          onEliminar={() => {
+            // Cerrar modal de edición y abrir confirmación
+            setVideoToDelete(selected);
+            setOpen(false);
+          }}
         />
+      )}
+
+      {/* Diálogo de confirmación para eliminar */}
+      {videoToDelete && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-lg font-semibold mb-4">¿Eliminar video?</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              ¿Estás seguro de que deseas eliminar el video <strong>{videoToDelete.titulo}</strong>?
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setVideoToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteConfirmado}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Eliminando...
+                  </span>
+                ) : "Eliminar"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

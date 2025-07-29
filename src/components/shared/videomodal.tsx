@@ -16,6 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useState } from "react";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 interface VideoEditorModalProps {
   open: boolean;
@@ -29,7 +32,7 @@ interface VideoEditorModalProps {
   onEstadoChange: (val: string) => void;
   onDownload: () => Promise<void>;
   onGuardar: () => Promise<void>;
-  onEliminar: () => Promise<void>; // ✅ Nuevo
+  onEliminar: () => void;
 }
 
 export default function VideoEditorModal({
@@ -46,7 +49,68 @@ export default function VideoEditorModal({
   onGuardar,
   onEliminar,
 }: VideoEditorModalProps) {
-  const showCorrecciones = estado === "1"; // Mostrar textarea solo si estado = Necesita Cambios
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const showCorrecciones = estado === "1";
+
+  const handleGuardar = async () => {
+    setIsSaving(true);
+    const loadingToast = showLoading("Guardando video...");
+    
+    try {
+      // Enviar tarea si está en estado "Cambios"
+      if (estado === "1") {
+        try {
+          const res = await fetch("/api/assign-task", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: `✏️ Revisar cambios solicitados en video: ${titulo}`,
+            }),
+          });
+
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Error ${res.status}: ${errorText}`);
+          }
+
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            console.log("✅ Tarea asignada/respuesta del backend:", data);
+          }
+          
+          showSuccess("Tarea asignada para revisión de cambios");
+        } catch (error) {
+          handleError(error, "Error al asignar tarea");
+        }
+      }
+
+      await onGuardar();
+      showSuccess("Video guardado con éxito");
+    } catch (error) {
+      handleError(error, "Error al guardar el video");
+    } finally {
+      toast.dismiss(loadingToast);
+      setIsSaving(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    const loadingToast = showLoading("Descargando video...");
+    
+    try {
+      await onDownload();
+      showSuccess("Video descargado con éxito");
+    } catch (error) {
+      handleError(error, "Error al descargar el video");
+    } finally {
+      toast.dismiss(loadingToast);
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,27 +143,32 @@ export default function VideoEditorModal({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">🆕 Nuevo</SelectItem>
-              <SelectItem value="1">✏️ Necesita Cambios</SelectItem>
+              <SelectItem value="1">✏️ Cambios</SelectItem>
               <SelectItem value="2">✅ Aprobado</SelectItem>
             </SelectContent>
           </Select>
 
-          <Button variant="outline" onClick={onDownload}>
-            Descargar vídeo
+          <Button 
+            variant="outline" 
+            onClick={handleDownload}
+            disabled={isDownloading}
+          >
+            {isDownloading ? "Descargando..." : "Descargar vídeo"}
           </Button>
         </div>
 
         {showCorrecciones && (
           <div className="mt-4 w-full">
             <label htmlFor="notas" className="block font-medium mb-1">
-              Correcciones
+              Indica los cambios que deseas o instrucciones al equipo
             </label>
             <Textarea
               id="notas"
               value={notas}
               onChange={(e) => onNotasChange(e.target.value)}
-              placeholder="Agrega correcciones para el administrador"
+              placeholder="Describe específicamente qué cambios quieres que se hagan"
               rows={4}
+              aria-label="Notas para cambios"
             />
           </div>
         )}
@@ -108,7 +177,12 @@ export default function VideoEditorModal({
           <Button onClick={onEliminar} variant="destructive">
             🗑 Eliminar vídeo
           </Button>
-          <Button onClick={onGuardar}>💾 Guardar cambios</Button>
+          <Button 
+            onClick={handleGuardar}
+            disabled={isSaving}
+          >
+            {isSaving ? "Guardando..." : "💾 Guardar cambios"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

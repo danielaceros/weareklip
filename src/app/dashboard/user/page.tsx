@@ -23,9 +23,10 @@ import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import clsx from "clsx";
 import Image from "next/image";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 interface StripeSubscription {
   status: string;
@@ -66,6 +67,8 @@ interface ClonacionVideo {
   storagePath: string;
 }
 
+const MAX_VIDEOS = 3;
+
 export default function UserPanel() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -85,8 +88,6 @@ export default function UserPanel() {
   // Clonacion videos state
   const [clonacionVideos, setClonacionVideos] = useState<ClonacionVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<ClonacionVideo | null>(null);
   const [editTitles, setEditTitles] = useState<Record<string, string>>({});
@@ -94,13 +95,19 @@ export default function UserPanel() {
   // Modal eliminar vídeo
   const [videoToDelete, setVideoToDelete] = useState<ClonacionVideo | null>(null);
 
+  // Progreso de subida de videos (para múltiples archivos)
+  const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
+  
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const dragDropRef = useRef<HTMLDivElement | null>(null);
+
+  // Verificar si se ha alcanzado el límite de videos
+  const videoLimitReached = clonacionVideos.length >= MAX_VIDEOS;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        toast.error("No autenticado", { description: "Inicia sesión para ver tu panel." });
+        handleError(null, "No autenticado");
         return;
       }
 
@@ -119,8 +126,8 @@ export default function UserPanel() {
         } else {
           setUserData(null);
         }
-      } catch {
-        toast.error("Error cargando datos de usuario.");
+      } catch (error) {
+        handleError(error, "Error cargando datos de usuario");
       }
 
       try {
@@ -132,8 +139,8 @@ export default function UserPanel() {
         if (!res.ok) throw new Error("No se pudo obtener la suscripción");
         const data = await res.json();
         setSub(data);
-      } catch {
-        toast.error("Error cargando suscripción.");
+      } catch (error) {
+        handleError(error, "Error cargando suscripción");
       } finally {
         setLoadingSub(false);
       }
@@ -162,8 +169,7 @@ export default function UserPanel() {
       setClonacionVideos(videos);
       setEditTitles(videos.reduce((acc, v) => ({ ...acc, [v.id]: v.titulo }), {}));
     } catch (error) {
-      console.error("Error cargando videos clonacion:", error);
-      toast.error("Error cargando videos de clonación.");
+      handleError(error, "Error cargando videos de clonación");
     } finally {
       setLoadingVideos(false);
     }
@@ -180,37 +186,42 @@ export default function UserPanel() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo imágenes permitidas para la foto de perfil.");
+      handleError(null, "Solo imágenes permitidas para la foto de perfil");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("La imagen debe ser menor a 5MB.");
+      handleError(null, "La imagen debe ser menor a 5MB");
       return;
     }
     if (!userId) {
-      toast.error("Usuario no autenticado");
+      handleError(null, "Usuario no autenticado");
       return;
     }
+    
     setUploadingPhoto(true);
+    const loadingToast = showLoading("Subiendo foto de perfil...");
+    
     const photoRef = storageRef(storage, `users/${userId}/profile_photo_${Date.now()}`);
     const uploadTask = uploadBytesResumable(photoRef, file);
     uploadTask.on(
       "state_changed",
       () => {},
       (error) => {
-        console.error("Error subiendo foto:", error);
-        toast.error("Error subiendo foto de perfil.");
+        toast.dismiss(loadingToast);
+        handleError(error, "Error subiendo foto de perfil");
         setUploadingPhoto(false);
       },
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setPhotoURL(url);
         try {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setPhotoURL(url);
           await updateDoc(doc(db, "users", userId), { photoURL: url });
           setUserData((prev) => (prev ? { ...prev, photoURL: url } : null));
-          toast.success("Foto de perfil subida y guardada");
-        } catch {
-          toast.error("Error guardando foto en base de datos");
+          toast.dismiss(loadingToast);
+          showSuccess("Foto de perfil actualizada");
+        } catch (error) {
+          toast.dismiss(loadingToast);
+          handleError(error, "Error guardando foto en base de datos");
         }
         setUploadingPhoto(false);
       }
@@ -220,7 +231,7 @@ export default function UserPanel() {
   // Save user info
   const saveUserData = async () => {
     if (!userId) {
-      toast.error("Usuario no autenticado");
+      handleError(null, "Usuario no autenticado");
       return;
     }
     try {
@@ -229,7 +240,7 @@ export default function UserPanel() {
         instagramUser: instagramUser.trim(),
         phone: phone.trim(),
       });
-      toast.success("Datos actualizados correctamente");
+      showSuccess("Datos actualizados correctamente");
       setUserData((prev) =>
         prev
           ? {
@@ -240,8 +251,8 @@ export default function UserPanel() {
             }
           : null
       );
-    } catch {
-      toast.error("Error guardando datos");
+    } catch (error) {
+      handleError(error, "Error guardando datos");
     }
   };
 
@@ -269,110 +280,130 @@ export default function UserPanel() {
     setDragActive(false);
 
     if (!userId) {
-      toast.error("Usuario no autenticado");
+      handleError(null, "Usuario no autenticado");
+      return;
+    }
+
+    // Verificar si se ha alcanzado el límite
+    if (videoLimitReached) {
+      handleError(null, `Límite de ${MAX_VIDEOS} videos alcanzado`);
       return;
     }
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
 
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("video/")) {
-        toast.error("Solo archivos de vídeo permitidos.");
-        return;
-      }
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error("El vídeo debe ser menor a 100MB.");
-        return;
-      }
+    // Calcular cuántos videos se pueden subir
+    const availableSlots = MAX_VIDEOS - clonacionVideos.length;
+    const filesToUpload = Array.from(files).slice(0, availableSlots);
+
+    if (filesToUpload.length < files.length) {
+      handleError(null, `Solo puedes subir ${availableSlots} video(s) más`);
     }
 
-    Array.from(files).forEach((file) => {
-      // El título es uid_randomid, sin pedir nada
+    for (const file of filesToUpload) {
+      if (!file.type.startsWith("video/")) {
+        handleError(null, "Solo archivos de vídeo permitidos");
+        continue;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        handleError(null, "El vídeo debe ser menor a 100MB");
+        continue;
+      }
+      
       const randomId = Math.random().toString(36).substring(2, 10);
       const ext = file.name.split(".").pop() ?? "mp4";
       const title = `${userId}_${randomId}`;
       uploadVideo(file, title, ext);
-    });
+    }
   };
 
-  // Upload video to Firebase Storage + Firestore with uid_random.ext naming
- const uploadVideo = (file: File, title: string, ext: string) => {
-  if (!userId) return;
-  setUploadingVideo(true);
-  setVideoUploadProgress(0);
+  // Upload video to Firebase Storage + Firestore
+  const uploadVideo = (file: File, title: string, ext: string) => {
+    if (!userId || videoLimitReached) return;
+    
+    const fileKey = `${title}.${ext}`;
+    setVideoUploadProgress(prev => ({ ...prev, [fileKey]: 0 }));
+    
+    const loadingToast = showLoading(`Subiendo ${file.name}...`);
 
-  const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
-  const videoRef = storageRef(storage, videoPath);
+    const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
+    const videoRef = storageRef(storage, videoPath);
 
-  const uploadTask = uploadBytesResumable(videoRef, file);
-  uploadTask.on(
-    "state_changed",
-    (snapshot) => {
-      const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-      setVideoUploadProgress(prog);
-    },
-    (error) => {
-      console.error("Error subiendo video:", error);
-      toast.error("Error subiendo video.");
-      setUploadingVideo(false);
-    },
-    async () => {
-      try {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        const docRef = await addDoc(collection(db, "users", userId, "clonacion"), {
-          titulo: title,
-          url,
-          storagePath: videoPath,
-          createdAt: Date.now(),
+    const uploadTask = uploadBytesResumable(videoRef, file);
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setVideoUploadProgress(prev => ({ ...prev, [fileKey]: prog }));
+      },
+      (error) => {
+        toast.dismiss(loadingToast);
+        handleError(error, `Error subiendo ${file.name}`);
+        setVideoUploadProgress(prev => {
+          const newState = { ...prev };
+          delete newState[fileKey];
+          return newState;
         });
-        setClonacionVideos((prev) => [
-          { id: docRef.id, titulo: title, url, storagePath: videoPath },
-          ...prev,
-        ]);
-        setEditTitles((prev) => ({ ...prev, [docRef.id]: title }));
-        toast.success("Vídeo subido correctamente.");
-
-        // AQUÍ ESTÁ LA NUEVA FUNCIONALIDAD
-        // Asignar tarea a Rubén después de subir el video
+      },
+      async () => {
         try {
-          const token = await auth.currentUser?.getIdToken();
-          if (!token) throw new Error("No autenticado");
-
-          const res = await fetch("/api/assign-task", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              description: "📥 Revisar nuevo material de clonación subido",
-            }),
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          const docRef = await addDoc(collection(db, "users", userId, "clonacion"), {
+            titulo: title,
+            url,
+            storagePath: videoPath,
+            createdAt: Date.now(),
           });
+          
+          setClonacionVideos(prev => [
+            { id: docRef.id, titulo: title, url, storagePath: videoPath },
+            ...prev,
+          ]);
+          
+          setEditTitles(prev => ({ ...prev, [docRef.id]: title }));
+          toast.dismiss(loadingToast);
+          showSuccess(`${file.name} subido correctamente`);
 
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.message || "Error en la respuesta del servidor");
+          // Asignar tarea a Rubén después de subir el video
+          try {
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) throw new Error("No autenticado");
+
+            const res = await fetch("/api/assign-task", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                description: "📥 Revisar nuevo material de clonación subido",
+              }),
+            });
+
+            if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(errorData.message || "Error en la respuesta del servidor");
+            }
+
+          } catch (error) {
+            console.error("Error al asignar tarea:", error);
+            handleError(error, "Error al crear tarea de revisión");
           }
-
-          const data = await res.json();
-          console.log("Tarea asignada:", data);
         } catch (error) {
-          console.error("Error al asignar tarea:", error);
-          toast.error("Error al crear tarea de revisión", {
-            description: "El video se subió, pero no se pudo asignar la tarea automática",
+          toast.dismiss(loadingToast);
+          handleError(error, "Error guardando video en base de datos");
+        } finally {
+          setVideoUploadProgress(prev => {
+            const newState = { ...prev };
+            delete newState[fileKey];
+            return newState;
           });
         }
-
-      } catch (e) {
-        console.error(e);
-        toast.error("Error guardando video en base de datos.");
       }
-      setUploadingVideo(false);
-      setVideoUploadProgress(0);
-    }
-  );
-};
+    );
+  };
+
   // Handle delete with modal confirmation
   const confirmDeleteVideo = (video: ClonacionVideo) => {
     setVideoToDelete(video);
@@ -384,21 +415,24 @@ export default function UserPanel() {
 
   const handleDeleteVideo = async () => {
     if (!userId || !videoToDelete) {
-      toast.error("Usuario no autenticado o vídeo no seleccionado");
+      handleError(null, "Usuario no autenticado o vídeo no seleccionado");
       setVideoToDelete(null);
       return;
     }
 
+    const loadingToast = showLoading("Eliminando video...");
+    
     try {
       await deleteDoc(doc(db, "users", userId, "clonacion", videoToDelete.id));
       const videoRef = storageRef(storage, videoToDelete.storagePath);
       await deleteObject(videoRef);
       setClonacionVideos((prev) => prev.filter((v) => v.id !== videoToDelete.id));
-      toast.success("Vídeo eliminado correctamente.");
+      toast.dismiss(loadingToast);
+      showSuccess("Vídeo eliminado correctamente");
       if (selectedVideo?.id === videoToDelete.id) setSelectedVideo(null);
-    } catch (e) {
-      console.error(e);
-      toast.error("Error eliminando vídeo.");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error eliminando vídeo");
     } finally {
       setVideoToDelete(null);
     }
@@ -569,7 +603,17 @@ export default function UserPanel() {
 
       {/* Sección vídeos clonacion */}
       <section className="border rounded-lg p-6 bg-white shadow-sm relative">
-        <h2 className="text-xl font-semibold mb-4">Mis Vídeos de Clonación</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Mis Vídeos de Clonación</h2>
+          <div className={clsx(
+            "px-3 py-1 rounded-full text-sm font-medium",
+            videoLimitReached 
+              ? "bg-green-100 text-green-700 border border-green-300"
+              : "bg-gray-100 text-gray-600 border border-gray-300"
+          )}>
+            {clonacionVideos.length}/{MAX_VIDEOS}
+          </div>
+        </div>
 
         <div
           ref={dragDropRef}
@@ -577,45 +621,91 @@ export default function UserPanel() {
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          onClick={() => videoInputRef.current?.click()}
+          onClick={() => {
+            if (!videoLimitReached) {
+              videoInputRef.current?.click();
+            }
+          }}
           className={clsx(
-            "border-2 border-dashed rounded p-8 text-center cursor-pointer select-none",
-            dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300"
+            "border-2 border-dashed rounded p-8 text-center cursor-pointer select-none transition-all",
+            dragActive && !videoLimitReached 
+              ? "border-blue-500 bg-blue-50" 
+              : videoLimitReached
+                ? "border-green-300 bg-green-50"
+                : "border-gray-300",
+            videoLimitReached && "cursor-not-allowed"
           )}
-          aria-label="Área de arrastrar y soltar vídeos para subir"
+          aria-label={
+            videoLimitReached 
+              ? "Límite de videos alcanzado" 
+              : "Área de arrastrar y soltar vídeos para subir"
+          }
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") videoInputRef.current?.click();
+            if (e.key === "Enter" || e.key === " ") {
+              if (!videoLimitReached) {
+                videoInputRef.current?.click();
+              }
+            }
           }}
         >
-          {uploadingVideo ? (
-            <p>Subiendo vídeo... {videoUploadProgress.toFixed(0)}%</p>
+          {videoLimitReached ? (
+            <div className="text-green-700 font-medium">
+              <p>¡Límite de videos alcanzado!</p>
+              <p className="text-sm mt-2 text-green-600">
+                Has subido el máximo de {MAX_VIDEOS} videos permitidos.
+              </p>
+            </div>
+          ) : Object.keys(videoUploadProgress).length > 0 ? (
+            <div className="space-y-3 w-full max-w-md mx-auto">
+              {Object.entries(videoUploadProgress).map(([fileName, progress]) => (
+                <div key={fileName} className="space-y-1">
+                  <p className="text-sm truncate">{fileName.split('.')[0]} - {progress.toFixed(0)}%</p>
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <p>Arrastra y suelta aquí tus vídeos o haz clic para seleccionar</p>
           )}
+          
           <input
             ref={videoInputRef}
             type="file"
             accept="video/*"
             className="hidden"
             multiple
+            disabled={videoLimitReached}
             onChange={(e) => {
               const files = e.target.files;
               if (!files) return;
               if (!userId) {
-                toast.error("Usuario no autenticado");
+                handleError(null, "Usuario no autenticado");
                 return;
               }
-              Array.from(files).forEach((file) => {
+              
+              // Calcular cuántos videos se pueden subir
+              const availableSlots = MAX_VIDEOS - clonacionVideos.length;
+              const filesToUpload = Array.from(files).slice(0, availableSlots);
+              
+              if (filesToUpload.length < files.length) {
+                handleError(null, `Solo puedes subir ${availableSlots} video(s) más`);
+              }
+              
+              filesToUpload.forEach((file) => {
                 if (!file.type.startsWith("video/")) {
-                  toast.error("Solo archivos de vídeo permitidos.");
+                  handleError(null, "Solo archivos de vídeo permitidos");
                   return;
                 }
                 if (file.size > 100 * 1024 * 1024) {
-                  toast.error("El vídeo debe ser menor a 100MB.");
+                  handleError(null, "El vídeo debe ser menor a 100MB");
                   return;
                 }
-                // Generar título automáticamente
                 const randomId = Math.random().toString(36).substring(2, 10);
                 const ext = file.name.split(".").pop() ?? "mp4";
                 const title = `${userId}_${randomId}`;

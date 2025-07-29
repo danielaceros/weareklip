@@ -19,7 +19,6 @@ import {
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 import ClienteDatosForm from "@/components/shared/clientdatosform";
 import GuionesSection from "@/components/shared/guionesection";
 import VideosSection from "@/components/shared/videosection";
@@ -27,6 +26,8 @@ import EditarGuionModal from "@/components/shared/editarguion";
 import EditarVideoModal from "@/components/shared/editarvideo";
 import ClonacionVideosSection from "@/components/shared/dropzonecl";
 import CalendarioMensual from "@/components/shared/CalendarioMensual";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 // 📧 Notificaciones
 const sendNotificationEmail = async (
@@ -34,7 +35,7 @@ const sendNotificationEmail = async (
   content: string
 ) => {
   try {
-    await fetch("/api/send-email", {
+    const res = await fetch("/api/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -43,8 +44,12 @@ const sendNotificationEmail = async (
         content,
       }),
     });
+    
+    if (!res.ok) {
+      throw new Error("Error en la respuesta del servidor");
+    }
   } catch (err) {
-    console.error("Error enviando notificación:", err);
+    handleError(err, "Error al enviar el correo");
   }
 };
 
@@ -88,38 +93,55 @@ export default function ClientProfilePage() {
   const fetchSubscription = useCallback(async (email: string) => {
     try {
       const res = await fetch(`/api/stripe/email?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error("Error obteniendo suscripción");
+      
       const json = await res.json();
       setSubscriptionPlan(json?.plan || "Sin plan");
-    } catch {
+    } catch (error) {
+      handleError(error, "No se pudo cargar la suscripción");
       setSubscriptionPlan("Error");
     }
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (!uid) return toast.error("UID inválido.");
+    if (!uid) {
+      handleError(null, "UID inválido");
+      return;
+    }
+    
+    setLoading(true);
     try {
       const userDocRef = doc(db, "users", uid);
       const userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) throw new Error("Cliente no encontrado.");
+      if (!userSnap.exists()) {
+        setCliente(null);
+        return;
+      }
+      
       const userData = userSnap.data() as Cliente;
       setCliente(userData);
 
       if (userData.email) fetchSubscription(userData.email);
 
+      // Cargar guiones
       const guionesSnap = await getDocs(collection(userDocRef, "guiones"));
       setGuiones(guionesSnap.docs.map(doc => ({
         firebaseId: doc.id,
         ...doc.data()
       })) as Guion[]);
 
+      // Cargar videos
       const videosSnap = await getDocs(collection(userDocRef, "videos"));
-      setVideos(videosSnap.docs.map(doc => ({
-        firebaseId: doc.id,
-        ...doc.data()
-      })) as Video[]);
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al cargar la ficha del cliente.");
+      setVideos(videosSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          firebaseId: doc.id,
+          ...data,
+          estado: data.estado.toString() // ✅ Convierte a string ("0", "1", "2")
+        };
+      }) as Video[]);
+    } catch (error) {
+      handleError(error, "Error al cargar la ficha del cliente");
     } finally {
       setLoading(false);
     }
@@ -131,21 +153,29 @@ export default function ClientProfilePage() {
 
   const handleSaveCliente = async () => {
     if (!uid || !cliente) {
-      toast.error("Faltan datos.");
+      handleError(null, "Faltan datos");
       return;
     }
+    
+    const loadingToast = showLoading("Guardando datos del cliente...");
     try {
       await updateDoc(doc(db, "users", uid), cliente);
-      toast.success("Datos actualizados.");
+      toast.dismiss(loadingToast);
+      showSuccess("Datos actualizados");
       fetchData();
-    } catch (err) {
-      console.error(err);
-      toast.error("No se pudo guardar.");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error guardando datos del cliente");
     }
   };
 
   const handleCreateGuion = async (titulo: string, contenido: string) => {
-    if (!uid || !titulo || !contenido) return;
+    if (!uid || !titulo || !contenido) {
+      handleError(null, "Faltan datos para crear el guión");
+      return;
+    }
+    
+    const loadingToast = showLoading("Creando guión...");
     try {
       await addDoc(collection(db, "users", uid, "guiones"), {
         titulo,
@@ -153,47 +183,59 @@ export default function ClientProfilePage() {
         estado: 0,
         creadoEn: new Date(),
       });
-      toast.success("Guion creado.");
+      
+      toast.dismiss(loadingToast);
+      showSuccess("Guion creado");
+      
       await sendNotificationEmail(
         `📜 Nuevo guion creado para ${cliente?.email || uid}`,
         `Se ha creado un nuevo guion titulado: "${titulo}".`
       );
+      
       setModalGuionOpen(false);
       fetchData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al crear guion.");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "No se pudo guardar el guión");
     }
   };
 
   const handleUpdateGuion = async () => {
-    if (!uid || !guionSeleccionado) return;
+    if (!uid || !guionSeleccionado) {
+      handleError(null, "Faltan datos para actualizar el guión");
+      return;
+    }
+    
+    const loadingToast = showLoading("Actualizando guión...");
     try {
       const refDoc = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId);
       await updateDoc(refDoc, {
         titulo: guionSeleccionado.titulo,
         contenido: guionSeleccionado.contenido,
       });
-      toast.success("Guion actualizado");
+      
+      toast.dismiss(loadingToast);
+      showSuccess("Guion actualizado");
       setGuionSeleccionado(null);
       fetchData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al actualizar guion");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error al actualizar guion");
     }
   };
 
   const handleUploadVideo = async () => {
     if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
-      toast.error("Completa todos los campos.");
+      handleError(null, "Completa todos los campos");
       return;
     }
 
     if (archivoVideo.size > 100 * 1024 * 1024) {
-      toast.error("El archivo no debe superar los 100MB.");
+      handleError(null, "El archivo no debe superar los 100MB");
       return;
     }
 
+    const loadingToast = showLoading("Subiendo video...");
     try {
       const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`);
       const uploadTask = uploadBytesResumable(storageRef, archivoVideo);
@@ -204,46 +246,62 @@ export default function ClientProfilePage() {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setUploadProgress(progress);
         },
-        () => {
-          toast.error("Error al subir el video.");
+        (error) => {
+          toast.dismiss(loadingToast);
+          handleError(error, "Falló la subida del vídeo");
           setUploadProgress(null);
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          await addDoc(collection(db, "users", uid, "videos"), {
-            titulo: nuevoVideoTitulo,
-            url,
-            estado: "pendiente",
-            creadoEn: new Date(),
-          });
-          toast.success("Video subido con éxito.");
-          await sendNotificationEmail(
-            `🎬 Nuevo video subido por ${cliente?.email || uid}`,
-            `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`
-          );
-          setUploadProgress(null);
-          setModalVideoOpen(false);
-          setArchivoVideo(null);
-          setNuevoVideoTitulo("");
-          fetchData();
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            await addDoc(collection(db, "users", uid, "videos"), {
+              titulo: nuevoVideoTitulo,
+              url,
+              estado: "0",
+              creadoEn: new Date(),
+            });
+            
+            toast.dismiss(loadingToast);
+            showSuccess("Video subido con éxito");
+            
+            await sendNotificationEmail(
+              `🎬 Nuevo video subido por ${cliente?.email || uid}`,
+              `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`
+            );
+            
+            setUploadProgress(null);
+            setModalVideoOpen(false);
+            setArchivoVideo(null);
+            setNuevoVideoTitulo("");
+            fetchData();
+          } catch (error) {
+            toast.dismiss(loadingToast);
+            handleError(error, "Error al guardar video");
+            setUploadProgress(null);
+          }
         }
       );
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al guardar video.");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error al subir video");
       setUploadProgress(null);
     }
   };
 
   const handleUpdateVideo = async (updatedVideo: Video & { nuevoArchivo?: File }) => {
-    if (!uid || !updatedVideo) return;
+    if (!uid || !updatedVideo) {
+      handleError(null, "Faltan datos para actualizar el video");
+      return;
+    }
 
+    const loadingToast = showLoading("Actualizando video...");
     try {
       let url = updatedVideo.url;
 
       if (updatedVideo.nuevoArchivo) {
         if (updatedVideo.nuevoArchivo.size > 100 * 1024 * 1024) {
-          toast.error("El archivo no debe superar los 100MB.");
+          toast.dismiss(loadingToast);
+          handleError(null, "El archivo no debe superar los 100MB");
           return;
         }
 
@@ -252,38 +310,44 @@ export default function ClientProfilePage() {
         url = await getDownloadURL(uploadTask.ref);
       }
 
-      await updateDoc(doc(db, "users", uid, "videos", updatedVideo.firebaseId), {
-        titulo: updatedVideo.titulo,
-        estado: updatedVideo.estado,
-        notas: updatedVideo.notas || "",
-        url,
-      });
+        await updateDoc(doc(db, "users", uid, "videos", updatedVideo.firebaseId), {
+          titulo: updatedVideo.titulo,
+          estado: updatedVideo.estado.toString(), 
+          notas: updatedVideo.notas || "",
+          url,
+        });
 
-      toast.success("Video actualizado correctamente.");
+      toast.dismiss(loadingToast);
+      showSuccess("Video actualizado correctamente");
+      
       await sendNotificationEmail(
         `🛠 Video actualizado para ${cliente?.email || uid}`,
         `El video "${updatedVideo.titulo}" ha sido actualizado.\nEstado: ${updatedVideo.estado === 0 ? "Nuevo" : updatedVideo.estado === 1 ? "Cambios" : "Aprobado"}\nNotas: ${updatedVideo.notas || "Sin notas"}`
       );
+      
       setVideoSeleccionado(null);
       fetchData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al actualizar video");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error al actualizar video");
     }
   };
 
   const handleDelete = async (type: "guiones" | "videos", id: string) => {
     if (!uid || typeof uid !== "string") {
-      toast.error("UID inválido.");
+      handleError(null, "UID inválido");
       return;
     }
 
+    const loadingToast = showLoading("Eliminando...");
     try {
       await deleteDoc(doc(db, "users", uid, type, id));
+      toast.dismiss(loadingToast);
+      showSuccess("Elemento eliminado");
       fetchData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al eliminar.");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error al eliminar");
     }
   };
 
@@ -297,7 +361,7 @@ export default function ClientProfilePage() {
   }
 
   if (!cliente) {
-    return <div className="p-6">Cliente no encontrado.</div>;
+    return <div className="p-6 text-center">Cliente no encontrado.</div>;
   }
 
   return (

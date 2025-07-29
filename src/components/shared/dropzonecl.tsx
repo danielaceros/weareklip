@@ -15,12 +15,13 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
-import { useDropzone } from "react-dropzone";
-import { toast } from "sonner";
+import { useDropzone, type FileRejection } from "react-dropzone"; 
 import { db, storage } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 interface Props {
   uid: string;
@@ -31,6 +32,8 @@ export default function ClonacionVideosSection({ uid }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<{id: string, url: string} | null>(null);
 
   const fetchVideos = useCallback(async () => {
     try {
@@ -46,23 +49,30 @@ export default function ClonacionVideosSection({ uid }: Props) {
         } as Video;
       });
       setVideos(data);
-    } catch {
-      toast.error("Error al cargar videos");
+    } catch (error) {
+      handleError(error, "Error al cargar videos");
     }
   }, [uid]);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
     setUploading(true);
+    
+    // Manejar archivos rechazados (como videos demasiado grandes)
+    fileRejections.forEach(rejection => {
+      rejection.errors.forEach(error => {
+        if (error.code === "file-too-large") {
+          handleError(null, `${rejection.file.name} excede los 100MB`);
+        }
+      });
+    });
+    
+    // Procesar archivos aceptados
     for (const file of acceptedFiles) {
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error(`${file.name} excede los 100MB`);
-        continue;
-      }
-
+      
       const storageRef = ref(storage, `users/${uid}/clonacion/${file.name}`);
+      
       const uploadTask = uploadBytesResumable(storageRef, file);
-
-      toast.info(`Subiendo ${file.name}...`);
+      const loadingToast = showLoading(`Subiendo ${file.name}...`);
 
       uploadTask.on(
         "state_changed",
@@ -72,8 +82,9 @@ export default function ClonacionVideosSection({ uid }: Props) {
           );
           setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
         },
-        () => {
-          toast.error(`Error al subir ${file.name}`);
+        (error) => {
+          toast.dismiss(loadingToast);
+          handleError(error, `Error al subir ${file.name}`);
           setUploadProgress(prev => {
             const newState = { ...prev };
             delete newState[file.name];
@@ -81,21 +92,36 @@ export default function ClonacionVideosSection({ uid }: Props) {
           });
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          const docRef = await addDoc(collection(db, "users", uid, "clonacion"), {
-            titulo: file.name,
-            url,
-            estado: 0,
-            notas: "",
-            creadoEn: new Date(),
-          });
-          setVideos(prev => [...prev, { firebaseId: docRef.id, titulo: file.name, url, estado: 0, notas: "" }]);
-          setUploadProgress(prev => {
-            const newState = { ...prev };
-            delete newState[file.name];
-            return newState;
-          });
-          toast.success(`${file.name} subido correctamente`);
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            const docRef = await addDoc(collection(db, "users", uid, "clonacion"), {
+              titulo: file.name,
+              url,
+              estado: 0,
+              notas: "",
+              creadoEn: new Date(),
+            });
+            
+            setVideos(prev => [...prev, { 
+              firebaseId: docRef.id, 
+              titulo: file.name, 
+              url, 
+              estado: 0, 
+              notas: "" 
+            }]);
+            
+            toast.dismiss(loadingToast);
+            showSuccess(`${file.name} subido correctamente`);
+          } catch (error) {
+            toast.dismiss(loadingToast);
+            handleError(error, "Error al guardar el video en la base de datos");
+          } finally {
+            setUploadProgress(prev => {
+              const newState = { ...prev };
+              delete newState[file.name];
+              return newState;
+            });
+          }
         }
       );
     }
@@ -103,13 +129,23 @@ export default function ClonacionVideosSection({ uid }: Props) {
   }, [uid]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "video/*": [] },
-    maxSize: 100 * 1024 * 1024,
+    accept: { "video/*": [".mp4", ".mov", ".avi", ".mkv"] },
+    maxSize: 100 * 1024 * 1024, // 100MB
     multiple: true,
     onDrop,
   });
 
-  const handleDelete = async (id: string, url: string) => {
+  const handleDeleteClick = (id: string, url: string) => {
+    setConfirmDelete({id, url});
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    
+    const { id, url } = confirmDelete;
+    setDeletingIds(prev => [...prev, id]);
+    const loadingToast = showLoading("Eliminando video...");
+    
     try {
       const path = decodeURIComponent(
         new URL(url).pathname.split("/o/")[1].split("?")[0]
@@ -117,10 +153,19 @@ export default function ClonacionVideosSection({ uid }: Props) {
       await deleteObject(ref(storage, path));
       await deleteDoc(doc(db, "users", uid, "clonacion", id));
       setVideos(prev => prev.filter(v => v.firebaseId !== id));
-      toast.success("Video eliminado");
-    } catch {
-      toast.error("Error al eliminar");
+      toast.dismiss(loadingToast);
+      showSuccess("Video eliminado");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      handleError(error, "Error al eliminar el video");
+    } finally {
+      setDeletingIds(prev => prev.filter(itemId => itemId !== id));
+      setConfirmDelete(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDelete(null);
   };
 
   useEffect(() => {
@@ -172,9 +217,10 @@ export default function ClonacionVideosSection({ uid }: Props) {
                 size="sm"
                 variant="destructive"
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition"
-                onClick={() => handleDelete(video.firebaseId, video.url)}
+                onClick={() => handleDeleteClick(video.firebaseId, video.url)}
+                disabled={deletingIds.includes(video.firebaseId)}
               >
-                ✕
+                {deletingIds.includes(video.firebaseId) ? "Eliminando..." : "✕"}
               </Button>
               <p className="text-xs mt-1 truncate text-center">{video.titulo}</p>
             </Card>
@@ -182,6 +228,19 @@ export default function ClonacionVideosSection({ uid }: Props) {
         </div>
       )}
 
+      {/* Diálogo de confirmación para eliminar */}
+      <Dialog open={!!confirmDelete} onOpenChange={handleCancelDelete}>
+        <DialogContent>
+          <DialogTitle>Confirmar eliminación</DialogTitle>
+          <p className="py-4">¿Estás seguro de que quieres eliminar este video? Esta acción no se puede deshacer.</p>
+          <div className="flex justify-end space-x-3">
+            <Button variant="outline" onClick={handleCancelDelete}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>Eliminar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo para visualizar video */}
       <Dialog open={!!selectedUrl} onOpenChange={() => setSelectedUrl(null)}>
         <DialogTitle className="text-xl font-semibold">Vídeo</DialogTitle>
         <DialogContent className="max-w-3xl w-full">

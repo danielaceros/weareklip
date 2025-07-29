@@ -14,6 +14,7 @@ import {
   doc, 
   Timestamp
 } from "firebase/firestore";
+import { handleError, showSuccess } from "@/lib/errors";
 
 type Item = {
   firebaseId: string;
@@ -53,20 +54,24 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   const fetchEventos = async () => {
     if (!uid) return;
-    const snap = await getDocs(collection(db, "users", uid, "calendario"));
-    const data = snap.docs.map((doc) => {
-      const d = doc.data();
-      const fechaDate = d.fecha.toDate();
-      return {
-        id: doc.id,
-        tipo: d.tipo,
-        titulo: d.titulo,
-        fecha: formatDateToISO(fechaDate),
-        estado: d.estado || "por_hacer",
-        refId: d.refId
-      };
-    });
-    setEventos(data);
+    try {
+      const snap = await getDocs(collection(db, "users", uid, "calendario"));
+      const data = snap.docs.map((doc) => {
+        const d = doc.data();
+        const fechaDate = d.fecha.toDate();
+        return {
+          id: doc.id,
+          tipo: d.tipo,
+          titulo: d.titulo,
+          fecha: formatDateToISO(fechaDate),
+          estado: d.estado || "por_hacer",
+          refId: d.refId
+        };
+      });
+      setEventos(data);
+    } catch (error) {
+      handleError(error, "Error cargando eventos del calendario");
+    }
   };
 
   useEffect(() => {
@@ -82,7 +87,11 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     if (eventosAEliminar.length > 0) {
       const eliminarEventos = async () => {
         for (const evento of eventosAEliminar) {
-          await deleteDoc(doc(db, "users", uid, "calendario", evento.id));
+          try {
+            await deleteDoc(doc(db, "users", uid, "calendario", evento.id));
+          } catch (error) {
+            handleError(error, "Error eliminando evento huérfano");
+          }
         }
         setEventos(prev => prev.filter(e => 
           !eventosAEliminar.some(ae => ae.id === e.id)
@@ -143,7 +152,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   const handleAgregar = async () => {
     if (!itemId || !fechaEvento) {
-      alert("Por favor selecciona un ítem y una fecha");
+      handleError(null, "Selecciona un ítem y una fecha");
       return;
     }
 
@@ -151,7 +160,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     const item = fuente.find((i) => i.firebaseId === itemId);
 
     if (!item) {
-      alert("Ítem no encontrado");
+      handleError(null, "Ítem no encontrado");
       return;
     }
 
@@ -166,9 +175,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       setItemId("");
       setFechaEvento("");
       fetchEventos();
-      alert("Evento agregado correctamente");
-    } catch {
-      alert("Error agregando el evento");
+      showSuccess("Evento agregado correctamente");
+    } catch (error) {
+      handleError(error, "No se pudo crear el evento");
     }
   };
 
@@ -177,9 +186,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     try {
       await deleteDoc(doc(db, "users", uid, "calendario", eventoId));
       setEventos(eventos.filter(e => e.id !== eventoId));
-      alert("Evento eliminado");
-    } catch {
-      alert("Error al eliminar el evento");
+      showSuccess("Evento eliminado");
+    } catch (error) {
+      handleError(error, "Error al eliminar el evento");
     }
   };
 
@@ -191,8 +200,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       setEventos(eventos.map(e => 
         e.id === eventoId ? { ...e, estado: nuevoEstado } : e
       ));
-    } catch {
-      alert("Error al actualizar el estado");
+      showSuccess("Estado actualizado");
+    } catch (error) {
+      handleError(error, "Error al actualizar el estado");
     }
   };
 

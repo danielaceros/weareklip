@@ -1,9 +1,10 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/context/authContext"; 
 import { SyncStripe } from "@/components/shared/syncstripe"
+import { Toaster } from "react-hot-toast"; // Cambiado de sonner a react-hot-toast
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Envolvemos la aplicación con el AuthProvider */}
         <AuthProvider>
           <SyncStripe />
           {children}
         </AuthProvider>
-        <Toaster /> {/* Sonner notifications */}
+        <Toaster position="bottom-right" /> {/* Usando react-hot-toast */}
         <div id="recaptcha-container" />
       </body>
     </html>

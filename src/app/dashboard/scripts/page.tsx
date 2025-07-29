@@ -10,9 +10,11 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { toast } from "sonner";
 import ScriptCard from "@/components/shared/scriptscard";
 import ScriptEditorModal from "@/components/shared/scriptsmodal";
+import { Button } from "@/components/ui/button";
+import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import toast from "react-hot-toast";
 
 export interface Guion {
   firebaseId: string;
@@ -50,6 +52,8 @@ export default function GuionesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedGuion, setSelectedGuion] = useState<Guion | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [guionToDelete, setGuionToDelete] = useState<Guion | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchGuiones = useCallback(async (uid: string) => {
     setLoading(true);
@@ -58,9 +62,7 @@ export default function GuionesPage() {
       const snapshot = await getDocs(ref);
 
       if (snapshot.empty) {
-        toast("Aún no tienes guiones", {
-          description: "Cuando se generen, aparecerán aquí.",
-        });
+        toast("Aún no tienes guiones. Cuando se generen, aparecerán aquí.");
       }
 
       const data: Guion[] = snapshot.docs.map((doc) => {
@@ -78,9 +80,7 @@ export default function GuionesPage() {
       setGuiones(data);
     } catch (error) {
       console.error("Error al obtener guiones:", error);
-      toast.error("Error al cargar guiones", {
-        description: "Intenta recargar la página o contacta soporte.",
-      });
+      handleError(error, "Error al cargar guiones");
     } finally {
       setLoading(false);
     }
@@ -89,9 +89,7 @@ export default function GuionesPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        toast.error("No autenticado", {
-          description: "Debes iniciar sesión para ver tus guiones.",
-        });
+        handleError(null, "Debes iniciar sesión para ver tus guiones.");
         setUserId(null);
         setUserEmail(null);
         setGuiones([]);
@@ -109,6 +107,8 @@ export default function GuionesPage() {
 
   const handleUpdateGuion = async (updatedGuion: Guion) => {
     if (!userId || !userEmail) return;
+    
+    const loadingToast = showLoading("Actualizando guión...");
     try {
       const ref = doc(db, "users", userId, "guiones", updatedGuion.firebaseId);
       await updateDoc(ref, {
@@ -122,7 +122,7 @@ export default function GuionesPage() {
         prev.map((g) => (g.firebaseId === updatedGuion.firebaseId ? updatedGuion : g))
       );
 
-      toast.success("Cambios guardados correctamente");
+      showSuccess("Cambios guardados correctamente");
 
       const estadoTexto =
         updatedGuion.estado === 0
@@ -137,26 +137,39 @@ export default function GuionesPage() {
       );
     } catch (error) {
       console.error("Error al guardar guion:", error);
-      toast.error("Error al guardar", {
-        description: "Verifica tu conexión o vuelve a intentarlo.",
-      });
+      handleError(error, "Error al guardar guion");
+    } finally {
+      toast.dismiss(loadingToast);
     }
   };
 
-  const handleDeleteGuion = async (guionId: string, titulo: string) => {
-    if (!userId || !userEmail) return;
-    try {
-      await deleteDoc(doc(db, "users", userId, "guiones", guionId));
-      setGuiones((prev) => prev.filter((g) => g.firebaseId !== guionId));
-      toast.success("Guion eliminado");
+  const handleDeleteConfirmado = async () => {
+    if (!userId || !userEmail || !guionToDelete) return;
 
+    setIsDeleting(true);
+    const loadingToast = showLoading("Eliminando guión...");
+
+    try {
+      await deleteDoc(doc(db, "users", userId, "guiones", guionToDelete.firebaseId));
+      setGuiones((prev) => prev.filter((g) => g.firebaseId !== guionToDelete.firebaseId));
+      
+      // Cerrar modal de edición si está abierto
+      setModalOpen(false);
+      setSelectedGuion(null);
+      
+      showSuccess(" Guion eliminado permanentemente");
+      
       await sendNotificationEmail(
         `🗑️ Guion eliminado por ${userEmail}`,
-        `El cliente ha eliminado el guion titulado: "${titulo}".`
+        `El cliente ha eliminado el guion titulado: "${guionToDelete.titulo}".`
       );
     } catch (error) {
       console.error("Error al eliminar guion:", error);
-      toast.error("Error al eliminar guion.");
+      handleError(error, "❌ Error al eliminar el guion");
+    } finally {
+      setIsDeleting(false);
+      toast.dismiss(loadingToast);
+      setGuionToDelete(null);
     }
   };
 
@@ -178,7 +191,7 @@ export default function GuionesPage() {
                 setSelectedGuion(guion);
                 setModalOpen(true);
               }}
-              onDelete={() => handleDeleteGuion(guion.firebaseId, guion.titulo)}
+              onDelete={() => setGuionToDelete(guion)}
             />
           ))}
         </div>
@@ -193,6 +206,43 @@ export default function GuionesPage() {
           guion={selectedGuion}
           onSave={handleUpdateGuion}
         />
+      )}
+
+      {/* Diálogo de confirmación para eliminar */}
+      {guionToDelete && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-lg font-semibold mb-4">¿Eliminar guion?</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              ¿Estás seguro de que deseas eliminar el guion <strong>{guionToDelete.titulo}</strong>?
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setGuionToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteConfirmado}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Eliminando...
+                  </span>
+                ) : "Eliminar"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

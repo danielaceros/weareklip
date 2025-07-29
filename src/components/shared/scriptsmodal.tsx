@@ -17,6 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useState, useEffect } from "react"
+import { handleError, showSuccess, showLoading } from "@/lib/errors"
+import toast from "react-hot-toast"; // Importación añadida para toast.dismiss
 
 interface Guion {
   firebaseId: string
@@ -44,6 +46,7 @@ export default function ScriptEditorModal({
   const [contenido, setContenido] = useState(guion.contenido)
   const [estado, setEstado] = useState(String(guion.estado))
   const [notas, setNotas] = useState(guion.notas ?? "")
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -55,6 +58,9 @@ export default function ScriptEditorModal({
   }, [guion, open])
 
   const handleGuardar = async () => {
+    setIsSaving(true)
+    const loadingToast = showLoading("Guardando guión...")
+    
     const updatedGuion = {
       ...guion,
       titulo,
@@ -63,26 +69,45 @@ export default function ScriptEditorModal({
       notas: estado === "1" ? notas : "",
     }
 
-    // Enviar tarea si está en estado "Cambios"
-    if (estado === "1") {
-      try {
-        const res = await fetch("/api/assign-task", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: `✏️ Revisar cambios solicitados en guión: ${titulo}`,
-          }),
-        })
+    try {
+      // Enviar tarea si está en estado "Cambios"
+      if (estado === "1") {
+        try {
+          const res = await fetch("/api/assign-task", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              description: `✏️ Revisar cambios solicitados en guión: ${titulo}`,
+            }),
+          })
 
-        const data = await res.json()
-        console.log("✅ Tarea asignada/respuesta del backend:", data)
-      } catch (error) {
-        console.error("❌ Error al asignar tarea:", error)
+          if (!res.ok) {
+            const errorText = await res.text()
+            throw new Error(`Error ${res.status}: ${errorText}`)
+          }
+
+          // Solo intentar parsear JSON si la respuesta tiene contenido
+          const contentType = res.headers.get("content-type")
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json()
+            console.log("✅ Tarea asignada/respuesta del backend:", data)
+          }
+          
+          showSuccess("Tarea asignada para revisión de cambios")
+        } catch (error) {
+          handleError(error, "Error al asignar tarea")
+        }
       }
-    }
 
-    onSave(updatedGuion)
-    onOpenChange(false)
+      await onSave(updatedGuion)
+      showSuccess("Guión guardado con éxito")
+      onOpenChange(false)
+    } catch (error) {
+      handleError(error, "Error al guardar el guión")
+    } finally {
+      toast.dismiss(loadingToast) // Ahora debería funcionar
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -128,8 +153,12 @@ export default function ScriptEditorModal({
             />
           )}
 
-          <Button className="mt-2" onClick={handleGuardar}>
-            Guardar cambios
+          <Button 
+            className="mt-2" 
+            onClick={handleGuardar}
+            disabled={isSaving}
+          >
+            {isSaving ? "Guardando..." : "Guardar cambios"}
           </Button>
         </div>
       </DialogContent>

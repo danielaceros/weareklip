@@ -2,7 +2,7 @@
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogTrigger, DialogContent} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -52,7 +52,6 @@ export default function GuionesSection({
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-semibold">📜 Guiones</h2>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogTitle className="text-xl font-semibold">Nuevo Guión</DialogTitle>
           <DialogTrigger asChild>
             <Button>+ Crear</Button>
           </DialogTrigger>
