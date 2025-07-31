@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       plan: productName,
       status: activeSub.status,
-      interval: price?.recurring?.interval ?? null,
+      start_date: activeSub.items.data[0].current_period_start ?? null,
+      endate: activeSub.items.data[0].current_period_end ?? null,
       amount: price?.unit_amount ? price.unit_amount / 100 : null,
       currency: price?.currency ?? "eur",
       cancel_at_period_end: activeSub.cancel_at_period_end,

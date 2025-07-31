@@ -3,7 +3,6 @@
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -51,15 +50,12 @@ export default function VideoEditorModal({
 }: VideoEditorModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-
   const showCorrecciones = estado === "1";
 
   const handleGuardar = async () => {
     setIsSaving(true);
     const loadingToast = showLoading("Guardando video...");
-    
     try {
-      // Enviar tarea si está en estado "Cambios"
       if (estado === "1") {
         try {
           const res = await fetch("/api/assign-task", {
@@ -69,24 +65,14 @@ export default function VideoEditorModal({
               description: `✏️ Revisar cambios solicitados en video: ${titulo}`,
             }),
           });
-
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Error ${res.status}: ${errorText}`);
-          }
-
+          if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
           const contentType = res.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const data = await res.json();
-            console.log("✅ Tarea asignada/respuesta del backend:", data);
-          }
-          
+          if (contentType?.includes("application/json")) await res.json();
           showSuccess("Tarea asignada para revisión de cambios");
         } catch (error) {
           handleError(error, "Error al asignar tarea");
         }
       }
-
       await onGuardar();
       showSuccess("Video guardado con éxito");
     } catch (error) {
@@ -100,7 +86,6 @@ export default function VideoEditorModal({
   const handleDownload = async () => {
     setIsDownloading(true);
     const loadingToast = showLoading("Descargando video...");
-    
     try {
       await onDownload();
       showSuccess("Video descargado con éxito");
@@ -114,75 +99,72 @@ export default function VideoEditorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Editar Vídeo</DialogTitle>
-        </DialogHeader>
-
-        <Input
-          type="text"
-          value={titulo}
-          onChange={(e) => onTituloChange(e.target.value)}
-          placeholder="Título del vídeo"
-          aria-label="Editar título del vídeo"
-          className="text-lg font-semibold"
-        />
-
-        <video
-          src={url}
-          controls
-          className="w-full max-h-[400px] rounded object-contain mt-4"
-          preload="metadata"
-          aria-label={`Previsualización del vídeo ${titulo}`}
-        />
-
-        <div className="flex flex-wrap items-center gap-4 mt-4">
-          <Select value={estado} onValueChange={onEstadoChange}>
-            <SelectTrigger aria-label="Selecciona estado" className="w-48">
-              <SelectValue placeholder="Selecciona estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">🆕 Nuevo</SelectItem>
-              <SelectItem value="1">✏️ Cambios</SelectItem>
-              <SelectItem value="2">✅ Aprobado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button 
-            variant="outline" 
-            onClick={handleDownload}
-            disabled={isDownloading}
-          >
-            {isDownloading ? "Descargando..." : "Descargar vídeo"}
-          </Button>
-        </div>
-
-        {showCorrecciones && (
-          <div className="mt-4 w-full">
-            <label htmlFor="notas" className="block font-medium mb-1">
-              Indica los cambios que deseas o instrucciones al equipo
-            </label>
-            <Textarea
-              id="notas"
-              value={notas}
-              onChange={(e) => onNotasChange(e.target.value)}
-              placeholder="Describe específicamente qué cambios quieres que se hagan"
-              rows={4}
-              aria-label="Notas para cambios"
+      <DialogContent className="!max-w-none w-[37vw] h-[80vh] p-6 flex flex-col gap-6">
+        <div className="flex h-full gap-6">
+          <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden">
+            <video
+              controls
+              src={url}
+              className="aspect-[9/16] h-full object-cover rounded-lg"
+              preload="metadata"
+              aria-label={`Previsualización del vídeo ${titulo}`}
             />
           </div>
-        )}
 
-        <div className="flex justify-between mt-6">
-          <Button onClick={onEliminar} variant="destructive">
-            🗑 Eliminar vídeo
-          </Button>
-          <Button 
-            onClick={handleGuardar}
-            disabled={isSaving}
-          >
-            {isSaving ? "Guardando..." : "💾 Guardar cambios"}
-          </Button>
+          <div className="w-[340px] bg-white rounded-lg p-4 flex flex-col justify-between border shadow-sm">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+              <DialogTitle className="text-xl font-semibold mb-2">Editar Vídeo</DialogTitle>
+              <Input
+                type="text"
+                value={titulo}
+                onChange={(e) => onTituloChange(e.target.value)}
+                placeholder="Título del vídeo"
+                aria-label="Editar título del vídeo"
+              />
+
+              <div>
+                <label className="font-semibold block mb-1">Estado:</label>
+                <Select value={estado} onValueChange={onEstadoChange}>
+                  <SelectTrigger className="w-full" aria-label="Selecciona estado">
+                    <SelectValue placeholder="Selecciona estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">🆕 Nuevo</SelectItem>
+                    <SelectItem value="1">✏️ Cambios</SelectItem>
+                    <SelectItem value="2">✅ Aprobado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {showCorrecciones && (
+                <div>
+                  <label className="block font-semibold mb-1">Notas para correcciones:</label>
+                  <Textarea
+                    id="notas"
+                    value={notas}
+                    onChange={(e) => onNotasChange(e.target.value)}
+                    placeholder="Describe los cambios deseados"
+                    rows={4}
+                    aria-label="Notas para cambios"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-4 pt-6">
+              <Button variant="outline" onClick={handleDownload} disabled={isDownloading}>
+                {isDownloading ? "Descargando..." : "Descargar vídeo"}
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="destructive" onClick={onEliminar} className="flex-1">
+                  🗑 Eliminar vídeo
+                </Button>
+                <Button onClick={handleGuardar} disabled={isSaving} className="flex-1">
+                  {isSaving ? "Guardando..." : "💾 Guardar cambios"}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

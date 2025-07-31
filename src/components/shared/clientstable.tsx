@@ -11,6 +11,8 @@ type ClienteCompleto = {
   subStatus?: string
   planName?: string
   createdAt?: number
+  startDate?: number
+  endDate?: number
 }
 
 type Props = {
@@ -80,9 +82,11 @@ export default function ClientsTable({
                   </td>
                   <td className="px-4 py-3">{client.planName || "-"}</td>
                   <td className="px-4 py-3">
-                    {client.createdAt
-                      ? new Date(client.createdAt).toLocaleDateString()
-                      : "-"}
+                    <p>{client.startDate
+                      ? new Date(client.startDate).toLocaleDateString()
+                      : "-"} - {client.endDate
+                      ? new Date(client.endDate).toLocaleDateString()
+                      : "-"}</p>
                   </td>
                   <td className="px-4 py-3">
                     <input

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/types/video";
 import EmptyState from "@/components/shared/EmptyState";
+import toast from "react-hot-toast";
 
 type Props = {
   videos: Video[];
@@ -43,9 +44,32 @@ export default function VideosSection({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "video/*": [] },
     maxSize: 100 * 1024 * 1024,
-    onDrop: (files) => {
-      if (files.length) {
-        setArchivoVideo(files[0]);
+    onDrop: (acceptedFiles, rejectedFiles) => {
+      // Manejar archivos rechazados (demasiado grandes)
+      if (rejectedFiles.length > 0) {
+        const error = rejectedFiles[0].errors[0];
+        if (error.code === "file-too-large") {
+          toast.error("❌ Error: El archivo es demasiado grande. Máximo permitido: 100MB");
+        } else if (error.code === "file-invalid-type") {
+          toast.error("❌ Error: Tipo de archivo no válido. Solo se permiten videos.");
+        } else {
+          toast.error("❌ Error: No se pudo procesar el archivo");
+        }
+        return;
+      }
+
+      // Manejar archivos aceptados
+      if (acceptedFiles.length > 0) {
+        const file = acceptedFiles[0];
+        
+        // Verificación adicional del tamaño (por si acaso)
+        if (file.size > 100 * 1024 * 1024) {
+          toast.error("❌ Error: El archivo es demasiado grande. Máximo permitido: 100MB");
+          return;
+        }
+        
+        setArchivoVideo(file);
+        toast.success(`✅ Archivo "${file.name}" seleccionado correctamente`);
       }
     },
   });

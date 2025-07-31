@@ -20,6 +20,8 @@ export async function GET(req: Request) {
         let subStatus: string = "no_subscription"
         let planName: string | null = null
         let createdAt: number | null = null
+        let startDate: number | null = null
+        let endDate: number | null = null
 
         const subs = await stripe.subscriptions.list({
           customer: customer.id,
@@ -35,6 +37,8 @@ export async function GET(req: Request) {
 
         subStatus = active.status
         createdAt = active.created * 1000
+        startDate = active.items.data[0].current_period_start * 1000
+        endDate = active.items.data[0].current_period_end * 1000
 
         const productId = active.items.data[0]?.price?.product
         if (typeof productId === "string") {
@@ -50,6 +54,9 @@ export async function GET(req: Request) {
           subStatus,
           planName,
           createdAt,
+          startDate,
+          endDate,
+          
         }
       })
     )
