@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import { auth } from "@/lib/firebase"; // Para obtener el usuario actual
 import toast from "react-hot-toast";
 
 interface VideoEditorModalProps {
@@ -32,6 +33,8 @@ interface VideoEditorModalProps {
   onDownload: () => Promise<void>;
   onGuardar: () => Promise<void>;
   onEliminar: () => void;
+  videoId?: string; // Necesario para el targetId del log
+  estadoAnterior?: string; // Para comparar cambios de estado
 }
 
 export default function VideoEditorModal({
@@ -47,6 +50,8 @@ export default function VideoEditorModal({
   onDownload,
   onGuardar,
   onEliminar,
+  videoId,
+  estadoAnterior,
 }: VideoEditorModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -55,6 +60,16 @@ export default function VideoEditorModal({
   const handleGuardar = async () => {
     setIsSaving(true);
     const loadingToast = showLoading("Guardando video...");
+    
+    // 🔍 DEBUG: Ver qué datos tenemos
+    console.log("🔍 DEBUG VideoModal:", {
+      estadoAnterior,
+      estadoNuevo: estado,
+      videoId,
+      currentUser: auth.currentUser?.email,
+      cambioDetectado: estadoAnterior !== estado
+    });
+    
     try {
       if (estado === "1") {
         try {
@@ -73,7 +88,34 @@ export default function VideoEditorModal({
           handleError(error, "Error al asignar tarea");
         }
       }
+
       await onGuardar();
+
+      // 🔥 LOGGING: Solo registrar si cambió el estado
+      const estadoCambio = estadoAnterior !== estado;
+      if (estadoCambio && auth.currentUser && videoId) {
+        try {
+          let action = "";
+          let message = "";
+          
+          if (estado === "1") {
+            action = "cambios_solicitados";
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} solicitó cambios en video: "${titulo}"`;
+          } else if (estado === "2") {
+            action = "aprobado";
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} aprobó video: "${titulo}"`;
+          }
+
+          if (action && message) {
+            
+            console.log(`✅ Log registrado: ${message}`);
+          }
+        } catch (logError) {
+          console.error("❌ Error al registrar log:", logError);
+          // No mostramos error al usuario, es un proceso secundario
+        }
+      }
+
       showSuccess("Video guardado con éxito");
     } catch (error) {
       handleError(error, "Error al guardar el video");

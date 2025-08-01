@@ -19,6 +19,7 @@ const links = [
   { href: "/admin", label: "Home" },
   { href: "/admin/clients", label: "Clientes" },
   { href: "/admin/tasks", label: "Tareas" },
+  { href: "/admin/notifications", label: "Notificaciones" },
 ]
 
 export function AdminSidebar() {

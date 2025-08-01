@@ -18,7 +18,9 @@ import {
 } from "@/components/ui/select"
 import { useState, useEffect } from "react"
 import { handleError, showSuccess, showLoading } from "@/lib/errors"
-import toast from "react-hot-toast"; // Importación añadida para toast.dismiss
+import { logAction } from "@/lib/logs" // Importar la función de logging
+import { auth } from "@/lib/firebase" // Para obtener el usuario actual
+import toast from "react-hot-toast"
 
 interface Guion {
   firebaseId: string
@@ -47,7 +49,7 @@ export default function ScriptEditorModal({
   const [estado, setEstado] = useState(String(guion.estado))
   const [notas, setNotas] = useState(guion.notas ?? "")
   const [isSaving, setIsSaving] = useState(false)
-
+  
   useEffect(() => {
     if (open) {
       setTitulo(guion.titulo)
@@ -69,6 +71,9 @@ export default function ScriptEditorModal({
       notas: estado === "1" ? notas : "",
     }
 
+    const estadoAnterior = guion.estado
+    const estadoNuevo = parseInt(estado)
+
     try {
       // Enviar tarea si está en estado "Cambios"
       if (estado === "1") {
@@ -86,7 +91,6 @@ export default function ScriptEditorModal({
             throw new Error(`Error ${res.status}: ${errorText}`)
           }
 
-          // Solo intentar parsear JSON si la respuesta tiene contenido
           const contentType = res.headers.get("content-type")
           if (contentType && contentType.includes("application/json")) {
             const data = await res.json()
@@ -100,12 +104,45 @@ export default function ScriptEditorModal({
       }
 
       await onSave(updatedGuion)
+
+      // 🔥 LOGGING: Solo registrar si cambió el estado
+      if (estadoAnterior !== estadoNuevo && auth.currentUser) {
+        try {
+          let action = ""
+          let message = ""
+          
+          if (estadoNuevo === 1) {
+            action = "cambios_solicitados"
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} solicitó cambios en guión: "${titulo}"`
+          } else if (estadoNuevo === 2) {
+            action = "aprobado"
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} aprobó guión: "${titulo}"`
+          }
+
+          if (action && message) {
+            await logAction({
+              type: "guion",
+              action,
+              uid: auth.currentUser.uid,
+              admin: auth.currentUser.email || auth.currentUser.displayName || "Cliente",
+              targetId: guion.firebaseId,
+              message
+            })
+            
+            console.log(`✅ Log registrado: ${message}`)
+          }
+        } catch (logError) {
+          console.error("❌ Error al registrar log:", logError)
+          // No mostramos error al usuario, es un proceso secundario
+        }
+      }
+
       showSuccess("Guión guardado con éxito")
       onOpenChange(false)
     } catch (error) {
       handleError(error, "Error al guardar el guión")
     } finally {
-      toast.dismiss(loadingToast) // Ahora debería funcionar
+      toast.dismiss(loadingToast)
       setIsSaving(false)
     }
   }

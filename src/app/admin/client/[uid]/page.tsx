@@ -28,6 +28,7 @@ import ClonacionVideosSection from "@/components/shared/dropzonecl";
 import CalendarioMensual from "@/components/shared/CalendarioMensual";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
+import { logAction } from "@/lib/logs"
 
 // 📧 Notificaciones
 const sendNotificationEmail = async (
@@ -170,123 +171,160 @@ export default function ClientProfilePage() {
   };
 
   const handleCreateGuion = async (titulo: string, contenido: string) => {
-    if (!uid || !titulo || !contenido) {
-      handleError(null, "Faltan datos para crear el guión");
-      return;
-    }
-    
-    const loadingToast = showLoading("Creando guión...");
-    try {
-      await addDoc(collection(db, "users", uid, "guiones"), {
-        titulo,
-        contenido,
-        estado: 0,
-        creadoEn: new Date(),
-      });
-      
-      toast.dismiss(loadingToast);
-      showSuccess("Guion creado");
-      
-      await sendNotificationEmail(
-        `📜 Nuevo guion creado para ${cliente?.email || uid}`,
-        `Se ha creado un nuevo guion titulado: "${titulo}".`
-      );
-      
-      setModalGuionOpen(false);
-      fetchData();
-    } catch (error) {
-      toast.dismiss(loadingToast);
-      handleError(error, "No se pudo guardar el guión");
-    }
-  };
+  if (!uid || !titulo || !contenido) {
+    console.log("❌ Faltan datos para crear el guión");
+    handleError(null, "Faltan datos para crear el guión");
+    return;
+  }
 
-  const handleUpdateGuion = async () => {
-    if (!uid || !guionSeleccionado) {
-      handleError(null, "Faltan datos para actualizar el guión");
-      return;
-    }
-    
-    const loadingToast = showLoading("Actualizando guión...");
-    try {
-      const refDoc = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId);
-      await updateDoc(refDoc, {
-        titulo: guionSeleccionado.titulo,
-        contenido: guionSeleccionado.contenido,
-      });
-      
-      toast.dismiss(loadingToast);
-      showSuccess("Guion actualizado");
-      setGuionSeleccionado(null);
-      fetchData();
-    } catch (error) {
-      toast.dismiss(loadingToast);
-      handleError(error, "Error al actualizar guion");
-    }
-  };
+  const loadingToast = showLoading("Creando guión...");
+  try {
+    console.log("📝 Creando guión en Firestore...");
+    const docRef = await addDoc(collection(db, "users", uid, "guiones"), {
+      titulo,
+      contenido,
+      estado: 0,
+      creadoEn: new Date(),
+    });
+    console.log("✅ Guión creado con ID:", docRef.id);
+
+    // Registrar acción en logs
+    console.log("🪵 Creando log en Firestore...");
+    await logAction({
+      type: "guion",
+      action: "creado",
+      uid,
+      admin: "rubengomezklip@gmail.com", // Cambiar por lógica real si tienes auth
+      targetId: docRef.id,
+      message: `📜 Se creó un guión para cliente ${cliente?.email || uid}`,
+    });
+    console.log("✅ Log creado correctamente");
+
+    toast.dismiss(loadingToast);
+    showSuccess("Guion creado");
+
+    await sendNotificationEmail(
+      `📜 Nuevo guion creado para ${cliente?.email || uid}`,
+      `Se ha creado un nuevo guion titulado: "${titulo}".`
+    );
+    console.log("📧 Email de notificación enviado");
+
+    setModalGuionOpen(false);
+    fetchData();
+  } catch (error) {
+    toast.dismiss(loadingToast);
+    console.error("❌ Error en creación de guión o log:", error);
+    handleError(error, "No se pudo guardar el guión");
+  }
+};
+
+
+ const handleUpdateGuion = async () => {
+  if (!uid || !guionSeleccionado) {
+    handleError(null, "Faltan datos para actualizar el guión");
+    return;
+  }
+
+  const loadingToast = showLoading("Actualizando guión...");
+  try {
+    const refDoc = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId);
+    await updateDoc(refDoc, {
+      titulo: guionSeleccionado.titulo,
+      contenido: guionSeleccionado.contenido,
+      estado: guionSeleccionado.estado,
+    });
+    await logAction({
+      type: "guion",
+      action: "editado",
+      uid,
+      admin: "rubengomezklip@gmail.com", // usa sesión si la tienes
+      targetId: guionSeleccionado.firebaseId,
+      message: `📜 Se editó un guión para cliente ${cliente?.email || uid}`,
+    });
+
+    toast.dismiss(loadingToast);
+    showSuccess("Guion actualizado");
+    setGuionSeleccionado(null);
+    fetchData();
+  } catch (error) {
+    toast.dismiss(loadingToast);
+    handleError(error, "Error al actualizar guion");
+  }
+};
+
 
   const handleUploadVideo = async () => {
-    if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
-      handleError(null, "Completa todos los campos");
-      return;
-    }
+  if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
+    handleError(null, "Completa todos los campos");
+    return;
+  }
 
-    if (archivoVideo.size > 100 * 1024 * 1024) {
-      handleError(null, "El archivo no debe superar los 100MB");
-      return;
-    }
+  if (archivoVideo.size > 100 * 1024 * 1024) {
+    handleError(null, "El archivo no debe superar los 100MB");
+    return;
+  }
 
-    const loadingToast = showLoading("Subiendo video...");
-    try {
-      const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, archivoVideo);
+  const loadingToast = showLoading("Subiendo video...");
+  try {
+    const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, archivoVideo);
 
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        },
-        (error) => {
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        toast.dismiss(loadingToast);
+        handleError(error, "Falló la subida del vídeo");
+        setUploadProgress(null);
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          const docRef = await addDoc(collection(db, "users", uid, "videos"), {
+            titulo: nuevoVideoTitulo,
+            url,
+            estado: "0",
+            creadoEn: new Date(),
+          });
+
+          await logAction({
+            type: "video",
+            action: "creado",
+            uid,
+            admin: "rubengomezklip@gmail.com", 
+            targetId: docRef.id,
+            message: `🎥 Se subió un vídeo para cliente ${cliente?.email || uid}`,
+          });
+
           toast.dismiss(loadingToast);
-          handleError(error, "Falló la subida del vídeo");
+          showSuccess("Video subido con éxito");
+
+          await sendNotificationEmail(
+            `🎬 Nuevo video subido por ${cliente?.email || uid}`,
+            `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`
+          );
+
           setUploadProgress(null);
-        },
-        async () => {
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            await addDoc(collection(db, "users", uid, "videos"), {
-              titulo: nuevoVideoTitulo,
-              url,
-              estado: "0",
-              creadoEn: new Date(),
-            });
-            
-            toast.dismiss(loadingToast);
-            showSuccess("Video subido con éxito");
-            
-            await sendNotificationEmail(
-              `🎬 Nuevo video subido por ${cliente?.email || uid}`,
-              `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`
-            );
-            
-            setUploadProgress(null);
-            setModalVideoOpen(false);
-            setArchivoVideo(null);
-            setNuevoVideoTitulo("");
-            fetchData();
-          } catch (error) {
-            toast.dismiss(loadingToast);
-            handleError(error, "Error al guardar video");
-            setUploadProgress(null);
-          }
+          setModalVideoOpen(false);
+          setArchivoVideo(null);
+          setNuevoVideoTitulo("");
+          fetchData();
+        } catch (error) {
+          toast.dismiss(loadingToast);
+          handleError(error, "Error al guardar video");
+          setUploadProgress(null);
         }
-      );
-    } catch (error) {
-      toast.dismiss(loadingToast);
-      handleError(error, "Error al subir video");
-      setUploadProgress(null);
-    }
-  };
+      }
+    );
+  } catch (error) {
+    toast.dismiss(loadingToast);
+    handleError(error, "Error al subir video");
+    setUploadProgress(null);
+  }
+};
 
   const handleUpdateVideo = async (updatedVideo: Video & { nuevoArchivo?: File }) => {
     if (!uid || !updatedVideo) {

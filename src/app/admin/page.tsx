@@ -14,9 +14,6 @@ import {
 } from "firebase/firestore"
 import ClientsTable from "@/components/shared/clientstable"
 
-// ----------------------------
-// Tipos
-// ----------------------------
 type ClienteCompleto = {
   uid: string
   email: string
@@ -34,9 +31,6 @@ type StripeResponse = {
   lastId: string | null
 }
 
-// ----------------------------
-// Funciones auxiliares integradas
-// ----------------------------
 const fetchFirestoreUsers = async (): Promise<ClienteCompleto[]> => {
   const usersSnap = await getDocs(collection(db, "users"))
   return usersSnap.docs.map((doc) => ({
@@ -52,9 +46,10 @@ const fetchStripeClientsPage = async (startingAfter?: string | null): Promise<St
 }
 
 const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
+  console.log("🧪 Comprobando si existe el cliente:", client.email)
   const usersSnap = await getDocs(query(collection(db, "users"), where("email", "==", client.email)))
   if (!usersSnap.empty) return usersSnap.docs[0].id
-
+  console.log("✅ El cliente ya existe en Firestore:", client.email)
   const docRef = doc(collection(db, "users"))
   await setDoc(docRef, {
     email: client.email,
@@ -62,12 +57,24 @@ const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
     phone: "",
     instagramUser: "",
     role: "client",
-    estado: "",
+    estado: "Nuevo Cliente", 
     notas: "",
     createdAt: Date.now(),
   })
+
+  console.log("📬 Nuevo cliente creado. Enviando correo a Rubén:", client.name, client.email)
+  await fetch("/api/send-welcome-mail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      clientName: client.name || "cliente",
+      email: client.email,
+    }),
+  })
+
   return docRef.id
 }
+
 
 const sendNotificationEmail = async (to: string, subject: string, content: string) => {
   try {
@@ -81,9 +88,6 @@ const sendNotificationEmail = async (to: string, subject: string, content: strin
   }
 }
 
-// ----------------------------
-// Componente principal
-// ----------------------------
 export default function AdminDashboardPage() {
   const [clients, setClients] = useState<ClienteCompleto[]>([])
   const [lastId, setLastId] = useState<string | null>(null)
@@ -140,6 +144,18 @@ export default function AdminDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid, field, value }),
       })
+
+      if (field === "estado" && value === "Nuevo Cliente") {
+        console.log("📬 Enviando correo de bienvenida a:", client.email)
+      await fetch("/api/send-welcome-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: client.name || "cliente",
+          email: client.email, 
+        }),
+      })
+    }
 
       if (field === "estado") {
         const htmlContent = `

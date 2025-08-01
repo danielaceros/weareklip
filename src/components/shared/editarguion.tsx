@@ -38,28 +38,27 @@ export default function EditarGuionModal({
   onDelete,
   onSave,
 }: Props) {
-  const [estado, setEstado] = useState("0")
-  const [estadoAnterior, setEstadoAnterior] = useState("0")
+  const [estadoAnterior, setEstadoAnterior] = useState<number>(0)
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (guion) {
-      setEstado(String(guion.estado))
-      setEstadoAnterior(String(guion.estado))
+      setEstadoAnterior(guion.estado)
     }
   }, [guion])
 
-  const handleEstadoChange = (value: string) => {
+  const handleInputChange = (field: keyof Guion, value: string | number) => {
     if (guion) {
-      setEstado(value)
-      onChange({ ...guion, estado: parseInt(value) })
+      onChange({ 
+        ...guion, 
+        [field]: value 
+      })
     }
   }
 
-  const handleNotasChange = (value: string) => {
-    if (guion) {
-      onChange({ ...guion, notas: value })
-    }
+  const handleEstadoChange = (value: string) => {
+    const nuevoEstado = parseInt(value)
+    handleInputChange('estado', nuevoEstado)
   }
 
   // Función para asignar tareas a Rubén y Hello
@@ -98,13 +97,13 @@ export default function EditarGuionModal({
       onSave()
       
       // Verificar si el estado cambió a "necesita cambios" (1)
-      if (estado === "1" && estadoAnterior !== "1") {
+      if (guion.estado === 1 && estadoAnterior !== 1) {
         await asignarTareasAdmin()
         toast.success("Tareas creadas para Rubén y Hello")
       }
       
       // Actualizar estado anterior
-      setEstadoAnterior(estado)
+      setEstadoAnterior(guion.estado)
       
     } catch (error) {
       console.error("Error guardando:", error)
@@ -114,32 +113,31 @@ export default function EditarGuionModal({
     }
   }
 
+  if (!guion) return null
+
   return (
     <Dialog open={!!guion} onOpenChange={onClose}>
       <DialogContent>
         <VisuallyHidden>
           <DialogTitle>Editar Guión</DialogTitle>
         </VisuallyHidden>
+        
         <Input
-          value={guion?.titulo || ""}
-          onChange={(e) =>
-            guion && onChange({ ...guion, titulo: e.target.value })
-          }
+          value={guion.titulo}
+          onChange={(e) => handleInputChange('titulo', e.target.value)}
           placeholder="Título"
           disabled={guardando}
         />
 
         <Textarea
-          value={guion?.contenido || ""}
-          onChange={(e) =>
-            guion && onChange({ ...guion, contenido: e.target.value })
-          }
+          value={guion.contenido}
+          onChange={(e) => handleInputChange('contenido', e.target.value)}
           placeholder="Contenido"
           disabled={guardando}
         />
 
         <Select 
-          value={estado} 
+          value={String(guion.estado)} 
           onValueChange={handleEstadoChange}
           disabled={guardando}
         >
@@ -153,11 +151,11 @@ export default function EditarGuionModal({
           </SelectContent>
         </Select>
 
-        {estado === "1" && (
+        {guion.estado === 1 && (
           <Textarea
             className="mt-2"
-            value={guion?.notas || ""}
-            onChange={(e) => handleNotasChange(e.target.value)}
+            value={guion.notas || ""}
+            onChange={(e) => handleInputChange('notas', e.target.value)}
             placeholder="Describe los cambios que deseas o instrucciones para rehacer el guion"
             rows={4}
             disabled={guardando}
@@ -167,7 +165,7 @@ export default function EditarGuionModal({
         <div className="flex gap-2 mt-4">
           <Button
             variant="destructive"
-            onClick={() => guion && onDelete(guion.firebaseId)}
+            onClick={() => onDelete(guion.firebaseId)}
             disabled={guardando}
           >
             Eliminar

@@ -216,7 +216,7 @@ export default function ClonacionVideos({ userId }: Props) {
         {uploadingVideo ? (
           <p>Subiendo vídeo... {videoUploadProgress.toFixed(0)}%</p>
         ) : (
-          <p>Arrastra y suelta aquí tus vídeos o haz clic para seleccionar</p>
+          <p>Arrastra y suelta aquí tus vídeos o haz clic para seleccionaeeeeeeer</p>
         )}
         <input
           ref={videoInputRef}

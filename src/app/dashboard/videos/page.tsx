@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import VideoEditorModal from "@/components/shared/videomodal";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
+import { logAction } from "@/lib/logs"; // 🔥 Importar logAction
 import toast from "react-hot-toast";
 
 export default function VideosPage() {
@@ -26,6 +27,7 @@ export default function VideosPage() {
   const [selected, setSelected] = useState<Video | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
   const [estadoEditado, setEstadoEditado] = useState("0");
+  const [estadoOriginal, setEstadoOriginal] = useState("0"); // 🔥 Estado original para comparar
   const [notasEditadas, setNotasEditadas] = useState("");
   const [open, setOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
@@ -37,7 +39,6 @@ export default function VideosPage() {
     2: <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>,
   };
 
-  // 📧 Notificación por email
   const sendNotificationEmail = async (
     subject: string,
     content: string
@@ -110,6 +111,7 @@ export default function VideosPage() {
     setSelected(video);
     setTituloEditado(video.titulo);
     setEstadoEditado(String(video.estado));
+    setEstadoOriginal(String(video.estado)); // 🔥 Guardar estado original
     setNotasEditadas(video.notas ?? "");
     setOpen(true);
   };
@@ -148,6 +150,37 @@ export default function VideosPage() {
           v.firebaseId === selected.firebaseId ? updatedVideo : v
         )
       );
+
+      const estadoCambio = estadoOriginal !== estadoEditado;
+      if (estadoCambio && auth.currentUser) {
+        try {
+          let action = "";
+          let message = "";
+          
+          if (nuevoEstado === 1) {
+            action = "cambios_solicitados";
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} solicitó cambios en video: "${tituloEditado.trim()}"`;
+          } else if (nuevoEstado === 2) {
+            action = "aprobado";
+            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} aprobó video: "${tituloEditado.trim()}"`;
+          }
+
+          if (action && message) {
+            await logAction({
+              type: "video",
+              action,
+              uid: auth.currentUser.uid,
+              admin: auth.currentUser.email || auth.currentUser.displayName || "Cliente",
+              targetId: selected.firebaseId,
+              message
+            });
+            
+            console.log(`✅ Log registrado: ${message}`);
+          }
+        } catch (logError) {
+          console.error("❌ Error al registrar log:", logError);
+        }
+      }
 
       showSuccess("Cambios guardados correctamente");
 
@@ -206,17 +239,13 @@ export default function VideosPage() {
     try {
       await deleteDoc(doc(db, "users", userId, "videos", videoToDelete.firebaseId));
       
-      // Actualizar UI inmediatamente
       setVideos(prev => prev.filter(v => v.firebaseId !== videoToDelete.firebaseId));
       
-      // Cerrar todos los modales
       setOpen(false);
       setSelected(null);
       
-      // Mostrar feedback
       showSuccess(" Video eliminado permanentemente");
       
-      // Notificar por email
       await sendNotificationEmail(
         `🗑️ Video eliminado por ${userEmail}`,
         `El cliente ha eliminado el video titulado: "${videoToDelete.titulo}".`
@@ -313,14 +342,14 @@ export default function VideosPage() {
           onDownload={handleDownload}
           onGuardar={guardarCambios}
           onEliminar={() => {
-            // Cerrar modal de edición y abrir confirmación
             setVideoToDelete(selected);
             setOpen(false);
           }}
+          videoId={selected.firebaseId}
+          estadoAnterior={estadoOriginal}
         />
       )}
 
-      {/* Diálogo de confirmación para eliminar */}
       {videoToDelete && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
           <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-xl max-w-md w-full">

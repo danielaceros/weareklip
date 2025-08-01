@@ -27,6 +27,7 @@ import clsx from "clsx";
 import Image from "next/image";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
+import { logAction } from "@/lib/logs";
 
 interface StripeSubscription {
   status: string;
@@ -364,6 +365,21 @@ export default function UserPanel() {
           setEditTitles(prev => ({ ...prev, [docRef.id]: title }));
           toast.dismiss(loadingToast);
           showSuccess(`${file.name} subido correctamente`);
+
+          // NUEVO: Registrar log de subida de clonación
+          try {
+            await logAction({
+              type: "clonacion",
+              action: "subido", 
+              uid: userId,
+              admin: userData?.email || "Cliente",
+              targetId: docRef.id,
+              message: `Cliente ${userData?.email || userData?.name || 'Usuario'} subió material de clonación`
+            });
+          } catch (error) {
+            console.error("Error al registrar log de subida:", error);
+            // No mostramos error al usuario para no interrumpir el flujo
+          }
 
           // Asignar tarea a Rubén después de subir el video
           try {
