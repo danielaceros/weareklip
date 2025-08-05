@@ -1,31 +1,45 @@
-"use client"
+// app/admin/notifications/page.tsx
+"use client";
 
-import { useEffect, useState } from "react"
-import { collection, orderBy, query, updateDoc, doc, onSnapshot } from "firebase/firestore"
-import { db } from "@/lib/firebase"
-import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
-import { handleError, showSuccess } from "@/lib/errors"
-import { Bell, CheckCircle, Clock, Filter } from "lucide-react"
+import { useEffect, useState } from "react";
+import {
+  collection,
+  orderBy,
+  query,
+  updateDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { handleError, showSuccess } from "@/lib/errors";
+import { Bell, CheckCircle, Clock, Filter } from "lucide-react";
 
 type Log = {
-  id: string
-  type: "guion" | "video" | "clonacion" | "tarea" | "sistema"
-  action: string
-  uid: string
-  userName?: string
-  admin: string // Email de quien hizo el cambio
-  message: string
-  timestamp: { seconds: number; nanoseconds: number }
-  readByAdmin: boolean
-  readByClient: boolean
-}
+  id: string;
+  type: "guion" | "video" | "clonacion" | "tarea" | "sistema";
+  action: string;
+  uid: string;
+  userName?: string;
+  admin: string; // Email de quien hizo el cambio
+  message: string;
+  timestamp: { seconds: number; nanoseconds: number };
+  readByAdmin: boolean;
+  readByClient: boolean;
+};
 
 const iconosPorTipo: Record<string, string> = {
   guion: "📜",
@@ -33,159 +47,155 @@ const iconosPorTipo: Record<string, string> = {
   clonacion: "📦",
   tarea: "🧾",
   sistema: "⚙️",
-}
+};
 
 const mensajesAmigables: Record<string, (message: string) => string> = {
   guion: (message: string) => {
-    if (message.includes("aprobó")) return "✅ Guión aprobado"
-    if (message.includes("editó")) return "✏️ Guión editado"
-    if (message.includes("creó")) return "📝 Nuevo guión creado"
-    if (message.includes("solicitó cambios")) return "💬 Cambios solicitados en guión"
-    return message
+    if (message.includes("aprobó")) return "✅ Guión aprobado";
+    if (message.includes("editó")) return "✏️ Guión editado";
+    if (message.includes("creó")) return "📝 Nuevo guión creado";
+    if (message.includes("solicitó cambios"))
+      return "💬 Cambios solicitados en guión";
+    return message;
   },
   video: (message: string) => {
-    if (message.includes("aprobado")) return "✅ Video aprobado"
-    if (message.includes("subido")) return "🎥 Nuevo video disponible"
-    if (message.includes("editado")) return "✏️ Video editado"
-    return message
+    if (message.includes("aprobado")) return "✅ Video aprobado";
+    if (message.includes("subido")) return "🎥 Nuevo video disponible";
+    if (message.includes("editado")) return "✏️ Video editado";
+    return message;
   },
   clonacion: (message: string) => {
-    if (message.includes("subió")) return "📦 Material de clonación procesado"
-    if (message.includes("procesado")) return "✅ Clonación procesada"
-    return message
+    if (message.includes("subió")) return "📦 Material de clonación procesado";
+    if (message.includes("procesado")) return "✅ Clonación procesada";
+    return message;
   },
   tarea: (message: string) => {
-    if (message.includes("completada")) return "✅ Tarea completada"
-    if (message.includes("asignada")) return "📋 Nueva tarea asignada"
-    return message
+    if (message.includes("completada")) return "✅ Tarea completada";
+    if (message.includes("asignada")) return "📋 Nueva tarea asignada";
+    return message;
   },
   sistema: (message: string) => {
-    if (message.includes("mantenimiento")) return "🔧 Mantenimiento programado"
-    if (message.includes("actualización")) return "🆙 Sistema actualizado"
-    return message
-  }
-}
+    if (message.includes("mantenimiento")) return "🔧 Mantenimiento programado";
+    if (message.includes("actualización")) return "🆙 Sistema actualizado";
+    return message;
+  },
+};
 
 export default function AdminNotificationsPage() {
-  const [logs, setLogs] = useState<Log[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  const [filterType, setFilterType] = useState("todos")
-  const [filterUser, setFilterUser] = useState("todos")
-  const [filterRead, setFilterRead] = useState("todos")
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("todos");
+  const [filterUser, setFilterUser] = useState("todos");
+  const [filterRead, setFilterRead] = useState("todos");
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
-    setupRealTimeListener()
-  }, [])
+    setupRealTimeListener();
+  }, []);
 
   const setupRealTimeListener = () => {
-    const q = query(
-      collection(db, "logs"), 
-      orderBy("timestamp", "desc")
-    )
+    const q = query(collection(db, "logs"), orderBy("timestamp", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedLogs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          // Asegurar que las notificaciones sean no leídas por defecto
-          readByAdmin: data.readByAdmin === true ? true : false,
-          readByClient: data.readByClient === true ? true : false,
-        } as Log;
-      });
-      
-      setLogs(fetchedLogs)
-      setLastUpdate(new Date())
-      setLoading(false)
-    }, (error) => {
-      console.error("Error en tiempo real:", error)
-      handleError(error, "Error en actualizaciones en tiempo real")
-      setLoading(false)
-    })
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedLogs = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            // Asegurar que las notificaciones sean no leídas por defecto
+            readByAdmin: data.readByAdmin === true ? true : false,
+            readByClient: data.readByClient === true ? true : false,
+          } as Log;
+        });
 
-    return unsubscribe
-  }
+        setLogs(fetchedLogs);
+        setLastUpdate(new Date());
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error en tiempo real:", error);
+        handleError(error, "Error en actualizaciones en tiempo real");
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  };
 
   const markAsRead = async (logId: string) => {
     try {
       // Actualizar inmediatamente en el estado local
-      setLogs(prevLogs => 
-        prevLogs.map(log => 
-          log.id === logId 
-            ? { ...log, readByAdmin: true }
-            : log
+      setLogs((prevLogs) =>
+        prevLogs.map((log) =>
+          log.id === logId ? { ...log, readByAdmin: true } : log
         )
-      )
-      
+      );
+
       // Actualizar en la base de datos
       await updateDoc(doc(db, "logs", logId), {
-        readByAdmin: true
-      })
-      
-      showSuccess("Marcado como leído")
+        readByAdmin: true,
+      });
+
+      showSuccess("Marcado como leído");
     } catch (error) {
       // Si hay error, revertir el cambio local
-      setLogs(prevLogs => 
-        prevLogs.map(log => 
-          log.id === logId 
-            ? { ...log, readByAdmin: false }
-            : log
+      setLogs((prevLogs) =>
+        prevLogs.map((log) =>
+          log.id === logId ? { ...log, readByAdmin: false } : log
         )
-      )
-      handleError(error, "Error al marcar como leído")
+      );
+      handleError(error, "Error al marcar como leído");
     }
-  }
+  };
 
   const markAllAsRead = async () => {
-    const unreadLogs = logs.filter(log => !log.readByAdmin)
-    if (unreadLogs.length === 0) return
+    const unreadLogs = logs.filter((log) => !log.readByAdmin);
+    if (unreadLogs.length === 0) return;
 
     try {
       // Actualizar inmediatamente en el estado local
-      setLogs(prevLogs => 
-        prevLogs.map(log => 
-          !log.readByAdmin
-            ? { ...log, readByAdmin: true }
-            : log
+      setLogs((prevLogs) =>
+        prevLogs.map((log) =>
+          !log.readByAdmin ? { ...log, readByAdmin: true } : log
         )
-      )
-      
+      );
+
       // Actualizar en la base de datos
-      const promises = unreadLogs.map(log => 
+      const promises = unreadLogs.map((log) =>
         updateDoc(doc(db, "logs", log.id), { readByAdmin: true })
-      )
-      await Promise.all(promises)
-      
-      showSuccess(`${unreadLogs.length} notificaciones marcadas como leídas`)
+      );
+      await Promise.all(promises);
+
+      showSuccess(`${unreadLogs.length} notificaciones marcadas como leídas`);
     } catch (error) {
       // Si hay error, recargar desde la base de datos
-      setupRealTimeListener()
-      handleError(error, "Error al marcar todas como leídas")
+      setupRealTimeListener();
+      handleError(error, "Error al marcar todas como leídas");
     }
-  }
+  };
 
   const formatTimeAgo = (date: Date) => {
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Ahora mismo'
-    if (diffMins < 60) return `Hace ${diffMins} min`
-    if (diffHours < 24) return `Hace ${diffHours}h`
-    return `Hace ${diffDays} días`
-  }
+    if (diffMins < 1) return "Ahora mismo";
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours}h`;
+    return `Hace ${diffDays} días`;
+  };
 
   // Función para extraer email del mensaje
   const extractUserEmailFromMessage = (message: string): string => {
-    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
-    const match = message.match(emailRegex)
-    return match ? match[1] : ""
-  }
+    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+    const match = message.match(emailRegex);
+    return match ? match[1] : "";
+  };
 
   if (loading) {
     return (
@@ -194,41 +204,48 @@ export default function AdminNotificationsPage() {
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
       </div>
-    )
+    );
   }
 
   // Obtener tipos únicos y emails únicos
-  const tiposUnicos = [...new Set(logs.map((log) => log.type))]
-  const emailsUnicos = [...new Set(logs.map((log) => extractUserEmailFromMessage(log.message)).filter(email => email))]
+  const tiposUnicos = [...new Set(logs.map((log) => log.type))];
+  const emailsUnicos = [
+    ...new Set(
+      logs
+        .map((log) => extractUserEmailFromMessage(log.message))
+        .filter((email) => email)
+    ),
+  ];
 
   // Filtrar por texto, tipo, email y estado de lectura
   const filteredLogs = logs.filter((log) => {
-    const userEmail = extractUserEmailFromMessage(log.message)
-    const matchesText = 
+    const userEmail = extractUserEmailFromMessage(log.message);
+    const matchesText =
       log.message.toLowerCase().includes(search.toLowerCase()) ||
       log.admin.toLowerCase().includes(search.toLowerCase()) ||
-      userEmail.toLowerCase().includes(search.toLowerCase())
-    
-    const matchesType = filterType === "todos" || log.type === filterType
-    const matchesUser = filterUser === "todos" || userEmail === filterUser
-    const matchesRead = filterRead === "todos" || 
+      userEmail.toLowerCase().includes(search.toLowerCase());
+
+    const matchesType = filterType === "todos" || log.type === filterType;
+    const matchesUser = filterUser === "todos" || userEmail === filterUser;
+    const matchesRead =
+      filterRead === "todos" ||
       (filterRead === "leidas" && log.readByAdmin) ||
-      (filterRead === "no_leidas" && !log.readByAdmin)
-    
-    return matchesText && matchesType && matchesUser && matchesRead
-  })
+      (filterRead === "no_leidas" && !log.readByAdmin);
+
+    return matchesText && matchesType && matchesUser && matchesRead;
+  });
 
   // Contar no leídas y estadísticas
-  const unreadCount = logs.filter(log => !log.readByAdmin).length
+  const unreadCount = logs.filter((log) => !log.readByAdmin).length;
   const stats = {
     total: logs.length,
     unread: unreadCount,
-    today: logs.filter(log => {
-      const logDate = new Date(log.timestamp.seconds * 1000)
-      const today = new Date()
-      return logDate.toDateString() === today.toDateString()
-    }).length
-  }
+    today: logs.filter((log) => {
+      const logDate = new Date(log.timestamp.seconds * 1000);
+      const today = new Date();
+      return logDate.toDateString() === today.toDateString();
+    }).length,
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -239,25 +256,26 @@ export default function AdminNotificationsPage() {
             <Bell className="w-8 h-8 text-blue-600" />
             {unreadCount > 0 && (
               <Badge className="absolute -top-2 -right-2 bg-yellow-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </Badge>
             )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Panel Admin - Todas las Notificaciones</h1>
+            <h1 className="text-2xl font-bold">
+              Panel Admin - Todas las Notificaciones
+            </h1>
             <p className="text-sm text-muted-foreground">
-              {unreadCount > 0 
-                ? `${unreadCount} sin leer • ${stats.today} hoy` 
-                : 'Todo al día ✨'
-              }
+              {unreadCount > 0
+                ? `${unreadCount} sin leer • ${stats.today} hoy`
+                : "Todo al día ✨"}
             </p>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           {/* Botón siempre visible */}
-          <Button 
-            onClick={markAllAsRead} 
+          <Button
+            onClick={markAllAsRead}
             size="sm"
             variant={unreadCount > 0 ? "default" : "outline"}
             disabled={unreadCount === 0}
@@ -287,7 +305,10 @@ export default function AdminNotificationsPage() {
       {/* Información de última actualización */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Clock className="w-4 h-4" />
-        <span>Última actualización: {formatTimeAgo(lastUpdate)} • 🟢 Actualizaciones en tiempo real</span>
+        <span>
+          Última actualización: {formatTimeAgo(lastUpdate)} • 🟢 Actualizaciones
+          en tiempo real
+        </span>
       </div>
 
       {/* Filtros simplificados */}
@@ -296,7 +317,7 @@ export default function AdminNotificationsPage() {
           <Filter className="w-4 h-4" />
           <span className="font-medium">Filtros</span>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input
             placeholder="🔍 Buscar notificaciones..."
@@ -348,74 +369,89 @@ export default function AdminNotificationsPage() {
       {/* Lista de notificaciones */}
       {filteredLogs.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">📭 No hay notificaciones</p>
+          <p className="text-muted-foreground text-lg">
+            📭 No hay notificaciones
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
-            {search || filterType !== "todos" || filterUser !== "todos" || filterRead !== "todos"
+            {search ||
+            filterType !== "todos" ||
+            filterUser !== "todos" ||
+            filterRead !== "todos"
               ? "Ajusta los filtros para ver más resultados"
-              : "Cuando haya actividad en el sistema, aparecerá aquí"
-            }
+              : "Cuando haya actividad en el sistema, aparecerá aquí"}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredLogs.map((log) => {
-            const mensaje = mensajesAmigables[log.type] 
+            const mensaje = mensajesAmigables[log.type]
               ? mensajesAmigables[log.type](log.message)
-              : log.message
-            
-            const timeAgo = formatTimeAgo(new Date(log.timestamp.seconds * 1000))
-            const userEmail = extractUserEmailFromMessage(log.message)
+              : log.message;
+
+            const timeAgo = formatTimeAgo(
+              new Date(log.timestamp.seconds * 1000)
+            );
+            const userEmail = extractUserEmailFromMessage(log.message);
 
             return (
-              <Card 
-                key={log.id} 
+              <Card
+                key={log.id}
                 className={`p-4 transition-all duration-200 hover:shadow-md ${
-                  !log.readByAdmin 
-                    ? 'border-yellow-300 bg-yellow-50 shadow-md border-l-4 border-l-yellow-500' 
-                    : 'bg-white border-gray-200 opacity-90 hover:opacity-100'
+                  !log.readByAdmin
+                    ? "border-yellow-300 bg-yellow-50 shadow-md border-l-4 border-l-yellow-500"
+                    : "bg-white border-gray-200 opacity-90 hover:opacity-100"
                 }`}
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex flex-col items-center gap-1">
-                      <div className="text-2xl">
-                        {iconosPorTipo[log.type]}
-                      </div>
+                      <div className="text-2xl">{iconosPorTipo[log.type]}</div>
                       {!log.readByAdmin && (
                         <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                       )}
                     </div>
-                    
+
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-medium">{mensaje}</p>
-                        
+
                         {!log.readByAdmin && (
-                          <Badge variant="secondary" className="bg-yellow-200 text-yellow-800 text-xs font-medium">
+                          <Badge
+                            variant="secondary"
+                            className="bg-yellow-200 text-yellow-800 text-xs font-medium"
+                          >
                             📌 Sin leer
                           </Badge>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{timeAgo}</span>
                         </div>
                         <span>👤 {log.admin}</span>
-                        <span>📧 {userEmail || `Usuario ${log.uid.substring(0, 8)}...`}</span>
+                        <span>
+                          📧{" "}
+                          {userEmail || `Usuario ${log.uid.substring(0, 8)}...`}
+                        </span>
                         <span className="hidden sm:inline">
-                          📅 {format(new Date(log.timestamp.seconds * 1000), "dd/MM/yyyy HH:mm", {
-                            locale: es,
-                          })}
+                          📅{" "}
+                          {format(
+                            new Date(log.timestamp.seconds * 1000),
+                            "dd/MM/yyyy HH:mm",
+                            {
+                              locale: es,
+                            }
+                          )}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {!log.readByAdmin && (
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => markAsRead(log.id)}
                       className="text-yellow-700 hover:text-yellow-900 hover:bg-yellow-100 shrink-0"
@@ -425,7 +461,7 @@ export default function AdminNotificationsPage() {
                   )}
                 </div>
               </Card>
-            )
+            );
           })}
         </div>
       )}
@@ -434,10 +470,11 @@ export default function AdminNotificationsPage() {
       {filteredLogs.length > 0 && (
         <Card className="p-4">
           <div className="text-center text-sm text-muted-foreground">
-            Mostrando {filteredLogs.length} de {logs.length} notificaciones • 🟢 Actualizaciones en tiempo real
+            Mostrando {filteredLogs.length} de {logs.length} notificaciones • 🟢
+            Actualizaciones en tiempo real
           </div>
         </Card>
       )}
     </div>
-  )
+  );
 }
