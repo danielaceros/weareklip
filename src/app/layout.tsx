@@ -1,42 +1,48 @@
-// app/layout.tsx
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "@/context/authContext"; 
-import { SyncStripe } from "@/components/shared/syncstripe"
-import { Toaster } from "react-hot-toast"; // Cambiado de sonner a react-hot-toast
+import React from 'react';
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import getRequestConfig from '../i18n/request';
+import './globals.css';
+import { AuthProvider } from '@/context/authContext';
+import { SyncStripe } from '@/components/shared/syncstripe';
+import { Toaster } from 'react-hot-toast';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
-
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
-  title: "KLIP",
-  description: "🤖 Automatizamos TODO tu contenido en redes",
+  title: 'KLIP',
+  description: '🤖 Automatizamos TODO tu contenido en redes',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  // En servidor: obtén locale y mensajes
+  const { locale, messages } = await getRequestConfig({ requestLocale: Promise.resolve(undefined) });
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <SyncStripe />
-          {children}
-        </AuthProvider>
-        <Toaster position="bottom-right" /> {/* Usando react-hot-toast */}
-        <div id="recaptcha-container" />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <AuthProvider>
+            <SyncStripe />
+            {children}
+          </AuthProvider>
+          <Toaster position="bottom-right" />
+          <div id="recaptcha-container" />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

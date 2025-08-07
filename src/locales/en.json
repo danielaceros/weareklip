@@ -1,0 +1,11 @@
+{
+  "account": "My account",
+  "theme": "Theme",
+  "light": "Light",
+  "dark": "Dark",
+  "system": "System",
+  "color": "Color",
+  "language": "Language",
+  "settings": "Settings",
+  "logout": "Log out"
+}

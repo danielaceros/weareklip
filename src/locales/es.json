@@ -1,0 +1,11 @@
+{
+  "account": "Mi cuenta",
+  "theme": "Tema",
+  "light": "Claro",
+  "dark": "Oscuro",
+  "system": "Automático",
+  "color": "Color",
+  "language": "Idioma",
+  "settings": "Ajustes",
+  "logout": "Cerrar sesión"
+}
