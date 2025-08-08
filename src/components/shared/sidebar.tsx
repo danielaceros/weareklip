@@ -69,9 +69,19 @@ export function Sidebar() {
     { href: "/dashboard", label: "Inicio" },
     { href: "/dashboard/scripts", label: "Mis Guiones" },
     { href: "/dashboard/videos", label: "Mis Vídeos" },
+    {
+      href: "/dashboard/calendario-publicacion",
+      label: "Calendario de Publicación",
+    },
+    { href: "/dashboard/ia-marca", label: "IA de Marca" },
+    { href: "/dashboard/ideas-virales", label: "Ideas Virales" },
+    { href: "/dashboard/solicitar-reel", label: "Solicitar Reel Extra" },
+    { href: "/dashboard/archivos-recursos", label: "Archivos y Recursos" },
+    { href: "/dashboard/estadisticas", label: "Estadísticas" },
     { href: "/dashboard/mynotifications", label: "Mis Notificaciones" },
+    { href: "/dashboard/facturacion", label: "Facturación / Suscripciones" },
+    { href: "/dashboard/soporte", label: "Soporte / Tickets" },
     { href: "/dashboard/user", label: "Mi Cuenta" },
-    
   ];
 
   return (
@@ -128,7 +138,9 @@ export function Sidebar() {
             )}
             <div className="flex flex-col flex-1 min-w-0">
               <span className="truncate font-semibold">{userInfo.email}</span>
-              <small className="text-gray-500 truncate">Plan: {userInfo.plan}</small>
+              <small className="text-gray-500 truncate">
+                Plan: {userInfo.plan}
+              </small>
             </div>
             <ChevronDown className="w-4 h-4 text-gray-600" />
           </div>
