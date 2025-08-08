@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
 import UserDropdown from '@/components/layout/UserDropdown';
+import { useT } from '@/lib/i18n';
+import clsx from 'clsx';
 
 interface UserInfo {
   email: string;
@@ -14,6 +15,7 @@ interface UserInfo {
 }
 
 export function Sidebar() {
+  const t = useT();
   const pathname = usePathname();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -27,15 +29,15 @@ export function Sidebar() {
           });
           const data = await res.json();
           setUserInfo({
-            email: user.email ?? 'Sin email',
+            email: user.email ?? '—',
             photoURL: user.photoURL ?? '',
-            plan: data?.plan || 'Sin plan',
+            plan: data?.plan || t('sidebar.noPlan'),
           });
         } catch {
           setUserInfo({
-            email: user.email ?? 'Sin email',
+            email: user.email ?? '—',
             photoURL: user.photoURL ?? '',
-            plan: 'Sin plan',
+            plan: t('sidebar.noPlan'),
           });
         }
       } else {
@@ -43,41 +45,45 @@ export function Sidebar() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [t]);
 
   const links = [
-    { href: '/dashboard', label: 'Inicio' },
-    { href: '/dashboard/scripts', label: 'Mis Guiones' },
-    { href: '/dashboard/videos', label: 'Mis Vídeos' },
-    { href: '/dashboard/mynotifications', label: 'Mis Notificaciones' },
-    { href: '/dashboard/user', label: 'Mi Cuenta' },
+    { href: '/dashboard', key: 'sidebar.home' },
+    { href: '/dashboard/scripts', key: 'sidebar.scripts' },
+    { href: '/dashboard/videos', key: 'sidebar.videos' },
+    { href: '/dashboard/mynotifications', key: 'sidebar.notifications' },
+    { href: '/dashboard/user', key: 'sidebar.account' },
   ];
 
   return (
-    <aside className="w-64 bg-white border-r p-4 flex flex-col justify-between">
-      {/* Menú principal arriba */}
+    <aside className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border p-4 flex flex-col justify-between">
       <div>
-        <h2 className="text-lg font-bold mb-6">Panel Cliente</h2>
+        <h2 className="text-lg font-bold mb-6">{t('sidebar.clientTitle')}</h2>
         <nav className="flex flex-col gap-2">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`px-3 py-2 rounded-md hover:bg-muted transition ${
-                pathname === link.href ? 'bg-muted font-semibold' : ''
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={clsx(
+                  'px-3 py-2 rounded-md transition',
+                  active
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                    : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                )}
+              >
+                {t(link.key)}
+              </Link>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Perfil y menú contextual */}
       {userInfo ? (
         <UserDropdown user={userInfo} />
       ) : (
-        <p className="text-gray-600">No autenticado</p>
+        <p className="text-muted-foreground">{t('sidebar.notAuthenticated')}</p>
       )}
     </aside>
   );

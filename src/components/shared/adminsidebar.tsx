@@ -1,11 +1,13 @@
+// src/components/shared/adminsidebar.tsx
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
 import UserDropdown from '@/components/layout/UserDropdown';
+import { useT } from '@/lib/i18n';
+import clsx from 'clsx';
 
 interface UserInfo {
   email: string;
@@ -14,14 +16,15 @@ interface UserInfo {
   uid?: string;
 }
 
-const links = [
-  { href: '/admin', label: 'Home' },
-  { href: '/admin/clients', label: 'Clientes' },
-  { href: '/admin/tasks', label: 'Tareas' },
-  { href: '/admin/notifications', label: 'Notificaciones' },
+const rawLinks = [
+  { href: '/admin', key: 'sidebar.adminHome' },
+  { href: '/admin/clients', key: 'sidebar.clients' },
+  { href: '/admin/tasks', key: 'sidebar.tasks' },
+  { href: '/admin/notifications', key: 'sidebar.notifications' },
 ];
 
 export function AdminSidebar() {
+  const t = useT();
   const pathname = usePathname();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -38,48 +41,53 @@ export function AdminSidebar() {
         });
         const data = await res.json();
         setUserInfo({
-          email: user.email ?? 'Sin email',
+          email: user.email ?? '—',
           photoURL: user.photoURL ?? '',
-          plan: data?.plan || 'Sin plan',
+          plan: data?.plan || t('sidebar.noPlan'),
           uid: user.uid,
         });
       } catch {
+        // ✅ nada de `any`; user.uid es válido aquí
         setUserInfo({
-          email: user.email ?? 'Sin email',
+          email: user.email ?? '—',
           photoURL: user.photoURL ?? '',
-          plan: 'Sin plan',
+          plan: t('sidebar.noPlan'),
           uid: user.uid,
         });
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [t]);
 
   return (
-    <aside className="w-64 bg-white border-r p-4 flex flex-col justify-between">
-      {/* Menú principal */}
+    <aside className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border p-4 flex flex-col justify-between">
       <div>
-        <h2 className="text-lg font-bold mb-6">Panel Admin</h2>
+        <h2 className="text-lg font-bold mb-6">{t('sidebar.adminTitle')}</h2>
         <nav className="flex flex-col gap-2">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`px-3 py-2 rounded-md hover:bg-muted transition ${
-                pathname === link.href ? 'bg-muted font-semibold' : ''
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {rawLinks.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={clsx(
+                  'px-3 py-2 rounded-md transition',
+                  active
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+                    : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                )}
+              >
+                {t(link.key)}
+              </Link>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Perfil y menú contextual */}
       {userInfo ? (
         <UserDropdown user={userInfo} />
       ) : (
-        <p className="text-gray-600">No autenticado</p>
+        <p className="text-muted-foreground">{t('sidebar.notAuthenticated')}</p>
       )}
     </aside>
   );

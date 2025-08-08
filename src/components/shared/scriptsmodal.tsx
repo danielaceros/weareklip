@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/select"
 import { useState, useEffect } from "react"
 import { handleError, showSuccess, showLoading } from "@/lib/errors"
-import { logAction } from "@/lib/logs" // Importar la función de logging
-import { auth } from "@/lib/firebase" // Para obtener el usuario actual
+import { logAction } from "@/lib/logs"
+import { auth } from "@/lib/firebase"
 import toast from "react-hot-toast"
+import { useTranslations } from "next-intl"
 
 interface Guion {
   firebaseId: string
@@ -44,12 +45,15 @@ export default function ScriptEditorModal({
   guion,
   onSave,
 }: ScriptEditorModalProps) {
+  const t = useTranslations("scriptsModal")
+  const tStatus = useTranslations("status")
+
   const [titulo, setTitulo] = useState(guion.titulo)
   const [contenido, setContenido] = useState(guion.contenido)
   const [estado, setEstado] = useState(String(guion.estado))
   const [notas, setNotas] = useState(guion.notas ?? "")
   const [isSaving, setIsSaving] = useState(false)
-  
+
   useEffect(() => {
     if (open) {
       setTitulo(guion.titulo)
@@ -61,28 +65,28 @@ export default function ScriptEditorModal({
 
   const handleGuardar = async () => {
     setIsSaving(true)
-    const loadingToast = showLoading("Guardando guión...")
-    
-    const updatedGuion = {
+    const loadingToast = showLoading(t("loading"))
+
+    const updatedGuion: Guion = {
       ...guion,
       titulo,
       contenido,
-      estado: parseInt(estado),
+      estado: parseInt(estado, 10),
       notas: estado === "1" ? notas : "",
     }
 
     const estadoAnterior = guion.estado
-    const estadoNuevo = parseInt(estado)
+    const estadoNuevo = parseInt(estado, 10)
 
     try {
-      // Enviar tarea si está en estado "Cambios"
+      // Si se solicitan cambios, creamos la tarea
       if (estado === "1") {
         try {
           const res = await fetch("/api/assign-task", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              description: `✏️ Revisar cambios solicitados en guión: ${titulo}`,
+              description: `✏️ ${t("taskDescriptionPrefix")} ${titulo}`,
             }),
           })
 
@@ -91,32 +95,38 @@ export default function ScriptEditorModal({
             throw new Error(`Error ${res.status}: ${errorText}`)
           }
 
-          const contentType = res.headers.get("content-type")
-          if (contentType && contentType.includes("application/json")) {
-            const data = await res.json()
-            console.log("✅ Tarea asignada/respuesta del backend:", data)
-          }
-          
-          showSuccess("Tarea asignada para revisión de cambios")
+          showSuccess(t("taskAssigned"))
         } catch (error) {
-          handleError(error, "Error al asignar tarea")
+          handleError(error, t("assignTaskError"))
         }
       }
 
       await onSave(updatedGuion)
 
-      // 🔥 LOGGING: Solo registrar si cambió el estado
+      // Log solo si cambió el estado
       if (estadoAnterior !== estadoNuevo && auth.currentUser) {
         try {
           let action = ""
           let message = ""
-          
+
           if (estadoNuevo === 1) {
             action = "cambios_solicitados"
-            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} solicitó cambios en guión: "${titulo}"`
+            message = t("log.requestedChanges", {
+              user:
+                auth.currentUser.email ||
+                auth.currentUser.displayName ||
+                "Usuario",
+              title: titulo,
+            })
           } else if (estadoNuevo === 2) {
             action = "aprobado"
-            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} aprobó guión: "${titulo}"`
+            message = t("log.approved", {
+              user:
+                auth.currentUser.email ||
+                auth.currentUser.displayName ||
+                "Usuario",
+              title: titulo,
+            })
           }
 
           if (action && message) {
@@ -124,23 +134,23 @@ export default function ScriptEditorModal({
               type: "guion",
               action,
               uid: auth.currentUser.uid,
-              admin: auth.currentUser.email || auth.currentUser.displayName || "Cliente",
+              admin:
+                auth.currentUser.email ||
+                auth.currentUser.displayName ||
+                "Cliente",
               targetId: guion.firebaseId,
-              message
+              message,
             })
-            
-            console.log(`✅ Log registrado: ${message}`)
           }
         } catch (logError) {
-          console.error("❌ Error al registrar log:", logError)
-          // No mostramos error al usuario, es un proceso secundario
+          console.error("Error al registrar log:", logError)
         }
       }
 
-      showSuccess("Guión guardado con éxito")
+      showSuccess(t("saved"))
       onOpenChange(false)
     } catch (error) {
-      handleError(error, "Error al guardar el guión")
+      handleError(error, t("saveError"))
     } finally {
       toast.dismiss(loadingToast)
       setIsSaving(false)
@@ -149,53 +159,57 @@ export default function ScriptEditorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTitle className="text-xl font-semibold">Editar Guión</DialogTitle>
       <DialogContent>
-        <DialogHeader />
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold">
+            {t("title")}
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="space-y-4">
           <Input
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Título"
-            aria-label="Editar título del guion"
+            placeholder={t("placeholders.title")}
+            aria-label={t("a11y.editTitle")}
           />
 
           <Textarea
             value={contenido}
             onChange={(e) => setContenido(e.target.value)}
             rows={6}
-            placeholder="Contenido del guion"
-            aria-label="Editar contenido del guion"
+            placeholder={t("placeholders.content")}
+            aria-label={t("a11y.editContent")}
           />
 
-          <Select value={estado} onValueChange={setEstado}>
-            <SelectTrigger aria-label="Selecciona estado">
-              <SelectValue placeholder="Selecciona estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">🆕 Nuevo</SelectItem>
-              <SelectItem value="1">✏️ Cambios</SelectItem>
-              <SelectItem value="2">✅ Aprobado</SelectItem>
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {t("statusLabel")}
+            </label>
+            <Select value={estado} onValueChange={setEstado}>
+              <SelectTrigger aria-label={t("a11y.selectStatus")}>
+                <SelectValue placeholder={t("placeholders.selectStatus")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">{tStatus("new")}</SelectItem>
+                <SelectItem value="1">{tStatus("changes")}</SelectItem>
+                <SelectItem value="2">{tStatus("approved")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {estado === "1" && (
             <Textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
               rows={4}
-              placeholder="Indica los cambios que deseas o instrucciones al equipo"
-              aria-label="Notas para cambios"
+              placeholder={t("placeholders.notes")}
+              aria-label={t("a11y.notes")}
             />
           )}
 
-          <Button 
-            className="mt-2" 
-            onClick={handleGuardar}
-            disabled={isSaving}
-          >
-            {isSaving ? "Guardando..." : "Guardar cambios"}
+          <Button className="mt-2" onClick={handleGuardar} disabled={isSaving}>
+            {isSaving ? t("saving") : t("save")}
           </Button>
         </div>
       </DialogContent>

@@ -1,3 +1,4 @@
+// src/components/shared/videomodal.tsx
 "use client";
 
 import {
@@ -17,15 +18,16 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
-import { auth } from "@/lib/firebase"; // Para obtener el usuario actual
+import { auth } from "@/lib/firebase";
 import toast from "react-hot-toast";
+import { useTranslations } from "next-intl";
 
 interface VideoEditorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   titulo: string;
   url: string;
-  estado: string;
+  estado: string; // "0" | "1" | "2"
   notas: string;
   onNotasChange: (val: string) => void;
   onTituloChange: (val: string) => void;
@@ -33,8 +35,8 @@ interface VideoEditorModalProps {
   onDownload: () => Promise<void>;
   onGuardar: () => Promise<void>;
   onEliminar: () => void;
-  videoId?: string; // Necesario para el targetId del log
-  estadoAnterior?: string; // Para comparar cambios de estado
+  videoId?: string;
+  estadoAnterior?: string;
 }
 
 export default function VideoEditorModal({
@@ -53,72 +55,50 @@ export default function VideoEditorModal({
   videoId,
   estadoAnterior,
 }: VideoEditorModalProps) {
+  const t = useTranslations("videosModal");
+  const ts = useTranslations("status"); // 🟡 usamos etiquetas globales de estado
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const showCorrecciones = estado === "1";
 
   const handleGuardar = async () => {
     setIsSaving(true);
-    const loadingToast = showLoading("Guardando video...");
-    
-    // 🔍 DEBUG: Ver qué datos tenemos
-    console.log("🔍 DEBUG VideoModal:", {
-      estadoAnterior,
-      estadoNuevo: estado,
-      videoId,
-      currentUser: auth.currentUser?.email,
-      cambioDetectado: estadoAnterior !== estado
-    });
-    
+    const loadingToast = showLoading(t("loading.saving"));
+
     try {
+      // Asignar tarea si hay "Cambios"
       if (estado === "1") {
         try {
           const res = await fetch("/api/assign-task", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              description: `✏️ Revisar cambios solicitados en video: ${titulo}`,
+              description: `${t("taskDescriptionPrefix")} ${titulo}`,
             }),
           });
           if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
           const contentType = res.headers.get("content-type");
-          if (contentType?.includes("application/json")) await res.json();
-          showSuccess("Tarea asignada para revisión de cambios");
+          if (contentType?.includes("application/json")) {
+            await res.json();
+          }
+          showSuccess(t("taskAssigned"));
         } catch (error) {
-          handleError(error, "Error al asignar tarea");
+          handleError(error, t("errors.assignTask"));
         }
       }
 
       await onGuardar();
 
-      // 🔥 LOGGING: Solo registrar si cambió el estado
+      // (Opcional) Debug/log básico sin duplicar logs del page:
       const estadoCambio = estadoAnterior !== estado;
       if (estadoCambio && auth.currentUser && videoId) {
-        try {
-          let action = "";
-          let message = "";
-          
-          if (estado === "1") {
-            action = "cambios_solicitados";
-            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} solicitó cambios en video: "${titulo}"`;
-          } else if (estado === "2") {
-            action = "aprobado";
-            message = `Cliente ${auth.currentUser.email || auth.currentUser.displayName || 'Usuario'} aprobó video: "${titulo}"`;
-          }
-
-          if (action && message) {
-            
-            console.log(`✅ Log registrado: ${message}`);
-          }
-        } catch (logError) {
-          console.error("❌ Error al registrar log:", logError);
-          // No mostramos error al usuario, es un proceso secundario
-        }
+        // Aquí podrías llamar a logAction si quisieras (lo hace el page.tsx)
+        // console.log("Log:", { estadoAnterior, estadoNuevo: estado, videoId });
       }
 
-      showSuccess("Video guardado con éxito");
+      showSuccess(t("toasts.saveSuccess"));
     } catch (error) {
-      handleError(error, "Error al guardar el video");
+      handleError(error, t("errors.save"));
     } finally {
       toast.dismiss(loadingToast);
       setIsSaving(false);
@@ -127,12 +107,12 @@ export default function VideoEditorModal({
 
   const handleDownload = async () => {
     setIsDownloading(true);
-    const loadingToast = showLoading("Descargando video...");
+    const loadingToast = showLoading(t("loading.downloading"));
     try {
       await onDownload();
-      showSuccess("Video descargado con éxito");
+      showSuccess(t("toasts.downloadSuccess"));
     } catch (error) {
-      handleError(error, "Error al descargar el video");
+      handleError(error, t("errors.download"));
     } finally {
       toast.dismiss(loadingToast);
       setIsDownloading(false);
@@ -143,51 +123,60 @@ export default function VideoEditorModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!max-w-none w-[37vw] h-[80vh] p-6 flex flex-col gap-6">
         <div className="flex h-full gap-6">
+          {/* Preview */}
           <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden">
             <video
               controls
               src={url}
               className="aspect-[9/16] h-full object-cover rounded-lg"
               preload="metadata"
-              aria-label={`Previsualización del vídeo ${titulo}`}
+              aria-label={t("a11y.preview", { title: titulo })}
             />
           </div>
 
-          <div className="w-[340px] bg-white rounded-lg p-4 flex flex-col justify-between border shadow-sm">
+          {/* Panel de edición */}
+          <div className="w-[340px] bg-card text-card-foreground rounded-lg p-4 flex flex-col justify-between border border-border shadow-sm">
             <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-              <DialogTitle className="text-xl font-semibold mb-2">Editar Vídeo</DialogTitle>
+              <DialogTitle className="text-xl font-semibold mb-2">
+                {t("title")}
+              </DialogTitle>
+
               <Input
                 type="text"
                 value={titulo}
                 onChange={(e) => onTituloChange(e.target.value)}
-                placeholder="Título del vídeo"
-                aria-label="Editar título del vídeo"
+                placeholder={t("placeholders.title")}
+                aria-label={t("a11y.editTitle")}
               />
 
               <div>
-                <label className="font-semibold block mb-1">Estado:</label>
+                <label className="font-semibold block mb-1">
+                  {t("statusLabel")}
+                </label>
                 <Select value={estado} onValueChange={onEstadoChange}>
-                  <SelectTrigger className="w-full" aria-label="Selecciona estado">
-                    <SelectValue placeholder="Selecciona estado" />
+                  <SelectTrigger className="w-full" aria-label={t("a11y.selectStatus")}>
+                    <SelectValue placeholder={t("placeholders.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">🆕 Nuevo</SelectItem>
-                    <SelectItem value="1">✏️ Cambios</SelectItem>
-                    <SelectItem value="2">✅ Aprobado</SelectItem>
+                    <SelectItem value="0">{ts("new")}</SelectItem>
+                    <SelectItem value="1">{ts("changes")}</SelectItem>
+                    <SelectItem value="2">{ts("approved")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {showCorrecciones && (
                 <div>
-                  <label className="block font-semibold mb-1">Notas para correcciones:</label>
+                  <label className="block font-semibold mb-1">
+                    {t("placeholders.notesLabel")}
+                  </label>
                   <Textarea
                     id="notas"
                     value={notas}
                     onChange={(e) => onNotasChange(e.target.value)}
-                    placeholder="Describe los cambios deseados"
+                    placeholder={t("placeholders.notes")}
                     rows={4}
-                    aria-label="Notas para cambios"
+                    aria-label={t("a11y.notes")}
                   />
                 </div>
               )}
@@ -195,14 +184,14 @@ export default function VideoEditorModal({
 
             <div className="flex flex-col gap-4 pt-6">
               <Button variant="outline" onClick={handleDownload} disabled={isDownloading}>
-                {isDownloading ? "Descargando..." : "Descargar vídeo"}
+                {isDownloading ? t("actions.downloading") : t("actions.download")}
               </Button>
               <div className="flex gap-2">
                 <Button variant="destructive" onClick={onEliminar} className="flex-1">
-                  🗑 Eliminar vídeo
+                  {t("actions.delete")}
                 </Button>
                 <Button onClick={handleGuardar} disabled={isSaving} className="flex-1">
-                  {isSaving ? "Guardando..." : "💾 Guardar cambios"}
+                  {isSaving ? t("actions.saving") : t("actions.save")}
                 </Button>
               </div>
             </div>

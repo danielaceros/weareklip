@@ -15,6 +15,7 @@ import ScriptEditorModal from "@/components/shared/scriptsmodal";
 import { Button } from "@/components/ui/button";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
+import { useTranslations } from "next-intl";
 
 export interface Guion {
   firebaseId: string;
@@ -22,14 +23,20 @@ export interface Guion {
   contenido: string;
   estado: number;
   notas?: string;
-  createdAt?: string;
+  createdAt?: string; // importante: sin null
 }
 
-// 📧 Notificación
-const sendNotificationEmail = async (
-  subject: string,
-  content: string
-) => {
+// Tipado del documento Firestore (para evitar 'any')
+interface FirestoreGuionData {
+  titulo?: string;
+  contenido?: string;
+  estado?: number;
+  notas?: string;
+  createdAt?: unknown;
+}
+
+// 📧 Notificación (la dejamos en ES si quieres)
+const sendNotificationEmail = async (subject: string, content: string) => {
   try {
     await fetch("/api/send-email", {
       method: "POST",
@@ -46,6 +53,8 @@ const sendNotificationEmail = async (
 };
 
 export default function GuionesPage() {
+  const t = useTranslations("scripts");
+
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [guiones, setGuiones] = useState<Guion[]>([]);
@@ -62,34 +71,34 @@ export default function GuionesPage() {
       const snapshot = await getDocs(ref);
 
       if (snapshot.empty) {
-        toast("Aún no tienes guiones. Cuando se generen, aparecerán aquí.");
+        toast(t("toast.noScriptsYet"));
       }
 
-      const data: Guion[] = snapshot.docs.map((doc) => {
-        const d = doc.data();
+      const data: Guion[] = snapshot.docs.map((docSnap) => {
+        const d = docSnap.data() as FirestoreGuionData;
         return {
-          firebaseId: doc.id,
-          titulo: d.titulo ?? "Sin título",
+          firebaseId: docSnap.id,
+          titulo: d.titulo ?? t("untitled"),
           contenido: d.contenido ?? "",
           estado: d.estado ?? 0,
           notas: d.notas ?? "",
-          createdAt: d.createdAt ?? null,
+          createdAt: (typeof d.createdAt === "string" ? d.createdAt : undefined),
         };
       });
 
       setGuiones(data);
     } catch (error) {
       console.error("Error al obtener guiones:", error);
-      handleError(error, "Error al cargar guiones");
+      handleError(error, t("errors.loadScripts"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        handleError(null, "Debes iniciar sesión para ver tus guiones.");
+        handleError(null, t("errors.mustLogin"));
         setUserId(null);
         setUserEmail(null);
         setGuiones([]);
@@ -103,12 +112,12 @@ export default function GuionesPage() {
     });
 
     return () => unsubscribe();
-  }, [fetchGuiones]);
+  }, [fetchGuiones, t]);
 
   const handleUpdateGuion = async (updatedGuion: Guion) => {
     if (!userId || !userEmail) return;
-    
-    const loadingToast = showLoading("Actualizando guión...");
+
+    const loadingToast = showLoading(t("loading.updatingScript"));
     try {
       const ref = doc(db, "users", userId, "guiones", updatedGuion.firebaseId);
       await updateDoc(ref, {
@@ -122,8 +131,9 @@ export default function GuionesPage() {
         prev.map((g) => (g.firebaseId === updatedGuion.firebaseId ? updatedGuion : g))
       );
 
-      showSuccess("Cambios guardados correctamente");
+      showSuccess(t("toast.saved"));
 
+      // Email (lo dejamos en ES)
       const estadoTexto =
         updatedGuion.estado === 0
           ? "🆕 Nuevo"
@@ -137,7 +147,7 @@ export default function GuionesPage() {
       );
     } catch (error) {
       console.error("Error al guardar guion:", error);
-      handleError(error, "Error al guardar guion");
+      handleError(error, t("errors.saveScript"));
     } finally {
       toast.dismiss(loadingToast);
     }
@@ -147,25 +157,25 @@ export default function GuionesPage() {
     if (!userId || !userEmail || !guionToDelete) return;
 
     setIsDeleting(true);
-    const loadingToast = showLoading("Eliminando guión...");
+    const loadingToast = showLoading(t("loading.deletingScript"));
 
     try {
       await deleteDoc(doc(db, "users", userId, "guiones", guionToDelete.firebaseId));
       setGuiones((prev) => prev.filter((g) => g.firebaseId !== guionToDelete.firebaseId));
-      
-      // Cerrar modal de edición si está abierto
+
+      // Cerrar modal por si estaba abierto
       setModalOpen(false);
       setSelectedGuion(null);
-      
-      showSuccess(" Guion eliminado permanentemente");
-      
+
+      showSuccess(t("toast.deleted"));
+
       await sendNotificationEmail(
         `🗑️ Guion eliminado por ${userEmail}`,
         `El cliente ha eliminado el guion titulado: "${guionToDelete.titulo}".`
       );
     } catch (error) {
       console.error("Error al eliminar guion:", error);
-      handleError(error, "❌ Error al eliminar el guion");
+      handleError(error, t("errors.deleteScript"));
     } finally {
       setIsDeleting(false);
       toast.dismiss(loadingToast);
@@ -175,10 +185,10 @@ export default function GuionesPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Mis Guiones</h1>
+      <h1 className="text-2xl font-bold mb-6">{t("title")}</h1>
 
       {loading ? (
-        <p className="text-muted-foreground animate-pulse">Cargando guiones...</p>
+        <p className="text-muted-foreground animate-pulse">{t("loading.loadingScripts")}</p>
       ) : guiones.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {guiones.map((guion) => (
@@ -196,7 +206,7 @@ export default function GuionesPage() {
           ))}
         </div>
       ) : (
-        <p className="text-muted-foreground">No hay guiones disponibles.</p>
+        <p className="text-muted-foreground">{t("empty")}</p>
       )}
 
       {selectedGuion && (
@@ -212,33 +222,50 @@ export default function GuionesPage() {
       {guionToDelete && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
           <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h2 className="text-lg font-semibold mb-4">¿Eliminar guion?</h2>
+            <h2 className="text-lg font-semibold mb-4">{t("deleteDialog.title")}</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              ¿Estás seguro de que deseas eliminar el guion <strong>{guionToDelete.titulo}</strong>?
-              Esta acción no se puede deshacer.
+              {t("deleteDialog.body", { title: guionToDelete.titulo })}
             </p>
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setGuionToDelete(null)}
                 disabled={isDeleting}
               >
-                Cancelar
+                {t("actions.cancel")}
               </Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={handleDeleteConfirmado}
                 disabled={isDeleting}
               >
                 {isDeleting ? (
                   <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
-                    Eliminando...
+                    {t("loading.deleting")}
                   </span>
-                ) : "Eliminar"}
+                ) : (
+                  t("actions.delete")
+                )}
               </Button>
             </div>
           </div>

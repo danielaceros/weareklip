@@ -1,20 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { es } from 'date-fns/locale';
+import { es } from "date-fns/locale";
 import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  Timestamp
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  Timestamp,
 } from "firebase/firestore";
 import { handleError, showSuccess } from "@/lib/errors";
+
+/* ------------------------------- Tipos ------------------------------- */
 
 type Item = {
   firebaseId: string;
@@ -27,8 +29,17 @@ type Evento = {
   id: string;
   tipo: "guion" | "video";
   titulo: string;
-  fecha: string;
+  fecha: string; // ISO "YYYY-MM-DD"
   estado: Estado;
+  refId: string;
+};
+
+// Estructura esperada en Firestore
+type CalendarDoc = {
+  tipo: "guion" | "video";
+  titulo: string;
+  fecha: unknown; // Puede venir como Timestamp, number, string, Date...
+  estado?: Estado;
   refId: string;
 };
 
@@ -38,12 +49,39 @@ type Props = {
   videos: Item[];
 };
 
+/* -------- helpers: fecha segura desde varios formatos (Timestamp, etc.) ------ */
+
+type TSWithToDate = { toDate: () => Date };
+type TSWithSeconds = { seconds: number; nanoseconds?: number };
+
+function hasToDate(x: unknown): x is TSWithToDate {
+  return typeof x === "object" && x !== null && "toDate" in x && typeof (x as TSWithToDate).toDate === "function";
+}
+function hasSeconds(x: unknown): x is TSWithSeconds {
+  return typeof x === "object" && x !== null && "seconds" in x && typeof (x as TSWithSeconds).seconds === "number";
+}
+
+function toDateSafe(input: unknown): Date {
+  if (input == null) return new Date(0);
+  if (input instanceof Date) return input;
+  if (typeof input === "number") return new Date(input);
+  if (typeof input === "string") {
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? new Date(0) : d;
+  }
+  if (hasToDate(input)) return input.toDate();
+  if (hasSeconds(input)) return new Date(input.seconds * 1000);
+  return new Date(0);
+}
+
 function formatDateToISO(date: Date) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/* ------------------------------ Componente ------------------------------ */
 
 export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const [selected, setSelected] = useState<Date | undefined>(undefined);
@@ -52,36 +90,36 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const [itemId, setItemId] = useState("");
   const [fechaEvento, setFechaEvento] = useState("");
 
-  const fetchEventos = async () => {
+  const fetchEventos = useCallback(async () => {
     if (!uid) return;
     try {
       const snap = await getDocs(collection(db, "users", uid, "calendario"));
-      const data = snap.docs.map((doc) => {
-        const d = doc.data();
-        const fechaDate = d.fecha.toDate();
+      const data = snap.docs.map((d) => {
+        const raw = d.data() as CalendarDoc;
+        const fechaDate = toDateSafe(raw.fecha);
         return {
-          id: doc.id,
-          tipo: d.tipo,
-          titulo: d.titulo,
+          id: d.id,
+          tipo: raw.tipo,
+          titulo: raw.titulo,
           fecha: formatDateToISO(fechaDate),
-          estado: d.estado || "por_hacer",
-          refId: d.refId
-        };
+          estado: raw.estado ?? "por_hacer",
+          refId: raw.refId,
+        } as Evento;
       });
       setEventos(data);
     } catch (error) {
       handleError(error, "Error cargando eventos del calendario");
     }
-  };
-
-  useEffect(() => {
-    fetchEventos();
   }, [uid]);
 
   useEffect(() => {
-    const eventosAEliminar = eventos.filter(evento => {
+    fetchEventos();
+  }, [fetchEventos]);
+
+  useEffect(() => {
+    const eventosAEliminar = eventos.filter((evento) => {
       const items = evento.tipo === "guion" ? guiones : videos;
-      return !items.some(item => item.firebaseId === evento.refId);
+      return !items.some((item) => item.firebaseId === evento.refId);
     });
 
     if (eventosAEliminar.length > 0) {
@@ -93,11 +131,11 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
             handleError(error, "Error eliminando evento huérfano");
           }
         }
-        setEventos(prev => prev.filter(e => 
-          !eventosAEliminar.some(ae => ae.id === e.id)
-        ));
+        setEventos((prev) =>
+          prev.filter((e) => !eventosAEliminar.some((ae) => ae.id === e.id))
+        );
       };
-      eliminarEventos();
+      void eliminarEventos();
     }
   }, [guiones, videos, eventos, uid]);
 
@@ -108,16 +146,16 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   const eventosPorDia: Record<string, DiaInfo> = {};
 
-  eventos.forEach(evento => {
+  eventos.forEach((evento) => {
     const fecha = evento.fecha;
     if (!eventosPorDia[fecha]) {
       eventosPorDia[fecha] = {
         estado: evento.estado,
-        cantidad: 1
+        cantidad: 1,
       };
     } else {
       eventosPorDia[fecha].cantidad += 1;
-      
+
       const estados = [eventosPorDia[fecha].estado, evento.estado];
       if (estados.includes("por_hacer")) {
         eventosPorDia[fecha].estado = "por_hacer";
@@ -134,9 +172,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const fechasCompletado: Date[] = [];
 
   Object.entries(eventosPorDia).forEach(([fechaISO, info]) => {
-    const [year, month, day] = fechaISO.split('-').map(Number);
+    const [year, month, day] = fechaISO.split("-").map(Number);
     const fecha = new Date(year, month - 1, day);
-    
+
     if (info.estado === "por_hacer") {
       fechasPorHacer.push(fecha);
     } else if (info.estado === "en_proceso") {
@@ -170,7 +208,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
         refId: itemId,
         titulo: item.titulo,
         fecha: Timestamp.fromDate(new Date(fechaEvento)),
-        estado: "por_hacer"
+        estado: "por_hacer",
       });
       setItemId("");
       setFechaEvento("");
@@ -185,7 +223,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     if (!uid) return;
     try {
       await deleteDoc(doc(db, "users", uid, "calendario", eventoId));
-      setEventos(eventos.filter(e => e.id !== eventoId));
+      setEventos(eventos.filter((e) => e.id !== eventoId));
       showSuccess("Evento eliminado");
     } catch (error) {
       handleError(error, "Error al eliminar el evento");
@@ -197,9 +235,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     try {
       const eventoRef = doc(db, "users", uid, "calendario", eventoId);
       await updateDoc(eventoRef, { estado: nuevoEstado });
-      setEventos(eventos.map(e => 
-        e.id === eventoId ? { ...e, estado: nuevoEstado } : e
-      ));
+      setEventos((prev) =>
+        prev.map((e) => (e.id === eventoId ? { ...e, estado: nuevoEstado } : e))
+      );
       showSuccess("Estado actualizado");
     } catch (error) {
       handleError(error, "Error al actualizar el estado");
@@ -213,23 +251,19 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           background-color: #fee2e2 !important;
           border-radius: 0.375rem !important;
         }
-        
         .event-day-en-proceso {
           background-color: #ffedd5 !important;
           border-radius: 0.375rem !important;
         }
-        
         .event-day-completado {
           background-color: #dcfce7 !important;
           border-radius: 0.375rem !important;
         }
-
         .rdp-day_selected:not([disabled]) {
           background-color: #3b82f6 !important;
           color: white !important;
           border-radius: 0.375rem !important;
         }
-        
         .event-badge {
           position: absolute;
           top: 2px;
@@ -250,7 +284,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       <div className="flex flex-col gap-8 p-4">
         <div className="border rounded p-4 shadow">
           <h3 className="text-lg font-semibold mb-3">➕ Añadir evento</h3>
-          
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -270,7 +304,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   <option value="video">Video</option>
                 </select>
               </div>
-              
+
               <div className="flex flex-col">
                 <label className="block text-sm font-bold mb-1">
                   Seleccionar {tipo}
@@ -288,7 +322,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   ))}
                 </select>
               </div>
-              
+
               <div className="flex flex-col">
                 <label className="block text-sm font-bold mb-1">Fecha</label>
                 <input
@@ -298,7 +332,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   onChange={(e) => setFechaEvento(e.target.value)}
                 />
               </div>
-              
+
               <div className="flex flex-col justify-end">
                 <button
                   type="submit"
@@ -320,12 +354,12 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               modifiers={{
                 porHacer: fechasPorHacer,
                 enProceso: fechasEnProceso,
-                completado: fechasCompletado
+                completado: fechasCompletado,
               }}
               modifiersClassNames={{
                 porHacer: "event-day-por-hacer",
                 enProceso: "event-day-en-proceso",
-                completado: "event-day-completado"
+                completado: "event-day-completado",
               }}
               locale={es}
               fixedWeeks
@@ -333,10 +367,11 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               showOutsideDays
               className="text-left"
               formatters={{
-                formatWeekdayName: (weekday) => {
-                  const weekdays = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
+                // 👇 Tipado sin any
+                formatWeekdayName: (weekday: Date) => {
+                  const weekdays = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
                   return weekdays[weekday.getDay()];
-                }
+                },
               }}
             />
           </div>
@@ -344,7 +379,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           <div className="flex-1">
             <h3 className="text-lg font-semibold mb-4">
               {selected
-                ? `Eventos en ${selected.toLocaleDateString('es-ES')}`
+                ? `Eventos en ${selected.toLocaleDateString("es-ES")}`
                 : "Selecciona un día para ver eventos"}
             </h3>
 
@@ -366,7 +401,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                     estadoColor = "bg-green-100 border-green-300";
                     break;
                 }
-                
+
                 return (
                   <li
                     key={e.id}
@@ -377,11 +412,11 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                     </p>
                     <p className="font-semibold">{e.titulo}</p>
                     <p className="text-sm text-gray-600">🗓 {e.fecha}</p>
-                    
+
                     <div className="flex gap-2 mt-3">
                       <select
                         value={e.estado}
-                        onChange={(ev) => 
+                        onChange={(ev) =>
                           handleCambiarEstado(e.id, ev.target.value as Estado)
                         }
                         className="text-xs border rounded p-1 bg-white"
@@ -390,7 +425,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                         <option value="en_proceso">🟧 En proceso</option>
                         <option value="completado">🟩 Completado</option>
                       </select>
-                      
+
                       <button
                         onClick={() => handleEliminarEvento(e.id)}
                         className="text-xs bg-red-500 text-white rounded px-2 py-1 hover:bg-red-600"
