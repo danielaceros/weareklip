@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { auth, db, storage } from "@/lib/firebase";
 import {
   getDoc,
@@ -28,6 +28,7 @@ import Image from "next/image";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
 import { logAction } from "@/lib/logs";
+import { useTranslations } from "next-intl";
 
 interface StripeSubscription {
   status: string;
@@ -71,6 +72,8 @@ interface ClonacionVideo {
 const MAX_VIDEOS = 3;
 
 export default function UserPanel() {
+  const t = useTranslations("userPage");
+
   const [userId, setUserId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
 
@@ -96,19 +99,49 @@ export default function UserPanel() {
   // Modal eliminar vídeo
   const [videoToDelete, setVideoToDelete] = useState<ClonacionVideo | null>(null);
 
-  // Progreso de subida de videos (para múltiples archivos)
+  // Progreso de subida de videos
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
-  
+
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const dragDropRef = useRef<HTMLDivElement | null>(null);
 
-  // Verificar si se ha alcanzado el límite de videos
+  // Verificar límite
   const videoLimitReached = clonacionVideos.length >= MAX_VIDEOS;
+
+  const loadClonacionVideos = useCallback(
+    async (uid: string) => {
+      setLoadingVideos(true);
+      try {
+        const q = query(
+          collection(db, "users", uid, "clonacion"),
+          orderBy("createdAt", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        const videos: ClonacionVideo[] = [];
+        querySnapshot.forEach((d) => {
+          const data = d.data() as { titulo?: string; url: string; storagePath: string };
+          videos.push({
+            id: d.id,
+            titulo: data.titulo ?? t("cloning.upload.none"),
+            url: data.url,
+            storagePath: data.storagePath,
+          });
+        });
+        setClonacionVideos(videos);
+        setEditTitles(videos.reduce((acc, v) => ({ ...acc, [v.id]: v.titulo }), {}));
+      } catch (error) {
+        handleError(error, t("cloning.upload.loadingVideos"));
+      } finally {
+        setLoadingVideos(false);
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        handleError(null, "No autenticado");
+        handleError(null, t("profile.authRequired"));
         return;
       }
 
@@ -128,7 +161,7 @@ export default function UserPanel() {
           setUserData(null);
         }
       } catch (error) {
-        handleError(error, "Error cargando datos de usuario");
+        handleError(error, t("profile.actions.saveError"));
       }
 
       try {
@@ -137,11 +170,11 @@ export default function UserPanel() {
         const res = await fetch("/api/stripe/subscription", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) throw new Error("No se pudo obtener la suscripción");
+        if (!res.ok) throw new Error(t("subscription.loading"));
         const data = await res.json();
         setSub(data);
       } catch (error) {
-        handleError(error, "Error cargando suscripción");
+        handleError(error, t("subscription.loading"));
       } finally {
         setLoadingSub(false);
       }
@@ -150,33 +183,9 @@ export default function UserPanel() {
     });
 
     return () => unsub();
-  }, []);
+  }, [loadClonacionVideos, t]);
 
-  const loadClonacionVideos = async (uid: string) => {
-    setLoadingVideos(true);
-    try {
-      const q = query(collection(db, "users", uid, "clonacion"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const videos: ClonacionVideo[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        videos.push({
-          id: doc.id,
-          titulo: data.titulo ?? "Sin título",
-          url: data.url,
-          storagePath: data.storagePath,
-        });
-      });
-      setClonacionVideos(videos);
-      setEditTitles(videos.reduce((acc, v) => ({ ...acc, [v.id]: v.titulo }), {}));
-    } catch (error) {
-      handleError(error, "Error cargando videos de clonación");
-    } finally {
-      setLoadingVideos(false);
-    }
-  };
-
-  // User profile photo handlers
+  // User profile photo
   const handlePhotoClick = () => {
     if (fileInputRef.current && !uploadingPhoto) {
       fileInputRef.current.click();
@@ -187,21 +196,21 @@ export default function UserPanel() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     if (!file.type.startsWith("image/")) {
-      handleError(null, "Solo imágenes permitidas para la foto de perfil");
+      handleError(null, t("profile.photo.onlyImages"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      handleError(null, "La imagen debe ser menor a 5MB");
+      handleError(null, t("profile.photo.maxSize"));
       return;
     }
     if (!userId) {
-      handleError(null, "Usuario no autenticado");
+      handleError(null, t("profile.authRequired"));
       return;
     }
-    
+
     setUploadingPhoto(true);
-    const loadingToast = showLoading("Subiendo foto de perfil...");
-    
+    const loadingToast = showLoading(t("profile.photo.uploadLoading"));
+
     const photoRef = storageRef(storage, `users/${userId}/profile_photo_${Date.now()}`);
     const uploadTask = uploadBytesResumable(photoRef, file);
     uploadTask.on(
@@ -209,7 +218,7 @@ export default function UserPanel() {
       () => {},
       (error) => {
         toast.dismiss(loadingToast);
-        handleError(error, "Error subiendo foto de perfil");
+        handleError(error, t("profile.photo.uploadError"));
         setUploadingPhoto(false);
       },
       async () => {
@@ -219,10 +228,10 @@ export default function UserPanel() {
           await updateDoc(doc(db, "users", userId), { photoURL: url });
           setUserData((prev) => (prev ? { ...prev, photoURL: url } : null));
           toast.dismiss(loadingToast);
-          showSuccess("Foto de perfil actualizada");
+          showSuccess(t("profile.photo.updated"));
         } catch (error) {
           toast.dismiss(loadingToast);
-          handleError(error, "Error guardando foto en base de datos");
+          handleError(error, t("profile.photo.saveToDbError"));
         }
         setUploadingPhoto(false);
       }
@@ -232,7 +241,7 @@ export default function UserPanel() {
   // Save user info
   const saveUserData = async () => {
     if (!userId) {
-      handleError(null, "Usuario no autenticado");
+      handleError(null, t("profile.authRequired"));
       return;
     }
     try {
@@ -241,7 +250,7 @@ export default function UserPanel() {
         instagramUser: instagramUser.trim(),
         phone: phone.trim(),
       });
-      showSuccess("Datos actualizados correctamente");
+      showSuccess(t("profile.actions.saved"));
       setUserData((prev) =>
         prev
           ? {
@@ -253,7 +262,7 @@ export default function UserPanel() {
           : null
       );
     } catch (error) {
-      handleError(error, "Error guardando datos");
+      handleError(error, t("profile.actions.saveError"));
     }
   };
 
@@ -264,7 +273,7 @@ export default function UserPanel() {
     setInstagramUser(val);
   };
 
-  // Drag and drop handlers for video upload
+  // Drag & drop handlers
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -281,37 +290,35 @@ export default function UserPanel() {
     setDragActive(false);
 
     if (!userId) {
-      handleError(null, "Usuario no autenticado");
+      handleError(null, t("profile.authRequired"));
       return;
     }
 
-    // Verificar si se ha alcanzado el límite
     if (videoLimitReached) {
-      handleError(null, `Límite de ${MAX_VIDEOS} videos alcanzado`);
+      handleError(null, t("cloning.dropzone.limitReachedTitle"));
       return;
     }
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
 
-    // Calcular cuántos videos se pueden subir
     const availableSlots = MAX_VIDEOS - clonacionVideos.length;
     const filesToUpload = Array.from(files).slice(0, availableSlots);
 
     if (filesToUpload.length < files.length) {
-      handleError(null, `Solo puedes subir ${availableSlots} video(s) más`);
+      handleError(null, t("cloning.upload.slotsWarning", { count: availableSlots }));
     }
 
     for (const file of filesToUpload) {
       if (!file.type.startsWith("video/")) {
-        handleError(null, "Solo archivos de vídeo permitidos");
+        handleError(null, t("cloning.upload.onlyVideos"));
         continue;
       }
       if (file.size > 100 * 1024 * 1024) {
-        handleError(null, "El vídeo debe ser menor a 100MB");
+        handleError(null, t("cloning.upload.maxSize"));
         continue;
       }
-      
+
       const randomId = Math.random().toString(36).substring(2, 10);
       const ext = file.name.split(".").pop() ?? "mp4";
       const title = `${userId}_${randomId}`;
@@ -319,14 +326,14 @@ export default function UserPanel() {
     }
   };
 
-  // Upload video to Firebase Storage + Firestore
+  // Upload video
   const uploadVideo = (file: File, title: string, ext: string) => {
     if (!userId || videoLimitReached) return;
-    
+
     const fileKey = `${title}.${ext}`;
-    setVideoUploadProgress(prev => ({ ...prev, [fileKey]: 0 }));
-    
-    const loadingToast = showLoading(`Subiendo ${file.name}...`);
+    setVideoUploadProgress((prev) => ({ ...prev, [fileKey]: 0 }));
+
+    const loadingToast = showLoading(t("cloning.upload.uploadingFile", { name: file.name }));
 
     const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
     const videoRef = storageRef(storage, videoPath);
@@ -336,12 +343,12 @@ export default function UserPanel() {
       "state_changed",
       (snapshot) => {
         const prog = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setVideoUploadProgress(prev => ({ ...prev, [fileKey]: prog }));
+        setVideoUploadProgress((prev) => ({ ...prev, [fileKey]: prog }));
       },
       (error) => {
         toast.dismiss(loadingToast);
-        handleError(error, `Error subiendo ${file.name}`);
-        setVideoUploadProgress(prev => {
+        handleError(error, t("cloning.upload.uploadError", { name: file.name }));
+        setVideoUploadProgress((prev) => {
           const newState = { ...prev };
           delete newState[fileKey];
           return newState;
@@ -356,35 +363,33 @@ export default function UserPanel() {
             storagePath: videoPath,
             createdAt: Date.now(),
           });
-          
-          setClonacionVideos(prev => [
+
+          setClonacionVideos((prev) => [
             { id: docRef.id, titulo: title, url, storagePath: videoPath },
             ...prev,
           ]);
-          
-          setEditTitles(prev => ({ ...prev, [docRef.id]: title }));
-          toast.dismiss(loadingToast);
-          showSuccess(`${file.name} subido correctamente`);
 
-          // NUEVO: Registrar log de subida de clonación
+          setEditTitles((prev) => ({ ...prev, [docRef.id]: title }));
+          toast.dismiss(loadingToast);
+          showSuccess(t("cloning.upload.success", { name: file.name }));
+
           try {
             await logAction({
               type: "clonacion",
-              action: "subido", 
+              action: "subido",
               uid: userId,
               admin: userData?.email || "Cliente",
               targetId: docRef.id,
-              message: `Cliente ${userData?.email || userData?.name || 'Usuario'} subió material de clonación`
+              message: `Cliente ${userData?.email || userData?.name || "Usuario"} subió material de clonación`,
             });
-          } catch (error) {
-            console.error("Error al registrar log de subida:", error);
-            // No mostramos error al usuario para no interrumpir el flujo
+          } catch {
+            // Silencioso: no romper flujo si el log falla
           }
 
-          // Asignar tarea a Rubén después de subir el video
+          // Asignar tarea
           try {
             const token = await auth.currentUser?.getIdToken();
-            if (!token) throw new Error("No autenticado");
+            if (!token) throw new Error("No auth");
 
             const res = await fetch("/api/assign-task", {
               method: "POST",
@@ -398,19 +403,17 @@ export default function UserPanel() {
             });
 
             if (!res.ok) {
-              const errorData = await res.json();
-              throw new Error(errorData.message || "Error en la respuesta del servidor");
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(errorData.message || "Server error");
             }
-
           } catch (error) {
-            console.error("Error al asignar tarea:", error);
-            handleError(error, "Error al crear tarea de revisión");
+            handleError(error, t("cloning.upload.createTaskError"));
           }
         } catch (error) {
           toast.dismiss(loadingToast);
-          handleError(error, "Error guardando video en base de datos");
+          handleError(error, t("cloning.upload.saveError"));
         } finally {
-          setVideoUploadProgress(prev => {
+          setVideoUploadProgress((prev) => {
             const newState = { ...prev };
             delete newState[fileKey];
             return newState;
@@ -420,7 +423,7 @@ export default function UserPanel() {
     );
   };
 
-  // Handle delete with modal confirmation
+  // Delete with modal
   const confirmDeleteVideo = (video: ClonacionVideo) => {
     setVideoToDelete(video);
   };
@@ -431,24 +434,24 @@ export default function UserPanel() {
 
   const handleDeleteVideo = async () => {
     if (!userId || !videoToDelete) {
-      handleError(null, "Usuario no autenticado o vídeo no seleccionado");
+      handleError(null, t("cloning.delete.notSelectedOrAuth"));
       setVideoToDelete(null);
       return;
     }
 
-    const loadingToast = showLoading("Eliminando video...");
-    
+    const loadingToast = showLoading(t("cloning.delete.deleting"));
+
     try {
       await deleteDoc(doc(db, "users", userId, "clonacion", videoToDelete.id));
-      const videoRef = storageRef(storage, videoToDelete.storagePath);
-      await deleteObject(videoRef);
+      const vidRef = storageRef(storage, videoToDelete.storagePath);
+      await deleteObject(vidRef);
       setClonacionVideos((prev) => prev.filter((v) => v.id !== videoToDelete.id));
       toast.dismiss(loadingToast);
-      showSuccess("Vídeo eliminado correctamente");
+      showSuccess(t("cloning.delete.success"));
       if (selectedVideo?.id === videoToDelete.id) setSelectedVideo(null);
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error eliminando vídeo");
+      handleError(error, t("cloning.delete.error"));
     } finally {
       setVideoToDelete(null);
     }
@@ -457,37 +460,56 @@ export default function UserPanel() {
   const getStatusChipStyle = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-700 border-green-300";
+        return "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700";
       case "trialing":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        return "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700";
       case "past_due":
-        return "bg-orange-100 text-orange-700 border-orange-300";
+        return "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700";
       case "unpaid":
-        return "bg-red-100 text-red-700 border-red-300";
+        return "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700";
       case "canceled":
-        return "bg-gray-200 text-gray-600 border-gray-300";
+        return "bg-gray-200 text-gray-600 border-gray-300 dark:bg-muted dark:text-muted-foreground dark:border-border";
       default:
-        return "bg-gray-100 text-gray-600 border-gray-300";
+        return "bg-gray-100 text-gray-600 border-gray-300 dark:bg-muted dark:text-muted-foreground dark:border-border";
+    }
+  };
+
+  // ✅ Sin "as any": resolvemos el label con switch
+  const renderStatusLabel = (status: string) => {
+    switch (status) {
+      case "active":
+        return t("subscription.statusMap.active");
+      case "trialing":
+        return t("subscription.statusMap.trialing");
+      case "past_due":
+        return t("subscription.statusMap.past_due");
+      case "unpaid":
+        return t("subscription.statusMap.unpaid");
+      case "canceled":
+        return t("subscription.statusMap.canceled");
+      default:
+        return status;
     }
   };
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold mb-6">Mi Panel de Usuario</h1>
+      <h1 className="text-3xl font-bold mb-6">{t("title")}</h1>
 
       {/* Datos del usuario */}
-      <section className="border rounded-lg p-6 bg-white shadow-sm">
-        <h2 className="text-xl font-semibold mb-4">Datos del Usuario</h2>
+      <section className="border border-border rounded-lg p-6 bg-card text-card-foreground shadow-sm">
+        <h2 className="text-xl font-semibold mb-4">{t("profile.sectionTitle")}</h2>
 
         <div className="flex items-center gap-6 mb-6">
           <div
             className={clsx(
-              "relative w-28 h-28 rounded-full overflow-hidden border border-gray-300 cursor-pointer select-none",
-              uploadingPhoto ? "opacity-60" : "opacity-100"
+              "relative w-28 h-28 rounded-full overflow-hidden border cursor-pointer select-none",
+              uploadingPhoto ? "opacity-60" : "opacity-100",
+              "border-border"
             )}
             onClick={handlePhotoClick}
-            title={uploadingPhoto ? "Subiendo foto..." : "Clic para cambiar foto"}
-            aria-label="Subir foto de perfil"
+            title={uploadingPhoto ? t("profile.photo.uploadingTooltip") : t("profile.photo.changeTooltip")}
+            aria-label={t("profile.photo.changeTooltip")}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -497,14 +519,14 @@ export default function UserPanel() {
             {photoURL ? (
               <Image
                 src={photoURL}
-                alt="Foto de perfil"
+                alt="Profile photo"
                 fill
                 style={{ objectFit: "cover" }}
                 sizes="112px"
                 priority={false}
               />
             ) : (
-              <div className="flex items-center justify-center w-full h-full bg-gray-200 text-gray-400 text-4xl font-bold">
+              <div className="flex items-center justify-center w-full h-full bg-muted text-muted-foreground text-4xl font-bold">
                 {name ? name[0].toUpperCase() : "?"}
               </div>
             )}
@@ -521,85 +543,85 @@ export default function UserPanel() {
 
           <div className="flex-1 space-y-4">
             <div>
-              <Label htmlFor="name">Nombre</Label>
+              <Label htmlFor="name">{t("profile.labels.name")}</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Tu nombre completo"
+                placeholder={t("profile.placeholders.name")}
               />
             </div>
 
             <div>
-              <Label htmlFor="instagramUser">Usuario Instagram</Label>
+              <Label htmlFor="instagramUser">{t("profile.labels.instagramUser")}</Label>
               <Input
                 id="instagramUser"
                 value={instagramUser}
                 onChange={handleInstagramUserChange}
-                placeholder="@usuario"
+                placeholder={t("profile.placeholders.instagramUser")}
               />
             </div>
 
             <div>
-              <Label htmlFor="phone">Teléfono</Label>
+              <Label htmlFor="phone">{t("profile.labels.phone")}</Label>
               <Input
                 id="phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+34 600 123 456"
+                placeholder={t("profile.placeholders.phone")}
               />
             </div>
 
             <div>
-              <Label>Email (no editable)</Label>
+              <Label>{t("profile.labels.emailReadonly")}</Label>
               <Input value={userData?.email ?? ""} disabled />
             </div>
 
             <Button onClick={saveUserData} disabled={uploadingPhoto}>
-              {uploadingPhoto ? "Subiendo foto..." : "Guardar cambios"}
+              {uploadingPhoto ? t("profile.actions.savingPhoto") : t("profile.actions.save")}
             </Button>
           </div>
         </div>
       </section>
 
       {/* Suscripción */}
-      <section className="border rounded-lg p-4 bg-white shadow-sm">
-        <h2 className="text-xl font-semibold mb-4">Mi Suscripción</h2>
+      <section className="border border-border rounded-lg p-4 bg-card text-card-foreground shadow-sm">
+        <h2 className="text-xl font-semibold mb-4">{t("subscription.sectionTitle")}</h2>
 
         {loadingSub ? (
-          <p className="text-muted-foreground animate-pulse">Cargando suscripción...</p>
+          <p className="text-muted-foreground animate-pulse">{t("subscription.loading")}</p>
         ) : sub ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="font-medium">Estado:</span>
+              <span className="font-medium">{t("subscription.labels.status")}:</span>
               <span
                 className={clsx(
                   "px-3 py-1 rounded-full text-sm border",
                   getStatusChipStyle(sub.status)
                 )}
               >
-                {sub.status}
+                {renderStatusLabel(sub.status)}
               </span>
             </div>
 
             <p>
-              <strong>Plan:</strong> {sub.plan}
+              <strong>{t("subscription.labels.plan")}:</strong> {sub.plan}
             </p>
             <p>
-              <strong>Precio:</strong>{" "}
+              <strong>{t("subscription.labels.price")}:</strong>{" "}
               {sub.amount
                 ? `${sub.amount.toFixed(2)} ${sub.currency.toUpperCase()} / ${sub.interval}`
-                : "No disponible"}
+                : t("common.unknown")}
             </p>
             <p>
-              <strong>Renovación:</strong>{" "}
+              <strong>{t("subscription.labels.renewal")}:</strong>{" "}
               {sub.current_period_end
-                ? new Date(sub.current_period_end * 1000).toLocaleDateString("es-ES")
-                : "No disponible"}
+                ? new Date(sub.current_period_end * 1000).toLocaleDateString()
+                : t("common.unknown")}
             </p>
             <p>
-              <strong>Cancelación al final del periodo:</strong>{" "}
-              {sub.cancel_at_period_end ? "Sí" : "No"}
+              <strong>{t("subscription.labels.cancelAtPeriodEnd")}:</strong>{" "}
+              {sub.cancel_at_period_end ? t("subscription.yes") : t("subscription.no")}
             </p>
 
             <Button className="mt-4" asChild>
@@ -608,26 +630,28 @@ export default function UserPanel() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Abrir portal de facturación
+                {t("subscription.openBillingPortal")}
               </a>
             </Button>
           </div>
         ) : (
-          <p>No tienes suscripción activa.</p>
+          <p className="text-muted-foreground">{t("subscription.noActive")}</p>
         )}
       </section>
 
-      {/* Sección vídeos clonacion */}
-      <section className="border rounded-lg p-6 bg-white shadow-sm relative">
+      {/* Vídeos de Clonación */}
+      <section className="border border-border rounded-lg p-6 bg-card text-card-foreground shadow-sm relative">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Mis Vídeos de Clonación</h2>
-          <div className={clsx(
-            "px-3 py-1 rounded-full text-sm font-medium",
-            videoLimitReached 
-              ? "bg-green-100 text-green-700 border border-green-300"
-              : "bg-gray-100 text-gray-600 border border-gray-300"
-          )}>
-            {clonacionVideos.length}/{MAX_VIDEOS}
+          <h2 className="text-xl font-semibold">{t("cloning.sectionTitle")}</h2>
+          <div
+            className={clsx(
+              "px-3 py-1 rounded-full text-sm font-medium border",
+              videoLimitReached
+                ? "bg-primary/10 text-primary border-primary"
+                : "bg-muted text-muted-foreground border-border"
+            )}
+          >
+            {t("cloning.limitBadge", { count: clonacionVideos.length, max: MAX_VIDEOS })}
           </div>
         </div>
 
@@ -644,17 +668,17 @@ export default function UserPanel() {
           }}
           className={clsx(
             "border-2 border-dashed rounded p-8 text-center cursor-pointer select-none transition-all",
-            dragActive && !videoLimitReached 
-              ? "border-blue-500 bg-blue-50" 
+            "bg-muted",
+            dragActive && !videoLimitReached
+              ? "ring-2 ring-primary/40 border-primary bg-accent"
               : videoLimitReached
-                ? "border-green-300 bg-green-50"
-                : "border-gray-300",
-            videoLimitReached && "cursor-not-allowed"
+              ? "border-primary bg-primary/10"
+              : "border-border"
           )}
           aria-label={
-            videoLimitReached 
-              ? "Límite de videos alcanzado" 
-              : "Área de arrastrar y soltar vídeos para subir"
+            videoLimitReached
+              ? t("cloning.dropzone.aria.limitReached")
+              : t("cloning.dropzone.aria.dropArea")
           }
           tabIndex={0}
           onKeyDown={(e) => {
@@ -666,20 +690,22 @@ export default function UserPanel() {
           }}
         >
           {videoLimitReached ? (
-            <div className="text-green-700 font-medium">
-              <p>¡Límite de videos alcanzado!</p>
-              <p className="text-sm mt-2 text-green-600">
-                Has subido el máximo de {MAX_VIDEOS} videos permitidos.
+            <div className="text-primary font-medium">
+              <p>{t("cloning.dropzone.limitReachedTitle")}</p>
+              <p className="text-sm mt-2 text-muted-foreground">
+                {t("cloning.dropzone.limitReachedSubtitle", { max: MAX_VIDEOS })}
               </p>
             </div>
           ) : Object.keys(videoUploadProgress).length > 0 ? (
             <div className="space-y-3 w-full max-w-md mx-auto">
               {Object.entries(videoUploadProgress).map(([fileName, progress]) => (
                 <div key={fileName} className="space-y-1">
-                  <p className="text-sm truncate">{fileName.split('.')[0]} - {progress.toFixed(0)}%</p>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-300"
+                  <p className="text-sm truncate">
+                    {fileName.split(".")[0]} - {progress.toFixed(0)}%
+                  </p>
+                  <div className="w-full h-2 bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
@@ -687,9 +713,9 @@ export default function UserPanel() {
               ))}
             </div>
           ) : (
-            <p>Arrastra y suelta aquí tus vídeos o haz clic para seleccionar</p>
+            <p className="text-muted-foreground">{t("cloning.dropzone.placeholder")}</p>
           )}
-          
+
           <input
             ref={videoInputRef}
             type="file"
@@ -701,25 +727,24 @@ export default function UserPanel() {
               const files = e.target.files;
               if (!files) return;
               if (!userId) {
-                handleError(null, "Usuario no autenticado");
+                handleError(null, t("profile.authRequired"));
                 return;
               }
-              
-              // Calcular cuántos videos se pueden subir
+
               const availableSlots = MAX_VIDEOS - clonacionVideos.length;
               const filesToUpload = Array.from(files).slice(0, availableSlots);
-              
+
               if (filesToUpload.length < files.length) {
-                handleError(null, `Solo puedes subir ${availableSlots} video(s) más`);
+                handleError(null, t("cloning.upload.slotsWarning", { count: availableSlots }));
               }
-              
+
               filesToUpload.forEach((file) => {
                 if (!file.type.startsWith("video/")) {
-                  handleError(null, "Solo archivos de vídeo permitidos");
+                  handleError(null, t("cloning.upload.onlyVideos"));
                   return;
                 }
                 if (file.size > 100 * 1024 * 1024) {
-                  handleError(null, "El vídeo debe ser menor a 100MB");
+                  handleError(null, t("cloning.upload.maxSize"));
                   return;
                 }
                 const randomId = Math.random().toString(36).substring(2, 10);
@@ -734,14 +759,14 @@ export default function UserPanel() {
 
         <div className="mt-6 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
           {loadingVideos ? (
-            <p>Cargando vídeos...</p>
+            <p className="text-muted-foreground">{t("cloning.upload.loadingVideos")}</p>
           ) : clonacionVideos.length === 0 ? (
-            <p>No tienes vídeos subidos.</p>
+            <p className="text-muted-foreground">{t("cloning.upload.none")}</p>
           ) : (
             clonacionVideos.map((video) => (
               <div
                 key={video.id}
-                className="relative cursor-pointer rounded border overflow-hidden shadow hover:shadow-lg"
+                className="relative cursor-pointer rounded border border-border overflow-hidden shadow hover:shadow-lg"
                 style={{ aspectRatio: "1 / 1" }}
               >
                 <video
@@ -761,13 +786,13 @@ export default function UserPanel() {
                     e.stopPropagation();
                     confirmDeleteVideo(video);
                   }}
-                  className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition"
-                  aria-label={`Eliminar video ${video.titulo}`}
+                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition"
+                  aria-label={t("cloning.grid.aria.deleteVideo", { title: video.titulo })}
                 >
                   ×
                 </button>
 
-                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs p-1 truncate select-none">
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate select-none">
                   {editTitles[video.id] ?? video.titulo}
                 </div>
               </div>
@@ -775,39 +800,38 @@ export default function UserPanel() {
           )}
         </div>
 
-        {/* Modal de confirmación eliminación */}
+        {/* Modal confirm delete */}
         {videoToDelete && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
             aria-modal="true"
             role="dialog"
             aria-labelledby="modal-title"
             aria-describedby="modal-desc"
           >
-            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg">
+            <div className="bg-popover text-popover-foreground rounded-lg p-6 max-w-md w-full border border-border shadow-lg">
               <h3 id="modal-title" className="text-lg font-semibold mb-4">
-                Confirmar eliminación
+                {t("cloning.deleteModal.title")}
               </h3>
-              <p id="modal-desc" className="mb-6">
-                ¿Seguro que quieres eliminar el vídeo{" "}
-                <strong>{videoToDelete.titulo}</strong>?
+              <p id="modal-desc" className="mb-6 text-muted-foreground">
+                {t("cloning.deleteModal.body", { title: videoToDelete.titulo })}
               </p>
               <div className="flex justify-end gap-4">
                 <Button variant="outline" onClick={cancelDelete}>
-                  Cancelar
+                  {t("cloning.deleteModal.cancel")}
                 </Button>
                 <Button variant="destructive" onClick={handleDeleteVideo}>
-                  Eliminar
+                  {t("cloning.deleteModal.delete")}
                 </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Modal para vídeo seleccionado grande */}
+        {/* Lightbox */}
         {selectedVideo && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center p-4 z-50"
             onClick={() => setSelectedVideo(null)}
             role="dialog"
             aria-modal="true"
@@ -818,7 +842,7 @@ export default function UserPanel() {
                 e.stopPropagation();
                 setSelectedVideo(null);
               }}
-              aria-label="Cerrar video"
+              aria-label={t("cloning.grid.aria.closeVideo")}
             >
               ×
             </button>
@@ -828,7 +852,9 @@ export default function UserPanel() {
               autoPlay
               className="max-w-full max-h-[80vh] rounded"
             />
-            <p className="text-white mt-2">{editTitles[selectedVideo.id] ?? selectedVideo.titulo}</p>
+            <p className="text-white mt-2">
+              {editTitles[selectedVideo.id] ?? selectedVideo.titulo}
+            </p>
           </div>
         )}
       </section>

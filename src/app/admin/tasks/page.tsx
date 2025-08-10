@@ -1,72 +1,76 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { onAuthStateChanged } from "firebase/auth"
-import { auth, db } from "@/lib/firebase"
-import { getDocs, collection } from "firebase/firestore"
-import TaskInbox from "@/components/shared/taskinbox"
-import TaskModal from "@/components/shared/taskmodal"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { getDocs, collection } from "firebase/firestore";
+import TaskInbox from "@/components/shared/taskinbox";
+import TaskModal from "@/components/shared/taskmodal";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useT } from "@/lib/i18n";
 
 export default function AdminTasksPage() {
-  const [uid, setUid] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [modalOpen, setModalOpen] = useState(false)
+  const t = useT();
+  const [uid, setUid] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
 
   // 🔄 Buscar UID en colección `admin` por email
   const getUidFromEmail = async (email: string): Promise<string | null> => {
-    const snapshot = await getDocs(collection(db, "admin"))
+    const snapshot = await getDocs(collection(db, "admin"));
     for (const docSnap of snapshot.docs) {
-      const data = docSnap.data()
+      const data = docSnap.data();
       if (data.email?.toLowerCase().trim() === email.toLowerCase().trim()) {
-        return docSnap.id
+        return docSnap.id;
       }
     }
-    return null
-  }
+    return null;
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user?.email) {
-        const realUid = await getUidFromEmail(user.email)
+        const realUid = await getUidFromEmail(user.email);
         if (realUid) {
-          setUid(realUid)
+          setUid(realUid);
         } else {
-          toast.error("No se encontró tu usuario en Firestore (admin).")
+          toast.error(t("admin.tasks.errors.noAdminDoc"));
         }
       } else {
-        setUid(null)
+        setUid(null);
       }
-      setLoading(false)
-    })
+      setLoading(false);
+    });
 
-    return () => unsubscribe()
-  }, [])
+    return () => unsubscribe();
+  }, [t]);
 
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <Skeleton className="h-10 w-40" />
-        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-10 w-40" aria-label={t("admin.tasks.loading.title")} />
+        <Skeleton className="h-32 w-full" aria-label={t("admin.tasks.loading.list")} />
       </div>
-    )
+    );
   }
 
   if (!uid) {
     return (
       <div className="p-6 text-red-500">
-        Debes iniciar sesión como admin para ver tus tareas.
+        {t("admin.tasks.mustBeAdmin")}
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">📋 Tus tareas</h1>
-        <Button onClick={() => setModalOpen(true)}>+ Nueva tarea</Button>
+        <h1 className="text-2xl font-bold">📋 {t("admin.tasks.title")}</h1>
+        <Button onClick={() => setModalOpen(true)}>
+          {t("admin.tasks.newTask")}
+        </Button>
       </div>
 
       <TaskInbox adminId={uid} />
@@ -78,5 +82,5 @@ export default function AdminTasksPage() {
         task={null} // Nueva tarea
       />
     </div>
-  )
+  );
 }

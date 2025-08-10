@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, getDocs, Timestamp } from "firebase/firestore"
 import { Card } from "@/components/ui/card"
@@ -26,46 +26,66 @@ type Props = {
   videos: Item[]
 }
 
+type WithToDate = { toDate: () => Date }
+function hasToDate(x: unknown): x is WithToDate {
+  return typeof x === "object" && x !== null && "toDate" in (x as Record<string, unknown>) && typeof (x as { toDate?: unknown }).toDate === "function"
+}
+function toDateISOOnly(input: unknown): string {
+  let d: Date
+  if (hasToDate(input)) d = input.toDate()
+  else if (input instanceof Date) d = input
+  else if (typeof input === "string" || typeof input === "number") {
+    const tmp = new Date(input)
+    d = Number.isNaN(tmp.getTime()) ? new Date() : tmp
+  } else d = new Date()
+  return d.toISOString().split("T")[0]
+}
+
 export default function CalendarioSection({ uid, guiones, videos }: Props) {
   const [eventos, setEventos] = useState<Evento[]>([])
   const [tipo, setTipo] = useState<"guion" | "video">("guion")
   const [itemId, setItemId] = useState("")
   const [fecha, setFecha] = useState("")
 
-  const fetchEventos = async () => {
+  const fetchEventos = useCallback(async () => {
+    if (!uid) return
     const snap = await getDocs(collection(db, "users", uid, "calendario"))
-    const data = snap.docs.map(doc => {
-      const d = doc.data()
+    const data = snap.docs.map((d) => {
+      const raw = d.data() as {
+        tipo: "guion" | "video"
+        titulo: string
+        fecha?: unknown
+      }
       return {
-        id: doc.id,
-        tipo: d.tipo,
-        titulo: d.titulo,
-        fecha: d.fecha.toDate().toISOString().split("T")[0],
+        id: d.id,
+        tipo: raw.tipo,
+        titulo: raw.titulo,
+        fecha: toDateISOOnly(raw.fecha),
       }
     })
     setEventos(data)
-  }
-
-  useEffect(() => {
-    fetchEventos()
   }, [uid])
 
+  useEffect(() => {
+    void fetchEventos()
+  }, [fetchEventos])
+
   const handleAgregar = async () => {
-    if (!itemId || !fecha) return
+    if (!uid || !itemId || !fecha) return
 
     const fuente = tipo === "guion" ? guiones : videos
-    const item = fuente.find(i => i.firebaseId === itemId)
+    const item = fuente.find((i) => i.firebaseId === itemId)
 
     await addDoc(collection(db, "users", uid, "calendario"), {
       tipo,
       refId: itemId,
       titulo: item?.titulo || "",
-      fecha: Timestamp.fromDate(new Date(fecha))
+      fecha: Timestamp.fromDate(new Date(fecha)),
     })
 
     setItemId("")
     setFecha("")
-    fetchEventos()
+    void fetchEventos()
   }
 
   return (

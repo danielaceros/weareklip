@@ -18,35 +18,37 @@ import {
   ImageIcon,
   VideoIcon,
 } from "lucide-react";
-//import clsx from "clsx";
 import toast from "react-hot-toast";
-
-const CATEGORIES = [
-  { key: "logo", label: "Logo", accept: "image/*", icon: ImageIcon },
-  {
-    key: "plantilla",
-    label: "Plantilla de marca",
-    accept: ".pdf,.doc,.docx,.ppt,.pptx,.zip,.rar,.ai,.psd,.eps",
-    icon: FileText,
-  },
-  {
-    key: "audiovisual",
-    label: "Material audiovisual",
-    accept: "video/*,audio/*",
-    icon: VideoIcon,
-  },
-];
+import { useTranslations } from "next-intl";
 
 export default function ArchivosPage() {
+  const t = useTranslations("assetsPage");
+
   const [userId, setUserId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [filesList, setFilesList] = useState<
     { name: string; url: string; fullPath: string }[]
   >([]);
-  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0].key);
+  const [selectedCategory, setSelectedCategory] = useState("logo");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const CATEGORIES = [
+    { key: "logo", label: t("categories.logo"), accept: "image/*", icon: ImageIcon },
+    {
+      key: "plantilla",
+      label: t("categories.plantilla"),
+      accept: ".pdf,.doc,.docx,.ppt,.pptx,.zip,.rar,.ai,.psd,.eps",
+      icon: FileText,
+    },
+    {
+      key: "audiovisual",
+      label: t("categories.audiovisual"),
+      accept: "video/*,audio/*",
+      icon: VideoIcon,
+    },
+  ];
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((user) => {
@@ -56,7 +58,6 @@ export default function ArchivosPage() {
     return () => unsub();
   }, []);
 
-  // List files for current user/category
   useEffect(() => {
     if (!userId) return;
     const folderRef = storageRef(
@@ -74,14 +75,13 @@ export default function ArchivosPage() {
         setFilesList(files);
       })
       .catch(() => setFilesList([]));
-  }, [userId, selectedCategory, uploading]); // recarga al subir
+  }, [userId, selectedCategory, uploading]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !userId) return;
     setUploading(true);
     setProgress(0);
     const file = e.target.files[0];
-    //const ext = file.name.split(".").pop();
     const dateStr = new Date().toISOString().replace(/[:.]/g, "-");
     const path = `users/${userId}/branding/${selectedCategory}/${dateStr}_${file.name}`;
 
@@ -93,53 +93,51 @@ export default function ArchivosPage() {
       },
       (error) => {
         setUploading(false);
-        toast.error("Error subiendo archivo: " + error.message);
+        toast.error(t("upload.error", { message: error.message }));
       },
       async () => {
         setUploading(false);
         setProgress(0);
-        toast.success("Archivo subido correctamente");
+        toast.success(t("upload.success"));
       }
     );
   };
 
   const handleDelete = async (fullPath: string) => {
     if (!userId) return;
-    if (!confirm("¿Seguro que quieres borrar este archivo?")) return;
+    if (!confirm(t("delete.confirm"))) return;
     try {
       await deleteObject(storageRef(storage, fullPath));
-      toast.success("Archivo eliminado");
+      toast.success(t("delete.success"));
       setFilesList((prev) => prev.filter((f) => f.fullPath !== fullPath));
     } catch (err) {
       console.error("Error al eliminar archivo:", err);
-      toast.error("Error al eliminar archivo");
+      toast.error(t("delete.error"));
     }
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center bg-gradient-to-br from-white to-gray-50 py-10 px-2">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-lg p-8">
+    <div className="min-h-[80vh] flex flex-col items-center bg-background py-10 px-2">
+      <div className="w-full max-w-2xl bg-card border border-border rounded-3xl shadow-sm p-8 text-foreground">
         <div className="flex items-center gap-2 mb-6">
-          <UploadCloud className="text-blue-600" size={26} />
-          <h1 className="text-2xl font-bold">Archivos y Recursos de Marca</h1>
+          <UploadCloud className="text-primary" size={26} />
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
         </div>
-        <p className="mb-6 text-gray-600">
-          Sube tus logos, plantillas o material audiovisual. Todos los archivos
-          se almacenan de forma segura y solo tú puedes verlos.
-        </p>
+        <p className="mb-6 text-muted-foreground">{t("description")}</p>
 
         {/* Selector de categoría */}
         <div className="flex gap-3 mb-4">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
+            const active = selectedCategory === cat.key;
             return (
               <Button
                 key={cat.key}
-                variant={selectedCategory === cat.key ? "default" : "outline"}
+                variant={active ? "default" : "outline"}
                 onClick={() => setSelectedCategory(cat.key)}
-                className="flex items-center gap-1 px-3"
+                className={active ? "" : "bg-background"}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 mr-1" />
                 {cat.label}
               </Button>
             );
@@ -164,29 +162,29 @@ export default function ArchivosPage() {
           />
           <Button type="submit" disabled={uploading}>
             <UploadCloud className="mr-2 w-4 h-4" />
-            {uploading ? "Subiendo..." : "Subir archivo"}
+            {uploading ? t("upload.uploading") : t("upload.cta")}
           </Button>
+
           {uploading && (
-            <div className="flex items-center gap-1 text-blue-600 font-medium">
+            <div className="flex items-center gap-2 font-medium text-primary">
               <Loader2 className="animate-spin" size={18} />
-              <span>{progress.toFixed(0)}%</span>
+              <span>{t("upload.progress", { percent: progress.toFixed(0) })}</span>
             </div>
           )}
         </form>
 
         {/* Lista de archivos */}
         <div>
-          <h2 className="font-semibold mb-2">Archivos subidos:</h2>
+          <h2 className="font-semibold mb-2">{t("list.title")}</h2>
+
           {filesList.length === 0 ? (
-            <div className="text-gray-400 text-sm">
-              No hay archivos subidos en esta categoría.
-            </div>
+            <div className="text-muted-foreground text-sm">{t("list.empty")}</div>
           ) : (
-            <ul className="divide-y border rounded-lg mb-2">
+            <ul className="border border-border rounded-lg divide-y divide-border mb-2">
               {filesList.map((file) => (
                 <li
                   key={file.fullPath}
-                  className="flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100"
+                  className="flex items-center justify-between px-4 py-2 bg-muted hover:bg-muted/70"
                 >
                   <a
                     href={file.url}
@@ -196,14 +194,15 @@ export default function ArchivosPage() {
                   >
                     {file.name}
                   </a>
+
                   <Button
                     size="icon"
                     variant="ghost"
                     className="ml-2"
-                    title="Eliminar"
+                    title={t("delete.confirm")}
                     onClick={() => handleDelete(file.fullPath)}
                   >
-                    <Trash2 className="w-5 h-5 text-red-600" />
+                    <Trash2 className="w-5 h-5 text-destructive" />
                   </Button>
                 </li>
               ))}

@@ -16,6 +16,8 @@ import {
 } from "firebase/firestore";
 import { handleError, showSuccess } from "@/lib/errors";
 
+/* ------------------------------- Tipos ------------------------------- */
+
 type Item = {
   firebaseId: string;
   titulo: string;
@@ -28,8 +30,21 @@ type Evento = {
   id: string;
   tipo: "guion" | "video";
   titulo: string;
-  fecha: string;
+  fecha: string; // ISO "YYYY-MM-DD"
   estado: Estado;
+  refId: string;
+  syncedWithMetricool?: boolean;
+  metricoolId?: string;
+  plataforma?: string;
+  status?: string;
+};
+
+// Estructura esperada en Firestore
+type CalendarDoc = {
+  tipo: "guion" | "video";
+  titulo: string;
+  fecha: unknown; // Puede venir como Timestamp, number, string, Date...
+  estado?: Estado;
   refId: string;
   syncedWithMetricool?: boolean;
   metricoolId?: string;
@@ -44,12 +59,39 @@ type Props = {
   url?: string;
 };
 
+/* -------- helpers: fecha segura desde varios formatos (Timestamp, etc.) ------ */
+
+type TSWithToDate = { toDate: () => Date };
+type TSWithSeconds = { seconds: number; nanoseconds?: number };
+
+function hasToDate(x: unknown): x is TSWithToDate {
+  return typeof x === "object" && x !== null && "toDate" in x && typeof (x as TSWithToDate).toDate === "function";
+}
+function hasSeconds(x: unknown): x is TSWithSeconds {
+  return typeof x === "object" && x !== null && "seconds" in x && typeof (x as TSWithSeconds).seconds === "number";
+}
+
+function toDateSafe(input: unknown): Date {
+  if (input == null) return new Date(0);
+  if (input instanceof Date) return input;
+  if (typeof input === "number") return new Date(input);
+  if (typeof input === "string") {
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? new Date(0) : d;
+  }
+  if (hasToDate(input)) return input.toDate();
+  if (hasSeconds(input)) return new Date(input.seconds * 1000);
+  return new Date(0);
+}
+
 function formatDateToISO(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/* ------------------------------ Componente ------------------------------ */
 
 export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const [selected, setSelected] = useState<Date | undefined>(undefined);
@@ -59,9 +101,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const [fechaEvento, setFechaEvento] = useState("");
   const [horaEvento, setHoraEvento] = useState(""); // Nuevo estado para la hora
   const [publicarEnRedes, setPublicarEnRedes] = useState(false);
-  const [metricoolIds, setMetricoolIds] = useState<{ instagramId?: string }>(
-    {}
-  );
+  const [metricoolIds, setMetricoolIds] = useState<{ instagramId?: string }>({});
 
   // Obtener providers (IDs de Instagram) al cargar
   useEffect(() => {
@@ -88,20 +128,20 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     if (!uid) return;
     try {
       const snap = await getDocs(collection(db, "users", uid, "calendario"));
-      const data = snap.docs.map((doc) => {
-        const d = doc.data();
-        const fechaDate = d.fecha.toDate();
+      const data: Evento[] = snap.docs.map((d) => {
+        const raw = d.data() as CalendarDoc;
+        const fechaDate = toDateSafe(raw.fecha);
         return {
-          id: doc.id,
-          tipo: d.tipo,
-          titulo: d.titulo,
+          id: d.id,
+          tipo: raw.tipo,
+          titulo: raw.titulo,
           fecha: formatDateToISO(fechaDate),
-          estado: d.estado || "por_hacer",
-          refId: d.refId,
-          syncedWithMetricool: d.syncedWithMetricool || false,
-          metricoolId: d.metricoolId || "",
-          plataforma: d.plataforma || "",
-          status: d.status || "",
+          estado: raw.estado ?? "por_hacer",
+          refId: raw.refId,
+          syncedWithMetricool: raw.syncedWithMetricool ?? false,
+          metricoolId: raw.metricoolId ?? "",
+          plataforma: raw.plataforma ?? "",
+          status: raw.status ?? "",
         };
       });
       setEventos(data);
@@ -135,7 +175,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           prev.filter((e) => !eventosAEliminar.some((ae) => ae.id === e.id))
         );
       };
-      eliminarEventos();
+      void eliminarEventos();
     }
   }, [guiones, videos, eventos, uid]);
 
@@ -148,10 +188,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   eventos.forEach((evento) => {
     const fecha = evento.fecha;
     if (!eventosPorDia[fecha]) {
-      eventosPorDia[fecha] = {
-        estado: evento.estado,
-        cantidad: 1,
-      };
+      eventosPorDia[fecha] = { estado: evento.estado, cantidad: 1 };
     } else {
       eventosPorDia[fecha].cantidad += 1;
       const estados = [eventosPorDia[fecha].estado, evento.estado];
@@ -173,7 +210,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     const fecha = new Date(year, month - 1, day);
     if (info.estado === "por_hacer") fechasPorHacer.push(fecha);
     else if (info.estado === "en_proceso") fechasEnProceso.push(fecha);
-    else fechasCompletado.push(fecha);
+    else if (info.estado === "completado") fechasCompletado.push(fecha);
   });
 
   const eventosDelDia = selected
@@ -206,8 +243,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       // SOLO PARA VIDEOS
       if (publicarEnRedes && tipo === "video") {
         try {
-          const videoUrl = item.url || ""; // <--- Asegúrate de que los vídeos tengan este campo
-          const isoDateTime = `${fechaEvento}T${horaEvento || "00:00"}:00`; // Usa el selector de hora si lo tienes
+          const videoUrl = item.url || "";
+          const isoDateTime = `${fechaEvento}T${horaEvento || "00:00"}:00`;
 
           const response = await fetch("/api/metricool/create-post", {
             method: "POST",
@@ -218,15 +255,13 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               text: item.titulo,
               date: isoDateTime,
               network: "instagram",
-              imageUrl: videoUrl, // Aquí va la URL real del vídeo
+              imageUrl: videoUrl,
               accountId: metricoolIds.instagramId,
             }),
           });
 
           const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error || "Error creando en Metricool");
-          }
+          if (!response.ok) throw new Error(data.error || "Error creando en Metricool");
 
           await updateDoc(doc(db, "users", uid, "calendario", newDoc.id), {
             syncedWithMetricool: true,
@@ -238,10 +273,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           showSuccess("Evento agregado y programado en redes sociales");
         } catch (err) {
           console.error("Error Metricool:", err);
-          handleError(
-            err,
-            "Evento creado pero error sincronizando con Metricool"
-          );
+          handleError(err, "Evento creado pero error sincronizando con Metricool");
         }
       } else {
         showSuccess("Evento agregado correctamente");
@@ -272,10 +304,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     try {
       const eventoRef = doc(db, "users", uid, "calendario", eventoId);
       await updateDoc(eventoRef, { estado: nuevoEstado });
-      setEventos(
-        eventos.map((e) =>
-          e.id === eventoId ? { ...e, estado: nuevoEstado } : e
-        )
+      setEventos((prev) =>
+        prev.map((e) => (e.id === eventoId ? { ...e, estado: nuevoEstado } : e))
       );
       showSuccess("Estado actualizado");
     } catch (error) {
@@ -287,15 +317,44 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     <>
       {/* CSS inline para los colores de días */}
       <style>{`
-        .event-day-por-hacer { background-color: #fee2e2 !important; border-radius: 0.375rem !important; }
-        .event-day-en-proceso { background-color: #ffedd5 !important; border-radius: 0.375rem !important; }
-        .event-day-completado { background-color: #dcfce7 !important; border-radius: 0.375rem !important; }
-        .rdp-day_selected:not([disabled]) { background-color: #3b82f6 !important; color: white !important; border-radius: 0.375rem !important; }
+        .event-day-por-hacer {
+          background-color: #fee2e2 !important;
+          border-radius: 0.375rem !important;
+        }
+        .event-day-en-proceso {
+          background-color: #ffedd5 !important;
+          border-radius: 0.375rem !important;
+        }
+        .event-day-completado {
+          background-color: #dcfce7 !important;
+          border-radius: 0.375rem !important;
+        }
+        .rdp-day_selected:not([disabled]) {
+          background-color: #3b82f6 !important;
+          color: white !important;
+          border-radius: 0.375rem !important;
+        }
+        .event-badge {
+          position: absolute;
+          top: 2px;
+          right: 2px;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background-color: #3b82f6;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: bold;
+        }
       `}</style>
 
       <div className="flex flex-col gap-8 p-4">
         <div className="border rounded p-4 shadow">
           <h3 className="text-lg font-semibold mb-3">➕ Añadir evento</h3>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -410,7 +469,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               showOutsideDays
               className="text-left"
               formatters={{
-                formatWeekdayName: (weekday) => {
+                // 👇 Tipado sin any
+                formatWeekdayName: (weekday: Date) => {
                   const weekdays = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
                   return weekdays[weekday.getDay()];
                 },
@@ -427,9 +487,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
             </h3>
 
             {selected && eventosDelDia.length === 0 && (
-              <p className="text-sm text-gray-500">
-                No hay eventos para este día.
-              </p>
+              <p className="text-sm text-gray-500">No hay eventos para este día.</p>
             )}
 
             <ul className="space-y-3">
@@ -479,6 +537,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                         <option value="en_proceso">🟧 En proceso</option>
                         <option value="completado">🟩 Completado</option>
                       </select>
+
                       <button
                         onClick={() => handleEliminarEvento(e.id)}
                         className="text-xs bg-red-500 text-white rounded px-2 py-1 hover:bg-red-600"

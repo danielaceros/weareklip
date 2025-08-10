@@ -1,8 +1,10 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-type ClienteCompleto = {
+type Cliente = {
   uid: string;
   email: string;
   name?: string;
@@ -11,18 +13,18 @@ type ClienteCompleto = {
   subStatus?: string;
   planName?: string;
   createdAt?: number;
-  startDate?: number;
-  endDate?: number;
+  hasBeenScheduled?: boolean;
 };
 
 type Props = {
-  clients: ClienteCompleto[];
+  clients: Cliente[];
   isActive: (status: string) => boolean;
   onChange: (uid: string, field: "estado" | "notas", value: string) => void;
-  onRowClick: (uid: string) => void;
-  onLoadMore: () => void;
-  hasMore: boolean;
-  loadingMore: boolean;
+  onRowClick?: (uid: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  className?: string;
 };
 
 export default function ClientsTable({
@@ -31,107 +33,183 @@ export default function ClientsTable({
   onChange,
   onRowClick,
   onLoadMore,
-  hasMore,
-  loadingMore,
+  hasMore = false,
+  loadingMore = false,
+  className,
 }: Props) {
   return (
-    <Card>
-      <CardContent className="p-6 overflow-x-auto">
-        <table className="w-full text-sm text-gray-700 border rounded-xl shadow-sm">
-          <thead>
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-card shadow-sm overflow-hidden",
+        className
+      )}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-foreground">
+          <thead className="bg-muted/60 border-b border-border">
             <tr>
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Correo</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Pack</th>
-              <th className="px-4 py-3">Subscripción</th>
-              <th className="px-4 py-3">Notas</th>
+              <Th>Name</Th>
+              <Th>Email</Th>
+              <Th className="w-[260px]">Status</Th>
+              <Th>Pack</Th>
+              <Th>Subscription</Th>
+              <Th className="w-[280px]">Notes</Th>
             </tr>
           </thead>
-          <tbody className="divide-y">
-            {clients
-              .filter((client) => isActive(client.subStatus || ""))
-              .map((client) => (
-                <tr
-                  key={client.uid}
-                  className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => onRowClick(client.uid)}
-                >
-                  <td className="px-4 py-3">{client.name || "-"}</td>
-                  <td className="px-4 py-3">{client.email}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={client.estado || ""}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) =>
-                        onChange(client.uid, "estado", e.target.value)
-                      }
-                      className="w-full border rounded px-2 py-1"
-                    >
-                      <option value="">🟡 Sin estado</option>
-                      <option value="Nuevo Cliente">🆕 Nuevo Cliente</option>
-                      <option value="Onboarding">🚀 Onboarding</option>
-                      <option value="Enviar Vídeo Dani">
-                        🎥 Enviar Vídeo Dani
-                      </option>
-                      <option value="Generar Guión">✍️ Generar Guión</option>
-                      <option value="Esperando Confirmación Guión">
-                        ⏳ Confirmación Guión
-                      </option>
-                      <option value="Esperando Clonación">
-                        🧬 Esperando Clonación
-                      </option>
-                      <option value="Generar Vídeo">🎬 Generar Vídeo</option>
-                      <option value="Enviado a Editor">
-                        🛠️ Enviado a Editor
-                      </option>
-                      <option value="Revisar Vídeo">
-                        🔍 Esperando Confirmación Vídeo
-                      </option>
-                      <option value="Programado">📅 Programado</option>
-                      <option value="Finalizado">✅ Finalizado</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">{client.planName || "-"}</td>
-                  <td className="px-4 py-3">
-                    <p>
-                      {client.startDate
-                        ? new Date(client.startDate).toLocaleDateString()
-                        : "-"}{" "}
-                      -{" "}
-                      {client.endDate
-                        ? new Date(client.endDate).toLocaleDateString()
-                        : "-"}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="text"
-                      value={client.notas || ""}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) =>
-                        onChange(client.uid, "notas", e.target.value)
-                      }
-                      className="w-full border rounded px-2 py-1"
+          <tbody>
+            {clients.map((c) => (
+              <tr
+                key={c.uid}
+                onClick={() => onRowClick?.(c.uid)}
+                className={cn(
+                  "border-b border-border/70 transition-colors",
+                  "hover:bg-muted/70 cursor-pointer"
+                )}
+              >
+                <Td className="whitespace-nowrap">
+                  {c.name?.trim() || "-"}
+                </Td>
+                <Td className="whitespace-nowrap text-muted-foreground">
+                  {c.email}
+                </Td>
+
+                {/* Estado */}
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    {/* puntito activo/inactivo */}
+                    <span
+                      className={cn(
+                        "inline-block w-2.5 h-2.5 rounded-full",
+                        isActive(c.subStatus || "")
+                          ? "bg-emerald-500"
+                          : "bg-muted-foreground/40"
+                      )}
+                      aria-hidden
                     />
-                  </td>
-                </tr>
-              ))}
+                    <select
+                      className={cn(
+                        "w-full rounded-md px-2 py-1",
+                        "bg-card text-foreground border border-border",
+                        "focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      )}
+                      value={c.estado || "Nuevo Cliente"}
+                      onChange={(e) =>
+                        onChange(c.uid, "estado", e.target.value)
+                      }
+                    >
+                      <option>Nuevo Cliente</option>
+                      <option>Generar Guión</option>
+                      <option>Esperando Confirmación Guión</option>
+                      <option>Generar Vídeo</option>
+                      <option>Revisar Vídeo</option>
+                      <option>Programado</option>
+                      <option>Finalizado</option>
+                    </select>
+                  </div>
+                </Td>
+
+                <Td className="whitespace-nowrap text-muted-foreground">
+                  {c.planName || "-"}
+                </Td>
+
+                <Td className="whitespace-nowrap text-muted-foreground">
+                  {/* pinta createdAt como rango de ejemplo si lo tenías así */}
+                  {formatDateRange(c.createdAt)}
+                </Td>
+
+                {/* Notas */}
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    className={cn(
+                      "w-full rounded-md px-2 py-1",
+                      "bg-card text-foreground border border-border",
+                      "placeholder:text-muted-foreground/70",
+                      "focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    )}
+                    value={c.notas || ""}
+                    placeholder="–"
+                    onChange={(e) => onChange(c.uid, "notas", e.target.value)}
+                  />
+                </Td>
+              </tr>
+            ))}
+
+            {clients.length === 0 && (
+              <tr>
+                <Td colSpan={6} className="text-center py-10 text-muted-foreground">
+                  No clients
+                </Td>
+              </tr>
+            )}
           </tbody>
         </table>
+      </div>
 
-        {hasMore && (
-          <div className="mt-6 text-center">
-            <button
-              onClick={onLoadMore}
-              disabled={loadingMore}
-              className="px-4 py-2 bg-gray-200 rounded"
-            >
-              {loadingMore ? "Cargando..." : "Cargar más"}
-            </button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {hasMore && (
+        <div className="p-4 flex justify-center">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLoadMore?.();
+            }}
+            disabled={loadingMore}
+            aria-busy={loadingMore}
+            className="bg-accent text-accent-foreground hover:bg-accent/80"
+          >
+            {loadingMore ? "Loading..." : "Load more"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
+}
+
+function Th({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
+  return (
+    <th
+      className={cn(
+        "text-left font-semibold text-foreground/90 px-4 py-3",
+        className
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  className,
+  colSpan,
+  onClick,
+}: React.PropsWithChildren<{
+  className?: string;
+  colSpan?: number;
+  onClick?: React.MouseEventHandler<HTMLTableCellElement>;
+}>) {
+  return (
+    <td
+      onClick={onClick}
+      colSpan={colSpan}
+      className={cn("px-4 py-3 align-middle", className)}
+    >
+      {children}
+    </td>
+  );
+}
+
+function formatDateRange(createdAt?: number) {
+  // si no tienes rango real, mostramos createdAt con formato corto
+  if (!createdAt) return "-";
+  try {
+    const d = new Date(createdAt);
+    return d.toLocaleDateString();
+  } catch {
+    return "-";
+  }
 }

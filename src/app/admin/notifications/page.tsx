@@ -1,4 +1,3 @@
-// app/admin/notifications/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,9 +23,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { es as dfnsEs, enUS as dfnsEn } from "date-fns/locale";
 import { handleError, showSuccess } from "@/lib/errors";
 import { Bell, CheckCircle, Clock, Filter } from "lucide-react";
+import { useT } from "@/lib/i18n";
+import { useLocale } from "next-intl";
 
 type Log = {
   id: string;
@@ -49,39 +50,48 @@ const iconosPorTipo: Record<string, string> = {
   sistema: "⚙️",
 };
 
-const mensajesAmigables: Record<string, (message: string) => string> = {
-  guion: (message: string) => {
-    if (message.includes("aprobó")) return "✅ Guión aprobado";
-    if (message.includes("editó")) return "✏️ Guión editado";
-    if (message.includes("creó")) return "📝 Nuevo guión creado";
-    if (message.includes("solicitó cambios"))
-      return "💬 Cambios solicitados en guión";
-    return message;
-  },
-  video: (message: string) => {
-    if (message.includes("aprobado")) return "✅ Video aprobado";
-    if (message.includes("subido")) return "🎥 Nuevo video disponible";
-    if (message.includes("editado")) return "✏️ Video editado";
-    return message;
-  },
-  clonacion: (message: string) => {
-    if (message.includes("subió")) return "📦 Material de clonación procesado";
-    if (message.includes("procesado")) return "✅ Clonación procesada";
-    return message;
-  },
-  tarea: (message: string) => {
-    if (message.includes("completada")) return "✅ Tarea completada";
-    if (message.includes("asignada")) return "📋 Nueva tarea asignada";
-    return message;
-  },
-  sistema: (message: string) => {
-    if (message.includes("mantenimiento")) return "🔧 Mantenimiento programado";
-    if (message.includes("actualización")) return "🆙 Sistema actualizado";
-    return message;
-  },
-};
+// Devuelve un mensaje “bonito” según type + contenido y lo traduce
+function friendlyMessage(
+  type: Log["type"],
+  raw: string,
+  t: ReturnType<typeof useT>
+) {
+  const has = (s: string) =>
+    raw.toLowerCase().includes(s.toLowerCase());
+
+  switch (type) {
+    case "guion":
+      if (has("aprob") || has("approved")) return t("admin.notifications.friendly.guion.approved");
+      if (has("edit") || has("editó")) return t("admin.notifications.friendly.guion.edited");
+      if (has("creó") || has("created")) return t("admin.notifications.friendly.guion.created");
+      if (has("solicit") || has("requested")) return t("admin.notifications.friendly.guion.requested");
+      break;
+    case "video":
+      if (has("aprob") || has("approved")) return t("admin.notifications.friendly.video.approved");
+      if (has("subid") || has("uploaded")) return t("admin.notifications.friendly.video.uploaded");
+      if (has("edit") || has("editado")) return t("admin.notifications.friendly.video.edited");
+      break;
+    case "clonacion":
+      if (has("proces") || has("processed")) return t("admin.notifications.friendly.clone.processed");
+      if (has("sub") || has("upload")) return t("admin.notifications.friendly.clone.uploaded");
+      break;
+    case "tarea":
+      if (has("complet") || has("completed")) return t("admin.notifications.friendly.task.completed");
+      if (has("asign") || has("assigned")) return t("admin.notifications.friendly.task.assigned");
+      break;
+    case "sistema":
+      if (has("manten") || has("maintenance")) return t("admin.notifications.friendly.system.maintenance");
+      if (has("actualiz") || has("updated")) return t("admin.notifications.friendly.system.updated");
+      break;
+  }
+  return raw;
+}
 
 export default function AdminNotificationsPage() {
+  const t = useT();
+  const locale = useLocale(); // 'es' | 'en'
+  const dfnsLocale = locale === "es" ? dfnsEs : dfnsEn;
+
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -91,63 +101,44 @@ export default function AdminNotificationsPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
-    setupRealTimeListener();
-  }, []);
-
-  const setupRealTimeListener = () => {
     const q = query(collection(db, "logs"), orderBy("timestamp", "desc"));
-
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const fetchedLogs = snapshot.docs.map((doc) => {
-          const data = doc.data();
+        const fetchedLogs = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
           return {
-            id: doc.id,
+            id: docSnap.id,
             ...data,
-            // Asegurar que las notificaciones sean no leídas por defecto
             readByAdmin: data.readByAdmin === true ? true : false,
             readByClient: data.readByClient === true ? true : false,
           } as Log;
         });
-
         setLogs(fetchedLogs);
         setLastUpdate(new Date());
         setLoading(false);
       },
       (error) => {
-        console.error("Error en tiempo real:", error);
-        handleError(error, "Error en actualizaciones en tiempo real");
+        console.error("Realtime error:", error);
+        handleError(error, t("admin.notifications.errors.realtime"));
         setLoading(false);
       }
     );
-
-    return unsubscribe;
-  };
+    return () => unsubscribe();
+  }, [t]);
 
   const markAsRead = async (logId: string) => {
     try {
-      // Actualizar inmediatamente en el estado local
-      setLogs((prevLogs) =>
-        prevLogs.map((log) =>
-          log.id === logId ? { ...log, readByAdmin: true } : log
-        )
+      setLogs((prev) =>
+        prev.map((log) => (log.id === logId ? { ...log, readByAdmin: true } : log))
       );
-
-      // Actualizar en la base de datos
-      await updateDoc(doc(db, "logs", logId), {
-        readByAdmin: true,
-      });
-
-      showSuccess("Marcado como leído");
+      await updateDoc(doc(db, "logs", logId), { readByAdmin: true });
+      showSuccess(t("admin.notifications.toast.markedRead"));
     } catch (error) {
-      // Si hay error, revertir el cambio local
-      setLogs((prevLogs) =>
-        prevLogs.map((log) =>
-          log.id === logId ? { ...log, readByAdmin: false } : log
-        )
+      setLogs((prev) =>
+        prev.map((log) => (log.id === logId ? { ...log, readByAdmin: false } : log))
       );
-      handleError(error, "Error al marcar como leído");
+      handleError(error, t("admin.notifications.errors.markRead"));
     }
   };
 
@@ -156,24 +147,11 @@ export default function AdminNotificationsPage() {
     if (unreadLogs.length === 0) return;
 
     try {
-      // Actualizar inmediatamente en el estado local
-      setLogs((prevLogs) =>
-        prevLogs.map((log) =>
-          !log.readByAdmin ? { ...log, readByAdmin: true } : log
-        )
-      );
-
-      // Actualizar en la base de datos
-      const promises = unreadLogs.map((log) =>
-        updateDoc(doc(db, "logs", log.id), { readByAdmin: true })
-      );
-      await Promise.all(promises);
-
-      showSuccess(`${unreadLogs.length} notificaciones marcadas como leídas`);
+      setLogs((prev) => prev.map((l) => (!l.readByAdmin ? { ...l, readByAdmin: true } : l)));
+      await Promise.all(unreadLogs.map((l) => updateDoc(doc(db, "logs", l.id), { readByAdmin: true })));
+      showSuccess(t("admin.notifications.toast.markedAll", { count: unreadLogs.length }));
     } catch (error) {
-      // Si hay error, recargar desde la base de datos
-      setupRealTimeListener();
-      handleError(error, "Error al marcar todas como leídas");
+      handleError(error, t("admin.notifications.errors.markAll"));
     }
   };
 
@@ -184,18 +162,17 @@ export default function AdminNotificationsPage() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "Ahora mismo";
-    if (diffMins < 60) return `Hace ${diffMins} min`;
-    if (diffHours < 24) return `Hace ${diffHours}h`;
-    return `Hace ${diffDays} días`;
+    if (diffMins < 1) return t("admin.notifications.time.now");
+    if (diffMins < 60) return t("admin.notifications.time.minutes", { count: diffMins });
+    if (diffHours < 24) return t("admin.notifications.time.hours", { count: diffHours });
+    return t("admin.notifications.time.days", { count: diffDays });
   };
 
-  // Función para extraer email del mensaje
   const extractUserEmailFromMessage = (message: string): string => {
     const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
     const match = message.match(emailRegex);
     return match ? match[1] : "";
-  };
+    };
 
   if (loading) {
     return (
@@ -207,17 +184,13 @@ export default function AdminNotificationsPage() {
     );
   }
 
-  // Obtener tipos únicos y emails únicos
   const tiposUnicos = [...new Set(logs.map((log) => log.type))];
   const emailsUnicos = [
     ...new Set(
-      logs
-        .map((log) => extractUserEmailFromMessage(log.message))
-        .filter((email) => email)
+      logs.map((log) => extractUserEmailFromMessage(log.message)).filter(Boolean)
     ),
   ];
 
-  // Filtrar por texto, tipo, email y estado de lectura
   const filteredLogs = logs.filter((log) => {
     const userEmail = extractUserEmailFromMessage(log.message);
     const matchesText =
@@ -235,7 +208,6 @@ export default function AdminNotificationsPage() {
     return matchesText && matchesType && matchesUser && matchesRead;
   });
 
-  // Contar no leídas y estadísticas
   const unreadCount = logs.filter((log) => !log.readByAdmin).length;
   const stats = {
     total: logs.length,
@@ -249,7 +221,7 @@ export default function AdminNotificationsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header mejorado */}
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -262,18 +234,20 @@ export default function AdminNotificationsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">
-              Panel Admin - Todas las Notificaciones
+              {t("admin.notifications.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
               {unreadCount > 0
-                ? `${unreadCount} sin leer • ${stats.today} hoy`
-                : "Todo al día ✨"}
+                ? t("admin.notifications.subtitle", {
+                    unread: unreadCount,
+                    today: stats.today,
+                  })
+                : t("admin.notifications.subtitleAllClear")}
             </p>
           </div>
         </div>
 
         <div className="flex gap-2">
-          {/* Botón siempre visible */}
           <Button
             onClick={markAllAsRead}
             size="sm"
@@ -281,59 +255,63 @@ export default function AdminNotificationsPage() {
             disabled={unreadCount === 0}
           >
             <CheckCircle className="w-4 h-4 mr-2" />
-            Marcar todas como leídas
+            {t("admin.notifications.markAll")}
           </Button>
         </div>
       </div>
 
-      {/* Estadísticas */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+        <Card className="p-4 text-center bg-card border-border">
+          <div className="text-2xl font-bold text-primary">{stats.total}</div>
           <div className="text-sm text-muted-foreground">Total</div>
         </Card>
-        <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-red-600">{stats.unread}</div>
+        <Card className="p-4 text-center bg-card border-border">
+          <div className="text-2xl font-bold text-destructive">{stats.unread}</div>
           <div className="text-sm text-muted-foreground">Sin leer</div>
         </Card>
-        <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-green-600">{stats.today}</div>
+        <Card className="p-4 text-center bg-card border-border">
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.today}</div>
           <div className="text-sm text-muted-foreground">Hoy</div>
         </Card>
       </div>
 
-      {/* Información de última actualización */}
+      {/* Last update */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Clock className="w-4 h-4" />
         <span>
-          Última actualización: {formatTimeAgo(lastUpdate)} • 🟢 Actualizaciones
-          en tiempo real
+          {t("admin.notifications.lastUpdate", {
+            timeAgo: formatTimeAgo(lastUpdate),
+          })}{" "}
+          • 🟢 {t("admin.notifications.realtime")}
         </span>
       </div>
 
-      {/* Filtros simplificados */}
+      {/* Filters */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4" />
-          <span className="font-medium">Filtros</span>
+          <span className="font-medium">{t("admin.notifications.filters.title")}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input
-            placeholder="🔍 Buscar notificaciones..."
+            placeholder={t("admin.notifications.filters.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
 
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger>
-              <SelectValue placeholder="Filtrar por tipo" />
+              <SelectValue placeholder={t("admin.notifications.filters.type")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos los tipos</SelectItem>
+              <SelectItem value="todos">
+                {t("admin.notifications.filters.allTypes")}
+              </SelectItem>
               {tiposUnicos.map((tipo) => (
                 <SelectItem key={tipo} value={tipo}>
-                  {iconosPorTipo[tipo]} {tipo}
+                  {iconosPorTipo[tipo]} {t(`admin.notifications.types.${tipo}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -341,10 +319,12 @@ export default function AdminNotificationsPage() {
 
           <Select value={filterUser} onValueChange={setFilterUser}>
             <SelectTrigger>
-              <SelectValue placeholder="Filtrar por usuario" />
+              <SelectValue placeholder={t("admin.notifications.filters.user")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos los usuarios</SelectItem>
+              <SelectItem value="todos">
+                {t("admin.notifications.filters.allUsers")}
+              </SelectItem>
               {emailsUnicos.map((email) => (
                 <SelectItem key={email} value={email}>
                   📧 {email}
@@ -355,53 +335,46 @@ export default function AdminNotificationsPage() {
 
           <Select value={filterRead} onValueChange={setFilterRead}>
             <SelectTrigger>
-              <SelectValue placeholder="Estado de lectura" />
+              <SelectValue placeholder={t("admin.notifications.filters.readState")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todas</SelectItem>
-              <SelectItem value="no_leidas">❗ No leídas</SelectItem>
-              <SelectItem value="leidas">✅ Leídas</SelectItem>
+              <SelectItem value="todos">{t("admin.notifications.filters.read.all")}</SelectItem>
+              <SelectItem value="no_leidas">{t("admin.notifications.filters.read.unread")}</SelectItem>
+              <SelectItem value="leidas">{t("admin.notifications.filters.read.read")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Lista de notificaciones */}
+      {/* List */}
       {filteredLogs.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">
-            📭 No hay notificaciones
-          </p>
+          <p className="text-muted-foreground text-lg">📭 {t("admin.notifications.empty.title")}</p>
           <p className="text-sm text-muted-foreground mt-2">
             {search ||
             filterType !== "todos" ||
             filterUser !== "todos" ||
             filterRead !== "todos"
-              ? "Ajusta los filtros para ver más resultados"
-              : "Cuando haya actividad en el sistema, aparecerá aquí"}
+              ? t("admin.notifications.empty.hintFiltered")
+              : t("admin.notifications.empty.hint")}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredLogs.map((log) => {
-            const mensaje = mensajesAmigables[log.type]
-              ? mensajesAmigables[log.type](log.message)
-              : log.message;
-
-            const timeAgo = formatTimeAgo(
-              new Date(log.timestamp.seconds * 1000)
-            );
+            const mensaje = friendlyMessage(log.type, log.message, t);
+            const timeAgo = formatTimeAgo(new Date(log.timestamp.seconds * 1000));
             const userEmail = extractUserEmailFromMessage(log.message);
 
             return (
-              <Card
-                key={log.id}
-                className={`p-4 transition-all duration-200 hover:shadow-md ${
-                  !log.readByAdmin
-                    ? "border-yellow-300 bg-yellow-50 shadow-md border-l-4 border-l-yellow-500"
-                    : "bg-white border-gray-200 opacity-90 hover:opacity-100"
-                }`}
-              >
+            <Card
+              key={log.id}
+              className={
+                !log.readByAdmin
+                  ? "p-4 transition-all duration-200 hover:shadow-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/40"
+                  : "p-4 transition-all duration-200 hover:shadow-md bg-card border border-border"
+              }
+            >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex flex-col items-center gap-1">
@@ -420,7 +393,7 @@ export default function AdminNotificationsPage() {
                             variant="secondary"
                             className="bg-yellow-200 text-yellow-800 text-xs font-medium"
                           >
-                            📌 Sin leer
+                            {t("admin.notifications.badges.unread")}
                           </Badge>
                         )}
                       </div>
@@ -432,18 +405,10 @@ export default function AdminNotificationsPage() {
                         </div>
                         <span>👤 {log.admin}</span>
                         <span>
-                          📧{" "}
-                          {userEmail || `Usuario ${log.uid.substring(0, 8)}...`}
+                          📧 {userEmail || t("admin.notifications.unknownUser", { id: log.uid.substring(0, 8) })}
                         </span>
                         <span className="hidden sm:inline">
-                          📅{" "}
-                          {format(
-                            new Date(log.timestamp.seconds * 1000),
-                            "dd/MM/yyyy HH:mm",
-                            {
-                              locale: es,
-                            }
-                          )}
+                          📅 {format(new Date(log.timestamp.seconds * 1000), "dd/MM/yyyy HH:mm", { locale: dfnsLocale })}
                         </span>
                       </div>
                     </div>
@@ -456,7 +421,7 @@ export default function AdminNotificationsPage() {
                       onClick={() => markAsRead(log.id)}
                       className="text-yellow-700 hover:text-yellow-900 hover:bg-yellow-100 shrink-0"
                     >
-                      Marcar como leída
+                      {t("admin.notifications.markRead")}
                     </Button>
                   )}
                 </div>
@@ -466,12 +431,11 @@ export default function AdminNotificationsPage() {
         </div>
       )}
 
-      {/* Resumen final */}
+      {/* Footer */}
       {filteredLogs.length > 0 && (
         <Card className="p-4">
           <div className="text-center text-sm text-muted-foreground">
-            Mostrando {filteredLogs.length} de {logs.length} notificaciones • 🟢
-            Actualizaciones en tiempo real
+            {t("admin.notifications.footer", { count: filteredLogs.length, total: logs.length })}
           </div>
         </Card>
       )}
