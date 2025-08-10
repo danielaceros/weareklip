@@ -73,21 +73,21 @@ export function changeLocale(locale: Locale) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🏷️  Hook de traducción con fallback seguro                                 */
+/* 🏷️  Hook de traducción con fallback seguro + variables                     */
 /* -------------------------------------------------------------------------- */
 
 /**
  * useT() envuelve useTranslations() e incluye fallback local
- * por si la clave no existe en el JSON.
+ * por si la clave no existe en el JSON, y soporta variables.
  */
 export function useT() {
   const t = useTranslations();
 
-  return (key: string) => {
+  return (key: string, values?: Record<string, string | number>) => {
     try {
-      return t(key);
+      return t(key, values); // pasa las variables al traductor
     } catch {
-      return key; // fallback: devuelve la clave tal cual
+      return key; // fallback: devuelve la clave tal cual si no existe
     }
   };
 }

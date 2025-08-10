@@ -14,22 +14,33 @@
     "orange": "Naranja",
     "rose": "Rosa"
   },
-  "sidebar": {
-    "title": "Panel de Cliente",
-    "clientTitle": "Panel de Cliente",
-    "home": "Inicio",
-    "scripts": "Mis Guiones",
-    "videos": "Mis Vídeos",
-    "notifications": "Mis Notificaciones",
-    "account": "Mi Cuenta",
-    "planLabel": "Plan",
-    "noPlan": "Sin plan",
-    "notAuthenticated": "No autenticado",
-    "adminTitle": "Panel Admin",
-    "clients": "Clientes",
-    "tasks": "Tareas",
-    "adminNotifications": "Notificaciones"
-  },
+"sidebar": {
+  "title": "Panel de Cliente",
+  "clientTitle": "Panel de Cliente",
+  "home": "Inicio",
+  "adminHome": "Inicio Admin",
+  "scripts": "Mis Guiones",
+  "videos": "Mis Videos",
+  "notifications": "Mis Notificaciones",
+  "calendar": "Calendario",
+  "brandAI": "Marca AI",
+  "viralIdeas": "Ideas Virales",
+  "requestReel": "Solicitar Reel Extra",
+  "requestExtraReel": "Solicitar Reel Extra",
+  "filesResources": "Archivos y Recursos",
+  "assets": "Recursos",
+  "stats": "Estadísticas",
+  "billing": "Facturación / Suscripciones",
+  "support": "Soporte / Tickets",
+  "account": "Mi Cuenta",
+  "planLabel": "Plan",
+  "noPlan": "Sin plan",
+  "notAuthenticated": "No autenticado",
+  "adminTitle": "Panel de Administración",
+  "clients": "Clientes",
+  "tasks": "Tareas",
+  "adminNotifications": "Notificaciones"
+},
   "common": {
     "unknown": "Desconocido"
   },
@@ -349,12 +360,12 @@
   "userPage": {
     "title": "Mi Panel de Usuario",
     "profile": {
-      "sectionTitle": "Datos del Usuario",
+      "sectionTitle": "Detalles del Usuario",
       "labels": {
         "name": "Nombre",
         "instagramUser": "Usuario de Instagram",
         "phone": "Teléfono",
-        "emailReadonly": "Email (solo lectura)"
+        "emailReadonly": "Correo electrónico (solo lectura)"
       },
       "placeholders": {
         "name": "Tu nombre completo",
@@ -362,11 +373,11 @@
         "phone": "+34 600 123 456"
       },
       "photo": {
-        "changeTooltip": "Clic para cambiar foto",
+        "changeTooltip": "Haz clic para cambiar la foto",
         "uploadingTooltip": "Subiendo foto...",
         "uploadLoading": "Subiendo foto de perfil...",
-        "uploadError": "Error subiendo foto de perfil",
-        "saveToDbError": "Error guardando la foto en la base de datos",
+        "uploadError": "Error al subir la foto de perfil",
+        "saveToDbError": "Error al guardar la foto en la base de datos",
         "updated": "Foto de perfil actualizada",
         "onlyImages": "Solo se permiten imágenes para la foto de perfil",
         "maxSize": "La imagen debe ser menor a 5MB"
@@ -375,7 +386,7 @@
         "save": "Guardar cambios",
         "savingPhoto": "Subiendo foto...",
         "saved": "Datos actualizados correctamente",
-        "saveError": "Error guardando datos"
+        "saveError": "Error al guardar los datos"
       },
       "authRequired": "Usuario no autenticado"
     },
@@ -395,32 +406,32 @@
       "openBillingPortal": "Abrir portal de facturación",
       "statusMap": {
         "active": "Activa",
-        "trialing": "Prueba",
-        "past_due": "Vencida",
-        "unpaid": "Impaga",
+        "trialing": "En prueba",
+        "past_due": "Pago pendiente",
+        "unpaid": "No pagada",
         "canceled": "Cancelada"
       }
     },
     "cloning": {
-      "sectionTitle": "Mis Vídeos de Clonación",
+      "sectionTitle": "Mis Videos de Clonación",
       "limitBadge": "{count}/{max}",
       "dropzone": {
         "aria": {
           "limitReached": "Límite de vídeos alcanzado",
-          "dropArea": "Área de arrastrar y soltar vídeos para subir"
+          "dropArea": "Arrastra y suelta vídeos para subir"
         },
-        "placeholder": "Arrastra y suelta aquí tus vídeos o haz clic para seleccionar",
+        "placeholder": "Arrastra y suelta tus vídeos aquí o haz clic para seleccionar",
         "limitReachedTitle": "¡Límite de vídeos alcanzado!",
         "limitReachedSubtitle": "Has subido el máximo de {max} vídeos permitidos."
       },
       "upload": {
         "uploadingFile": "Subiendo {name}...",
         "onlyVideos": "Solo se permiten archivos de vídeo",
-        "maxSize": "El vídeo debe ser menor a 100MB",
+        "maxSize": "El vídeo debe ser menor de 100MB",
         "slotsWarning": "Solo puedes subir {count} vídeo(s) más",
         "success": "{name} subido correctamente",
-        "uploadError": "Error subiendo {name}",
-        "saveError": "Error guardando el vídeo en la base de datos",
+        "uploadError": "Error al subir {name}",
+        "saveError": "Error al guardar el vídeo en la base de datos",
         "createTaskError": "Error al crear la tarea de revisión",
         "loadingVideos": "Cargando vídeos...",
         "none": "No tienes vídeos subidos."
@@ -443,6 +454,249 @@
         "error": "Error al eliminar el vídeo",
         "notSelectedOrAuth": "Usuario no autenticado o vídeo no seleccionado"
       }
+    }
+  },
+  "calendarPage": {
+    "title": "Calendario de Publicación",
+    "description": "Visualiza las fechas planificadas para tus vídeos (Reels).\nPronto será integrable con Metricool.",
+    "noVideos": "No hay vídeos planificados para este día.",
+    "selectDay": "Selecciona un día para ver los vídeos planificados."
+  },
+  "brandAIPage": {
+    "title": "IA de Marca",
+    "description": "Completa tu ADN de marca.\nAsí generaremos guiones totalmente personalizados para ti.",
+    "toneLabel": "Tono de voz",
+    "tonePlaceholder": "Ej: Cercano, Profesional, Inspirador...",
+    "audienceLabel": "Público objetivo",
+    "audiencePlaceholder": "Ej: Jóvenes creativos, Empresas tecnológicas...",
+    "valuesLabel": "Valores clave",
+    "customValuePlaceholder": "Añadir valor propio",
+    "addButton": "Añadir",
+    "websiteLabel": "Sitio web / Redes sociales",
+    "websitePlaceholder": "Ej: www.tumarca.com",
+    "networksPlaceholder": "Redes sociales (Instagram, TikTok, etc.)",
+    "saveButton": "Guardar ADN de marca",
+    "successMessage": "¡ADN de marca guardado!"
+  },
+  "viralIdeasPage": {
+    "title": "Ideas virales para tus vídeos",
+    "description": "Descubre ideas virales generadas con IA o inspiradas en tendencias de TikTok, Instagram y YouTube.\nMarca tus favoritas y crea un guion en 1 clic.",
+    "useIdea": "Usar esta idea",
+    "favoritesTitle": "Tus ideas favoritas",
+    "noFavorites": "Marca ideas como favoritas para tenerlas aquí.",
+    "addFavorite": "Añadir a favoritos",
+    "removeFavorite": "Quitar de favoritos",
+    "generatedTitle": "¡Guion generado!",
+    "generatedDescription": "Basado en la idea:",
+    "ideas": {
+      "trend": {
+        "title": "Trend: ¿Qué prefieres? 🔥",
+        "description": "Reta a tus seguidores con preguntas rápidas de “¿Qué prefieres?”. Ideal para Reels y TikTok.",
+        "category": "Challenge"
+      },
+      "storytime": {
+        "title": "Storytime impactante",
+        "description": "Cuenta una anécdota corta que sorprenda. Usa cortes rápidos y texto en pantalla.",
+        "category": "Storytelling"
+      },
+      "beforeAfter": {
+        "title": "Antes vs Después",
+        "description": "Muestra un proceso de transformación. El formato “antes y después” nunca falla.",
+        "category": "Transformación"
+      },
+      "quickTip": {
+        "title": "Consejo rápido en 30 segundos",
+        "description": "Da un tip concreto de tu nicho, en formato muy breve y visual.",
+        "category": "Tip"
+      },
+      "imitate": {
+        "title": "Imita a un famoso viral",
+        "description": "Imita un audio/meme viral reciente. Usa efectos de voz o un filtro.",
+        "category": "Humor"
+      }
+    }
+  },
+  "extraReelPage": {
+    "title": "Solicitar Reel Extra",
+    "limitReached": "Has alcanzado tu límite de reels este mes. Puedes solicitar uno extra pagando de forma individual o usando tus créditos extra según tu plan.",
+    "creditsRemaining": "Aún te quedan reels disponibles este mes.",
+    "reelsUsed": "Reels usados este mes: {used}/{limit}",
+    "noCredits": "Sin créditos disponibles",
+    "processing": "Procesando...",
+    "requestButton": "Solicitar Reel Extra",
+    "price": "({price} €)",
+    "requestSentTitle": "¡Solicitud enviada!",
+    "requestSentBody": "Nuestro equipo la gestionará en breve.",
+    "creditsAvailable": "Aún puedes usar tus créditos este mes."
+  },
+  "assetsPage": {
+    "title": "Archivos y Recursos de Marca",
+    "description": "Sube tus logos, plantillas o material audiovisual. Todos los archivos se almacenan de forma segura y solo tú puedes verlos.",
+    "categories": {
+      "logo": "Logo",
+      "plantilla": "Plantilla de marca",
+      "audiovisual": "Material audiovisual"
+    },
+    "upload": {
+      "cta": "Subir archivo",
+      "uploading": "Subiendo...",
+      "progress": "{percent}%",
+      "error": "Error subiendo archivo: {message}",
+      "success": "Archivo subido correctamente"
+    },
+    "list": {
+      "title": "Archivos subidos:",
+      "empty": "No hay archivos subidos en esta categoría."
+    },
+    "delete": {
+      "confirm": "¿Seguro que quieres borrar este archivo?",
+      "success": "Archivo eliminado",
+      "error": "Error al eliminar archivo"
+    }
+  },
+  "statsPage": {
+    "title": "Estadísticas de tu contenido",
+    "description": "Consulta el rendimiento simulado de tus publicaciones.\nCuando actives Metricool, verás aquí tus estadísticas reales.",
+    "kpi": {
+      "reach": {
+        "label": "Alcance real",
+        "meta": "Estimado: {value}",
+        "info": "El alcance mide cuántas personas han visto tus vídeos."
+      },
+      "engagement": {
+        "label": "Interacción",
+        "meta": "Objetivo: 5%",
+        "info": "La interacción refleja la participación real de tus seguidores."
+      },
+      "frequency": {
+        "label": "Frecuencia de publicación",
+        "meta": "Recomendado: 3/semana",
+        "info": "La frecuencia recomendada para crecer es de 3 a 5 publicaciones por semana."
+      },
+      "followers": {
+        "label": "Seguidores simulados",
+        "info": "Seguidores simulados en tu cuenta de prueba."
+      }
+    },
+    "history": {
+      "title": "Historial de publicaciones por semana",
+      "note": "* Datos de ejemplo. Integra Metricool para ver tus estadísticas reales."
+    }
+  },
+  "billing": {
+    "title": "Facturación y Suscripciones",
+    "subtitle": "Consulta y gestiona tu suscripción, descarga tus facturas y administra tu plan fácilmente.",
+    "mySubscription": "Mi suscripción",
+    "loadingSubscription": "Cargando suscripción...",
+    "noSubscription": "No tienes ninguna suscripción activa.",
+    "status": "Estado",
+    "cancelAtPeriodEnd": "Cancelada al final del periodo",
+    "plan": "Plan",
+    "price": "Precio",
+    "renewal": "Renovación",
+    "notAvailable": "No disponible",
+    "manageSubscription": "Gestionar suscripción en Stripe",
+    "pause": "Pausar suscripción",
+    "cancel": "Cancelar suscripción",
+    "recentInvoices": "Facturas recientes",
+    "loadingInvoices": "Cargando facturas...",
+    "noInvoices": "No hay facturas disponibles.",
+    "date": "Fecha",
+    "amount": "Importe",
+    "download": "Descargar",
+    "upgradeTitle": "¿Quieres mejorar tu plan?",
+    "changePlan": "Cambiar plan"
+  },
+  "supportPage": {
+    "title": "Soporte y Tickets",
+    "description": "¿Tienes alguna duda o problema? Contacta directamente con nuestro equipo de soporte.",
+    "instructions": "Puedes consultar el estado de tus tickets o abrir uno nuevo usando el botón de ayuda (arriba a la derecha).",
+    "tipTitle": "Recuerda:",
+    "tipText": "Selecciona el módulo sobre el que tengas dudas (Guiones, Vídeos, Facturación, etc.) y describe tu problema para una respuesta más rápida.",
+    "createTicket": "Crear nuevo ticket de soporte"
+  },
+  "admin": {
+    "notifications": {
+      "title": "Panel Admin - Todas las notificaciones",
+      "subtitle": "{unread} sin leer • {today} hoy",
+      "subtitleAllClear": "Todo al día ✨",
+      "markAll": "Marcar todas como leídas",
+      "realtime": "Actualizaciones en tiempo real",
+
+      "stats": { "total": "Total", "unread": "Sin leer", "today": "Hoy" },
+      "lastUpdate": "Última actualización: {timeAgo}",
+
+      "filters": {
+        "title": "Filtros",
+        "searchPlaceholder": "🔍 Buscar notificaciones...",
+        "type": "Filtrar por tipo",
+        "allTypes": "Todos los tipos",
+        "user": "Filtrar por usuario",
+        "allUsers": "Todos los usuarios",
+        "readState": "Estado de lectura",
+        "read": { "all": "Todas", "unread": "No leídas", "read": "Leídas" }
+      },
+
+      "types": {
+        "guion": "Guion",
+        "video": "Vídeo",
+        "clonacion": "Clonación",
+        "tarea": "Tarea",
+        "sistema": "Sistema"
+      },
+
+      "empty": {
+        "title": "No hay notificaciones",
+        "hintFiltered": "Ajusta los filtros para ver más resultados",
+        "hint": "Cuando haya actividad en el sistema, aparecerá aquí"
+      },
+
+      "badges": { "unread": "Sin leer" },
+      "markRead": "Marcar como leída",
+      "unknownUser": "Usuario {id}...",
+      "toast": {
+        "markedRead": "Marcado como leído",
+        "markedAll": "{count} notificaciones marcadas como leídas"
+      },
+      "errors": {
+        "realtime": "Error en las actualizaciones en tiempo real",
+        "markRead": "Error al marcar como leído",
+        "markAll": "Error al marcar todas como leídas"
+      },
+      "time": {
+        "now": "Ahora mismo",
+        "minutes": "Hace {count} min",
+        "hours": "Hace {count}h",
+        "days": "Hace {count} días"
+      },
+
+      "friendly": {
+        "guion": {
+          "approved": "✅ Guion aprobado",
+          "edited": "✏️ Guion editado",
+          "created": "📝 Nuevo guion creado",
+          "requested": "💬 Cambios solicitados en guion"
+        },
+        "video": {
+          "approved": "✅ Vídeo aprobado",
+          "uploaded": "🎥 Nuevo vídeo disponible",
+          "edited": "✏️ Vídeo editado"
+        },
+        "clone": {
+          "uploaded": "📦 Material de clonación subido",
+          "processed": "✅ Clonación procesada"
+        },
+        "task": {
+          "completed": "✅ Tarea completada",
+          "assigned": "📋 Nueva tarea asignada"
+        },
+        "system": {
+          "maintenance": "🔧 Mantenimiento programado",
+          "updated": "🆙 Sistema actualizado"
+        }
+      },
+
+      "footer": "Mostrando {count} de {total} notificaciones • 🟢 Actualizaciones en tiempo real"
     }
   }
 }

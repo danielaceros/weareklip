@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
@@ -11,9 +11,12 @@ import {
   query,
   setDoc,
   where,
+  type CollectionReference,
 } from "firebase/firestore";
 import ClientsTable from "@/components/shared/clientstable";
+import { useT } from "@/lib/i18n";
 
+/* ------------------------------- Tipos ------------------------------- */
 type ClienteCompleto = {
   uid: string;
   email: string;
@@ -23,7 +26,7 @@ type ClienteCompleto = {
   subStatus?: string;
   planName?: string;
   createdAt?: number;
-  hasBeenScheduled?: boolean; // Nuevo campo para controlar el primer envío
+  hasBeenScheduled?: boolean;
 };
 
 type StripeResponse = {
@@ -32,33 +35,33 @@ type StripeResponse = {
   lastId: string | null;
 };
 
+/* -------------------------- Firestore helpers ------------------------ */
 const fetchFirestoreUsers = async (): Promise<ClienteCompleto[]> => {
   const usersSnap = await getDocs(collection(db, "users"));
-  return usersSnap.docs.map((doc) => {
-    const data = doc.data();
+  return usersSnap.docs.map((d) => {
+    const data = d.data() as Partial<ClienteCompleto>;
     return {
-      uid: doc.id,
+      uid: d.id,
       ...data,
-      estado: data.estado || "Nuevo Cliente",
-      hasBeenScheduled: data.hasBeenScheduled || false, // Inicializar si no existe
+      estado: data?.estado || "Nuevo Cliente",
+      hasBeenScheduled: data?.hasBeenScheduled || false,
     };
   }) as ClienteCompleto[];
 };
 
+/* --------------------------- Stripe helpers -------------------------- */
 const fetchStripeClientsPage = async (
   startingAfter?: string | null
 ): Promise<StripeResponse> => {
   const res = await fetch(
-    `/api/stripe/clients${
-      startingAfter ? `?starting_after=${startingAfter}` : ""
-    }`
+    `/api/stripe/clients${startingAfter ? `?starting_after=${startingAfter}` : ""}`
   );
   if (!res.ok) throw new Error("Error cargando clientes de Stripe");
   return await res.json();
 };
 
+/* --------- Asegurar que existe el user en Firestore + bienvenida ------ */
 const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
-  console.log("🧪 Comprobando si existe el cliente:", client.email);
   const usersSnap = await getDocs(
     query(collection(db, "users"), where("email", "==", client.email))
   );
@@ -67,7 +70,7 @@ const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
     return usersSnap.docs[0].id;
   }
 
-  const docRef = doc(collection(db, "users"));
+  const docRef = doc(collection(db, "users") as CollectionReference);
   await setDoc(docRef, {
     email: client.email,
     name: client.name || "",
@@ -80,11 +83,6 @@ const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
     hasBeenScheduled: false,
   });
 
-  console.log(
-    "📬 Nuevo cliente creado. Enviando correo de bienvenida a Rubén:",
-    client.name,
-    client.email
-  );
   await fetch("/api/send-welcome-mail", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -97,6 +95,7 @@ const ensureUserExists = async (client: ClienteCompleto): Promise<string> => {
   return docRef.id;
 };
 
+/* ---------------------- util para enviar correos ---------------------- */
 const sendNotificationEmail = async (
   to: string,
   subject: string,
@@ -113,18 +112,28 @@ const sendNotificationEmail = async (
   }
 };
 
+/* ============================ Página Admin =========================== */
 export default function AdminDashboardPage() {
+  const t = useT();
+  const router = useRouter();
+
   const [clients, setClients] = useState<ClienteCompleto[]>([]);
   const [lastId, setLastId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const router = useRouter();
+
+  // evita cargas simultáneas
+  const inFlight = useRef(false);
 
   const isActive = (status: string) =>
     ["active", "trialing", "past_due", "unpaid"].includes(status);
 
+  /* --------------------- Cargar clientes (paginado) -------------------- */
   const loadStripeClients = useCallback(
     async (startingAfter: string | null = null) => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+
       try {
         setLoadingMore(true);
 
@@ -132,7 +141,6 @@ export default function AdminDashboardPage() {
         const firestoreUsers = await fetchFirestoreUsers();
 
         const merged: ClienteCompleto[] = [];
-
         for (const stripeClient of stripeRes.data) {
           const uid = await ensureUserExists(stripeClient);
           const match = firestoreUsers.find(
@@ -142,25 +150,26 @@ export default function AdminDashboardPage() {
         }
 
         setClients((prev) => {
-          const newClients = merged.filter(
-            (newClient) =>
-              !prev.some((existing) => existing.uid === newClient.uid)
+          const onlyNew = merged.filter(
+            (c) => !prev.some((p) => p.uid === c.uid)
           );
-          return [...prev, ...newClients];
+          return [...prev, ...onlyNew];
         });
 
         setLastId(stripeRes.lastId);
         setHasMore(stripeRes.hasMore);
       } catch (err) {
         console.error(err);
-        toast.error("Error al cargar clientes");
+        toast.error(t("admin.common.loadError") || "Error al cargar clientes");
       } finally {
         setLoadingMore(false);
+        inFlight.current = false;
       }
     },
-    []
+    [t]
   );
 
+  /* --------------------- Guardar cambios por celda --------------------- */
   const handleChange = async (
     uid: string,
     field: "estado" | "notas",
@@ -179,13 +188,9 @@ export default function AdminDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid, field, value }),
       });
-
-      if (!res.ok) {
-        throw new Error("Error al actualizar cliente");
-      }
+      if (!res.ok) throw new Error("Error al actualizar cliente");
 
       if (field === "estado" && value === "Nuevo Cliente") {
-        console.log("📬 Enviando correo de bienvenida a:", client.email);
         await fetch("/api/send-welcome-mail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -197,7 +202,6 @@ export default function AdminDashboardPage() {
       }
 
       if (field === "estado" && value === "Generar Guión") {
-        console.log("📬 Enviando correo 'generar guion' a Ruben");
         await fetch("/api/send-script-request-mail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -211,7 +215,6 @@ export default function AdminDashboardPage() {
       }
 
       if (field === "estado" && value === "Esperando Confirmación Guión") {
-        console.log("📬 Enviando correo 'script confirmation' a Rubén");
         await fetch("/api/send-script-confirmation", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -223,7 +226,6 @@ export default function AdminDashboardPage() {
       }
 
       if (field === "estado" && value === "Generar Vídeo") {
-        console.log("📬 Enviando correo 'video production started' a Rubén");
         await fetch("/api/send-video-production", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -234,7 +236,6 @@ export default function AdminDashboardPage() {
       }
 
       if (field === "estado" && value === "Revisar Vídeo") {
-        console.log("📬 Enviando correo 'review videos' a Rubén");
         await fetch("/api/send-review-videos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -245,10 +246,7 @@ export default function AdminDashboardPage() {
       }
 
       if (field === "estado" && value === "Programado") {
-        console.log("📬 Enviando correo de programación");
-
         try {
-          console.log("🧪 field:", field, "value:", value);
           await fetch("/api/send-scheduling-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -257,16 +255,20 @@ export default function AdminDashboardPage() {
               clientName: client.name || "cliente",
             }),
           });
-
-          toast.success("Correo de programación enviado");
+          toast.success(
+            t("admin.clients.scheduledMailSent") ||
+              "Correo de programación enviado"
+          );
         } catch (err) {
           console.error("Error enviando correo de programación:", err);
-          toast.error("Error al enviar correo de programación");
+          toast.error(
+            t("admin.clients.scheduledMailError") ||
+              "Error al enviar correo de programación"
+          );
         }
       }
 
       if (field === "estado" && value === "Finalizado") {
-        console.log("📬 Enviando correo de finalización");
         await fetch("/api/send-finished-mail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -290,7 +292,7 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       console.error("Error al guardar cambios:", err);
-      toast.error("Error al guardar cambios");
+      toast.error(t("admin.common.saveError") || "Error al guardar cambios");
     }
   };
 
@@ -298,9 +300,14 @@ export default function AdminDashboardPage() {
     loadStripeClients();
   }, [loadStripeClients]);
 
+  const rawTitle = t("admin.clients.title");
+  const pageTitle =
+    rawTitle === "admin.clients.title" ? "📋 Client Status" : rawTitle;
+
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">📋 Estados de Clientes</h1>
+      <h1 className="text-3xl font-bold">{pageTitle}</h1>
+
       <ClientsTable
         clients={clients}
         isActive={isActive}
