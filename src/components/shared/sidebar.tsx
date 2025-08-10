@@ -51,7 +51,18 @@ export function Sidebar() {
     { href: '/dashboard', key: 'sidebar.home' },
     { href: '/dashboard/scripts', key: 'sidebar.scripts' },
     { href: '/dashboard/videos', key: 'sidebar.videos' },
+
+    // Rutas adicionales traídas de main (manteniendo i18n)
+    { href: '/dashboard/calendario-publicacion', key: 'sidebar.calendar' },
+    { href: '/dashboard/ia-marca', key: 'sidebar.brandAI' },
+    { href: '/dashboard/ideas-virales', key: 'sidebar.viralIdeas' },
+    { href: '/dashboard/solicitar-reel', key: 'sidebar.requestReel' },
+    { href: '/dashboard/archivos-recursos', key: 'sidebar.assets' },
+    { href: '/dashboard/estadisticas', key: 'sidebar.stats' },
+
     { href: '/dashboard/mynotifications', key: 'sidebar.notifications' },
+    { href: '/dashboard/facturacion', key: 'sidebar.billing' },
+    { href: '/dashboard/soporte', key: 'sidebar.support' },
     { href: '/dashboard/user', key: 'sidebar.account' },
   ];
 

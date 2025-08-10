@@ -1,29 +1,29 @@
-"use client"
+"use client";
 
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card";
 
 type ClienteCompleto = {
-  uid: string
-  email: string
-  name?: string
-  estado?: string
-  notas?: string
-  subStatus?: string
-  planName?: string
-  createdAt?: number
-  startDate?: number
-  endDate?: number
-}
+  uid: string;
+  email: string;
+  name?: string;
+  estado?: string;
+  notas?: string;
+  subStatus?: string;
+  planName?: string;
+  createdAt?: number;
+  startDate?: number;
+  endDate?: number;
+};
 
 type Props = {
-  clients: ClienteCompleto[]
-  isActive: (status: string) => boolean
-  onChange: (uid: string, field: "estado" | "notas", value: string) => void
-  onRowClick: (uid: string) => void
-  onLoadMore: () => void
-  hasMore: boolean
-  loadingMore: boolean
-}
+  clients: ClienteCompleto[];
+  isActive: (status: string) => boolean;
+  onChange: (uid: string, field: "estado" | "notas", value: string) => void;
+  onRowClick: (uid: string) => void;
+  onLoadMore: () => void;
+  hasMore: boolean;
+  loadingMore: boolean;
+};
 
 export default function ClientsTable({
   clients,
@@ -63,37 +63,55 @@ export default function ClientsTable({
                     <select
                       value={client.estado || ""}
                       onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => onChange(client.uid, "estado", e.target.value)}
+                      onChange={(e) =>
+                        onChange(client.uid, "estado", e.target.value)
+                      }
                       className="w-full border rounded px-2 py-1"
                     >
                       <option value="">🟡 Sin estado</option>
                       <option value="Nuevo Cliente">🆕 Nuevo Cliente</option>
                       <option value="Onboarding">🚀 Onboarding</option>
-                      <option value="Enviar Vídeo Dani">🎥 Enviar Vídeo Dani</option>
+                      <option value="Enviar Vídeo Dani">
+                        🎥 Enviar Vídeo Dani
+                      </option>
                       <option value="Generar Guión">✍️ Generar Guión</option>
-                      <option value="Esperando Confirmación Guión">⏳ Confirmación Guión</option>
-                      <option value="Esperando Clonación">🧬 Esperando Clonación</option>
+                      <option value="Esperando Confirmación Guión">
+                        ⏳ Confirmación Guión
+                      </option>
+                      <option value="Esperando Clonación">
+                        🧬 Esperando Clonación
+                      </option>
                       <option value="Generar Vídeo">🎬 Generar Vídeo</option>
-                      <option value="Enviado a Editor">🛠️ Enviado a Editor</option>
-                      <option value="Revisar Vídeo">🔍 Revisar Vídeo</option>
+                      <option value="Enviado a Editor">
+                        🛠️ Enviado a Editor
+                      </option>
+                      <option value="Revisar Vídeo">
+                        🔍 Esperando Confirmación Vídeo
+                      </option>
                       <option value="Programado">📅 Programado</option>
                       <option value="Finalizado">✅ Finalizado</option>
                     </select>
                   </td>
                   <td className="px-4 py-3">{client.planName || "-"}</td>
                   <td className="px-4 py-3">
-                    <p>{client.startDate
-                      ? new Date(client.startDate).toLocaleDateString()
-                      : "-"} - {client.endDate
-                      ? new Date(client.endDate).toLocaleDateString()
-                      : "-"}</p>
+                    <p>
+                      {client.startDate
+                        ? new Date(client.startDate).toLocaleDateString()
+                        : "-"}{" "}
+                      -{" "}
+                      {client.endDate
+                        ? new Date(client.endDate).toLocaleDateString()
+                        : "-"}
+                    </p>
                   </td>
                   <td className="px-4 py-3">
                     <input
                       type="text"
                       value={client.notas || ""}
                       onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => onChange(client.uid, "notas", e.target.value)}
+                      onChange={(e) =>
+                        onChange(client.uid, "notas", e.target.value)
+                      }
                       className="w-full border rounded px-2 py-1"
                     />
                   </td>
@@ -115,5 +133,5 @@ export default function ClientsTable({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

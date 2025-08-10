@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 import {
   collection,
   orderBy,
@@ -9,24 +9,30 @@ import {
   updateDoc,
   doc,
   onSnapshot,
-} from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
-import { onAuthStateChanged } from "firebase/auth"
-import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { format, type Locale as DateFnsLocale } from "date-fns"
-import { es as esLocale, enUS as enLocale } from "date-fns/locale"
-import { handleError, showSuccess } from "@/lib/errors"
-import { Bell, CheckCircle, Clock, Filter } from "lucide-react"
-import { useLocale, useTranslations } from "next-intl"
+} from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { format, type Locale as DateFnsLocale } from "date-fns";
+import { es as esLocale, enUS as enLocale } from "date-fns/locale";
+import { handleError, showSuccess } from "@/lib/errors";
+import { Bell, CheckCircle, Clock, Filter } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 /* ---------- helpers de fecha: convierten cualquier cosa a Date seguro ------ */
-type TimestampWithToDate = { toDate: () => Date }
-type TimestampWithSeconds = { seconds: number; nanoseconds?: number }
+type TimestampWithToDate = { toDate: () => Date };
+type TimestampWithSeconds = { seconds: number; nanoseconds?: number };
 type FirestoreLikeTimestamp =
   | TimestampWithToDate
   | TimestampWithSeconds
@@ -34,42 +40,52 @@ type FirestoreLikeTimestamp =
   | number
   | Date
   | null
-  | undefined
+  | undefined;
 
 function hasToDate(x: unknown): x is TimestampWithToDate {
-  return typeof x === "object" && x !== null && "toDate" in x && typeof (x as { toDate?: unknown }).toDate === "function"
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    "toDate" in x &&
+    typeof (x as { toDate?: unknown }).toDate === "function"
+  );
 }
 function hasSeconds(x: unknown): x is TimestampWithSeconds {
-  return typeof x === "object" && x !== null && "seconds" in x && typeof (x as { seconds?: unknown }).seconds === "number"
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    "seconds" in x &&
+    typeof (x as { seconds?: unknown }).seconds === "number"
+  );
 }
 function tsToDate(input: FirestoreLikeTimestamp): Date {
-  if (input == null) return new Date(0)
-  if (input instanceof Date) return input
-  if (typeof input === "number") return new Date(input)
+  if (input == null) return new Date(0);
+  if (input instanceof Date) return input;
+  if (typeof input === "number") return new Date(input);
   if (typeof input === "string") {
-    const d = new Date(input)
-    return Number.isNaN(d.getTime()) ? new Date(0) : d
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? new Date(0) : d;
   }
-  if (hasToDate(input)) return input.toDate()
-  if (hasSeconds(input)) return new Date(input.seconds * 1000)
-  return new Date(0)
+  if (hasToDate(input)) return input.toDate();
+  if (hasSeconds(input)) return new Date(input.seconds * 1000);
+  return new Date(0);
 }
 function formatTs(input: FirestoreLikeTimestamp, fmt: string, locale: DateFnsLocale) {
-  return format(tsToDate(input), fmt, { locale })
+  return format(tsToDate(input), fmt, { locale });
 }
 
 /* --------------------------------- Tipos ---------------------------------- */
-type LogType = "guion" | "video" | "clonacion" | "tarea" | "sistema"
+type LogType = "guion" | "video" | "clonacion" | "tarea" | "sistema";
 type Log = {
-  id: string
-  type: LogType
-  action: string
-  uid: string
-  admin: string
-  message: string
-  timestamp: FirestoreLikeTimestamp
-  readByClient: boolean
-}
+  id: string;
+  type: LogType;
+  action: string;
+  uid: string;
+  admin: string;
+  message: string;
+  timestamp: FirestoreLikeTimestamp;
+  readByClient: boolean;
+};
 
 const iconosPorTipo: Record<LogType, string> = {
   guion: "📜",
@@ -77,161 +93,167 @@ const iconosPorTipo: Record<LogType, string> = {
   clonacion: "📦",
   tarea: "🧾",
   sistema: "⚙️",
-}
+};
 
 export default function UserNotificationsPage() {
-  const t = useTranslations("notificationsPage")
-  const localeCode = useLocale()
-  const dfLocale: DateFnsLocale = localeCode === "en" ? enLocale : esLocale
+  const t = useTranslations("notificationsPage");
+  const localeCode = useLocale();
+  const dfLocale: DateFnsLocale = localeCode === "en" ? enLocale : esLocale;
 
-  const [logs, setLogs] = useState<Log[]>([])
-  const [loading, setLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [search, setSearch] = useState("")
-  const [filterType, setFilterType] = useState<"todos" | LogType>("todos")
-  const [filterRead, setFilterRead] = useState<"todos" | "no_leidas" | "leidas">("todos")
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<"todos" | LogType>("todos");
+  const [filterRead, setFilterRead] = useState<"todos" | "no_leidas" | "leidas">("todos");
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        handleError(null, t("authRequired"))
-        setLoading(false)
-        return
+        handleError(null, t("authRequired"));
+        setLoading(false);
+        return;
       }
-      setUserId(user.uid)
-      setupRealTimeListener(user.uid)
-    })
-    return () => unsubscribe()
+      setUserId(user.uid);
+      setupRealTimeListener(user.uid);
+    });
+    return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
   const setupRealTimeListener = (uid: string) => {
-    const qy = query(collection(db, "logs"), where("uid", "==", uid), orderBy("timestamp", "desc"))
+    const qy = query(
+      collection(db, "logs"),
+      where("uid", "==", uid),
+      orderBy("timestamp", "desc")
+    );
     const unsubscribe = onSnapshot(
       qy,
       (snapshot) => {
         const fetchedLogs = snapshot.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<Log, "id">),
-        }))
-        setLogs(fetchedLogs)
-        setLastUpdate(new Date())
-        setLoading(false)
+        }));
+        setLogs(fetchedLogs);
+        setLastUpdate(new Date());
+        setLoading(false);
       },
       (error) => {
-        console.error("Error en tiempo real:", error)
-        handleError(error, t("errors.realtime"))
-        setLoading(false)
+        console.error("Error en tiempo real:", error);
+        handleError(error, t("errors.realtime"));
+        setLoading(false);
       }
-    )
-    return unsubscribe
-  }
+    );
+    return unsubscribe;
+  };
 
   const markAsRead = async (logId: string) => {
-    if (!userId) return
+    if (!userId) return;
     try {
-      setLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, readByClient: true } : l)))
-      await updateDoc(doc(db, "logs", logId), { readByClient: true })
-      showSuccess(t("toast.markedRead"))
+      setLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, readByClient: true } : l)));
+      await updateDoc(doc(db, "logs", logId), { readByClient: true });
+      showSuccess(t("toast.markedRead"));
     } catch (error) {
-      setLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, readByClient: false } : l)))
-      handleError(error, t("errors.markRead"))
+      setLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, readByClient: false } : l)));
+      handleError(error, t("errors.markRead"));
     }
-  }
+  };
 
   const filteredLogs = logs.filter((log) => {
     const matchesText =
       log.message.toLowerCase().includes(search.toLowerCase()) ||
-      log.admin.toLowerCase().includes(search.toLowerCase())
-    const matchesType = filterType === "todos" || log.type === filterType
+      log.admin.toLowerCase().includes(search.toLowerCase());
+    const matchesType = filterType === "todos" || log.type === filterType;
     const matchesRead =
       filterRead === "todos" ||
       (filterRead === "leidas" && log.readByClient) ||
-      (filterRead === "no_leidas" && !log.readByClient)
-    return matchesText && matchesType && matchesRead
-  })
+      (filterRead === "no_leidas" && !log.readByClient);
+    return matchesText && matchesType && matchesRead;
+  });
 
   const markAllAsRead = async () => {
-    if (!userId) return
-    const unreadLogs = filteredLogs.filter((l) => !l.readByClient)
-    if (unreadLogs.length === 0) return
+    if (!userId) return;
+    const unreadLogs = filteredLogs.filter((l) => !l.readByClient);
+    if (unreadLogs.length === 0) return;
     try {
-      setLogs((prev) => prev.map((l) => ({ ...l, readByClient: true })))
-      await Promise.all(unreadLogs.map((l) => updateDoc(doc(db, "logs", l.id), { readByClient: true })))
-      showSuccess(t("toast.markedAll", { count: unreadLogs.length }))
+      setLogs((prev) => prev.map((l) => ({ ...l, readByClient: true })));
+      await Promise.all(
+        unreadLogs.map((l) => updateDoc(doc(db, "logs", l.id), { readByClient: true }))
+      );
+      showSuccess(t("toast.markedAll", { count: unreadLogs.length }));
     } catch (error) {
-      setupRealTimeListener(userId)
-      handleError(error, t("errors.markAll"))
+      setupRealTimeListener(userId);
+      handleError(error, t("errors.markAll"));
     }
-  }
+  };
 
   const formatTimeAgo = (date: Date) => {
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-    if (diffMins < 1) return t("time.now")
-    if (diffMins < 60) return t("time.minutes", { count: diffMins })
-    if (diffHours < 24) return t("time.hours", { count: diffHours })
-    return t("time.days", { count: diffDays })
-  }
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return t("time.now");
+    if (diffMins < 60) return t("time.minutes", { count: diffMins });
+    if (diffHours < 24) return t("time.hours", { count: diffHours });
+    return t("time.days", { count: diffDays });
+  };
 
-const friendlyMessage = (log: Log) => {
-  const m = log.message.match(/"([^"]+)"/);
-  const title = m?.[1];
+  const friendlyMessage = (log: Log) => {
+    const m = log.message.match(/"([^"]+)"/);
+    const title = m?.[1];
 
-  switch (log.type) {
-    case "guion":
-      if (log.action === "aprobado") {
-        return title
-          ? t("friendly.guion.approvedWith", { title })
-          : t("friendly.guion.approved");
-      }
-      if (log.action === "cambios_solicitados") {
-        return title
-          ? t("friendly.guion.requestedWith", { title })
-          : t("friendly.guion.requested");
-      }
-      return log.message;
+    switch (log.type) {
+      case "guion":
+        if (log.action === "aprobado") {
+          return title
+            ? t("friendly.guion.approvedWith", { title })
+            : t("friendly.guion.approved");
+        }
+        if (log.action === "cambios_solicitados") {
+          return title
+            ? t("friendly.guion.requestedWith", { title })
+            : t("friendly.guion.requested");
+        }
+        return log.message;
 
-    case "video":
-      if (log.action === "aprobado") {
-        return title
-          ? t("friendly.video.approvedWith", { title })
-          : t("friendly.video.approved");
-      }
-      if (log.action === "cambios_solicitados") {
-        return title
-          ? t("friendly.video.requestedWith", { title })
-          : t("friendly.video.requested");
-      }
-      if (log.action === "subio" || log.action === "subió") {
-        return t("friendly.video.uploaded");
-      }
-      return log.message;
+      case "video":
+        if (log.action === "aprobado") {
+          return title
+            ? t("friendly.video.approvedWith", { title })
+            : t("friendly.video.approved");
+        }
+        if (log.action === "cambios_solicitados") {
+          return title
+            ? t("friendly.video.requestedWith", { title })
+            : t("friendly.video.requested");
+        }
+        if (log.action === "subio" || log.action === "subió") {
+          return t("friendly.video.uploaded");
+        }
+        return log.message;
 
-    case "clonacion":
-      if (log.action === "subio" || log.action === "subió") return t("friendly.clone.uploaded");
-      if (log.action === "procesado" || log.action === "procesada") return t("friendly.clone.processed");
-      return log.message;
+      case "clonacion":
+        if (log.action === "subio" || log.action === "subió") return t("friendly.clone.uploaded");
+        if (log.action === "procesado" || log.action === "procesada") return t("friendly.clone.processed");
+        return log.message;
 
-    case "tarea":
-      if (log.action === "completada") return t("friendly.task.completed");
-      if (log.action === "asignada") return t("friendly.task.assigned");
-      return log.message;
+      case "tarea":
+        if (log.action === "completada") return t("friendly.task.completed");
+        if (log.action === "asignada") return t("friendly.task.assigned");
+        return log.message;
 
-    case "sistema":
-      if (log.action === "mantenimiento") return t("friendly.system.maintenance");
-      if (log.action === "actualizacion" || log.action === "actualización") return t("friendly.system.updated");
-      return log.message;
+      case "sistema":
+        if (log.action === "mantenimiento") return t("friendly.system.maintenance");
+        if (log.action === "actualizacion" || log.action === "actualización")
+          return t("friendly.system.updated");
+        return log.message;
 
-    default:
-      return log.message;
-  }
-};
-
+      default:
+        return log.message;
+    }
+  };
 
   if (loading) {
     return (
@@ -240,19 +262,19 @@ const friendlyMessage = (log: Log) => {
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
       </div>
-    )
+    );
   }
 
-  const unreadCount = logs.filter((log) => !log.readByClient).length
+  const unreadCount = logs.filter((log) => !log.readByClient).length;
   const stats = {
     total: logs.length,
     unread: unreadCount,
     today: logs.filter((log) => {
-      const logDate = tsToDate(log.timestamp)
-      const today = new Date()
-      return logDate.toDateString() === today.toDateString()
+      const logDate = tsToDate(log.timestamp);
+      const today = new Date();
+      return logDate.toDateString() === today.toDateString();
     }).length,
-  }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -270,7 +292,9 @@ const friendlyMessage = (log: Log) => {
           <div>
             <h1 className="text-2xl font-bold">{t("title")}</h1>
             <p className="text-sm text-muted-foreground">
-              {unreadCount > 0 ? t("subtitle", { unread: unreadCount, today: stats.today }) : t("subtitleAllClear")}
+              {unreadCount > 0
+                ? t("subtitle", { unread: unreadCount, today: stats.today })
+                : t("subtitleAllClear")}
             </p>
           </div>
         </div>
@@ -335,7 +359,10 @@ const friendlyMessage = (log: Log) => {
             </SelectContent>
           </Select>
 
-          <Select value={filterRead} onValueChange={(v: "todos" | "no_leidas" | "leidas") => setFilterRead(v)}>
+          <Select
+            value={filterRead}
+            onValueChange={(v: "todos" | "no_leidas" | "leidas") => setFilterRead(v)}
+          >
             <SelectTrigger>
               <SelectValue placeholder={t("filters.readState")} />
             </SelectTrigger>
@@ -353,14 +380,16 @@ const friendlyMessage = (log: Log) => {
         <div className="text-center py-12">
           <p className="text-muted-foreground text-lg">📭 {t("empty.title")}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            {search || filterType !== "todos" || filterRead !== "todos" ? t("empty.hintFiltered") : t("empty.hint")}
+            {search || filterType !== "todos" || filterRead !== "todos"
+              ? t("empty.hintFiltered")
+              : t("empty.hint")}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredLogs.map((log) => {
-            const mensaje = friendlyMessage(log)
-            const timeAgo = formatTimeAgo(tsToDate(log.timestamp))
+            const mensaje = friendlyMessage(log);
+            const timeAgo = formatTimeAgo(tsToDate(log.timestamp));
 
             return (
               <Card
@@ -369,7 +398,7 @@ const friendlyMessage = (log: Log) => {
                   "p-4 transition-all duration-200 hover:shadow-md border",
                   !log.readByClient
                     ? "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-l-amber-500 dark:border-l-amber-400"
-                    : "bg-card text-card-foreground border-border opacity-90 hover:opacity-100"
+                    : "bg-card text-card-foreground border-border opacity-90 hover:opacity-100",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-4">
@@ -420,7 +449,7 @@ const friendlyMessage = (log: Log) => {
                   )}
                 </div>
               </Card>
-            )
+            );
           })}
         </div>
       )}
@@ -433,5 +462,5 @@ const friendlyMessage = (log: Log) => {
         </Card>
       )}
     </div>
-  )
+  );
 }
