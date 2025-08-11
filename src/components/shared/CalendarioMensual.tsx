@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { es } from "date-fns/locale";
+import { es as esLocale, enUS as enLocale } from "date-fns/locale";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -15,6 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { handleError, showSuccess } from "@/lib/errors";
+import { useLocale, useTranslations } from "next-intl";
 
 /* ------------------------------- Tipos ------------------------------- */
 
@@ -94,12 +95,18 @@ function formatDateToISO(date: Date) {
 /* ------------------------------ Componente ------------------------------ */
 
 export default function CalendarioMensual({ uid, guiones, videos }: Props) {
+  const t = useTranslations("calendarWidget");
+  const localeCode = useLocale();
+  const dfLocale = localeCode === "en" ? enLocale : esLocale;
+  const weekdayShort =
+    localeCode === "en" ? ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] : ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
+
   const [selected, setSelected] = useState<Date | undefined>(undefined);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [tipo, setTipo] = useState<"guion" | "video">("guion");
   const [itemId, setItemId] = useState("");
   const [fechaEvento, setFechaEvento] = useState("");
-  const [horaEvento, setHoraEvento] = useState(""); // Nuevo estado para la hora
+  const [horaEvento, setHoraEvento] = useState(""); // Hora para programación social
   const [publicarEnRedes, setPublicarEnRedes] = useState(false);
   const [metricoolIds, setMetricoolIds] = useState<{ instagramId?: string }>({});
 
@@ -114,7 +121,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
         }
       })
       .catch((err) => {
-        console.error("Error obteniendo providers de Metricool:", err);
+        // Silencioso; no bloquea UI
+        console.error("Metricool providers error:", err);
       });
   }, []);
 
@@ -123,7 +131,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     if (tipo === "guion") setPublicarEnRedes(false);
   }, [tipo]);
 
-  // ✅ Cargar eventos de Firestore con useCallback
+  // Cargar eventos
   const fetchEventos = useCallback(async () => {
     if (!uid) return;
     try {
@@ -146,11 +154,10 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       });
       setEventos(data);
     } catch (error) {
-      handleError(error, "Error cargando eventos del calendario");
+      handleError(error, t("errors.loadEvents"));
     }
-  }, [uid]);
+  }, [uid, t]);
 
-  // ✅ useEffect para cargar eventos sin warning
   useEffect(() => {
     fetchEventos();
   }, [fetchEventos]);
@@ -168,7 +175,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           try {
             await deleteDoc(doc(db, "users", uid, "calendario", evento.id));
           } catch (error) {
-            handleError(error, "Error eliminando evento huérfano");
+            handleError(error, t("errors.deleteOrphan"));
           }
         }
         setEventos((prev) =>
@@ -177,7 +184,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       };
       void eliminarEventos();
     }
-  }, [guiones, videos, eventos, uid]);
+  }, [guiones, videos, eventos, uid, t]);
 
   // Agrupar eventos por día
   type DiaInfo = {
@@ -219,7 +226,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   const handleAgregar = async () => {
     if (!itemId || !fechaEvento) {
-      handleError(null, "Selecciona un ítem y una fecha");
+      handleError(null, t("alerts.selectItemAndDate"));
       return;
     }
 
@@ -227,7 +234,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     const item = fuente.find((i) => i.firebaseId === itemId);
 
     if (!item) {
-      handleError(null, "Ítem no encontrado");
+      handleError(null, t("alerts.itemNotFound"));
       return;
     }
 
@@ -237,7 +244,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
         refId: itemId,
         titulo: item.titulo,
         fecha: Timestamp.fromDate(new Date(fechaEvento)),
-        estado: "por_hacer",
+        estado: "por_hacer" as Estado,
       });
 
       // SOLO PARA VIDEOS
@@ -261,7 +268,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           });
 
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || "Error creando en Metricool");
+          if (!response.ok) throw new Error(data.error || "Metricool error");
 
           await updateDoc(doc(db, "users", uid, "calendario", newDoc.id), {
             syncedWithMetricool: true,
@@ -270,21 +277,21 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
             status: "programado",
           });
 
-          showSuccess("Evento agregado y programado en redes sociales");
+          showSuccess(t("success.addedAndScheduled"));
         } catch (err) {
-          console.error("Error Metricool:", err);
-          handleError(err, "Evento creado pero error sincronizando con Metricool");
+          handleError(err, t("errors.syncMetricool"));
         }
       } else {
-        showSuccess("Evento agregado correctamente");
+        showSuccess(t("success.added"));
       }
 
       setItemId("");
       setFechaEvento("");
+      setHoraEvento("");
       setPublicarEnRedes(false);
       fetchEventos();
     } catch (error) {
-      handleError(error, "No se pudo crear el evento");
+      handleError(error, t("errors.create"));
     }
   };
 
@@ -293,9 +300,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
     try {
       await deleteDoc(doc(db, "users", uid, "calendario", eventoId));
       setEventos(eventos.filter((e) => e.id !== eventoId));
-      showSuccess("Evento eliminado");
+      showSuccess(t("success.deleted"));
     } catch (error) {
-      handleError(error, "Error al eliminar el evento");
+      handleError(error, t("errors.delete"));
     }
   };
 
@@ -307,9 +314,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       setEventos((prev) =>
         prev.map((e) => (e.id === eventoId ? { ...e, estado: nuevoEstado } : e))
       );
-      showSuccess("Estado actualizado");
+      showSuccess(t("success.stateUpdated"));
     } catch (error) {
-      handleError(error, "Error al actualizar el estado");
+      handleError(error, t("errors.updateStatus"));
     }
   };
 
@@ -353,7 +360,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
       <div className="flex flex-col gap-8 p-4">
         <div className="border rounded p-4 shadow">
-          <h3 className="text-lg font-semibold mb-3">➕ Añadir evento</h3>
+          <h3 className="text-lg font-semibold mb-3">➕ {t("addEventTitle")}</h3>
 
           <form
             onSubmit={(e) => {
@@ -365,28 +372,30 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               {/* Tipo */}
               <div className="flex flex-col">
-                <label className="block text-sm font-bold mb-1">Cómo</label>
+                <label className="block text-sm font-bold mb-1">{t("form.typeLabel")}</label>
                 <select
                   className="border rounded px-2 py-1 text-sm"
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value as "guion" | "video")}
                 >
-                  <option value="guion">Guion</option>
-                  <option value="video">Video</option>
+                  <option value="guion">{t("types.guion")}</option>
+                  <option value="video">{t("types.video")}</option>
                 </select>
               </div>
 
               {/* Selección de ítem */}
               <div className="flex flex-col">
                 <label className="block text-sm font-bold mb-1">
-                  Seleccionar {tipo}
+                  {t("form.itemLabel", {
+                    type: t(tipo === "guion" ? "types.guion" : "types.video"),
+                  })}
                 </label>
                 <select
                   className="border rounded px-2 py-1 text-sm"
                   value={itemId}
                   onChange={(e) => setItemId(e.target.value)}
                 >
-                  <option value="">Seleccionar {tipo}</option>
+                  <option value="">{t("form.itemLabel", { type: t(tipo === "guion" ? "types.guion" : "types.video") })}</option>
                   {(tipo === "guion" ? guiones : videos).map((i) => (
                     <option key={i.firebaseId} value={i.firebaseId}>
                       {i.titulo}
@@ -397,7 +406,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
               {/* Fecha */}
               <div className="flex flex-col">
-                <label className="block text-sm font-bold mb-1">Fecha</label>
+                <label className="block text-sm font-bold mb-1">{t("form.dateLabel")}</label>
                 <input
                   type="date"
                   className="border rounded px-2 py-1 text-sm"
@@ -408,7 +417,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
               {/* Hora */}
               <div className="flex flex-col">
-                <label className="block text-sm font-bold mb-1">Hora</label>
+                <label className="block text-sm font-bold mb-1">{t("form.timeLabel")}</label>
                 <input
                   type="time"
                   className="border rounded px-2 py-1 text-sm"
@@ -423,7 +432,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   type="submit"
                   className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm hover:bg-blue-700 h-[34px]"
                 >
-                  Agregar
+                  {t("form.addButton")}
                 </button>
               </div>
             </div>
@@ -439,7 +448,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   className="w-4 h-4"
                 />
                 <label htmlFor="publicarEnRedes" className="text-sm">
-                  📢 Publicar en redes sociales
+                  {t("form.publishSwitch")}
                 </label>
               </div>
             )}
@@ -463,16 +472,14 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                 enProceso: "event-day-en-proceso",
                 completado: "event-day-completado",
               }}
-              locale={es}
+              locale={dfLocale}
               fixedWeeks
               pagedNavigation
               showOutsideDays
               className="text-left"
               formatters={{
-                // 👇 Tipado sin any
                 formatWeekdayName: (weekday: Date) => {
-                  const weekdays = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
-                  return weekdays[weekday.getDay()];
+                  return weekdayShort[weekday.getDay()];
                 },
               }}
             />
@@ -482,12 +489,14 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
           <div className="flex-1">
             <h3 className="text-lg font-semibold mb-4">
               {selected
-                ? `Eventos en ${selected.toLocaleDateString("es-ES")}`
-                : "Selecciona un día para ver eventos"}
+                ? t("list.titleForDay", {
+                    date: selected.toLocaleDateString(localeCode === "en" ? "en-US" : "es-ES"),
+                  })
+                : t("list.selectADay")}
             </h3>
 
             {selected && eventosDelDia.length === 0 && (
-              <p className="text-sm text-gray-500">No hay eventos para este día.</p>
+              <p className="text-sm text-gray-500">{t("list.noneForDay")}</p>
             )}
 
             <ul className="space-y-3">
@@ -511,10 +520,10 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                     className={`border rounded p-3 shadow-sm transition relative ${estadoColor}`}
                   >
                     <p className="text-sm text-muted-foreground">
-                      {e.tipo === "guion" ? "📜 Guion" : "🎬 Video"}
+                      {e.tipo === "guion" ? `📜 ${t("types.guion")}` : `🎬 ${t("types.video")}`}
                       {e.syncedWithMetricool && (
                         <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                          📱 Programado en redes
+                          {t("list.scheduledBadge")}
                         </span>
                       )}
                     </p>
@@ -522,7 +531,10 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                     <p className="text-sm text-gray-600">🗓 {e.fecha}</p>
                     {e.plataforma && (
                       <p className="text-xs text-gray-500">
-                        Plataforma: {e.plataforma} | Estado: {e.status}
+                        {t("list.platformStatus", {
+                          platform: e.plataforma,
+                          status: e.status ?? ""
+                        })}
                       </p>
                     )}
                     <div className="flex gap-2 mt-3">
@@ -533,16 +545,16 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                         }
                         className="text-xs border rounded p-1 bg-white"
                       >
-                        <option value="por_hacer">🟥 Por hacer</option>
-                        <option value="en_proceso">🟧 En proceso</option>
-                        <option value="completado">🟩 Completado</option>
+                        <option value="por_hacer">{t("states.por_hacer")}</option>
+                        <option value="en_proceso">{t("states.en_proceso")}</option>
+                        <option value="completado">{t("states.completado")}</option>
                       </select>
 
                       <button
                         onClick={() => handleEliminarEvento(e.id)}
                         className="text-xs bg-red-500 text-white rounded px-2 py-1 hover:bg-red-600"
                       >
-                        Eliminar
+                        {t("actions.delete")}
                       </button>
                     </div>
                   </li>
