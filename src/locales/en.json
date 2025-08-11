@@ -14,33 +14,33 @@
     "orange": "Orange",
     "rose": "Pink"
   },
-"sidebar": {
-  "title": "Client Panel",
-  "clientTitle": "Client Panel",
-  "home": "Home",
-  "adminHome": "Admin Home",
-  "scripts": "My Scripts",
-  "videos": "My Videos",
-  "notifications": "My Notifications",
-  "calendar": "Calendar",
-  "brandAI": "Brand AI",
-  "viralIdeas": "Viral Ideas",
-  "requestReel": "Request Reel",
-  "requestExtraReel": "Request Extra Reel",
-  "filesResources": "Files and Resources",
-  "assets": "Assets",
-  "stats": "Stadistics",
-  "billing": "Billing / Subscriptions",
-  "support": "Support / Tickets",
-  "account": "My Account",
-  "planLabel": "Plan",
-  "noPlan": "No plan",
-  "notAuthenticated": "Not authenticated",
-  "adminTitle": "Admin Panel",
-  "clients": "Clients",
-  "tasks": "Tasks",
-  "adminNotifications": "Notifications"
-},
+  "sidebar": {
+    "title": "Client Panel",
+    "clientTitle": "Client Panel",
+    "home": "Home",
+    "adminHome": "Admin Home",
+    "scripts": "My Scripts",
+    "videos": "My Videos",
+    "notifications": "My Notifications",
+    "calendar": "Calendar",
+    "brandAI": "Brand AI",
+    "viralIdeas": "Viral Ideas",
+    "requestReel": "Request Reel",
+    "requestExtraReel": "Request Extra Reel",
+    "filesResources": "Files and Resources",
+    "assets": "Assets",
+    "stats": "Statistics",
+    "billing": "Billing / Subscriptions",
+    "support": "Support / Tickets",
+    "account": "My Account",
+    "planLabel": "Plan",
+    "noPlan": "No plan",
+    "notAuthenticated": "Not authenticated",
+    "adminTitle": "Admin Panel",
+    "clients": "Clients",
+    "tasks": "Tasks",
+    "adminNotifications": "Notifications"
+  },
   "common": {
     "unknown": "Unknown"
   },
@@ -325,7 +325,7 @@
     "time": {
       "now": "Just now",
       "minutes": "{count} min ago",
-      "hours": "{count}h ago",
+      "hours": "{count} h ago",
       "days": "{count} days ago"
     },
     "friendly": {
@@ -358,6 +358,9 @@
     "footer": "Showing {count} of {total} notifications • 🟢 Real-time updates"
   },
   "userPage": {
+    "dialog": {
+      "videoTitle": "Video"
+    },
     "title": "My User Panel",
     "profile": {
       "sectionTitle": "User Details",
@@ -427,6 +430,7 @@
       "upload": {
         "uploadingFile": "Uploading {name}...",
         "onlyVideos": "Only video files are allowed",
+        "loadingError": "Error loading videos",
         "maxSize": "The video must be smaller than 100MB",
         "slotsWarning": "You can only upload {count} more video(s)",
         "success": "{name} uploaded successfully",
@@ -453,6 +457,9 @@
         "success": "Video deleted successfully",
         "error": "Error deleting video",
         "notSelectedOrAuth": "User not authenticated or video not selected"
+      },
+      "dialog": {
+        "videoTitle": "Video"
       }
     }
   },
@@ -491,7 +498,7 @@
     "ideas": {
       "trend": {
         "title": "Trend: Which do you prefer? 🔥",
-        "description": "Challenge your audience to answer quick “Which do you prefer?” questions. Perfect for Reels and TikTok.",
+        "description": "Challenge your audience with quick “Which do you prefer?” questions. Perfect for Reels and TikTok.",
         "category": "Challenge"
       },
       "storytime": {
@@ -546,7 +553,7 @@
     },
     "list": {
       "title": "Uploaded files:",
-      "empty": "No files uploaded in this category."
+      "empty": "No files in this category."
     },
     "delete": {
       "confirm": "Are you sure you want to delete this file?",
@@ -554,7 +561,7 @@
       "error": "Error deleting file"
     }
   },
-"statsPage": {
+  "statsPage": {
     "title": "Your Content Statistics",
     "description": "Check the simulated performance of your posts.\nWhen you activate Metricool, you will see your real statistics here.",
     "kpi": {
@@ -616,16 +623,47 @@
     "createTicket": "Create new support ticket"
   },
   "admin": {
+    "tasks": {
+      "title": "Tasks",
+      "inboxTitle": "Task inbox",
+      "newTask": "New task",
+      "showCompleted": "Show completed",
+      "hideCompleted": "Hide completed",
+      "mustBeAdmin": "You must be admin to view tasks.",
+      "empty": "No tasks",
+      "createTitle": "Create task",
+      "editTitle": "Edit task",
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "dueDate": "Due",
+        "assignee": "Assignee"
+      },
+      "actions": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete"
+      },
+      "errors": {
+        "noAdminDoc": "Couldn't find your admin document."
+      },
+      "loading": {
+        "title": "Loading title…",
+        "list": "Loading task list…"
+      }
+    },
     "notifications": {
       "title": "Admin Panel - All notifications",
       "subtitle": "{unread} unread • {today} today",
       "subtitleAllClear": "All caught up ✨",
       "markAll": "Mark all as read",
       "realtime": "Real-time updates",
-
-      "stats": { "total": "Total", "unread": "Unread", "today": "Today" },
+      "stats": {
+        "total": "Total",
+        "unread": "Unread",
+        "today": "Today"
+      },
       "lastUpdate": "Last update: {timeAgo}",
-
       "filters": {
         "title": "Filters",
         "searchPlaceholder": "🔍 Search notifications...",
@@ -634,9 +672,12 @@
         "user": "Filter by user",
         "allUsers": "All users",
         "readState": "Read status",
-        "read": { "all": "All", "unread": "Unread", "read": "Read" }
+        "read": {
+          "all": "All",
+          "unread": "Unread",
+          "read": "Read"
+        }
       },
-
       "types": {
         "guion": "Script",
         "video": "Video",
@@ -644,14 +685,14 @@
         "tarea": "Task",
         "sistema": "System"
       },
-
       "empty": {
         "title": "No notifications",
-        "hintFiltered": "Adjust filters to see more results",
+        "hintFiltered": "Adjust the filters to see more results",
         "hint": "When there is activity in the system, it will appear here"
       },
-
-      "badges": { "unread": "Unread" },
+      "badges": {
+        "unread": "Unread"
+      },
       "markRead": "Mark as read",
       "unknownUser": "User {id}...",
       "toast": {
@@ -666,10 +707,9 @@
       "time": {
         "now": "Just now",
         "minutes": "{count} min ago",
-        "hours": "{count}h ago",
+        "hours": "{count} h ago",
         "days": "{count} days ago"
       },
-
       "friendly": {
         "guion": {
           "approved": "✅ Script approved",
@@ -695,8 +735,269 @@
           "updated": "🆙 System updated"
         }
       },
-
       "footer": "Showing {count} of {total} notifications • 🟢 Real-time updates"
+    }
+  },
+  "clientPage": {
+    "title": "👤 Client: {email}",
+    "notFound": "Client not found.",
+    "viewInStripe": "View in Stripe",
+    "subscriptionBadge": "{plan}",
+    "calendarTitle": "📅 Publication Calendar"
+  },
+  "clientForm": {
+    "title": "Client Details",
+    "copyEmail": "Copy email",
+    "emailCopied": "Email copied",
+    "labels": {
+      "name": "Name",
+      "phone": "Phone",
+      "instagram": "Instagram",
+      "workFolder": "Work folder link",
+      "emailReadonly": "Email (read only)",
+      "instagramUser": "Instagram",
+      "internalNotes": "Internal notes"
+    },
+    "placeholders": {
+      "name": "Full name",
+      "phone": "+34 600 123 456",
+      "instagram": "@username",
+      "instagramUser": "@username",
+      "workFolder": "https://...",
+      "internalNotes": "Internal notes"
+    },
+    "notesPlaceholder": "Internal notes",
+    "save": "Save changes",
+    "alts": {
+      "gmail": "Gmail logo",
+      "instagram": "Instagram logo"
+    },
+    "actions": {
+      "copyEmail": "Copy email",
+      "saveChanges": "Save changes"
+    }
+  },
+  "clientScripts": {
+    "title": "📜 Scripts",
+    "createBtn": "+ Create",
+    "modal": {
+      "title": "Title",
+      "content": "Content",
+      "save": "Save"
+    },
+    "status": {
+      "new": "New",
+      "changes": "Changes",
+      "approved": "Approved"
+    },
+    "unknown": "Unknown",
+    "emptyTitle": "No scripts for this client yet.",
+    "emptyHint": "Use the button to add the first one."
+  },
+  "clientVideos": {
+    "title": "🎬 Videos",
+    "createBtn": "+ Create",
+    "uploadDialogTitle": "Upload video",
+    "titlePlaceholder": "Video title",
+    "dropzone": {
+      "prompt": "Drag a video here or click to select (max. 100MB)",
+      "fileTooLarge": "The file is too large. Max allowed: 100MB",
+      "invalidType": "Invalid file type. Only videos are allowed.",
+      "genericError": "Could not process the file",
+      "selected": "File \"{name}\" selected"
+    },
+    "status": {
+      "new": "New",
+      "changes": "Changes",
+      "approved": "Approved"
+    },
+    "upload": "Upload",
+    "uploading": "Uploading... {percent}%",
+    "emptyTitle": "No videos for this client yet.",
+    "emptyHint": "Use the button to add the first one.",
+    "unknown": "Unknown"
+  },
+  "clientScriptModal": {
+    "title": "Edit Script",
+    "status": "Status",
+    "notesPlaceholder": "Describe the changes you want or instructions to redo the script",
+    "delete": "Delete",
+    "save": "Save changes",
+    "saving": "Saving...",
+    "tasksCreated": "Tasks created for Rubén and Hello",
+    "placeholders": {
+      "title": "Title",
+      "content": "Content",
+      "selectStatus": "Select status"
+    }
+  },
+  "clientVideoModal": {
+    "title": "Edit Video",
+    "titleInputPlaceholder": "Video title",
+    "statusLabel": "Status:",
+    "status": {
+      "new": "New",
+      "changes": "Needs changes",
+      "approved": "Approved"
+    },
+    "notesLabel": "Notes for corrections:",
+    "notesPlaceholder": "Write the necessary corrections...",
+    "replace": "Replace video",
+    "delete": "Delete",
+    "save": "Save",
+    "fileTooLarge": "The file exceeds {max}MB. Please upload a smaller video.",
+    "previewAria": "Preview of video {title}",
+    "deleteTooltip": "Delete video",
+    "saveTooltip": "Save changes"
+  },
+  "clientClone": {
+    "title": "🎭 Cloning Videos",
+    "dropzoneIdle": "Drag here or click to upload (max. 100MB each)",
+    "dropzoneUploading": "Uploading videos...",
+    "progress": "{name} - {percent}%",
+    "empty": "No videos yet.",
+    "confirmDeleteTitle": "Confirm deletion",
+    "confirmDeleteBody": "Are you sure you want to delete this video? This action cannot be undone.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "viewerTitle": "Video",
+    "deleting": "Deleting..."
+  },
+  "clientCalendar": {
+    "addEvent": "➕ Add event",
+    "how": "What",
+    "type": {
+      "guion": "Script",
+      "video": "Video"
+    },
+    "selectX": "Select {type}",
+    "date": "Date",
+    "time": "Time",
+    "add": "Add",
+    "publishOnSocial": "📢 Post on social networks",
+    "eventsOn": "Events on {date}",
+    "selectDay": "Select a day to see events",
+    "noneForDay": "No events for this day.",
+    "plannedOnSocial": "📱 Scheduled on social",
+    "platform": "Platform",
+    "status": "Status",
+    "delete": "Delete",
+    "states": {
+      "por_hacer": "To do",
+      "en_proceso": "In progress",
+      "completado": "Done"
+    },
+    "toast": {
+      "added": "Event added successfully",
+      "addedAndScheduled": "Event added and scheduled on social",
+      "synchError": "Event created but error syncing with Metricool",
+      "deleted": "Event deleted",
+      "stateUpdated": "State updated"
+    },
+    "errors": {
+      "selectItemAndDate": "Select an item and a date",
+      "itemNotFound": "Item not found",
+      "load": "Error loading calendar events",
+      "create": "Could not create the event",
+      "delete": "Error deleting the event",
+      "update": "Error updating the state",
+      "loadProviders": "Error getting Metricool providers"
+    }
+  },
+  "clientGuionesSection": {
+    "title": "Scripts",
+    "create": "Create",
+    "placeholders": {
+      "title": "Title",
+      "content": "Content"
+    },
+    "save": "Save",
+    "empty": {
+      "title": "No scripts for this client yet.",
+      "hint": "Use the button to add the first one."
+    },
+    "a11y": {
+      "selectScript": "Select script {title}"
+    }
+  },
+  "clientVideosSection": {
+    "title": "🎬 Videos",
+    "create": "Create",
+    "uploadDialog": {
+      "title": "Upload video"
+    },
+    "placeholders": {
+      "title": "Video title"
+    },
+    "dropzone": {
+      "placeholder": "Drag a video here or click to select (max. {max}MB)"
+    },
+    "errors": {
+      "fileTooLarge": "The file is too large. Max allowed: {max}MB",
+      "fileInvalidType": "Invalid file type. Only videos are allowed.",
+      "fileProcess": "Could not process the file"
+    },
+    "toasts": {
+      "fileSelected": "File \"{name}\" selected"
+    },
+    "upload": "Upload",
+    "uploading": "Uploading... {percent}%",
+    "empty": {
+      "title": "No videos for this client yet.",
+      "hint": "Use the button to add the first one."
+    },
+    "a11y": {
+      "selectVideo": "Select video {title}",
+      "videoLabel": "Video: {title}"
+    }
+  },
+  "calendarWidget": {
+    "addEventTitle": "Add event",
+    "form": {
+      "typeLabel": "What",
+      "itemLabel": "Select {type}",
+      "dateLabel": "Date",
+      "timeLabel": "Time",
+      "addButton": "Add",
+      "publishSwitch": "📢 Post on social networks"
+    },
+    "types": {
+      "guion": "Script",
+      "video": "Video"
+    },
+    "list": {
+      "titleForDay": "Events on {date}",
+      "selectADay": "Select a day to see events",
+      "noneForDay": "No events for this day.",
+      "scheduledBadge": "📱 Scheduled on social",
+      "platformStatus": "Platform: {platform} • Status: {status}",
+      "statusUnknown": "Unknown"
+    },
+    "states": {
+      "por_hacer": "To do",
+      "en_proceso": "In progress",
+      "completado": "Done"
+    },
+    "actions": {
+      "delete": "Delete"
+    },
+    "alerts": {
+      "selectItemAndDate": "Select an item and a date",
+      "itemNotFound": "Item not found"
+    },
+    "errors": {
+      "loadEvents": "Error loading calendar events",
+      "deleteOrphan": "Error deleting orphan event",
+      "syncMetricool": "Event created but error syncing with Metricool",
+      "create": "Could not create the event",
+      "delete": "Error deleting the event",
+      "updateStatus": "Error updating the state"
+    },
+    "success": {
+      "added": "Event added successfully",
+      "addedAndScheduled": "Event added and scheduled on social",
+      "deleted": "Event deleted",
+      "stateUpdated": "State updated"
     }
   }
 }

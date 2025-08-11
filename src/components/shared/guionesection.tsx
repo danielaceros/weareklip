@@ -1,14 +1,14 @@
 "use client"
+
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogTrigger, DialogContent} from "@/components/ui/dialog"
+import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import EmptyState from "@/components/shared/EmptyState"
-
-
+import { useTranslations } from "next-intl"
 
 type Guion = {
   firebaseId: string
@@ -25,12 +25,6 @@ type Props = {
   modalOpen: boolean
 }
 
-const estados: Record<number, React.ReactNode> = {
-  0: <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>,
-  1: <Badge className="bg-yellow-400 text-black">✏️ Cambios</Badge>,
-  2: <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>,
-}
-
 export default function GuionesSection({
   guiones,
   onCreate,
@@ -38,8 +32,18 @@ export default function GuionesSection({
   modalOpen,
   setModalOpen,
 }: Props) {
+  const t = useTranslations("clientGuionesSection")
+  const tStatus = useTranslations("status")
+  const tCommon = useTranslations("common")
+
   const [titulo, setTitulo] = useState("")
   const [contenido, setContenido] = useState("")
+
+  const estados: Record<number, React.ReactNode> = {
+    0: <Badge className="bg-red-500 text-white">🆕 {tStatus("new")}</Badge>,
+    1: <Badge className="bg-yellow-400 text-black">✏️ {tStatus("changes")}</Badge>,
+    2: <Badge className="bg-green-500 text-white">✅ {tStatus("approved")}</Badge>,
+  }
 
   const handleSubmit = () => {
     onCreate(titulo, contenido)
@@ -50,41 +54,42 @@ export default function GuionesSection({
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-semibold">📜 Guiones</h2>
+        <h2 className="text-xl font-semibold">📜 {t("title")}</h2>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button>+ Crear</Button>
+            <Button>+ {t("create")}</Button>
           </DialogTrigger>
           <DialogContent>
             <Input
-              placeholder="Título"
+              placeholder={t("placeholders.title")}
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
             />
             <Textarea
-              placeholder="Contenido"
+              placeholder={t("placeholders.content")}
               value={contenido}
               onChange={(e) => setContenido(e.target.value)}
             />
-            <Button onClick={handleSubmit} className="mt-2">Guardar</Button>
+            <Button onClick={handleSubmit} className="mt-2">
+              {t("save")}
+            </Button>
           </DialogContent>
         </Dialog>
       </div>
 
       {guiones.length === 0 ? (
         <EmptyState>
-          <p>📜 Aún no hay guiones para este cliente.</p>
+          <p>📜 {t("empty.title")}</p>
           <p className="mt-2">
-             → Usa el botón{" "}
+            → {t("empty.hint")}{" "}
             <Button
               size="sm"
               variant="outline"
               onClick={() => setModalOpen(true)}
               className="hover:bg-black hover:text-white"
             >
-              + Crear
+              + {t("create")}
             </Button>
-            para añadir el primero.
           </p>
         </EmptyState>
       ) : (
@@ -96,7 +101,7 @@ export default function GuionesSection({
               onClick={() => onSelect(g)}
               tabIndex={0}
               role="button"
-              aria-label={`Seleccionar guion ${g.titulo}`}
+              aria-label={t("a11y.selectScript", { title: g.titulo })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") onSelect(g)
               }}
@@ -105,7 +110,7 @@ export default function GuionesSection({
               <div className="absolute top-2 right-2">
                 {g.estado !== undefined
                   ? estados[g.estado] ?? (
-                      <Badge variant="secondary">Desconocido</Badge>
+                      <Badge variant="secondary">{tCommon("unknown")}</Badge>
                     )
                   : null}
               </div>

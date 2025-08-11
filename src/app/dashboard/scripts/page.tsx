@@ -1,275 +1,370 @@
+// src/app/dashboard/scripts/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
   getDocs,
+  query,
+  orderBy,
   doc,
   updateDoc,
-  deleteDoc,
+  addDoc,
+  type CollectionReference,
 } from "firebase/firestore";
-import ScriptCard from "@/components/shared/scriptscard";
-import ScriptEditorModal from "@/components/shared/scriptsmodal";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { handleError, showSuccess, showLoading } from "@/lib/errors";
-import toast from "react-hot-toast";
-import { useTranslations } from "next-intl";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Locale } from "@/lib/i18n";
+import { useLocale } from "next-intl";
+import { handleError, showLoading, showSuccess } from "@/lib/errors";
+import ScriptEditorModal from "@/components/shared/ScriptEditorModal";
 
-export interface Guion {
+// UI para el duplicado
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type Guion = {
   firebaseId: string;
   titulo: string;
   contenido: string;
-  estado: number;
+  estado: number;     // 0 nuevo, 1 cambios, 2 aprobado
   notas?: string;
-  createdAt?: string; // importante: sin null
-}
+  creadoEn?: string;  // ISO string o lo que tengáis guardado
+  lang?: Locale;      // 'es' | 'en' | 'fr'
+};
 
-// Tipado del documento Firestore (para evitar 'any')
-interface FirestoreGuionData {
+// Firestore document shape (para tipar el getDocs)
+type GuionDoc = {
   titulo?: string;
   contenido?: string;
   estado?: number;
+  creadoEn?: string;
   notas?: string;
-  createdAt?: unknown;
-}
-
-// 📧 Notificación (la dejamos en ES si quieres)
-const sendNotificationEmail = async (subject: string, content: string) => {
-  try {
-    await fetch("/api/send-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: "rubengomezklip@gmail.com",
-        subject,
-        content,
-      }),
-    });
-  } catch (err) {
-    console.error("Error enviando notificación:", err);
-  }
+  lang?: Locale;
 };
 
-export default function GuionesPage() {
-  const t = useTranslations("scripts");
+export default function ScriptsPage() {
+  const t = useT();
+  const locale = useLocale();
+  const currentLang: Locale = locale === "en" || locale === "fr" ? locale : "es";
 
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [guiones, setGuiones] = useState<Guion[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedGuion, setSelectedGuion] = useState<Guion | null>(null);
+  const [scripts, setScripts] = useState<Guion[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [guionToDelete, setGuionToDelete] = useState<Guion | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [selected, setSelected] = useState<Guion | null>(null);
 
-  const fetchGuiones = useCallback(async (uid: string) => {
-    setLoading(true);
+  // Estado del diálogo de duplicado
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupTarget, setDupTarget] = useState<Locale>("es");
+  const [duplicating, setDuplicating] = useState(false);
+
+  // Cargar guiones
+  const loadScripts = useCallback(async (uid: string) => {
     try {
-      const ref = collection(db, "users", uid, "guiones");
-      const snapshot = await getDocs(ref);
+      const colRef = collection(
+        db,
+        "users",
+        uid,
+        "guiones"
+      ) as CollectionReference<GuionDoc>;
 
-      if (snapshot.empty) {
-        toast(t("toast.noScriptsYet"));
+      // Intentamos ordenar por creadoEn si existe
+      let docsSnap = await getDocs(query(colRef, orderBy("creadoEn", "desc")));
+      if (docsSnap.empty) {
+        // Fallback sin orderBy
+        docsSnap = await getDocs(colRef);
       }
 
-      const data: Guion[] = snapshot.docs.map((docSnap) => {
-        const d = docSnap.data() as FirestoreGuionData;
+      const list: Guion[] = docsSnap.docs.map((d) => {
+        const data = d.data();
         return {
-          firebaseId: docSnap.id,
-          titulo: d.titulo ?? t("untitled"),
-          contenido: d.contenido ?? "",
-          estado: d.estado ?? 0,
-          notas: d.notas ?? "",
-          createdAt: (typeof d.createdAt === "string" ? d.createdAt : undefined),
+          firebaseId: d.id,
+          titulo: data.titulo ?? t("scripts.untitled"),
+          contenido: data.contenido ?? "",
+          estado: data.estado ?? 0,
+          creadoEn: data.creadoEn,
+          notas: data.notas,
+          lang: data.lang,
         };
       });
 
-      setGuiones(data);
-    } catch (error) {
-      console.error("Error al obtener guiones:", error);
-      handleError(error, t("errors.loadScripts"));
+      setScripts(list);
+    } catch (err) {
+      handleError(err, t("scriptsPage.errors.load"));
     } finally {
       setLoading(false);
     }
   }, [t]);
 
+  // Auth + carga
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        handleError(null, t("errors.mustLogin"));
-        setUserId(null);
-        setUserEmail(null);
-        setGuiones([]);
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (!u) {
         setLoading(false);
         return;
       }
-
-      setUserId(user.uid);
-      setUserEmail(user.email ?? null);
-      await fetchGuiones(user.uid);
+      loadScripts(u.uid);
     });
+    return () => unsub();
+  }, [loadScripts]);
 
-    return () => unsubscribe();
-  }, [fetchGuiones, t]);
+  const getEstadoBadge = (estado: number) => {
+    switch (estado) {
+      case 0:
+        return <Badge className="bg-red-500 text-white">{t("status.new")}</Badge>;
+      case 1:
+        return <Badge className="bg-yellow-400 text-black">{t("status.changes")}</Badge>;
+      case 2:
+        return <Badge className="bg-green-500 text-white">{t("status.approved")}</Badge>;
+      default:
+        return <Badge variant="secondary">{t("common.unknown")}</Badge>;
+    }
+  };
 
-  const handleUpdateGuion = async (updatedGuion: Guion) => {
-    if (!userId || !userEmail) return;
+  // Guardar cambios desde el modal: actualiza Firestore e inmediato en estado local
+  const handleSave = async (updated: Guion) => {
+    if (!user) return;
 
-    const loadingToast = showLoading(t("loading.updatingScript"));
+    showLoading(t("scriptsPage.update.loading"));
     try {
-      const ref = doc(db, "users", userId, "guiones", updatedGuion.firebaseId);
+      const ref = doc(db, "users", user.uid, "guiones", updated.firebaseId);
       await updateDoc(ref, {
-        titulo: updatedGuion.titulo,
-        contenido: updatedGuion.contenido,
-        estado: updatedGuion.estado,
-        notas: updatedGuion.estado === 1 ? updatedGuion.notas ?? "" : "",
+        titulo: updated.titulo,
+        contenido: updated.contenido,
+        estado: updated.estado,
+        notas: updated.notas ?? "",
+        // Persistimos el idioma del guion
+        lang: updated.lang ?? currentLang,
       });
 
-      setGuiones((prev) =>
-        prev.map((g) => (g.firebaseId === updatedGuion.firebaseId ? updatedGuion : g))
+      // Actualizamos la lista local
+      setScripts((prev) =>
+        prev.map((g) => (g.firebaseId === updated.firebaseId ? { ...g, ...updated } : g))
       );
 
-      showSuccess(t("toast.saved"));
-
-      // Email (lo dejamos en ES)
-      const estadoTexto =
-        updatedGuion.estado === 0
-          ? "🆕 Nuevo"
-          : updatedGuion.estado === 1
-          ? "✏️ Cambios solicitados"
-          : "✅ Aprobado";
-
-      await sendNotificationEmail(
-        `✍️ Guion actualizado por ${userEmail}`,
-        `Se ha actualizado el guion "${updatedGuion.titulo}".\n\nEstado: ${estadoTexto}\nNotas: ${updatedGuion.notas || "Sin notas"}`
-      );
-    } catch (error) {
-      console.error("Error al guardar guion:", error);
-      handleError(error, t("errors.saveScript"));
+      showSuccess(t("scriptsPage.update.success"));
+    } catch (err) {
+      handleError(err, t("scriptsPage.errors.save"));
+      throw err;
     } finally {
-      toast.dismiss(loadingToast);
+      // el helper showLoading ya gestiona su ciclo de vida
     }
   };
 
-  const handleDeleteConfirmado = async () => {
-    if (!userId || !userEmail || !guionToDelete) return;
+  // === Duplicar guion en otro idioma ===
+  const openDuplicateDialog = (g: Guion) => {
+    setSelected(g);
+    // default: idioma distinto al actual si podemos
+    const current = g.lang ?? currentLang;
+    setDupTarget(current === "es" ? "en" : "es");
+    setDupOpen(true);
+  };
 
-    setIsDeleting(true);
-    const loadingToast = showLoading(t("loading.deletingScript"));
+  const handleConfirmDuplicate = async () => {
+    if (!user || !selected) return;
+    if (!dupTarget) return;
 
     try {
-      await deleteDoc(doc(db, "users", userId, "guiones", guionToDelete.firebaseId));
-      setGuiones((prev) => prev.filter((g) => g.firebaseId !== guionToDelete.firebaseId));
+      setDuplicating(true);
 
-      // Cerrar modal por si estaba abierto
-      setModalOpen(false);
-      setSelectedGuion(null);
+      const colRef = collection(
+        db,
+        "users",
+        user.uid,
+        "guiones"
+      ) as CollectionReference<GuionDoc>;
 
-      showSuccess(t("toast.deleted"));
+      // FUTURO: aquí puedes llamar a GPT/DeepL para traducir/generar
+      // const newContent = await translateOrRegenerate(selected.contenido, dupTarget)
+      const newContent = selected.contenido; // por ahora: copia 1:1
 
-      await sendNotificationEmail(
-        `🗑️ Guion eliminado por ${userEmail}`,
-        `El cliente ha eliminado el guion titulado: "${guionToDelete.titulo}".`
-      );
-    } catch (error) {
-      console.error("Error al eliminar guion:", error);
-      handleError(error, t("errors.deleteScript"));
+      const newDoc = {
+        titulo: `${selected.titulo} (${dupTarget.toUpperCase()})`,
+        contenido: newContent,
+        estado: 0,
+        notas: "",
+        creadoEn: new Date().toISOString(),
+        lang: dupTarget,
+      } satisfies GuionDoc;
+
+      const added = await addDoc(colRef, newDoc);
+
+      // Añadimos a la UI (al principio)
+      setScripts((prev) => [
+        {
+          firebaseId: added.id,
+          ...newDoc,
+        } as Guion,
+        ...prev,
+      ]);
+
+      showSuccess("✅ Duplicado en otro idioma");
+      setDupOpen(false);
+      setSelected(null);
+    } catch (err) {
+      handleError(err, "No se pudo duplicar el guion");
     } finally {
-      setIsDeleting(false);
-      toast.dismiss(loadingToast);
-      setGuionToDelete(null);
+      setDuplicating(false);
     }
   };
 
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">{t("title")}</h1>
+  if (!user) {
+    return (
+      <div className="p-6 text-muted-foreground">
+        {t("scriptsPage.errors.authRequired")}
+      </div>
+    );
+  }
 
-      {loading ? (
-        <p className="text-muted-foreground animate-pulse">{t("loading.loadingScripts")}</p>
-      ) : guiones.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {guiones.map((guion) => (
-            <ScriptCard
-              key={guion.firebaseId}
-              titulo={guion.titulo}
-              contenido={guion.contenido}
-              estado={guion.estado}
-              onClick={() => {
-                setSelectedGuion(guion);
-                setModalOpen(true);
-              }}
-              onDelete={() => setGuionToDelete(guion)}
-            />
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-40" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // helper: opciones de idioma sin el actual
+  const langLabel: Record<Locale, string> = { es: "ES", en: "EN", fr: "FR" };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">{t("scriptsPage.title")}</h1>
+
+      {scripts.length === 0 ? (
+        <Card className="p-6 text-center text-muted-foreground">
+          {t("scriptsPage.empty")}
+        </Card>
       ) : (
-        <p className="text-muted-foreground">{t("empty")}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {scripts.map((g) => {
+            const curr = g.lang ?? currentLang;
+            const targets: Locale[] = (["es", "en", "fr"] as Locale[]).filter((x) => x !== curr);
+            return (
+              <Card key={g.firebaseId} className="p-4 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold line-clamp-2">{g.titulo}</h3>
+                  {getEstadoBadge(g.estado)}
+                </div>
+
+                <p className="text-sm text-muted-foreground line-clamp-3">
+                  {g.contenido || "—"}
+                </p>
+
+                <div className="mt-auto flex items-center justify-between gap-2">
+                  <Badge variant="outline">{(g.lang ?? currentLang).toUpperCase()}</Badge>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelected(g);
+                        setModalOpen(true);
+                      }}
+                    >
+                      {t("scriptsModal.title")}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => openDuplicateDialog(g)}
+                      title="Duplicar guion en otro idioma"
+                    >
+                      🌐 Duplicar
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Diálogo de duplicado por tarjeta (controlado a nivel de página) */}
+                {selected?.firebaseId === g.firebaseId && (
+                  <Dialog open={dupOpen} onOpenChange={(o) => setDupOpen(o)}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>🌐 Duplicar guion</DialogTitle>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Selecciona el idioma de destino para crear una copia de <strong>{g.titulo}</strong>.
+                        </p>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Idioma destino</label>
+                          <Select
+                            value={dupTarget}
+                            onValueChange={(v) => setDupTarget(v as Locale)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Elige idioma" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {targets.map((l) => (
+                                <SelectItem key={l} value={l}>
+                                  {langLabel[l]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setDupOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={handleConfirmDuplicate} disabled={duplicating}>
+                            {duplicating ? "Duplicando..." : "Duplicar"}
+                          </Button>
+                        </div>
+
+                        {/* TODO futurible:
+                            - Checkbox “Generar voz con ElevenLabs”
+                            - Toggle “Traducir con IA (GPT/DeepL)” en lugar de copia literal
+                         */}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
-      {selectedGuion && (
+      {/* Modal de edición */}
+      {selected && (
         <ScriptEditorModal
           open={modalOpen}
-          onOpenChange={setModalOpen}
-          guion={selectedGuion}
-          onSave={handleUpdateGuion}
+          onOpenChange={(open) => {
+            setModalOpen(open);
+            if (!open) setSelected(null);
+          }}
+          guion={selected}
+          onSave={handleSave}
         />
-      )}
-
-      {/* Diálogo de confirmación para eliminar */}
-      {guionToDelete && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h2 className="text-lg font-semibold mb-4">{t("deleteDialog.title")}</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              {t("deleteDialog.body", { title: guionToDelete.titulo })}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setGuionToDelete(null)}
-                disabled={isDeleting}
-              >
-                {t("actions.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDeleteConfirmado}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <span className="flex items-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    {t("loading.deleting")}
-                  </span>
-                ) : (
-                  t("actions.delete")
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

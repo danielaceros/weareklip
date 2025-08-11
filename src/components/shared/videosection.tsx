@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/types/video";
 import EmptyState from "@/components/shared/EmptyState";
 import toast from "react-hot-toast";
+import { useTranslations } from "next-intl";
 
 type Props = {
   videos: Video[];
@@ -23,12 +25,6 @@ type Props = {
   onSelect: (video: Video) => void;
 };
 
-const estados: Record<number, React.ReactNode> = {
-  0: <Badge className="bg-red-500 text-white">🆕 Nuevo</Badge>,
-  1: <Badge className="bg-yellow-400 text-black">✏️ Cambios</Badge>,
-  2: <Badge className="bg-green-500 text-white">✅ Aprobado</Badge>,
-};
-
 export default function VideosSection({
   videos,
   modalOpen,
@@ -41,38 +37,53 @@ export default function VideosSection({
   setNuevoTitulo,
   onSelect,
 }: Props) {
+  const t = useTranslations("clientVideosSection");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
+  const estados: Record<number, React.ReactNode> = {
+    0: <Badge className="bg-red-500 text-white">🆕 {tStatus("new")}</Badge>,
+    1: <Badge className="bg-yellow-400 text-black">✏️ {tStatus("changes")}</Badge>,
+    2: <Badge className="bg-green-500 text-white">✅ {tStatus("approved")}</Badge>,
+  };
+
+  const MAX_MB = 100;
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "video/*": [] },
-    maxSize: 100 * 1024 * 1024,
+    maxSize: MAX_MB * 1024 * 1024,
     onDrop: (acceptedFiles, rejectedFiles) => {
-      // Manejar archivos rechazados (demasiado grandes)
+      // Rechazados
       if (rejectedFiles.length > 0) {
         const error = rejectedFiles[0].errors[0];
-        if (error.code === "file-too-large") {
-          toast.error("❌ Error: El archivo es demasiado grande. Máximo permitido: 100MB");
-        } else if (error.code === "file-invalid-type") {
-          toast.error("❌ Error: Tipo de archivo no válido. Solo se permiten videos.");
+        if (error?.code === "file-too-large") {
+          toast.error(`❌ ${t("errors.fileTooLarge", { max: MAX_MB })}`);
+        } else if (error?.code === "file-invalid-type") {
+          toast.error(`❌ ${t("errors.fileInvalidType")}`);
         } else {
-          toast.error("❌ Error: No se pudo procesar el archivo");
+          toast.error(`❌ ${t("errors.fileProcess")}`);
         }
         return;
       }
 
-      // Manejar archivos aceptados
+      // Aceptados
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0];
-        
-        // Verificación adicional del tamaño (por si acaso)
-        if (file.size > 100 * 1024 * 1024) {
-          toast.error("❌ Error: El archivo es demasiado grande. Máximo permitido: 100MB");
+
+        if (file.size > MAX_MB * 1024 * 1024) {
+          toast.error(`❌ ${t("errors.fileTooLarge", { max: MAX_MB })}`);
           return;
         }
-        
         setArchivoVideo(file);
-        toast.success(`✅ Archivo "${file.name}" seleccionado correctamente`);
+        toast.success(`✅ ${t("toasts.fileSelected", { name: file.name })}`);
       }
     },
   });
+
+  const percent = useMemo(
+    () => (uploadProgress !== null ? Math.round(uploadProgress) : null),
+    [uploadProgress]
+  );
 
   const handleSubmit = () => {
     if (archivoVideo && nuevoTitulo.trim()) {
@@ -83,15 +94,15 @@ export default function VideosSection({
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-semibold">🎬 Videos</h2>
+        <h2 className="text-xl font-semibold">🎬 {t("title")}</h2>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button>+ Crear</Button>
+            <Button>+ {t("create")}</Button>
           </DialogTrigger>
           <DialogContent>
-            <h3 className="font-semibold text-lg mb-2">Subir video</h3>
+            <h3 className="font-semibold text-lg mb-2">{t("uploadDialog.title")}</h3>
             <Input
-              placeholder="Título del video"
+              placeholder={t("placeholders.title")}
               value={nuevoTitulo}
               onChange={(e) => setNuevoTitulo(e.target.value)}
             />
@@ -106,7 +117,7 @@ export default function VideosSection({
                 <p className="text-sm truncate">{archivoVideo.name}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Arrastra un video aquí o haz clic para seleccionar uno (máx. 100MB)
+                  {t("dropzone.placeholder", { max: MAX_MB })}
                 </p>
               )}
             </div>
@@ -115,28 +126,25 @@ export default function VideosSection({
               className="mt-2 w-full"
               disabled={uploadProgress !== null || !nuevoTitulo.trim() || !archivoVideo}
             >
-              {uploadProgress !== null
-                ? `Subiendo... ${uploadProgress.toFixed(0)}%`
-                : "Subir"}
+              {percent !== null ? t("uploading", { percent }) : t("upload")}
             </Button>
           </DialogContent>
         </Dialog>
       </div>
 
-       {videos.length === 0 ? (
+      {videos.length === 0 ? (
         <EmptyState>
-          <p>🎬 Aún no hay videos para este cliente.</p>
+          <p>🎬 {t("empty.title")}</p>
           <p className="mt-2">
-            → Usa el botón{" "}
+            → {t("empty.hint")}{" "}
             <Button
               size="sm"
               variant="outline"
               onClick={() => setModalOpen(true)}
               className="hover:bg-black hover:text-white"
             >
-              + Crear
-            </Button>{" "}
-            para añadir el primero.
+              + {t("create")}
+            </Button>
           </p>
         </EmptyState>
       ) : (
@@ -148,7 +156,7 @@ export default function VideosSection({
               onClick={() => onSelect(v)}
               tabIndex={0}
               role="button"
-              aria-label={`Seleccionar video ${v.titulo}`}
+              aria-label={t("a11y.selectVideo", { title: v.titulo })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") onSelect(v);
               }}
@@ -156,7 +164,7 @@ export default function VideosSection({
               <div className="flex justify-between items-center mb-2">
                 <p className="font-semibold text-base truncate">{v.titulo}</p>
                 {v.estado !== undefined ? (
-                  estados[v.estado] ?? <Badge variant="secondary">Desconocido</Badge>
+                  estados[v.estado] ?? <Badge variant="secondary">{tCommon("unknown")}</Badge>
                 ) : null}
               </div>
               <video
@@ -164,7 +172,7 @@ export default function VideosSection({
                 src={v.url}
                 className="rounded w-full aspect-[9/16] object-cover"
                 preload="metadata"
-                aria-label={`Video: ${v.titulo}`}
+                aria-label={t("a11y.videoLabel", { title: v.titulo })}
               />
             </Card>
           ))}

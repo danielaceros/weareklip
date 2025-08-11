@@ -1,41 +1,43 @@
-"use client"
+"use client";
 
-import Image from "next/image"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { Copy, Phone, Folder, User } from "lucide-react"
-import { toast } from "sonner"
+import Image from "next/image";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Copy, Phone, Folder, User } from "lucide-react";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 type Cliente = {
-  email: string
-  name?: string
-  phone?: string
-  instagramUser?: string
-  notas?: string
-  carpetaTrabajo?: string 
-}
+  email: string;
+  name?: string;
+  phone?: string;
+  instagramUser?: string;
+  notas?: string;
+  carpetaTrabajo?: string;
+};
 
 type Props = {
-  cliente: Cliente
-  setCliente: React.Dispatch<React.SetStateAction<Cliente | null>>
-  uid: string
-  onSave: () => Promise<void>
-}
+  cliente: Cliente;
+  setCliente: React.Dispatch<React.SetStateAction<Cliente | null>>;
+  uid: string; // compat
+  onSave: () => Promise<void>;
+};
 
 export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props) {
-  
-  if (!cliente) return null
+  const t = useTranslations("clientForm");
+  if (!cliente) return null;
 
   const copiarEmail = () => {
-    navigator.clipboard.writeText(cliente.email)
-    toast.success("Correo copiado")
-  }
+    navigator.clipboard.writeText(cliente.email);
+    toast.success(t("emailCopied"));
+  };
 
   return (
     <div className="space-y-3">
-      <h2 className="text-xl font-semibold">📝 Datos del Cliente</h2>
+      <h2 className="text-xl font-semibold">📝 {t("title")}</h2>
 
+      {/* Email (solo lectura + copiar) */}
       <div>
         <div className="flex items-center gap-2">
           <Image
@@ -49,44 +51,48 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
             value={cliente.email}
             readOnly
             type="email"
+            aria-label="Email"
             className="bg-muted cursor-not-allowed"
           />
           <Button
             size="icon"
             variant="outline"
             onClick={copiarEmail}
-            title="Copiar email"
+            title={t("copyEmail")}
+            aria-label={t("copyEmail")}
           >
             <Copy size={16} />
           </Button>
         </div>
       </div>
 
-      {/* Nombre con icono User */}
+      {/* Nombre */}
       <div className="flex items-center gap-2">
-        <User size={24} />
+        <User size={24} aria-hidden="true" />
         <Input
-          placeholder="Nombre"
+          placeholder={t("placeholders.name")}
+          aria-label={t("labels.name")}
           value={cliente.name || ""}
           onChange={(e) =>
-            setCliente((prev) => prev && { ...prev, name: e.target.value })
+            setCliente((prev) => (prev ? { ...prev, name: e.target.value } : prev))
           }
         />
       </div>
 
-      {/* Teléfono con icono */}
+      {/* Teléfono */}
       <div className="flex items-center gap-2">
-        <Phone size={24} />
+        <Phone size={24} aria-hidden="true" />
         <Input
-          placeholder="Teléfono"
+          placeholder={t("placeholders.phone")}
+          aria-label={t("labels.phone")}
           value={cliente.phone || ""}
           onChange={(e) =>
-            setCliente((prev) => prev && { ...prev, phone: e.target.value })
+            setCliente((prev) => (prev ? { ...prev, phone: e.target.value } : prev))
           }
         />
       </div>
 
-      {/* Instagram con logo redondo */}
+      {/* Instagram */}
       <div className="flex items-center gap-2">
         <Image
           src="/instagram-icon.svg"
@@ -96,36 +102,44 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
           className="rounded-full object-cover"
         />
         <Input
-          placeholder="Instagram"
+          placeholder={t("placeholders.instagram")}
+          aria-label={t("labels.instagram")}
           value={cliente.instagramUser || ""}
           onChange={(e) =>
-            setCliente((prev) => prev && { ...prev, instagramUser: e.target.value })
+            setCliente((prev) =>
+              prev ? { ...prev, instagramUser: e.target.value } : prev
+            )
           }
         />
       </div>
 
-      {/* Carpeta de trabajo con icono */}
+      {/* Carpeta de trabajo */}
       <div className="flex items-center gap-2">
-        <Folder size={24} />
+        <Folder size={24} aria-hidden="true" />
         <Input
-          placeholder="Enlace a carpeta de trabajo"
+          placeholder={t("placeholders.workFolder")}
+          aria-label={t("labels.workFolder")}
           type="url"
           value={cliente.carpetaTrabajo || ""}
           onChange={(e) =>
-            setCliente((prev) => prev && { ...prev, carpetaTrabajo: e.target.value })
+            setCliente((prev) =>
+              prev ? { ...prev, carpetaTrabajo: e.target.value } : prev
+            )
           }
         />
       </div>
 
+      {/* Notas internas */}
       <Textarea
-        placeholder="Notas internas"
+        placeholder={t("notesPlaceholder")}
+        aria-label={t("notesPlaceholder")}
         value={cliente.notas || ""}
         onChange={(e) =>
-          setCliente((prev) => prev && { ...prev, notas: e.target.value })
+          setCliente((prev) => (prev ? { ...prev, notas: e.target.value } : prev))
         }
       />
 
-      <Button onClick={onSave}>Guardar Cambios</Button>
+      <Button onClick={onSave}>{t("save")}</Button>
     </div>
-  )
+  );
 }

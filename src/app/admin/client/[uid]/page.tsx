@@ -25,9 +25,14 @@ import CalendarioMensual from "@/components/shared/CalendarioMensual";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
 import { logAction } from "@/lib/logs";
+import { useTranslations } from "next-intl";
 
-// 📧 Notificaciones
-const sendNotificationEmail = async (subject: string, content: string) => {
+/* 📧 Notificaciones (recibe el contexto de error traducido) */
+const sendNotificationEmail = async (
+  subject: string,
+  content: string,
+  errorCtx: string
+) => {
   try {
     const res = await fetch("/api/send-email", {
       method: "POST",
@@ -40,10 +45,10 @@ const sendNotificationEmail = async (subject: string, content: string) => {
     });
 
     if (!res.ok) {
-      throw new Error("Error en la respuesta del servidor");
+      throw new Error("Server error");
     }
   } catch (err) {
-    handleError(err, "Error al enviar el correo");
+    handleError(err, errorCtx);
   }
 };
 
@@ -68,6 +73,8 @@ type Guion = {
 };
 
 export default function ClientProfilePage() {
+  const t = useTranslations("clientPage");
+
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [guiones, setGuiones] = useState<Guion[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -78,34 +85,33 @@ export default function ClientProfilePage() {
   const [modalVideoOpen, setModalVideoOpen] = useState(false);
   const [nuevoVideoTitulo, setNuevoVideoTitulo] = useState("");
   const [archivoVideo, setArchivoVideo] = useState<File | null>(null);
-  const [guionSeleccionado, setGuionSeleccionado] = useState<Guion | null>(
-    null
-  );
-  const [videoSeleccionado, setVideoSeleccionado] = useState<Video | null>(
-    null
-  );
+  const [guionSeleccionado, setGuionSeleccionado] = useState<Guion | null>(null);
+  const [videoSeleccionado, setVideoSeleccionado] = useState<Video | null>(null);
 
   const rawParams = useParams();
   const uid = Array.isArray(rawParams.uid) ? rawParams.uid[0] : rawParams.uid;
 
-  const fetchSubscription = useCallback(async (email: string) => {
-    try {
-      const res = await fetch(
-        `/api/stripe/email?email=${encodeURIComponent(email)}`
-      );
-      if (!res.ok) throw new Error("Error obteniendo suscripción");
+  const fetchSubscription = useCallback(
+    async (email: string) => {
+      try {
+        const res = await fetch(
+          `/api/stripe/email?email=${encodeURIComponent(email)}`
+        );
+        if (!res.ok) throw new Error("fetch-subscription");
 
-      const json = await res.json();
-      setSubscriptionPlan(json?.plan || "Sin plan");
-    } catch (error) {
-      handleError(error, "No se pudo cargar la suscripción");
-      setSubscriptionPlan("Error");
-    }
-  }, []);
+        const json = await res.json();
+        setSubscriptionPlan(json?.plan || t("subscription.none"));
+      } catch (error) {
+        handleError(error, t("errors.subscriptionLoad"));
+        setSubscriptionPlan(t("subscription.error"));
+      }
+    },
+    [t]
+  );
 
   const fetchData = useCallback(async () => {
     if (!uid) {
-      handleError(null, "UID inválido");
+      handleError(null, t("errors.invalidUid"));
       return;
     }
 
@@ -123,7 +129,7 @@ export default function ClientProfilePage() {
 
       if (userData.email) fetchSubscription(userData.email);
 
-      // Cargar guiones
+      // Guiones
       const guionesSnap = await getDocs(collection(userDocRef, "guiones"));
       setGuiones(
         guionesSnap.docs.map((doc) => ({
@@ -132,7 +138,7 @@ export default function ClientProfilePage() {
         })) as Guion[]
       );
 
-      // Cargar videos
+      // Vídeos
       const videosSnap = await getDocs(collection(userDocRef, "videos"));
       setVideos(
         videosSnap.docs.map((doc) => {
@@ -140,16 +146,17 @@ export default function ClientProfilePage() {
           return {
             firebaseId: doc.id,
             ...data,
-            estado: data.estado.toString(), // ✅ Convierte a string ("0", "1", "2")
+            // ⚠️ Se deja como string para respetar tu implementación actual
+            estado: data.estado.toString(),
           };
         }) as Video[]
       );
     } catch (error) {
-      handleError(error, "Error al cargar la ficha del cliente");
+      handleError(error, t("errors.loadClient"));
     } finally {
       setLoading(false);
     }
-  }, [uid, fetchSubscription]);
+  }, [uid, fetchSubscription, t]);
 
   useEffect(() => {
     fetchData();
@@ -157,126 +164,111 @@ export default function ClientProfilePage() {
 
   const handleSaveCliente = async () => {
     if (!uid || !cliente) {
-      handleError(null, "Faltan datos");
+      handleError(null, t("errors.missingClientData"));
       return;
     }
 
-    const loadingToast = showLoading("Guardando datos del cliente...");
+    const loadingToast = showLoading(t("loading.savingClient"));
     try {
       await updateDoc(doc(db, "users", uid), cliente);
       toast.dismiss(loadingToast);
-      showSuccess("Datos actualizados");
+      showSuccess(t("success.clientSaved"));
       fetchData();
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error guardando datos del cliente");
+      handleError(error, t("errors.saveClient"));
     }
   };
 
   const handleCreateGuion = async (titulo: string, contenido: string) => {
     if (!uid || !titulo || !contenido) {
-      console.log("❌ Faltan datos para crear el guión");
-      handleError(null, "Faltan datos para crear el guión");
+      handleError(null, t("errors.missingScriptFields"));
       return;
     }
 
-    const loadingToast = showLoading("Creando guión...");
+    const loadingToast = showLoading(t("loading.creatingScript"));
     try {
-      console.log("📝 Creando guión en Firestore...");
       const docRef = await addDoc(collection(db, "users", uid, "guiones"), {
         titulo,
         contenido,
         estado: 0,
         creadoEn: new Date(),
       });
-      console.log("✅ Guión creado con ID:", docRef.id);
 
-      // Registrar acción en logs
-      console.log("🪵 Creando log en Firestore...");
       await logAction({
         type: "guion",
         action: "creado",
         uid,
-        admin: "rubengomezklip@gmail.com", // Cambiar por lógica real si tienes auth
+        admin: "rubengomezklip@gmail.com",
+        message: `📜 New script for ${cliente?.email || uid}`,
         targetId: docRef.id,
-        message: `📜 Se creó un guión para cliente ${cliente?.email || uid}`,
       });
-      console.log("✅ Log creado correctamente");
 
       toast.dismiss(loadingToast);
-      showSuccess("Guion creado");
+      showSuccess(t("success.scriptCreated"));
 
       await sendNotificationEmail(
         `📜 Nuevo guion creado para ${cliente?.email || uid}`,
-        `Se ha creado un nuevo guion titulado: "${titulo}".`
+        `Se ha creado un nuevo guion titulado: "${titulo}".`,
+        t("errors.emailSend")
       );
-      console.log("📧 Email de notificación enviado");
 
       setModalGuionOpen(false);
       fetchData();
     } catch (error) {
       toast.dismiss(loadingToast);
-      console.error("❌ Error en creación de guión o log:", error);
-      handleError(error, "No se pudo guardar el guión");
+      handleError(error, t("errors.saveScript"));
     }
   };
 
   const handleUpdateGuion = async () => {
     if (!uid || !guionSeleccionado) {
-      handleError(null, "Faltan datos para actualizar el guión");
+      handleError(null, t("errors.missingScriptToUpdate"));
       return;
     }
 
-    const loadingToast = showLoading("Actualizando guión...");
+    const loadingToast = showLoading(t("loading.updatingScript"));
     try {
-      const refDoc = doc(
-        db,
-        "users",
-        uid,
-        "guiones",
-        guionSeleccionado.firebaseId
-      );
+      const refDoc = doc(db, "users", uid, "guiones", guionSeleccionado.firebaseId);
       await updateDoc(refDoc, {
         titulo: guionSeleccionado.titulo,
         contenido: guionSeleccionado.contenido,
         estado: guionSeleccionado.estado,
       });
+
       await logAction({
         type: "guion",
         action: "editado",
         uid,
-        admin: "rubengomezklip@gmail.com", // usa sesión si la tienes
+        admin: "rubengomezklip@gmail.com",
         targetId: guionSeleccionado.firebaseId,
-        message: `📜 Se editó un guión para cliente ${cliente?.email || uid}`,
+        message: `📜 Script edited for ${cliente?.email || uid}`,
       });
 
       toast.dismiss(loadingToast);
-      showSuccess("Guion actualizado");
+      showSuccess(t("success.scriptUpdated"));
       setGuionSeleccionado(null);
       fetchData();
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error al actualizar guion");
+      handleError(error, t("errors.updateScript"));
     }
   };
 
   const handleUploadVideo = async () => {
     if (!uid || !archivoVideo || !nuevoVideoTitulo.trim()) {
-      handleError(null, "Completa todos los campos");
+      handleError(null, t("errors.missingVideoFields"));
       return;
     }
 
     if (archivoVideo.size > 100 * 1024 * 1024) {
-      handleError(null, "El archivo no debe superar los 100MB");
+      handleError(null, t("errors.maxFile"));
       return;
     }
 
-    const loadingToast = showLoading("Subiendo video...");
+    const loadingToast = showLoading(t("loading.uploadingVideo"));
     try {
-      const storageRef = ref(
-        storage,
-        `users/${uid}/videos/${archivoVideo.name}`
-      );
+      const storageRef = ref(storage, `users/${uid}/videos/${archivoVideo.name}`);
       const uploadTask = uploadBytesResumable(storageRef, archivoVideo);
 
       uploadTask.on(
@@ -288,21 +280,18 @@ export default function ClientProfilePage() {
         },
         (error) => {
           toast.dismiss(loadingToast);
-          handleError(error, "Falló la subida del vídeo");
+          handleError(error, t("errors.uploadVideo"));
           setUploadProgress(null);
         },
         async () => {
           try {
             const url = await getDownloadURL(uploadTask.snapshot.ref);
-            const docRef = await addDoc(
-              collection(db, "users", uid, "videos"),
-              {
-                titulo: nuevoVideoTitulo,
-                url,
-                estado: "0",
-                creadoEn: new Date(),
-              }
-            );
+            const docRef = await addDoc(collection(db, "users", uid, "videos"), {
+              titulo: nuevoVideoTitulo,
+              url,
+              estado: "0",
+              creadoEn: new Date(),
+            });
 
             await logAction({
               type: "video",
@@ -310,17 +299,16 @@ export default function ClientProfilePage() {
               uid,
               admin: "rubengomezklip@gmail.com",
               targetId: docRef.id,
-              message: `🎥 Se subió un vídeo para cliente ${
-                cliente?.email || uid
-              }`,
+              message: `🎥 Video uploaded for ${cliente?.email || uid}`,
             });
 
             toast.dismiss(loadingToast);
-            showSuccess("Video subido con éxito");
+            showSuccess(t("success.videoUploaded"));
 
             await sendNotificationEmail(
               `🎬 Nuevo video subido por ${cliente?.email || uid}`,
-              `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`
+              `Se ha subido un nuevo video titulado: "${nuevoVideoTitulo}".`,
+              t("errors.emailSend")
             );
 
             setUploadProgress(null);
@@ -330,14 +318,14 @@ export default function ClientProfilePage() {
             fetchData();
           } catch (error) {
             toast.dismiss(loadingToast);
-            handleError(error, "Error al guardar video");
+            handleError(error, t("errors.saveVideo"));
             setUploadProgress(null);
           }
         }
       );
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error al subir video");
+      handleError(error, t("errors.uploadVideo"));
       setUploadProgress(null);
     }
   };
@@ -346,44 +334,35 @@ export default function ClientProfilePage() {
     updatedVideo: Video & { nuevoArchivo?: File }
   ) => {
     if (!uid || !updatedVideo) {
-      handleError(null, "Faltan datos para actualizar el video");
+      handleError(null, t("errors.missingVideoToUpdate"));
       return;
     }
 
-    const loadingToast = showLoading("Actualizando video...");
+    const loadingToast = showLoading(t("loading.updatingVideo"));
     try {
       let url = updatedVideo.url;
 
       if (updatedVideo.nuevoArchivo) {
         if (updatedVideo.nuevoArchivo.size > 100 * 1024 * 1024) {
           toast.dismiss(loadingToast);
-          handleError(null, "El archivo no debe superar los 100MB");
+          handleError(null, t("errors.maxFile"));
           return;
         }
 
-        const storageRef = ref(
-          storage,
-          `users/${uid}/videos/${updatedVideo.nuevoArchivo.name}`
-        );
-        const uploadTask = await uploadBytesResumable(
-          storageRef,
-          updatedVideo.nuevoArchivo
-        );
+        const storageRef = ref(storage, `users/${uid}/videos/${updatedVideo.nuevoArchivo.name}`);
+        const uploadTask = await uploadBytesResumable(storageRef, updatedVideo.nuevoArchivo);
         url = await getDownloadURL(uploadTask.ref);
       }
 
-      await updateDoc(
-        doc(db, "users", uid, "videos", updatedVideo.firebaseId),
-        {
-          titulo: updatedVideo.titulo,
-          estado: updatedVideo.estado.toString(),
-          notas: updatedVideo.notas || "",
-          url,
-        }
-      );
+      await updateDoc(doc(db, "users", uid, "videos", updatedVideo.firebaseId), {
+        titulo: updatedVideo.titulo,
+        estado: updatedVideo.estado.toString(),
+        notas: updatedVideo.notas || "",
+        url,
+      });
 
       toast.dismiss(loadingToast);
-      showSuccess("Video actualizado correctamente");
+      showSuccess(t("success.videoUpdated"));
 
       await sendNotificationEmail(
         `🛠 Video actualizado para ${cliente?.email || uid}`,
@@ -393,32 +372,33 @@ export default function ClientProfilePage() {
             : updatedVideo.estado === 1
             ? "Cambios"
             : "Aprobado"
-        }\nNotas: ${updatedVideo.notas || "Sin notas"}`
+        }\nNotas: ${updatedVideo.notas || "Sin notas"}`,
+        t("errors.emailSend")
       );
 
       setVideoSeleccionado(null);
       fetchData();
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error al actualizar video");
+      handleError(error, t("errors.updateVideo"));
     }
   };
 
   const handleDelete = async (type: "guiones" | "videos", id: string) => {
     if (!uid || typeof uid !== "string") {
-      handleError(null, "UID inválido");
+      handleError(null, t("errors.invalidUid"));
       return;
     }
 
-    const loadingToast = showLoading("Eliminando...");
+    const loadingToast = showLoading(t("loading.deleting"));
     try {
       await deleteDoc(doc(db, "users", uid, type, id));
       toast.dismiss(loadingToast);
-      showSuccess("Elemento eliminado");
+      showSuccess(t("success.deleted"));
       fetchData();
     } catch (error) {
       toast.dismiss(loadingToast);
-      handleError(error, "Error al eliminar");
+      handleError(error, t("errors.delete"));
     }
   };
 
@@ -432,25 +412,29 @@ export default function ClientProfilePage() {
   }
 
   if (!cliente) {
-    return <div className="p-6 text-center">Cliente no encontrado.</div>;
+    return <div className="p-6 text-center">{t("notFound")}</div>;
   }
 
   return (
     <div className="p-6 space-y-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">👤 Cliente: {cliente.email}</h1>
+        <h1 className="text-2xl font-bold">
+          {t("title", { email: cliente.email })}
+        </h1>
+
         {cliente.stripeLink && (
           <a
             href={cliente.stripeLink}
             target="_blank"
             className="text-blue-600 underline"
           >
-            Ver en Stripe
+            {t("viewInStripe")}
           </a>
         )}
+
         {subscriptionPlan && (
           <div className="bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full w-fit">
-            {subscriptionPlan}
+            {t("subscriptionBadge", { plan: subscriptionPlan })}
           </div>
         )}
       </div>
@@ -505,14 +489,8 @@ export default function ClientProfilePage() {
       <ClonacionVideosSection uid={uid as string} />
 
       <div className="mt-10">
-        <h2 className="text-2xl font-bold mb-4">
-          📅 Calendario de Publicación
-        </h2>
-        <CalendarioMensual
-          uid={uid as string}
-          guiones={guiones}
-          videos={videos}
-        />
+        <h2 className="text-2xl font-bold mb-4">{t("calendarTitle")}</h2>
+        <CalendarioMensual uid={uid as string} guiones={guiones} videos={videos} />
       </div>
     </div>
   );

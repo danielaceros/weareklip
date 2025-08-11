@@ -54,10 +54,32 @@ export default function UserDropdown({ user }: Props) {
     setAccent(id);
   };
 
-  const handleChangeLocale = (value: string) => {
+  const handleChangeLocale = async (value: string) => {
     const loc = value as Locale;
     setLocaleState(loc);
-    changeLocale(loc); // asume que setea cookie y recarga/refresh
+
+    // Intenta persistir en Firestore (users/{uid}/settings.lang) si está logueado
+    try {
+      const u = auth.currentUser;
+      if (u) {
+        const token = await u.getIdToken();
+        // No bloquea el cambio: se hace en background
+        fetch('/api/users/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ lang: loc }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {
+      // silencioso
+    }
+
+    // Cookie + localStorage + recarga para que NextIntl cargue el paquete correcto
+    changeLocale(loc);
   };
 
   const handleSignOut = async () => {
@@ -65,7 +87,6 @@ export default function UserDropdown({ user }: Props) {
       await signOut(auth);
       router.push('/login');
     } catch (err) {
-      // Si tienes un toast de errores centralizado, úsalo aquí
       console.error('signOut error', err);
     }
   };

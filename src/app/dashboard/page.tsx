@@ -1,3 +1,4 @@
+// src/app/(dashboard)/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { es as dfnsEs, enUS as dfnsEn } from "date-fns/locale";
+import { es as dfnsEs, enUS as dfnsEn, fr as dfnsFr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import {
   collection,
@@ -73,11 +74,11 @@ interface DashboardStats {
   videos: number;
 }
 
-/* --------- Tipos de documentos Firestore (para evitar any) --------- */
+/* --------- Tipos de documentos Firestore --------- */
 type CalendarioDoc = {
   tipo: "guion" | "video";
   titulo: string;
-  fecha: Timestamp;             // Firestore Timestamp
+  fecha: Timestamp;
   estado?: Estado;
   refId: string;
 };
@@ -85,17 +86,17 @@ type CalendarioDoc = {
 type GuionDoc = {
   titulo?: string;
   contenido?: string;
-  estado?: number;              // 0,1,2
-  creadoEn?: string;            // lo dejas como llega (string/ISO/epoch)
+  estado?: number;
+  creadoEn?: string;
 };
 
 type VideoDoc = {
   titulo?: string;
   url?: string;
-  estado?: number | string;     // a veces string en BBDD -> lo normalizamos
+  estado?: number | string;
   creadoEn?: string;
 };
-/* ------------------------------------------------------------------- */
+/* -------------------------------------------------- */
 
 function formatDateToISO(date: Date) {
   const year = date.getFullYear();
@@ -106,9 +107,10 @@ function formatDateToISO(date: Date) {
 
 export default function DashboardPage() {
   const t = useT();
-  const locale = useLocale(); // 'es' | 'en'
-  const dfnsLocale = locale === "es" ? dfnsEs : dfnsEn;
-  const isES = locale === "es";
+  const locale = useLocale(); // 'es' | 'en' | 'fr'
+  const dfnsLocale = locale === "es" ? dfnsEs : locale === "fr" ? dfnsFr : dfnsEn;
+  const displayLocale = locale === "es" ? "es-ES" : locale === "fr" ? "fr-FR" : "en-US";
+  const langLabel = (locale || "es").toUpperCase(); // ES | EN | FR
 
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Date | undefined>(undefined);
@@ -305,7 +307,7 @@ export default function DashboardPage() {
             plan: data.plan ?? t("dashboard.subscription.unknownPlan"),
             renovacion: data.current_period_end
               ? new Date(data.current_period_end * 1000).toLocaleDateString(
-                  isES ? "es-ES" : "en-US"
+                  displayLocale
                 )
               : t("dashboard.subscription.unknownRenewal"),
           },
@@ -336,7 +338,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [fetchEventos, fetchUltimoGuion, fetchUltimoVideo, fetchStats, t, isES]
+    [fetchEventos, fetchUltimoGuion, fetchUltimoVideo, fetchStats, t, displayLocale]
   );
 
   useEffect(() => {
@@ -408,9 +410,12 @@ export default function DashboardPage() {
     }
   };
 
-  const weekdayLabels = isES
-    ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"]
-    : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const weekdayLabels =
+    locale === "es"
+      ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"]
+      : locale === "fr"
+      ? ["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"]
+      : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   if (loading) {
     return (
@@ -444,7 +449,12 @@ export default function DashboardPage() {
       `}</style>
 
       <div className="p-6 space-y-8">
-        <h1 className="text-2xl font-bold">{t("dashboard.title")}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t("dashboard.title")}</h1>
+          <Badge variant="outline" className="uppercase" title="Idioma">
+            {langLabel}
+          </Badge>
+        </div>
         <p className="text-muted-foreground">{t("dashboard.subtitle")}</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
@@ -486,7 +496,7 @@ export default function DashboardPage() {
               {selected && (
                 <div>
                   <h4 className="font-medium text-sm mb-2">
-                    {selected.toLocaleDateString(isES ? "es-ES" : "en-US")}
+                    {selected.toLocaleDateString(displayLocale)}
                   </h4>
                   {eventosDelDia.length === 0 ? (
                     <p className="text-xs text-gray-500">

@@ -10,6 +10,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/authContext';
 import { SyncStripe } from '@/components/shared/syncstripe';
 import { Toaster } from 'react-hot-toast';
+import LocaleBootstrap from '@/components/i18n/LocaleBootstrap';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -30,13 +31,17 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // 🔐 Locale desde cookie (set por changeLocale)
-  const cookieStore = await cookies();
-  const cookieLocale = cookieStore.get('NEXT_LOCALE')?.value;
-  const locale = cookieLocale === 'en' || cookieLocale === 'es' ? cookieLocale : 'es';
+  // ✅ En tu versión, cookies() es async -> usa await
+  const cookieLocale = (await cookies()).get('NEXT_LOCALE')?.value;
+  const locale =
+    cookieLocale === 'en' || cookieLocale === 'es' || cookieLocale === 'fr'
+      ? cookieLocale
+      : 'es';
 
-  // 🔠 Mensajes del locale seleccionado
-  const messages: AbstractIntlMessages = (await import(`../locales/${locale}.json`)).default;
+  // 🔠 Carga de mensajes del locale seleccionado
+  const messages: AbstractIntlMessages = (
+    await import(`../locales/${locale}.json`)
+  ).default;
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -47,12 +52,9 @@ export default async function RootLayout({
             __html: `
 (function() {
   try {
-    // 👇 AJUSTA esta clave si en lib/theme.ts usas otra (por ejemplo 'accent' o 'klip.accent')
     var STORAGE_KEY = 'accent';
     var a = localStorage.getItem(STORAGE_KEY) || 'blue';
     var root = document.documentElement;
-
-    // Limpia posibles clases accent-* y aplica la actual
     var cls = root.className.split(' ').filter(function(c){return c && c.indexOf('accent-') !== 0;});
     cls.push('accent-' + a);
     root.className = cls.join(' ').trim();
@@ -69,6 +71,9 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          {/* Detecta y persiste idioma al cargar en cliente */}
+          <LocaleBootstrap />
+
           <NextIntlClientProvider locale={locale} messages={messages}>
             <AuthProvider>
               <SyncStripe />

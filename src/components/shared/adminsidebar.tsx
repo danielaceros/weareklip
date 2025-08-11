@@ -20,7 +20,7 @@ const rawLinks = [
   { href: '/admin', key: 'sidebar.adminHome' },
   { href: '/admin/clients', key: 'sidebar.clients' },
   { href: '/admin/tasks', key: 'sidebar.tasks' },
-  { href: '/admin/notifications', key: 'sidebar.notifications' },
+  { href: '/admin/notifications', key: 'sidebar.adminNotifications' },
 ];
 
 export function AdminSidebar() {

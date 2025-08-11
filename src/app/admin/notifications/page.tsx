@@ -1,3 +1,4 @@
+// src/app/admin/notifications/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -23,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { es as dfnsEs, enUS as dfnsEn } from "date-fns/locale";
+import { es as dfnsEs, enUS as dfnsEn, fr as dfnsFr } from "date-fns/locale";
 import { handleError, showSuccess } from "@/lib/errors";
 import { Bell, CheckCircle, Clock, Filter } from "lucide-react";
 import { useT } from "@/lib/i18n";
@@ -50,38 +51,50 @@ const iconosPorTipo: Record<string, string> = {
   sistema: "⚙️",
 };
 
-// Devuelve un mensaje “bonito” según type + contenido y lo traduce
+// Mensaje bonito en base al tipo + contenido (y traducido)
 function friendlyMessage(
   type: Log["type"],
   raw: string,
   t: ReturnType<typeof useT>
 ) {
-  const has = (s: string) =>
-    raw.toLowerCase().includes(s.toLowerCase());
+  const has = (s: string) => raw.toLowerCase().includes(s.toLowerCase());
 
   switch (type) {
     case "guion":
-      if (has("aprob") || has("approved")) return t("admin.notifications.friendly.guion.approved");
-      if (has("edit") || has("editó")) return t("admin.notifications.friendly.guion.edited");
-      if (has("creó") || has("created")) return t("admin.notifications.friendly.guion.created");
-      if (has("solicit") || has("requested")) return t("admin.notifications.friendly.guion.requested");
+      if (has("aprob") || has("approved"))
+        return t("admin.notifications.friendly.guion.approved");
+      if (has("edit") || has("editó"))
+        return t("admin.notifications.friendly.guion.edited");
+      if (has("creó") || has("created"))
+        return t("admin.notifications.friendly.guion.created");
+      if (has("solicit") || has("requested"))
+        return t("admin.notifications.friendly.guion.requested");
       break;
     case "video":
-      if (has("aprob") || has("approved")) return t("admin.notifications.friendly.video.approved");
-      if (has("subid") || has("uploaded")) return t("admin.notifications.friendly.video.uploaded");
-      if (has("edit") || has("editado")) return t("admin.notifications.friendly.video.edited");
+      if (has("aprob") || has("approved"))
+        return t("admin.notifications.friendly.video.approved");
+      if (has("subid") || has("uploaded"))
+        return t("admin.notifications.friendly.video.uploaded");
+      if (has("edit") || has("editado"))
+        return t("admin.notifications.friendly.video.edited");
       break;
     case "clonacion":
-      if (has("proces") || has("processed")) return t("admin.notifications.friendly.clone.processed");
-      if (has("sub") || has("upload")) return t("admin.notifications.friendly.clone.uploaded");
+      if (has("proces") || has("processed"))
+        return t("admin.notifications.friendly.clone.processed");
+      if (has("sub") || has("upload"))
+        return t("admin.notifications.friendly.clone.uploaded");
       break;
     case "tarea":
-      if (has("complet") || has("completed")) return t("admin.notifications.friendly.task.completed");
-      if (has("asign") || has("assigned")) return t("admin.notifications.friendly.task.assigned");
+      if (has("complet") || has("completed"))
+        return t("admin.notifications.friendly.task.completed");
+      if (has("asign") || has("assigned"))
+        return t("admin.notifications.friendly.task.assigned");
       break;
     case "sistema":
-      if (has("manten") || has("maintenance")) return t("admin.notifications.friendly.system.maintenance");
-      if (has("actualiz") || has("updated")) return t("admin.notifications.friendly.system.updated");
+      if (has("manten") || has("maintenance"))
+        return t("admin.notifications.friendly.system.maintenance");
+      if (has("actualiz") || has("updated"))
+        return t("admin.notifications.friendly.system.updated");
       break;
   }
   return raw;
@@ -89,8 +102,8 @@ function friendlyMessage(
 
 export default function AdminNotificationsPage() {
   const t = useT();
-  const locale = useLocale(); // 'es' | 'en'
-  const dfnsLocale = locale === "es" ? dfnsEs : dfnsEn;
+  const locale = useLocale(); // 'es' | 'en' | 'fr'
+  const dfnsLocale = locale === "fr" ? dfnsFr : locale === "es" ? dfnsEs : dfnsEn;
 
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +161,9 @@ export default function AdminNotificationsPage() {
 
     try {
       setLogs((prev) => prev.map((l) => (!l.readByAdmin ? { ...l, readByAdmin: true } : l)));
-      await Promise.all(unreadLogs.map((l) => updateDoc(doc(db, "logs", l.id), { readByAdmin: true })));
+      await Promise.all(
+        unreadLogs.map((l) => updateDoc(doc(db, "logs", l.id), { readByAdmin: true }))
+      );
       showSuccess(t("admin.notifications.toast.markedAll", { count: unreadLogs.length }));
     } catch (error) {
       handleError(error, t("admin.notifications.errors.markAll"));
@@ -172,7 +187,7 @@ export default function AdminNotificationsPage() {
     const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
     const match = message.match(emailRegex);
     return match ? match[1] : "";
-    };
+  };
 
   if (loading) {
     return (
@@ -183,13 +198,6 @@ export default function AdminNotificationsPage() {
       </div>
     );
   }
-
-  const tiposUnicos = [...new Set(logs.map((log) => log.type))];
-  const emailsUnicos = [
-    ...new Set(
-      logs.map((log) => extractUserEmailFromMessage(log.message)).filter(Boolean)
-    ),
-  ];
 
   const filteredLogs = logs.filter((log) => {
     const userEmail = extractUserEmailFromMessage(log.message);
@@ -264,15 +272,21 @@ export default function AdminNotificationsPage() {
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4 text-center bg-card border-border">
           <div className="text-2xl font-bold text-primary">{stats.total}</div>
-          <div className="text-sm text-muted-foreground">Total</div>
+          <div className="text-sm text-muted-foreground">
+            {t("admin.notifications.stats.total")}
+          </div>
         </Card>
         <Card className="p-4 text-center bg-card border-border">
           <div className="text-2xl font-bold text-destructive">{stats.unread}</div>
-          <div className="text-sm text-muted-foreground">Sin leer</div>
+          <div className="text-sm text-muted-foreground">
+            {t("admin.notifications.stats.unread")}
+          </div>
         </Card>
         <Card className="p-4 text-center bg-card border-border">
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.today}</div>
-          <div className="text-sm text-muted-foreground">Hoy</div>
+          <div className="text-sm text-muted-foreground">
+            {t("admin.notifications.stats.today")}
+          </div>
         </Card>
       </div>
 
@@ -309,7 +323,7 @@ export default function AdminNotificationsPage() {
               <SelectItem value="todos">
                 {t("admin.notifications.filters.allTypes")}
               </SelectItem>
-              {tiposUnicos.map((tipo) => (
+              {Array.from(new Set(logs.map((l) => l.type))).map((tipo) => (
                 <SelectItem key={tipo} value={tipo}>
                   {iconosPorTipo[tipo]} {t(`admin.notifications.types.${tipo}`)}
                 </SelectItem>
@@ -325,11 +339,22 @@ export default function AdminNotificationsPage() {
               <SelectItem value="todos">
                 {t("admin.notifications.filters.allUsers")}
               </SelectItem>
-              {emailsUnicos.map((email) => (
-                <SelectItem key={email} value={email}>
-                  📧 {email}
-                </SelectItem>
-              ))}
+              {Array.from(
+                new Set(
+                  logs.map((log) => {
+                    const emailRegex =
+                      /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+                    const match = log.message.match(emailRegex);
+                    return match ? match[1] : "";
+                  })
+                )
+              )
+                .filter(Boolean)
+                .map((email) => (
+                  <SelectItem key={email} value={email}>
+                    📧 {email}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
 
@@ -338,9 +363,15 @@ export default function AdminNotificationsPage() {
               <SelectValue placeholder={t("admin.notifications.filters.readState")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">{t("admin.notifications.filters.read.all")}</SelectItem>
-              <SelectItem value="no_leidas">{t("admin.notifications.filters.read.unread")}</SelectItem>
-              <SelectItem value="leidas">{t("admin.notifications.filters.read.read")}</SelectItem>
+              <SelectItem value="todos">
+                {t("admin.notifications.filters.read.all")}
+              </SelectItem>
+              <SelectItem value="no_leidas">
+                {t("admin.notifications.filters.read.unread")}
+              </SelectItem>
+              <SelectItem value="leidas">
+                {t("admin.notifications.filters.read.read")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -349,7 +380,9 @@ export default function AdminNotificationsPage() {
       {/* List */}
       {filteredLogs.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">📭 {t("admin.notifications.empty.title")}</p>
+          <p className="text-muted-foreground text-lg">
+            📭 {t("admin.notifications.empty.title")}
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
             {search ||
             filterType !== "todos" ||
@@ -363,18 +396,25 @@ export default function AdminNotificationsPage() {
         <div className="space-y-3">
           {filteredLogs.map((log) => {
             const mensaje = friendlyMessage(log.type, log.message, t);
-            const timeAgo = formatTimeAgo(new Date(log.timestamp.seconds * 1000));
-            const userEmail = extractUserEmailFromMessage(log.message);
+            const timeAgo = formatTimeAgo(
+              new Date(log.timestamp.seconds * 1000)
+            );
+            const userEmail = (() => {
+              const emailRegex =
+                /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+              const match = log.message.match(emailRegex);
+              return match ? match[1] : "";
+            })();
 
             return (
-            <Card
-              key={log.id}
-              className={
-                !log.readByAdmin
-                  ? "p-4 transition-all duration-200 hover:shadow-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/40"
-                  : "p-4 transition-all duration-200 hover:shadow-md bg-card border border-border"
-              }
-            >
+              <Card
+                key={log.id}
+                className={
+                  !log.readByAdmin
+                    ? "p-4 transition-all duration-200 hover:shadow-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/40"
+                    : "p-4 transition-all duration-200 hover:shadow-md bg-card border border-border"
+                }
+              >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex flex-col items-center gap-1">
@@ -405,10 +445,19 @@ export default function AdminNotificationsPage() {
                         </div>
                         <span>👤 {log.admin}</span>
                         <span>
-                          📧 {userEmail || t("admin.notifications.unknownUser", { id: log.uid.substring(0, 8) })}
+                          📧{" "}
+                          {userEmail ||
+                            t("admin.notifications.unknownUser", {
+                              id: log.uid.substring(0, 8),
+                            })}
                         </span>
                         <span className="hidden sm:inline">
-                          📅 {format(new Date(log.timestamp.seconds * 1000), "dd/MM/yyyy HH:mm", { locale: dfnsLocale })}
+                          📅{" "}
+                          {format(
+                            new Date(log.timestamp.seconds * 1000),
+                            "dd/MM/yyyy HH:mm",
+                            { locale: dfnsLocale }
+                          )}
                         </span>
                       </div>
                     </div>
@@ -435,7 +484,10 @@ export default function AdminNotificationsPage() {
       {filteredLogs.length > 0 && (
         <Card className="p-4">
           <div className="text-center text-sm text-muted-foreground">
-            {t("admin.notifications.footer", { count: filteredLogs.length, total: logs.length })}
+            {t("admin.notifications.footer", {
+              count: filteredLogs.length,
+              total: logs.length,
+            })}
           </div>
         </Card>
       )}

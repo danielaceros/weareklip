@@ -8,6 +8,7 @@ import { collection, getDocs } from "firebase/firestore";
 import ClienteList from "@/components/shared/clientlist";
 import ClienteSkeletonGrid from "@/components/shared/clientskeleton";
 import { useT } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 
 type ClienteActivo = {
   uid: string;
@@ -16,6 +17,7 @@ type ClienteActivo = {
   planName?: string;
   createdAt?: number;
   subStatus?: string;
+  lang?: Locale; // <-- NUEVO
 };
 
 type StripeCliente = {
@@ -23,6 +25,14 @@ type StripeCliente = {
   planName?: string;
   createdAt?: number;
   subStatus?: string;
+};
+
+type FirestoreUserDoc = {
+  email?: string;
+  name?: string;
+  createdAt?: number;
+  lang?: Locale;
+  settings?: { lang?: Locale };
 };
 
 export default function ClientListPage() {
@@ -41,12 +51,14 @@ export default function ClientListPage() {
       const snapshot = await getDocs(collection(db, "users"));
       const result: Record<string, Partial<ClienteActivo>> = {};
       snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as Partial<ClienteActivo> & { email?: string };
+        const data = docSnap.data() as FirestoreUserDoc;
         if (data.email) {
           result[normalize(data.email)] = {
             uid: docSnap.id,
             name: data.name,
             createdAt: data.createdAt,
+            // Intentar settings.lang y, si no, lang en raíz
+            lang: data.settings?.lang ?? data.lang,
           };
         }
       });
@@ -84,12 +96,13 @@ export default function ClientListPage() {
             const key = normalize(c.email);
             const match = firestoreMap[key] || {};
             return {
-              uid: (match.uid as string) || c.email, // fallback seguro al email
+              uid: (match.uid as string) || c.email,
               email: c.email,
               name: (match.name as string) || "",
               planName: c.planName,
               createdAt: c.createdAt,
               subStatus: c.subStatus,
+              lang: match.lang as Locale | undefined, // <-- NUEVO
             };
           });
 
