@@ -1,3 +1,4 @@
+// src/app/login/page.tsx
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -27,6 +28,7 @@ import GoogleLoginButton from "@/components/shared/auth/googleloginbutton"
 import MfaDialog from "@/components/shared/auth/mfa"
 import PhoneEnrollDialog from "@/components/shared/auth/phonenroll"
 import { isValidPhoneNumber } from "react-phone-number-input"
+import { useT } from "@/lib/i18n"
 
 declare global {
   interface Window {
@@ -35,6 +37,7 @@ declare global {
 }
 
 export default function AuthPage() {
+  const t = useT()
   const router = useRouter()
 
   const [isLogin, setIsLogin] = useState(true)
@@ -52,20 +55,25 @@ export default function AuthPage() {
 
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
-  const ERROR_MESSAGES: Record<string, string> = {
-    "auth/invalid-email": "El correo electrónico no es válido.",
-    "auth/user-not-found": "No existe una cuenta con este correo.",
-    "auth/wrong-password": "La contraseña es incorrecta.",
-    "auth/email-already-in-use": "Este correo ya está registrado.",
-    "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
-    "auth/too-many-requests": "Demasiados intentos fallidos. Intenta más tarde.",
-    "auth/multi-factor-auth-required": "Se requiere autenticación multifactor.",
+  // Mapea códigos de Firebase a claves de traducción
+  const ERROR_KEY: Record<string, string> = {
+    "auth/invalid-email": "login.firebase.invalidEmail",
+    "auth/user-not-found": "login.firebase.userNotFound",
+    "auth/wrong-password": "login.firebase.wrongPassword",
+    "auth/email-already-in-use": "login.firebase.emailInUse",
+    "auth/weak-password": "login.firebase.weakPassword",
+    "auth/too-many-requests": "login.firebase.tooMany",
+    "auth/multi-factor-auth-required": "login.firebase.mfaRequired",
   }
 
-  const getErrorMessage = (error: unknown): string =>
-    error instanceof FirebaseError
-      ? ERROR_MESSAGES[error.code] || error.message
-      : "Error desconocido."
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof FirebaseError) {
+      const key = ERROR_KEY[error.code]
+      if (key) return t(key)
+      return error.message || t("common.unknown")
+    }
+    return t("common.unknown")
+  }
 
   useEffect(() => {
     if (!window.recaptchaVerifier) {
@@ -107,16 +115,16 @@ export default function AuthPage() {
 
   const validateForm = (): boolean => {
     if (!email || !password) {
-      toast.warning("Completa todos los campos.")
+      toast.warning(t("login.form.completeAll"))
       return false
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
-      toast.warning("Introduce un correo válido.")
+      toast.warning(t("login.form.invalidEmail"))
       return false
     }
     if (password.length < 6) {
-      toast.warning("La contraseña debe tener al menos 6 caracteres.")
+      toast.warning(t("login.form.weakPassword"))
       return false
     }
     return true
@@ -128,13 +136,17 @@ export default function AuthPage() {
     if (!snap.exists()) {
       await setDoc(ref, {
         uid: user.uid,
-        email: user.email || "",
+        email: (user.email || "").toLowerCase().trim(),
         name: "",
         role: "client",
         createdAt: serverTimestamp(),
       })
     } else {
-      await setDoc(ref, { email: user.email || "" }, { merge: true })
+      await setDoc(
+        ref,
+        { email: (user.email || "").toLowerCase().trim() },
+        { merge: true }
+      )
     }
   }
 
@@ -156,17 +168,14 @@ export default function AuthPage() {
 
       if (!userCredential.user.emailVerified) {
         await sendEmailVerification(userCredential.user)
-        toast.error("Verifica tu correo antes de iniciar sesión.")
+        toast.error(t("login.toasts.verifyEmail"))
         return
       }
 
       await createOrUpdateUserInFirestore(userCredential.user)
       await checkAndEnrollMfaIfMissing(userCredential.user)
     } catch (error: unknown) {
-      if (
-        error instanceof FirebaseError &&
-        error.code === "auth/multi-factor-auth-required"
-      ) {
+      if (error instanceof FirebaseError && error.code === "auth/multi-factor-auth-required") {
         const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
         setMfaResolver(resolver)
         const phoneInfoOptions = {
@@ -211,10 +220,7 @@ export default function AuthPage() {
       await createOrUpdateUserInFirestore(userCredential.user)
       await checkAndEnrollMfaIfMissing(userCredential.user)
     } catch (error: unknown) {
-      if (
-        error instanceof FirebaseError &&
-        error.code === "auth/multi-factor-auth-required"
-      ) {
+      if (error instanceof FirebaseError && error.code === "auth/multi-factor-auth-required") {
         const resolver = getMultiFactorResolver(auth, error as MultiFactorError)
         setMfaResolver(resolver)
         const phoneInfoOptions = {
@@ -237,8 +243,8 @@ export default function AuthPage() {
   }
 
   const verifyMfaCode = async () => {
-    if (verificationCode.some((d) => d === "")) return toast.warning("Completa los 6 dígitos.")
-    if (!mfaResolver || !verificationId) return toast.error("Proceso MFA incompleto.")
+    if (verificationCode.some((d) => d === "")) return toast.warning(t("login.mfa.completeCode"))
+    if (!mfaResolver || !verificationId) return toast.error(t("login.mfa.incompleteProcess"))
 
     setLoadingMfa(true)
     try {
@@ -247,7 +253,7 @@ export default function AuthPage() {
       const assertion = PhoneMultiFactorGenerator.assertion(cred)
       const userCredential = await mfaResolver.resolveSignIn(assertion)
       await createOrUpdateUserInFirestore(userCredential.user)
-      toast.success("Verificación completada")
+      toast.success(t("login.mfa.verified"))
       setShowMfaDialog(false)
       router.push("/dashboard")
     } catch (err) {
@@ -259,7 +265,7 @@ export default function AuthPage() {
 
   const completeEnrollMfa = async () => {
     if (!verificationId || verificationCode.some((d) => d === "")) {
-      toast.warning("Completa el código correctamente")
+      toast.warning(t("login.mfa.completeCode"))
       return
     }
 
@@ -271,8 +277,8 @@ export default function AuthPage() {
       const user = auth.currentUser
       if (!user) throw new Error("Usuario no autenticado")
 
-      await multiFactor(user).enroll(assertion, "Teléfono principal")
-      toast.success("Teléfono inscrito correctamente")
+      await multiFactor(user).enroll(assertion, t("login.mfa.deviceLabel"))
+      toast.success(t("login.mfa.enrolled"))
       router.push("/dashboard")
     } catch (err) {
       toast.error(getErrorMessage(err))
@@ -283,7 +289,7 @@ export default function AuthPage() {
 
   const enrollMfaForUser = async (user: User, phone: string) => {
     if (!isValidPhoneNumber(phone)) {
-      toast.error("Teléfono no válido")
+      toast.error(t("login.mfa.invalidPhone"))
       return
     }
     setLoading(true)
@@ -317,9 +323,9 @@ export default function AuthPage() {
       <main className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 min-h-screen flex items-center justify-center text-white">
         <div className="relative z-10 px-6 text-center max-w-lg">
           <h1 className="text-5xl font-extrabold leading-tight mb-4">
-            {isLogin ? "Bienvenido/a a KLIP" : "Empieza en KLIP"}
+            {isLogin ? t("login.titleLogin") : t("login.titleRegister")}
           </h1>
-          <p className="text-lg mb-8">🤖 Automatizamos TODO tu contenido en redes.</p>
+          <p className="text-lg mb-8">{t("login.subtitle")}</p>
 
           <Card className="w-full max-w-md shadow-xl">
             <CardContent className="py-8 px-6">

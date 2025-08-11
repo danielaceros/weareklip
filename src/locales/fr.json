@@ -999,5 +999,35 @@
       "deleted": "Événement supprimé",
       "stateUpdated": "Statut mis à jour"
     }
+  },
+    "login": {
+    "titleLogin": "Bienvenue sur KLIP",
+    "titleRegister": "Commencez avec KLIP",
+    "subtitle": "🤖 Nous automatisons TOUT votre contenu social.",
+    "form": {
+      "completeAll": "Remplissez tous les champs.",
+      "invalidEmail": "Entrez un e-mail valide.",
+      "weakPassword": "Le mot de passe doit contenir au moins 6 caractères."
+    },
+    "toasts": {
+      "verifyEmail": "Vérifiez votre e-mail avant de vous connecter."
+    },
+    "mfa": {
+      "completeCode": "Complétez le code à 6 chiffres.",
+      "incompleteProcess": "Processus MFA incomplet.",
+      "verified": "Vérification terminée",
+      "enrolled": "Téléphone inscrit correctement",
+      "deviceLabel": "Téléphone principal",
+      "invalidPhone": "Numéro de téléphone invalide"
+    },
+    "firebase": {
+      "invalidEmail": "L’e-mail n’est pas valide.",
+      "userNotFound": "Aucun compte n’existe avec cet e-mail.",
+      "wrongPassword": "Mot de passe incorrect.",
+      "emailInUse": "Cet e-mail est déjà enregistré.",
+      "weakPassword": "Le mot de passe doit contenir au moins 6 caractères.",
+      "tooMany": "Trop de tentatives. Réessayez plus tard.",
+      "mfaRequired": "Une authentification multifacteur est requise."
+    }
   }
 }
