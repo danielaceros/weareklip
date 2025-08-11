@@ -623,6 +623,35 @@
     "createTicket": "Crear nuevo ticket de soporte"
   },
   "admin": {
+    "tasks": {
+      "title": "Tareas",
+      "inboxTitle": "Bandeja de tareas",
+      "newTask": "Nueva tarea",
+      "showCompleted": "Mostrar completadas",
+      "hideCompleted": "Ocultar completadas",
+      "mustBeAdmin": "Debes ser admin para ver las tareas.",
+      "empty": "Sin tareas",
+      "createTitle": "Crear tarea",
+      "editTitle": "Editar tarea",
+      "fields": {
+        "title": "Título",
+        "description": "Descripción",
+        "dueDate": "Vence",
+        "assignee": "Asignado a"
+      },
+      "actions": {
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "delete": "Eliminar"
+      },
+      "errors": {
+        "noAdminDoc": "No se encontró tu documento de admin."
+      },
+      "loading": {
+        "title": "Cargando título…",
+        "list": "Cargando lista de tareas…"
+      }
+    },
     "notifications": {
       "title": "Panel Admin - Todas las notificaciones",
       "subtitle": "{unread} sin leer • {today} hoy",

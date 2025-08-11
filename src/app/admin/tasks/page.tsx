@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { getDocs, collection } from "firebase/firestore";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 import TaskInbox from "@/components/shared/taskinbox";
 import TaskModal from "@/components/shared/taskmodal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,39 +13,41 @@ import { useT } from "@/lib/i18n";
 
 export default function AdminTasksPage() {
   const t = useT();
-  const [uid, setUid] = useState<string | null>(null);
+  const [adminId, setAdminId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // 🔄 Buscar UID en colección `admin` por email
-  const getUidFromEmail = async (email: string): Promise<string | null> => {
-    const snapshot = await getDocs(collection(db, "admin"));
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
-      if (data.email?.toLowerCase().trim() === email.toLowerCase().trim()) {
-        return docSnap.id;
-      }
+  // 🔍 Busca el doc de admin por email (normalizado)
+  const getUidFromEmail = useCallback(async (email: string): Promise<string | null> => {
+    try {
+      const emailNorm = email.trim().toLowerCase();
+      const q = query(collection(db, "admin"), where("email", "==", emailNorm), limit(1));
+      const snap = await getDocs(q);
+      if (snap.empty) return null;
+      return snap.docs[0].id;
+    } catch (err) {
+      console.error("[AdminTasks] Error reading admin doc:", err);
+      toast.error(t("admin.tasks.errors.loadAdminDoc"));
+      return null;
     }
-    return null;
-  };
+  }, [t]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user?.email) {
-        const realUid = await getUidFromEmail(user.email);
-        if (realUid) {
-          setUid(realUid);
-        } else {
-          toast.error(t("admin.tasks.errors.noAdminDoc"));
-        }
-      } else {
-        setUid(null);
+      if (!user?.email) {
+        setAdminId(null);
+        setLoading(false);
+        return;
       }
+      const id = await getUidFromEmail(user.email);
+      if (!id) {
+        toast.error(t("admin.tasks.errors.noAdminDoc"));
+      }
+      setAdminId(id);
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, [t]);
+  }, [getUidFromEmail, t]);
 
   if (loading) {
     return (
@@ -56,29 +58,23 @@ export default function AdminTasksPage() {
     );
   }
 
-  if (!uid) {
-    return (
-      <div className="p-6 text-red-500">
-        {t("admin.tasks.mustBeAdmin")}
-      </div>
-    );
+  if (!adminId) {
+    return <div className="p-6 text-red-500">{t("admin.tasks.mustBeAdmin")}</div>;
   }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">📋 {t("admin.tasks.title")}</h1>
-        <Button onClick={() => setModalOpen(true)}>
-          {t("admin.tasks.newTask")}
-        </Button>
+        <Button onClick={() => setModalOpen(true)}>{t("admin.tasks.newTask")}</Button>
       </div>
 
-      <TaskInbox adminId={uid} />
+      <TaskInbox adminId={adminId} />
 
       <TaskModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        adminId={uid}
+        adminId={adminId}
         task={null} // Nueva tarea
       />
     </div>

@@ -7,7 +7,8 @@ import { useTranslations } from 'next-intl';
 
 export const LOCALES = {
   es: 'Español',
-  en: 'English'
+  en: 'English',
+  fr: 'Français'
 } as const;
 
 export type Locale = keyof typeof LOCALES;
