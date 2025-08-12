@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -17,25 +17,37 @@ export default function NotificationFloating() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let unsubscribeLogs: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      // 🔒 Cierra la subscripción anterior si había
+      if (unsubscribeLogs) {
+        unsubscribeLogs();
+        unsubscribeLogs = null;
+      }
 
-      const result = await checkIsAdmin(user.uid);
-      console.log("📛 UID actual:", user.uid);
-      console.log("🎩 ¿Es admin verificado por Firestore?:", result);
-      setIsAdmin(result);
+      if (!user) {
+        setIsAdmin(false);
+        setLogs([]);
+        return;
+      }
 
-      const unsubscribeLogs = subscribeToUnreadLogs(user.uid, result, (data) =>
-        setLogs(data)
-      );
+      const admin = await checkIsAdmin(user.uid);
+      setIsAdmin(admin);
 
-      return () => unsubscribeLogs();
+      // 🟢 Abre una única subscripción de logs para el usuario actual
+      unsubscribeLogs = subscribeToUnreadLogs(user.uid, admin, (data) => {
+        setLogs(data);
+      });
     });
 
-    return () => unsubscribeAuth();
+    // 🧹 Cleanup REAL del efecto (auth + logs)
+    return () => {
+      if (unsubscribeLogs) unsubscribeLogs();
+      unsubscribeAuth();
+    };
   }, []);
 
   const unreadCount = logs.length;
@@ -51,9 +63,9 @@ export default function NotificationFloating() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50" ref={ref}>
+    <div className="fixed bottom-4 right-4 z-50">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((v) => !v)}
         className="relative bg-white shadow-md rounded-full p-3 hover:scale-105 transition"
       >
         <Bell className="text-gray-700" />
@@ -66,7 +78,6 @@ export default function NotificationFloating() {
 
       {open && (
         <div className="absolute bottom-14 right-0 w-80 max-h-96 bg-white rounded-xl shadow-xl flex flex-col">
-          {/* Header */}
           <div className="p-4 border-b flex justify-between items-center">
             <h4 className="font-semibold text-sm">Notificaciones</h4>
             {logs.length > 0 && (
@@ -105,9 +116,7 @@ export default function NotificationFloating() {
 
           <div className="border-t px-4 py-2 bg-white text-right">
             <Link
-              href={
-                isAdmin ? "/admin/notifications" : "/dashboard/mynotifications"
-              }
+              href={isAdmin ? "/admin/notifications" : "/dashboard/mynotifications"}
               className="text-xs text-blue-500 hover:underline"
             >
               Ver todas →

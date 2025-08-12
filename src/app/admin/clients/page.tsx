@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
@@ -17,7 +17,7 @@ type ClienteActivo = {
   planName?: string;
   createdAt?: number;
   subStatus?: string;
-  lang?: Locale; // <-- NUEVO
+  lang?: Locale;
 };
 
 type StripeCliente = {
@@ -37,6 +37,10 @@ type FirestoreUserDoc = {
 
 export default function ClientListPage() {
   const t = useT();
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const [clientes, setClientes] = useState<ClienteActivo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +61,6 @@ export default function ClientListPage() {
             uid: docSnap.id,
             name: data.name,
             createdAt: data.createdAt,
-            // Intentar settings.lang y, si no, lang en raíz
             lang: data.settings?.lang ?? data.lang,
           };
         }
@@ -70,11 +73,8 @@ export default function ClientListPage() {
   const fetchActivos = useCallback(
     async (startingAfter: string | null = null) => {
       try {
-        if (startingAfter) {
-          setLoadingMore(true);
-        } else {
-          setLoading(true);
-        }
+        if (startingAfter) setLoadingMore(true);
+        else setLoading(true);
 
         const res = await fetch(
           `/api/stripe/customers${startingAfter ? `?starting_after=${startingAfter}` : ""}`
@@ -102,7 +102,7 @@ export default function ClientListPage() {
               planName: c.planName,
               createdAt: c.createdAt,
               subStatus: c.subStatus,
-              lang: match.lang as Locale | undefined, // <-- NUEVO
+              lang: match.lang as Locale | undefined,
             };
           });
 
@@ -116,16 +116,20 @@ export default function ClientListPage() {
         setLastId(newLastId);
       } catch (err) {
         console.error("Error al cargar clientes:", err);
-        toast.error(t("admin.common.loadError") || "Error al cargar clientes");
+        toast.error(tRef.current("admin.common.loadError") || "Error al cargar clientes");
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    [fetchFirestoreUsers, t]
+    [fetchFirestoreUsers]
   );
 
+  // 🔒 Guard contra el doble-mount de StrictMode en dev
+  const fetchedOnce = useRef(false);
   useEffect(() => {
+    if (fetchedOnce.current) return;
+    fetchedOnce.current = true;
     fetchActivos();
   }, [fetchActivos]);
 
@@ -138,7 +142,6 @@ export default function ClientListPage() {
       ) : (
         <>
           <ClienteList clientes={clientes} />
-
           {hasMore && (
             <div className="text-center mt-6">
               <Button onClick={() => fetchActivos(lastId)} disabled={loadingMore}>

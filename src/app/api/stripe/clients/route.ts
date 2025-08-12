@@ -1,75 +1,119 @@
 // /app/api/stripe/clients/route.ts
-import { NextResponse } from "next/server"
-import Stripe from "stripe"
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  telemetry: false,
+  maxNetworkRetries: 1,
+  timeout: 20000,
+});
+
+/* ---------- helpers de tipos para evitar `any` ---------- */
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(v: unknown): v is UnknownRecord {
+  return typeof v === "object" && v !== null;
+}
+function getNum(o: UnknownRecord, key: string): number | null {
+  const v = o[key];
+  return typeof v === "number" ? v : null;
+}
+
+/** Lee start/end del periodo actual de forma compatible con distintas versiones de tipos */
+function getCurrentPeriodMs(
+  sub: Stripe.Subscription | UnknownRecord
+): { startMs: number | null; endMs: number | null } {
+  const obj: UnknownRecord = isRecord(sub) ? sub : {};
+  let start = getNum(obj, "current_period_start");
+  let end = getNum(obj, "current_period_end");
+
+  // Alternativa: objeto current_period { start, end }
+  const cp = obj["current_period"];
+  if ((start == null || end == null) && isRecord(cp)) {
+    if (start == null) start = getNum(cp, "start");
+    if (end == null) end = getNum(cp, "end");
+  }
+
+  return {
+    startMs: start != null ? start * 1000 : null,
+    endMs: end != null ? end * 1000 : null,
+  };
+}
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const startingAfter = searchParams.get("starting_after") || undefined
+  const { searchParams } = new URL(req.url);
+  const startingAfter = searchParams.get("starting_after") || undefined;
 
   try {
     const customers = await stripe.customers.list({
       limit: 50,
-      ...(startingAfter && { starting_after: startingAfter }),
-    })
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
 
-    const results = await Promise.all(
+    const rows = await Promise.all(
       customers.data.map(async (customer) => {
-        const email = customer.email ?? ""
-        let subStatus: string = "no_subscription"
-        let planName: string | null = null
-        let createdAt: number | null = null
-        let startDate: number | null = null
-        let endDate: number | null = null
-
+        // Traemos suscripciones y expandimos price para sacar plan
         const subs = await stripe.subscriptions.list({
           customer: customer.id,
           status: "all",
           limit: 5,
-        })
+          expand: ["data.items.data.price"],
+        });
 
         const active = subs.data.find((s) =>
           ["active", "trialing", "past_due", "unpaid"].includes(s.status)
-        )
+        );
+        if (!active) return null;
 
-        if (!active) return null // 👉 descartar si no está activo
+        const firstItem = active.items.data[0];
+        const price = firstItem?.price as Stripe.Price | undefined;
 
-        subStatus = active.status
-        createdAt = active.created * 1000
-        startDate = active.items.data[0].current_period_start * 1000
-        endDate = active.items.data[0].current_period_end * 1000
-
-        const productId = active.items.data[0]?.price?.product
-        if (typeof productId === "string") {
-          const product = await stripe.products.retrieve(productId)
-          planName = product.name
+        // Nombre del plan: nickname del price o nombre del producto
+        let planName: string | null = null;
+        if (price?.nickname) {
+          planName = price.nickname;
+        } else if (price?.product) {
+          const productId =
+            typeof price.product === "string" ? price.product : price.product.id;
+          try {
+            const product = await stripe.products.retrieve(productId);
+            planName = product?.name ?? null;
+          } catch {
+            planName = null;
+          }
         }
+
+        const { startMs: subStart, endMs: subEnd } = getCurrentPeriodMs(active);
 
         return {
           uid: customer.id,
-          email,
+          email: customer.email ?? "",
           name: customer.name ?? "",
           role: customer.metadata?.role ?? "",
-          subStatus,
+          subStatus: active.status,
           planName,
-          createdAt,
-          startDate,
-          endDate,
-          
-        }
+          createdAt:
+            typeof customer.created === "number" ? customer.created * 1000 : null,
+          subStart,
+          subEnd,
+        };
       })
-    )
+    );
 
-    const filtered = results.filter(Boolean)
+    const data = rows.filter(
+      (r): r is NonNullable<(typeof rows)[number]> => Boolean(r)
+    );
 
     return NextResponse.json({
-      data: filtered,
+      data,
       lastId: customers.data.at(-1)?.id ?? null,
       hasMore: customers.has_more,
-    })
+    });
   } catch (err) {
-    console.error("Error Stripe API:", err)
-    return NextResponse.json({ data: [], error: "Internal server error" }, { status: 500 })
+    console.error("Error Stripe API:", err);
+    return NextResponse.json(
+      { data: [], error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
