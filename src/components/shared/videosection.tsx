@@ -11,6 +11,7 @@ import type { Video } from "@/types/video";
 import EmptyState from "@/components/shared/EmptyState";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
+import { ProgressReel } from "@/components/shared/ProgressReel"; // 👈 NUEVO
 
 type Props = {
   videos: Video[];
@@ -167,6 +168,10 @@ export default function VideosSection({
                   estados[v.estado] ?? <Badge variant="secondary">{tCommon("unknown")}</Badge>
                 ) : null}
               </div>
+
+              {/* 👇 NUEVO: stepper de progreso del reel (solo lectura) */}
+              <ProgressReel estado={v.reelEstado} compact className="mb-2" />
+
               <video
                 controls
                 src={v.url}

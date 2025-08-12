@@ -16,18 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
+import { ProgressReel } from "@/components/shared/ProgressReel";
+import Comments from "@/components/shared/Comments";
+import type { ReelEstado } from "@/types/video";
 
 interface VideoEditorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   titulo: string;
   url: string;
-  estado: string; // "0" | "1" | "2"
+  estado: string; // "0" | "1" | "2"  (feedback del cliente)
   notas: string;
   onNotasChange: (val: string) => void;
   onTituloChange: (val: string) => void;
@@ -37,6 +40,9 @@ interface VideoEditorModalProps {
   onEliminar: () => void;
   videoId?: string;
   estadoAnterior?: string;
+
+  /** Progreso de producción del reel (stepper) */
+  reelEstado?: ReelEstado | null; // <-- TIPADO CORRECTO
 }
 
 export default function VideoEditorModal({
@@ -53,20 +59,23 @@ export default function VideoEditorModal({
   onGuardar,
   onEliminar,
   videoId,
-  estadoAnterior,
+  reelEstado,
 }: VideoEditorModalProps) {
   const t = useTranslations("videosModal");
-  const ts = useTranslations("status"); // 🟡 usamos etiquetas globales de estado
+  const ts = useTranslations("status");
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const showCorrecciones = estado === "1";
 
+  const commentsDocPath = useMemo(() => {
+    const u = auth.currentUser?.uid;
+    return u && videoId ? `users/${u}/videos/${videoId}` : null;
+  }, [videoId]);
+
   const handleGuardar = async () => {
     setIsSaving(true);
     const loadingToast = showLoading(t("loading.saving"));
-
     try {
-      // Asignar tarea si hay "Cambios"
       if (estado === "1") {
         try {
           const res = await fetch("/api/assign-task", {
@@ -77,25 +86,12 @@ export default function VideoEditorModal({
             }),
           });
           if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
-          const contentType = res.headers.get("content-type");
-          if (contentType?.includes("application/json")) {
-            await res.json();
-          }
           showSuccess(t("taskAssigned"));
         } catch (error) {
           handleError(error, t("errors.assignTask"));
         }
       }
-
       await onGuardar();
-
-      // (Opcional) Debug/log básico sin duplicar logs del page:
-      const estadoCambio = estadoAnterior !== estado;
-      if (estadoCambio && auth.currentUser && videoId) {
-        // Aquí podrías llamar a logAction si quisieras (lo hace el page.tsx)
-        // console.log("Log:", { estadoAnterior, estadoNuevo: estado, videoId });
-      }
-
       showSuccess(t("toasts.saveSuccess"));
     } catch (error) {
       handleError(error, t("errors.save"));
@@ -135,11 +131,18 @@ export default function VideoEditorModal({
           </div>
 
           {/* Panel de edición */}
-          <div className="w-[340px] bg-card text-card-foreground rounded-lg p-4 flex flex-col justify-between border border-border shadow-sm">
+          <div className="w-[380px] bg-card text-card-foreground rounded-lg p-4 flex flex-col justify-between border border-border shadow-sm">
             <div className="flex-1 space-y-4 overflow-y-auto pr-1">
               <DialogTitle className="text-xl font-semibold mb-2">
                 {t("title")}
               </DialogTitle>
+
+              {/* Progreso del reel (solo lectura) */}
+              <div className="rounded-lg border p-3">
+                <p className="text-xs mb-2 text-foreground/60">Progreso del reel</p>
+                {/* Pasamos un ReelEstado válido (o fallback) */}
+                <ProgressReel estado={reelEstado ?? "Recibido"} size="narrow" />
+              </div>
 
               <Input
                 type="text"
@@ -178,6 +181,14 @@ export default function VideoEditorModal({
                     rows={4}
                     aria-label={t("a11y.notes")}
                   />
+                </div>
+              )}
+
+              {/* Comentarios */}
+              {commentsDocPath && (
+                <div className="mt-4">
+                  <p className="text-xs mb-2 text-foreground/60">Comentarios</p>
+                  <Comments docPath={commentsDocPath} />
                 </div>
               )}
             </div>

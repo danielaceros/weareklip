@@ -1,6 +1,7 @@
+// src/app/admin/client/[uid]/page.tsx
 "use client";
 
-import type { Video } from "@/types/video";
+import type { Video, ReelEstado } from "@/types/video";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
@@ -12,7 +13,13 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import type { DocumentReference } from "firebase/firestore";
+import {
+  ref,
+  uploadBytesResumable,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import ClienteDatosForm from "@/components/shared/clientdatosform";
@@ -71,6 +78,18 @@ type Guion = {
   contenido: string;
   estado: number;
 };
+
+/** Normaliza reelEstado almacenado como string libre a un ReelEstado válido */
+function normalizeReelEstado(input: unknown): ReelEstado | undefined {
+  if (typeof input !== "string") return undefined;
+  const s = input.toLowerCase();
+  if (s.includes("recib")) return "Recibido";
+  if (s.includes("aprob")) return "Guión aprobado";
+  if (s.includes("voz")) return "Voz generada";
+  if (s.includes("vídeo") || s.includes("video")) return "Vídeo creado";
+  if (s.includes("entreg")) return "Entregado";
+  return undefined;
+}
 
 export default function ClientProfilePage() {
   const t = useTranslations("clientPage");
@@ -140,17 +159,25 @@ export default function ClientProfilePage() {
 
       // Vídeos
       const videosSnap = await getDocs(collection(userDocRef, "videos"));
-      setVideos(
-        videosSnap.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            firebaseId: doc.id,
-            ...data,
-            // ⚠️ Se deja como string para respetar tu implementación actual
-            estado: data.estado.toString(),
-          };
-        }) as Video[]
-      );
+      const vids: Video[] = videosSnap.docs.map((docSnap) => {
+        const data = docSnap.data() as Record<string, unknown>;
+        const estadoValue =
+          typeof data.estado === "number"
+            ? data.estado
+            : parseInt(String(data.estado ?? "0"), 10);
+
+        return {
+          firebaseId: docSnap.id,
+          titulo: typeof data.titulo === "string" ? data.titulo : "",
+          url: typeof data.url === "string" ? data.url : "",
+          estado: Number.isFinite(estadoValue) ? (estadoValue as number) : 0,
+          notas: typeof data.notas === "string" ? data.notas : "",
+          reelEstado: normalizeReelEstado(data.reelEstado),
+          // comments: si lo necesitas, puedes mapearlos aquí (array de objetos)
+        };
+      });
+
+      setVideos(vids);
     } catch (error) {
       handleError(error, t("errors.loadClient"));
     } finally {
@@ -170,7 +197,11 @@ export default function ClientProfilePage() {
 
     const loadingToast = showLoading(t("loading.savingClient"));
     try {
-      await updateDoc(doc(db, "users", uid), cliente);
+      // ✅ Tipado fuerte: referencia y payload
+      const userRef = doc(db, "users", uid) as DocumentReference<Cliente>;
+      const payload: Partial<Cliente> = { ...cliente };
+
+      await updateDoc(userRef, payload);
       toast.dismiss(loadingToast);
       showSuccess(t("success.clientSaved"));
       fetchData();
@@ -289,7 +320,8 @@ export default function ClientProfilePage() {
             const docRef = await addDoc(collection(db, "users", uid, "videos"), {
               titulo: nuevoVideoTitulo,
               url,
-              estado: "0",
+              estado: 0, // number
+              reelEstado: "Recibido" as ReelEstado, // estado inicial del progreso
               creadoEn: new Date(),
             });
 
@@ -349,16 +381,23 @@ export default function ClientProfilePage() {
           return;
         }
 
-        const storageRef = ref(storage, `users/${uid}/videos/${updatedVideo.nuevoArchivo.name}`);
-        const uploadTask = await uploadBytesResumable(storageRef, updatedVideo.nuevoArchivo);
-        url = await getDownloadURL(uploadTask.ref);
+        // Subida simple y tipado correcto
+        const storageRef = ref(
+          storage,
+          `users/${uid}/videos/${updatedVideo.nuevoArchivo.name}`
+        );
+        const snapshot = await uploadBytes(storageRef, updatedVideo.nuevoArchivo);
+        url = await getDownloadURL(snapshot.ref);
       }
 
       await updateDoc(doc(db, "users", uid, "videos", updatedVideo.firebaseId), {
         titulo: updatedVideo.titulo,
-        estado: updatedVideo.estado.toString(),
+        estado: updatedVideo.estado, // number
         notas: updatedVideo.notas || "",
         url,
+        ...(updatedVideo.reelEstado
+          ? ({ reelEstado: updatedVideo.reelEstado } as { reelEstado: ReelEstado })
+          : {}),
       });
 
       toast.dismiss(loadingToast);
