@@ -13,12 +13,10 @@ type Cliente = {
   notas?: string;
   subStatus?: string;
   planName?: string;
-  createdAt?: number; // fecha que antes se mostraba en "Creado" -> ahora va a "Subscripción"
+  createdAt?: number;
+  startDate?: number | null;
+  endDate?: number | null;
   hasBeenScheduled?: boolean;
-
-  // Fechas de suscripción (epoch ms o s)
-  subStart?: number | null;
-  subEnd?: number | null;
 };
 
 type Props = {
@@ -44,23 +42,17 @@ export default function ClientsTable({
 }: Props) {
   const t = useT();
 
-  const getOr = (key: string, fallback: string) => {
-    const val = t(key);
-    return val === key ? fallback : val;
-  };
+  const COL_NAME = t("admin.clients.table.name");
+  const COL_EMAIL = t("admin.clients.table.email");
+  const COL_STATUS = t("admin.clients.table.status");
+  const COL_PLAN = t("admin.clients.table.plan");
+  const COL_SUBSCRIPTION = t("admin.clients.table.subscription"); // Inicio/Fin
+  const COL_SUB_END = t("admin.clients.table.subEnd");
+  const COL_NOTES = t("clientForm.labels.internalNotes");
 
-  // Encabezados
-  const COL_NAME = getOr("admin.clients.table.name", "Name");
-  const COL_EMAIL = getOr("admin.clients.table.email", "Email");
-  const COL_STATUS = getOr("admin.clients.table.status", "Status");
-  const COL_PLAN = getOr("admin.clients.table.plan", "Plan");
-  const COL_SUBSCRIPTION = getOr("admin.clients.table.subscription", "Subscripción"); // ahora muestra lo que antes estaba en "Creado"
-  const COL_SUB_END = getOr("admin.clients.table.subEnd", "Fin");
-  const COL_NOTES = getOr("clientForm.labels.internalNotes", "Notas");
-
-  const LABEL_LOAD_MORE = getOr("admin.clients.table.loadMore", "Load more");
-  const LABEL_LOADING = getOr("admin.clients.table.loading", "Loading...");
-  const LABEL_EMPTY = getOr("admin.clients.empty", "No clients");
+  const LABEL_LOAD_MORE = t("admin.clients.table.loadMore");
+  const LABEL_LOADING = t("admin.clients.table.loading");
+  const LABEL_EMPTY = t("admin.clients.empty");
 
   return (
     <div
@@ -73,15 +65,26 @@ export default function ClientsTable({
         <table className="w-full text-sm text-foreground">
           <thead className="bg-muted/60 border-b border-border">
             <tr>
-              <Th>{COL_NAME}</Th>
-              <Th>{COL_EMAIL}</Th>
-              <Th className="w-[260px]">{COL_STATUS}</Th>
-              <Th>{COL_PLAN}</Th>
-              <Th>{COL_SUBSCRIPTION}</Th> {/* ahora: createdAt -> subscripción */}
-              <Th>{COL_SUB_END}</Th>      {/* fin de periodo */}
-              <Th className="w-[280px]">{COL_NOTES}</Th>
+              {[
+                <Th key="name">{COL_NAME}</Th>,
+                <Th key="email">{COL_EMAIL}</Th>,
+                <Th key="status" className="w-[260px]">
+                  {COL_STATUS}
+                </Th>,
+                <Th key="plan">{COL_PLAN}</Th>,
+                <Th key="sub" className="whitespace-nowrap">
+                  {COL_SUBSCRIPTION}
+                </Th>,
+                <Th key="end" className="w-[180px]">
+                  {COL_SUB_END}
+                </Th>,
+                <Th key="notes" className="w-[280px]">
+                  {COL_NOTES}
+                </Th>,
+              ]}
             </tr>
           </thead>
+
           <tbody>
             {clients.map((c) => (
               <tr
@@ -92,15 +95,12 @@ export default function ClientsTable({
                   "hover:bg-muted/70 cursor-pointer"
                 )}
               >
-                <Td className="whitespace-nowrap">
-                  {c.name?.trim() || "—"}
-                </Td>
+                <Td className="whitespace-nowrap">{c.name?.trim() || "—"}</Td>
 
                 <Td className="whitespace-nowrap text-muted-foreground">
                   {c.email}
                 </Td>
 
-                {/* Estado */}
                 <Td onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
                     <span
@@ -136,14 +136,14 @@ export default function ClientsTable({
                   {c.planName || "—"}
                 </Td>
 
-                {/* Subscripción (mostrar lo que antes estaba en Creado) */}
+                {/* Subscripción (inicio) */}
                 <Td className="whitespace-nowrap text-muted-foreground">
-                  {formatDateSafe(c.createdAt ?? c.subStart)}
+                  {formatDateSafe(c.startDate ?? c.createdAt)}
                 </Td>
 
-                {/* Fin de subscripción */}
+                {/* Fin */}
                 <Td className="whitespace-nowrap text-muted-foreground">
-                  {formatDateSafe(c.subEnd)}
+                  {formatDateSafe(c.endDate)}
                 </Td>
 
                 {/* Notas */}
@@ -200,12 +200,7 @@ function Th({
   className,
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
-    <th
-      className={cn(
-        "text-left font-semibold text-foreground/90 px-4 py-3",
-        className
-      )}
-    >
+    <th className={cn("text-left font-semibold text-foreground/90 px-4 py-3", className)}>
       {children}
     </th>
   );
@@ -222,20 +217,15 @@ function Td({
   onClick?: React.MouseEventHandler<HTMLTableCellElement>;
 }>) {
   return (
-    <td
-      onClick={onClick}
-      colSpan={colSpan}
-      className={cn("px-4 py-3 align-middle", className)}
-    >
+    <td onClick={onClick} colSpan={colSpan} className={cn("px-4 py-3 align-middle", className)}>
       {children}
     </td>
   );
 }
 
-// Normaliza ms/segundos y evita "Invalid Date"
-function formatDateSafe(value?: number | null) {
-  if (!value) return "—";
-  const ms = value < 1e12 ? value * 1000 : value;
+function formatDateSafe(v?: number | null) {
+  if (!v) return "—";
+  const ms = v < 1e12 ? v * 1000 : v;
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString();

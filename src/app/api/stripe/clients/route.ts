@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-07-30.basil",
   telemetry: false,
   maxNetworkRetries: 1,
   timeout: 20000,
@@ -92,8 +93,10 @@ export async function GET(req: Request) {
           role: customer.metadata?.role ?? "",
           subStatus: active.status,
           planName,
+          // createdAt del customer para mantener el dato que ya mostrabas antes
           createdAt:
             typeof customer.created === "number" ? customer.created * 1000 : null,
+          // periodo de la suscripción actual
           subStart,
           subEnd,
         };

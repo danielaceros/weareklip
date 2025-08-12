@@ -648,10 +648,13 @@
       },
       "toast": {
         "loadError": "Error cargando clientes"
-      }
+      },
+      "scheduledMailSent": "Correo de programación enviado",
+      "scheduledMailError": "Error al enviar correo de programación"
     },
     "common": {
-      "loadError": "Error cargando datos"
+      "loadError": "Error cargando datos",
+      "saveError": "Error al guardar cambios"
     },
     "tasks": {
       "title": "Tareas",
@@ -869,7 +872,7 @@
     "unknown": "Desconocido",
     "emptyTitle": "Aún no hay guiones para este cliente.",
     "emptyHint": "Usa el botón para añadir el primero."
-    },
+  },
   "clientVideos": {
     "title": "🎬 Videos",
     "createBtn": "+ Crear",
@@ -1074,6 +1077,35 @@
       "addedAndScheduled": "Evento añadido y programado en redes",
       "deleted": "Evento eliminado",
       "stateUpdated": "Estado actualizado"
+    }
+  },
+  "login": {
+    "titleLogin": "Iniciar sesión",
+    "subtitle": "Accede a tu cuenta para continuar",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "continue": "Continuar",
+    "signIn": "Entrar",
+    "signInWithGoogle": "Entrar con Google",
+    "forgotPassword": "¿Olvidaste la contraseña?",
+    "noAccount": "¿No tienes cuenta?",
+    "createAccount": "Crear cuenta",
+    "mfa": {
+      "title": "Verificación en dos pasos",
+      "subtitle": "Introduce el código de verificación de 6 dígitos",
+      "codeLabel": "Código",
+      "codePlaceholder": "123 456",
+      "sendCode": "Enviar código",
+      "resendCode": "Reenviar código",
+      "verify": "Verificar",
+      "verifying": "Verificando...",
+      "verified": "Verificación completada",
+      "invalidCode": "Código incorrecto o caducado",
+      "tooManyAttempts": "Demasiados intentos. Inténtalo más tarde.",
+      "smsSent": "Hemos enviado un SMS con tu código",
+      "callSent": "Te llamaremos con tu código",
+      "cancel": "Cancelar",
+      "back": "Volver"
     }
   },
   "auth": {
