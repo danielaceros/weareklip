@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 type Cliente = {
   uid: string;
@@ -12,8 +13,12 @@ type Cliente = {
   notas?: string;
   subStatus?: string;
   planName?: string;
-  createdAt?: number;
+  createdAt?: number; // fecha que antes se mostraba en "Creado" -> ahora va a "Subscripción"
   hasBeenScheduled?: boolean;
+
+  // Fechas de suscripción (epoch ms o s)
+  subStart?: number | null;
+  subEnd?: number | null;
 };
 
 type Props = {
@@ -37,6 +42,26 @@ export default function ClientsTable({
   loadingMore = false,
   className,
 }: Props) {
+  const t = useT();
+
+  const getOr = (key: string, fallback: string) => {
+    const val = t(key);
+    return val === key ? fallback : val;
+  };
+
+  // Encabezados
+  const COL_NAME = getOr("admin.clients.table.name", "Name");
+  const COL_EMAIL = getOr("admin.clients.table.email", "Email");
+  const COL_STATUS = getOr("admin.clients.table.status", "Status");
+  const COL_PLAN = getOr("admin.clients.table.plan", "Plan");
+  const COL_SUBSCRIPTION = getOr("admin.clients.table.subscription", "Subscripción"); // ahora muestra lo que antes estaba en "Creado"
+  const COL_SUB_END = getOr("admin.clients.table.subEnd", "Fin");
+  const COL_NOTES = getOr("clientForm.labels.internalNotes", "Notas");
+
+  const LABEL_LOAD_MORE = getOr("admin.clients.table.loadMore", "Load more");
+  const LABEL_LOADING = getOr("admin.clients.table.loading", "Loading...");
+  const LABEL_EMPTY = getOr("admin.clients.empty", "No clients");
+
   return (
     <div
       className={cn(
@@ -48,12 +73,13 @@ export default function ClientsTable({
         <table className="w-full text-sm text-foreground">
           <thead className="bg-muted/60 border-b border-border">
             <tr>
-              <Th>Name</Th>
-              <Th>Email</Th>
-              <Th className="w-[260px]">Status</Th>
-              <Th>Pack</Th>
-              <Th>Subscription</Th>
-              <Th className="w-[280px]">Notes</Th>
+              <Th>{COL_NAME}</Th>
+              <Th>{COL_EMAIL}</Th>
+              <Th className="w-[260px]">{COL_STATUS}</Th>
+              <Th>{COL_PLAN}</Th>
+              <Th>{COL_SUBSCRIPTION}</Th> {/* ahora: createdAt -> subscripción */}
+              <Th>{COL_SUB_END}</Th>      {/* fin de periodo */}
+              <Th className="w-[280px]">{COL_NOTES}</Th>
             </tr>
           </thead>
           <tbody>
@@ -67,8 +93,9 @@ export default function ClientsTable({
                 )}
               >
                 <Td className="whitespace-nowrap">
-                  {c.name?.trim() || "-"}
+                  {c.name?.trim() || "—"}
                 </Td>
+
                 <Td className="whitespace-nowrap text-muted-foreground">
                   {c.email}
                 </Td>
@@ -76,7 +103,6 @@ export default function ClientsTable({
                 {/* Estado */}
                 <Td onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
-                    {/* puntito activo/inactivo */}
                     <span
                       className={cn(
                         "inline-block w-2.5 h-2.5 rounded-full",
@@ -93,9 +119,7 @@ export default function ClientsTable({
                         "focus:outline-none focus:ring-2 focus:ring-primary/40"
                       )}
                       value={c.estado || "Nuevo Cliente"}
-                      onChange={(e) =>
-                        onChange(c.uid, "estado", e.target.value)
-                      }
+                      onChange={(e) => onChange(c.uid, "estado", e.target.value)}
                     >
                       <option>Nuevo Cliente</option>
                       <option>Generar Guión</option>
@@ -109,12 +133,17 @@ export default function ClientsTable({
                 </Td>
 
                 <Td className="whitespace-nowrap text-muted-foreground">
-                  {c.planName || "-"}
+                  {c.planName || "—"}
                 </Td>
 
+                {/* Subscripción (mostrar lo que antes estaba en Creado) */}
                 <Td className="whitespace-nowrap text-muted-foreground">
-                  {/* pinta createdAt como rango de ejemplo si lo tenías así */}
-                  {formatDateRange(c.createdAt)}
+                  {formatDateSafe(c.createdAt ?? c.subStart)}
+                </Td>
+
+                {/* Fin de subscripción */}
+                <Td className="whitespace-nowrap text-muted-foreground">
+                  {formatDateSafe(c.subEnd)}
                 </Td>
 
                 {/* Notas */}
@@ -127,7 +156,7 @@ export default function ClientsTable({
                       "focus:outline-none focus:ring-2 focus:ring-primary/40"
                     )}
                     value={c.notas || ""}
-                    placeholder="–"
+                    placeholder="—"
                     onChange={(e) => onChange(c.uid, "notas", e.target.value)}
                   />
                 </Td>
@@ -136,8 +165,8 @@ export default function ClientsTable({
 
             {clients.length === 0 && (
               <tr>
-                <Td colSpan={6} className="text-center py-10 text-muted-foreground">
-                  No clients
+                <Td colSpan={7} className="text-center py-10 text-muted-foreground">
+                  {LABEL_EMPTY}
                 </Td>
               </tr>
             )}
@@ -158,7 +187,7 @@ export default function ClientsTable({
             aria-busy={loadingMore}
             className="bg-accent text-accent-foreground hover:bg-accent/80"
           >
-            {loadingMore ? "Loading..." : "Load more"}
+            {loadingMore ? LABEL_LOADING : LABEL_LOAD_MORE}
           </Button>
         </div>
       )}
@@ -203,13 +232,11 @@ function Td({
   );
 }
 
-function formatDateRange(createdAt?: number) {
-  // si no tienes rango real, mostramos createdAt con formato corto
-  if (!createdAt) return "-";
-  try {
-    const d = new Date(createdAt);
-    return d.toLocaleDateString();
-  } catch {
-    return "-";
-  }
+// Normaliza ms/segundos y evita "Invalid Date"
+function formatDateSafe(value?: number | null) {
+  if (!value) return "—";
+  const ms = value < 1e12 ? value * 1000 : value;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString();
 }

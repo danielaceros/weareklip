@@ -12,7 +12,7 @@
     "blue": "Blue",
     "green": "Green",
     "orange": "Orange",
-    "rose": "Pink"
+    "rose": "Rose"
   },
   "sidebar": {
     "title": "Client Panel",
@@ -27,7 +27,7 @@
     "viralIdeas": "Viral Ideas",
     "requestReel": "Request Reel",
     "requestExtraReel": "Request Extra Reel",
-    "filesResources": "Files and Resources",
+    "filesResources": "Files & Resources",
     "assets": "Assets",
     "stats": "Statistics",
     "billing": "Billing / Subscriptions",
@@ -61,15 +61,15 @@
       "deleting": "Deleting..."
     },
     "toast": {
-      "noScriptsYet": "You don’t have scripts yet. When they are created, they’ll show up here.",
+      "noScriptsYet": "You don't have scripts yet. When they are created, they'll appear here.",
       "saved": "Changes saved successfully",
       "deleted": "Script permanently deleted"
     },
     "errors": {
       "loadScripts": "Error loading scripts",
-      "mustLogin": "You must sign in to view your scripts.",
+      "mustLogin": "You must log in to see your scripts.",
       "saveScript": "Error saving script",
-      "deleteScript": "Error deleting the script"
+      "deleteScript": "Error deleting script"
     },
     "state": {
       "new": "🆕 New",
@@ -96,11 +96,11 @@
   },
   "dashboard": {
     "title": "Hi! 👋 Welcome to your Panel",
-    "subtitle": "From here you can see your project status and delivery dates. Stay up to date! 🚀",
+    "subtitle": "See your project status and delivery dates here. Stay up to date! 🚀",
     "loading": "Loading your dashboard...",
     "authError": {
       "title": "Not authenticated",
-      "description": "You must sign in to view your panel."
+      "description": "You must log in to view your dashboard."
     },
     "subscription": {
       "unknownPlan": "Unknown plan",
@@ -122,14 +122,14 @@
       "title": "Latest Script",
       "viewAll": "View all scripts",
       "emptyTitle": "You don't have scripts yet",
-      "emptySubtitle": "Once they are generated, they'll appear here",
+      "emptySubtitle": "Once generated, they'll appear here",
       "view": "View scripts"
     },
     "latestVideo": {
       "title": "Latest Video",
       "viewAll": "View all videos",
       "emptyTitle": "You don't have videos yet",
-      "emptySubtitle": "Once they're ready, you'll see them here",
+      "emptySubtitle": "When they’re ready, you'll see them here",
       "view": "View videos"
     }
   },
@@ -140,13 +140,13 @@
     "saving": "Saving...",
     "loading": "Saving script...",
     "saved": "Script saved successfully",
-    "saveError": "Error saving the script",
-    "taskAssigned": "Task assigned for changes review",
+    "saveError": "Error saving script",
+    "taskAssigned": "Task assigned to review changes",
     "assignTaskError": "Error assigning task",
-    "taskDescriptionPrefix": "Review requested changes in script:",
+    "taskDescriptionPrefix": "Review requested changes to the script:",
     "log": {
-      "requestedChanges": "Client {user} requested changes in script: \"{title}\"",
-      "approved": "Client {user} approved script: \"{title}\""
+      "requestedChanges": "Client {user} requested changes to the script: \"{title}\"",
+      "approved": "Client {user} approved the script: \"{title}\""
     },
     "placeholders": {
       "title": "Title",
@@ -164,11 +164,11 @@
   "scriptsPage": {
     "title": "My Scripts",
     "loading": "Loading scripts...",
-    "emptyToast": "You don’t have scripts yet. When they are created, they’ll show up here.",
+    "emptyToast": "You don't have scripts yet. When they are created, they'll appear here.",
     "empty": "No scripts available.",
     "errors": {
       "load": "Error loading scripts",
-      "authRequired": "You must sign in to view your scripts.",
+      "authRequired": "You must log in to see your scripts.",
       "save": "Error saving script"
     },
     "update": {
@@ -178,7 +178,7 @@
     "delete": {
       "loading": "Deleting script...",
       "success": "Script permanently deleted",
-      "error": "Error deleting the script",
+      "error": "Error deleting script",
       "title": "Delete script?",
       "confirmPrefix": "Are you sure you want to delete the script",
       "confirmSuffix": "? This action cannot be undone.",
@@ -192,7 +192,7 @@
     "untitled": "Untitled",
     "empty": "No videos available.",
     "toast": {
-      "noVideosYet": "You don’t have videos yet. When they’re ready, you’ll see them here.",
+      "noVideosYet": "You don't have videos yet. When they're ready, you'll see them here.",
       "saved": "Changes saved successfully",
       "deleted": "Video permanently deleted"
     },
@@ -204,11 +204,11 @@
     },
     "errors": {
       "loadVideos": "Error loading videos",
-      "mustLogin": "You must sign in to access your videos.",
+      "mustLogin": "You must log in to access your videos.",
       "updateVideo": "Could not update the video",
       "deleteVideo": "Error deleting the video",
       "downloadVideo": "Could not download the video",
-      "missingUserOrVideo": "Missing user or video information.",
+      "missingUserOrVideo": "User or video data is missing.",
       "titleEmpty": "The title cannot be empty."
     },
     "state": {
@@ -238,8 +238,8 @@
   "videosModal": {
     "title": "Edit Video",
     "statusLabel": "Status",
-    "taskAssigned": "Task assigned for changes review",
-    "taskDescriptionPrefix": "Review requested changes in video:",
+    "taskAssigned": "Task assigned to review changes",
+    "taskDescriptionPrefix": "Review requested changes to the video:",
     "loading": {
       "saving": "Saving video...",
       "downloading": "Downloading video..."
@@ -251,14 +251,15 @@
     "errors": {
       "save": "Error saving the video",
       "download": "Error downloading the video",
-      "assignTask": "Error assigning task"
+      "assignTask": "Error assigning the task"
     },
     "actions": {
       "download": "Download video",
       "downloading": "Downloading...",
       "delete": "🗑 Delete video",
       "save": "💾 Save changes",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "replace": "Replace video"
     },
     "placeholders": {
       "title": "Video title",
@@ -276,7 +277,7 @@
   "notificationsPage": {
     "title": "My Notifications",
     "subtitle": "{unread} unread • {today} today",
-    "subtitleAllClear": "All caught up ✨",
+    "subtitleAllClear": "All clear! ✨",
     "markAll": "Mark all as read",
     "stats": {
       "total": "Total",
@@ -305,8 +306,8 @@
     },
     "empty": {
       "title": "No notifications",
-      "hintFiltered": "Adjust the filters to see more results",
-      "hint": "When there are updates to your projects, they'll show here"
+      "hintFiltered": "Adjust filters to see more results",
+      "hint": "When there are updates to your projects, they'll appear here"
     },
     "badges": {
       "unread": "Unread"
@@ -321,7 +322,7 @@
       "markRead": "Error marking as read",
       "markAll": "Error marking all as read"
     },
-    "authRequired": "Sign in to view your notifications",
+    "authRequired": "Log in to view your notifications",
     "time": {
       "now": "Just now",
       "minutes": "{count} min ago",
@@ -332,14 +333,14 @@
       "guion": {
         "approvedWith": "✅ You approved the script: \"{title}\"",
         "approved": "✅ You approved a script",
-        "requestedWith": "💬 You requested changes on the script: \"{title}\"",
-        "requested": "💬 You requested changes on a script"
+        "requestedWith": "💬 You requested changes to the script: \"{title}\"",
+        "requested": "💬 You requested changes to a script"
       },
       "video": {
         "approvedWith": "✅ You approved the video: \"{title}\"",
         "approved": "✅ You approved a video",
-        "requestedWith": "💬 You requested changes on the video: \"{title}\"",
-        "requested": "💬 You requested changes on a video",
+        "requestedWith": "💬 You requested changes to the video: \"{title}\"",
+        "requested": "💬 You requested changes to a video",
         "uploaded": "🎥 A new video was uploaded for you"
       },
       "clone": {
@@ -348,7 +349,7 @@
       },
       "task": {
         "completed": "✅ You completed a task",
-        "assigned": "📋 A new task was assigned to you"
+        "assigned": "📋 You were assigned a new task"
       },
       "system": {
         "maintenance": "🔧 Scheduled maintenance",
@@ -362,13 +363,16 @@
       "videoTitle": "Video"
     },
     "title": "My User Panel",
+    "common": {
+      "unknown": "Unknown"
+    },
     "profile": {
-      "sectionTitle": "User Details",
+      "sectionTitle": "User Data",
       "labels": {
         "name": "Name",
-        "instagramUser": "Instagram username",
+        "instagramUser": "Instagram user",
         "phone": "Phone",
-        "emailReadonly": "Email (read only)"
+        "emailReadonly": "Email (read-only)"
       },
       "placeholders": {
         "name": "Your full name",
@@ -380,7 +384,7 @@
         "uploadingTooltip": "Uploading photo...",
         "uploadLoading": "Uploading profile photo...",
         "uploadError": "Error uploading profile photo",
-        "saveToDbError": "Error saving photo to database",
+        "saveToDbError": "Error saving the photo to the database",
         "updated": "Profile photo updated",
         "onlyImages": "Only images are allowed for the profile photo",
         "maxSize": "The image must be smaller than 5MB"
@@ -425,7 +429,7 @@
         },
         "placeholder": "Drag and drop your videos here or click to select",
         "limitReachedTitle": "Video limit reached!",
-        "limitReachedSubtitle": "You have uploaded the maximum of {max} videos allowed."
+        "limitReachedSubtitle": "You've uploaded the maximum of {max} videos allowed."
       },
       "upload": {
         "uploadingFile": "Uploading {name}...",
@@ -435,10 +439,10 @@
         "slotsWarning": "You can only upload {count} more video(s)",
         "success": "{name} uploaded successfully",
         "uploadError": "Error uploading {name}",
-        "saveError": "Error saving video to database",
-        "createTaskError": "Error creating review task",
+        "saveError": "Error saving the video to the database",
+        "createTaskError": "Error creating the review task",
         "loadingVideos": "Loading videos...",
-        "none": "You don't have uploaded videos."
+        "none": "You haven't uploaded any videos."
       },
       "grid": {
         "aria": {
@@ -455,7 +459,7 @@
       "delete": {
         "deleting": "Deleting video...",
         "success": "Video deleted successfully",
-        "error": "Error deleting video",
+        "error": "Error deleting the video",
         "notSelectedOrAuth": "User not authenticated or video not selected"
       },
       "dialog": {
@@ -464,33 +468,33 @@
     }
   },
   "calendarPage": {
-    "title": "Publication Calendar",
-    "description": "View the scheduled dates for your videos (Reels).\nSoon it will be integrable with Metricool.",
+    "title": "Publishing Calendar",
+    "description": "Check the scheduled dates for your videos (Reels).\nMetricool integration coming soon.",
     "noVideos": "No videos scheduled for this day.",
-    "selectDay": "Select a day to see the scheduled videos."
+    "selectDay": "Select a day to view scheduled videos."
   },
   "brandAIPage": {
     "title": "Brand AI",
-    "description": "Complete your brand DNA.\nThis way we will generate fully personalized scripts for you.",
+    "description": "Complete your brand DNA.\nWe'll generate fully personalized scripts for you.",
     "toneLabel": "Tone of voice",
-    "tonePlaceholder": "E.g.: Friendly, Professional, Inspirational...",
+    "tonePlaceholder": "E.g., Friendly, Professional, Inspiring...",
     "audienceLabel": "Target audience",
-    "audiencePlaceholder": "E.g.: Creative youth, Tech companies...",
+    "audiencePlaceholder": "E.g., Creative youth, Tech companies...",
     "valuesLabel": "Key values",
     "customValuePlaceholder": "Add your own value",
     "addButton": "Add",
     "websiteLabel": "Website / Social media",
-    "websitePlaceholder": "E.g.: www.yourbrand.com",
-    "networksPlaceholder": "Social media (Instagram, TikTok, etc.)",
+    "websitePlaceholder": "E.g., www.yourbrand.com",
+    "networksPlaceholder": "Social networks (Instagram, TikTok, etc.)",
     "saveButton": "Save brand DNA",
     "successMessage": "Brand DNA saved!"
   },
   "viralIdeasPage": {
     "title": "Viral Ideas for your videos",
-    "description": "Discover viral ideas generated with AI or inspired by trends on TikTok, Instagram and YouTube.\nMark your favorites and create a script in 1 click.",
+    "description": "Discover viral ideas generated by AI or inspired by trends on TikTok, Instagram and YouTube.\nMark your favorites and create a script in 1 click.",
     "useIdea": "Use this idea",
     "favoritesTitle": "Your Favorite Ideas",
-    "noFavorites": "Mark ideas as favorites to have them here.",
+    "noFavorites": "Mark ideas as favorites to see them here.",
     "addFavorite": "Add to favorites",
     "removeFavorite": "Remove from favorites",
     "generatedTitle": "Script generated!",
@@ -498,7 +502,7 @@
     "ideas": {
       "trend": {
         "title": "Trend: Which do you prefer? 🔥",
-        "description": "Challenge your audience with quick “Which do you prefer?” questions. Perfect for Reels and TikTok.",
+        "description": "Challenge your audience with quick “Would you rather?” questions. Perfect for Reels and TikTok.",
         "category": "Challenge"
       },
       "storytime": {
@@ -508,12 +512,12 @@
       },
       "beforeAfter": {
         "title": "Before vs After",
-        "description": "Show a transformation process (physique, setup, makeover). The “before & after” format never fails.",
+        "description": "Show a transformation process (physical, setup, makeover). The “before and after” format always works.",
         "category": "Transformation"
       },
       "quickTip": {
         "title": "Quick tip in 30 seconds",
-        "description": "Give one concrete tip from your niche, super short and visual.",
+        "description": "Give a concrete tip from your niche—very short and visual.",
         "category": "Tip"
       },
       "imitate": {
@@ -525,7 +529,7 @@
   },
   "extraReelPage": {
     "title": "Request Extra Reel",
-    "limitReached": "You have reached your reel limit this month. You can request one extra by paying individually or using your extra credits depending on your plan.",
+    "limitReached": "You've reached your reel limit this month. You can request an extra one by paying individually or using extra credits depending on your plan.",
     "creditsRemaining": "You still have reels available this month.",
     "reelsUsed": "Reels used this month: {used}/{limit}",
     "noCredits": "No credits available",
@@ -563,7 +567,7 @@
   },
   "statsPage": {
     "title": "Your Content Statistics",
-    "description": "Check the simulated performance of your posts.\nWhen you activate Metricool, you will see your real statistics here.",
+    "description": "Check the simulated performance of your posts.\nWhen you enable Metricool, you'll see your real statistics here.",
     "kpi": {
       "reach": {
         "label": "Real reach",
@@ -573,12 +577,12 @@
       "engagement": {
         "label": "Engagement",
         "meta": "Goal: 5%",
-        "info": "Engagement reflects your followers' actual interaction."
+        "info": "Engagement reflects real follower interaction."
       },
       "frequency": {
         "label": "Posting frequency",
         "meta": "Recommended: 3/week",
-        "info": "The recommended frequency to grow is 3 to 5 posts per week."
+        "info": "The recommended frequency to grow is 3–5 posts per week."
       },
       "followers": {
         "label": "Simulated followers",
@@ -587,17 +591,17 @@
     },
     "history": {
       "title": "Post history per week",
-      "note": "* Sample data. Integrate Metricool to see your real statistics."
+      "note": "* Sample data. Integrate Metricool to see your real stats."
     }
   },
   "billing": {
-    "title": "Billing and Subscriptions",
-    "subtitle": "Check and manage your subscription, download your invoices, and manage your plan easily.",
+    "title": "Billing & Subscriptions",
+    "subtitle": "View and manage your subscription, download your invoices, and handle your plan easily.",
     "mySubscription": "My subscription",
     "loadingSubscription": "Loading subscription...",
     "noSubscription": "You don't have any active subscription.",
     "status": "Status",
-    "cancelAtPeriodEnd": "Canceled at the end of the period",
+    "cancelAtPeriodEnd": "Canceled at period end",
     "plan": "Plan",
     "price": "Price",
     "renewal": "Renewal",
@@ -611,18 +615,44 @@
     "date": "Date",
     "amount": "Amount",
     "download": "Download",
-    "upgradeTitle": "Want to upgrade your plan?",
+    "upgradeTitle": "Want to upgrade?",
     "changePlan": "Change plan"
   },
   "supportPage": {
     "title": "Support & Tickets",
-    "description": "Do you have any questions or issues? Contact our support team directly.",
-    "instructions": "You can check the status of your tickets or open a new one using the help button (top right).",
+    "description": "Have questions or issues? Contact our support team directly.",
+    "instructions": "You can check your ticket status or open a new one with the help button (top right).",
     "tipTitle": "Remember:",
     "tipText": "Select the module you have questions about (Scripts, Videos, Billing, etc.) and describe your issue for a faster response.",
     "createTicket": "Create new support ticket"
   },
   "admin": {
+    "clients": {
+      "title": "Clients",
+      "subtitle": "Clients with an active subscription",
+      "search": "Search by email...",
+      "loading": "Loading clients...",
+      "empty": "No clients to display.",
+      "table": {
+        "email": "Email",
+        "name": "Name",
+        "plan": "Plan",
+        "status": "Status",
+        "createdAt": "Created",
+        "lang": "Language",
+        "actions": "Actions",
+        "loading": "Loading...",
+        "subscription": "Subscription",
+        "subEnd": "End",
+        "loadMore": "Load more"
+      },
+      "toast": {
+        "loadError": "Error loading clients"
+      }
+    },
+    "common": {
+      "loadError": "Error loading data"
+    },
     "tasks": {
       "title": "Tasks",
       "inboxTitle": "Task inbox",
@@ -645,17 +675,24 @@
         "delete": "Delete"
       },
       "errors": {
-        "noAdminDoc": "Couldn't find your admin document."
+        "noAdminDoc": "Your admin document was not found."
       },
       "loading": {
         "title": "Loading title…",
         "list": "Loading task list…"
+      },
+      "dialog": {
+        "title": "New task",
+        "descriptionPlaceholder": "Task description...",
+        "dueDate": "Due date",
+        "cancel": "Cancel",
+        "save": "Save"
       }
     },
     "notifications": {
       "title": "Admin Panel - All notifications",
       "subtitle": "{unread} unread • {today} today",
-      "subtitleAllClear": "All caught up ✨",
+      "subtitleAllClear": "All clear! ✨",
       "markAll": "Mark all as read",
       "realtime": "Real-time updates",
       "stats": {
@@ -687,7 +724,7 @@
       },
       "empty": {
         "title": "No notifications",
-        "hintFiltered": "Adjust the filters to see more results",
+        "hintFiltered": "Adjust filters to see more results",
         "hint": "When there is activity in the system, it will appear here"
       },
       "badges": {
@@ -715,7 +752,7 @@
           "approved": "✅ Script approved",
           "edited": "✏️ Script edited",
           "created": "📝 New script created",
-          "requested": "💬 Changes requested on script"
+          "requested": "💬 Changes requested to script"
         },
         "video": {
           "approved": "✅ Video approved",
@@ -743,10 +780,49 @@
     "notFound": "Client not found.",
     "viewInStripe": "View in Stripe",
     "subscriptionBadge": "{plan}",
-    "calendarTitle": "📅 Publication Calendar"
+    "calendarTitle": "📅 Publishing Calendar",
+    "errors": {
+      "subscriptionLoad": "Error loading subscription",
+      "loadClient": "Error loading client",
+      "saveClient": "Error saving client data",
+      "missingClientData": "User not authenticated or client data missing",
+      "missingScriptFields": "Title and content are required",
+      "saveScript": "Error saving the script",
+      "missingScriptToUpdate": "No script selected to update",
+      "updateScript": "Error updating the script",
+      "missingVideoFields": "Video file and title are required",
+      "maxFile": "The file exceeds 100MB",
+      "uploadVideo": "Error uploading the video",
+      "saveVideo": "Error saving the video",
+      "missingVideoToUpdate": "No video selected to update",
+      "updateVideo": "Error updating the video",
+      "delete": "Error deleting item",
+      "emailSend": "Error sending email",
+      "invalidUid": "Invalid user id"
+    },
+    "subscription": {
+      "error": "Could not obtain subscription",
+      "none": "Not active"
+    },
+    "loading": {
+      "savingClient": "Saving client...",
+      "creatingScript": "Creating script...",
+      "updatingScript": "Updating script...",
+      "uploadingVideo": "Uploading video...",
+      "updatingVideo": "Updating video...",
+      "deleting": "Deleting..."
+    },
+    "success": {
+      "clientSaved": "Client updated successfully",
+      "scriptCreated": "Script created successfully",
+      "scriptUpdated": "Script updated successfully",
+      "videoUploaded": "Video uploaded successfully",
+      "videoUpdated": "Video updated successfully",
+      "deleted": "Deleted successfully"
+    }
   },
   "clientForm": {
-    "title": "Client Details",
+    "title": "Client Data",
     "copyEmail": "Copy email",
     "emailCopied": "Email copied",
     "labels": {
@@ -754,7 +830,7 @@
       "phone": "Phone",
       "instagram": "Instagram",
       "workFolder": "Work folder link",
-      "emailReadonly": "Email (read only)",
+      "emailReadonly": "Email (read-only)",
       "instagramUser": "Instagram",
       "internalNotes": "Internal notes"
     },
@@ -791,7 +867,7 @@
       "approved": "Approved"
     },
     "unknown": "Unknown",
-    "emptyTitle": "No scripts for this client yet.",
+    "emptyTitle": "There are no scripts for this client yet.",
     "emptyHint": "Use the button to add the first one."
   },
   "clientVideos": {
@@ -800,10 +876,10 @@
     "uploadDialogTitle": "Upload video",
     "titlePlaceholder": "Video title",
     "dropzone": {
-      "prompt": "Drag a video here or click to select (max. 100MB)",
-      "fileTooLarge": "The file is too large. Max allowed: 100MB",
+      "prompt": "Drag a video here or click to select (max 100MB)",
+      "fileTooLarge": "The file is too large. Maximum allowed: 100MB",
       "invalidType": "Invalid file type. Only videos are allowed.",
-      "genericError": "Could not process the file",
+      "genericError": "The file could not be processed",
       "selected": "File \"{name}\" selected"
     },
     "status": {
@@ -813,7 +889,7 @@
     },
     "upload": "Upload",
     "uploading": "Uploading... {percent}%",
-    "emptyTitle": "No videos for this client yet.",
+    "emptyTitle": "There are no videos for this client yet.",
     "emptyHint": "Use the button to add the first one.",
     "unknown": "Unknown"
   },
@@ -841,18 +917,18 @@
       "approved": "Approved"
     },
     "notesLabel": "Notes for corrections:",
-    "notesPlaceholder": "Write the necessary corrections...",
+    "notesPlaceholder": "Write the required corrections...",
     "replace": "Replace video",
     "delete": "Delete",
     "save": "Save",
     "fileTooLarge": "The file exceeds {max}MB. Please upload a smaller video.",
-    "previewAria": "Preview of video {title}",
+    "previewAria": "Video preview {title}",
     "deleteTooltip": "Delete video",
     "saveTooltip": "Save changes"
   },
   "clientClone": {
     "title": "🎭 Cloning Videos",
-    "dropzoneIdle": "Drag here or click to upload (max. 100MB each)",
+    "dropzoneIdle": "Drag here or click to upload (max 100MB each)",
     "dropzoneUploading": "Uploading videos...",
     "progress": "{name} - {percent}%",
     "empty": "No videos yet.",
@@ -874,9 +950,9 @@
     "date": "Date",
     "time": "Time",
     "add": "Add",
-    "publishOnSocial": "📢 Post on social networks",
+    "publishOnSocial": "📢 Publish on social media",
     "eventsOn": "Events on {date}",
-    "selectDay": "Select a day to see events",
+    "selectDay": "Select a day to view events",
     "noneForDay": "No events for this day.",
     "plannedOnSocial": "📱 Scheduled on social",
     "platform": "Platform",
@@ -892,7 +968,7 @@
       "addedAndScheduled": "Event added and scheduled on social",
       "synchError": "Event created but error syncing with Metricool",
       "deleted": "Event deleted",
-      "stateUpdated": "State updated"
+      "stateUpdated": "Status updated"
     },
     "errors": {
       "selectItemAndDate": "Select an item and a date",
@@ -900,7 +976,7 @@
       "load": "Error loading calendar events",
       "create": "Could not create the event",
       "delete": "Error deleting the event",
-      "update": "Error updating the state",
+      "update": "Error updating status",
       "loadProviders": "Error getting Metricool providers"
     }
   },
@@ -913,7 +989,7 @@
     },
     "save": "Save",
     "empty": {
-      "title": "No scripts for this client yet.",
+      "title": "There are no scripts for this client yet.",
       "hint": "Use the button to add the first one."
     },
     "a11y": {
@@ -921,7 +997,7 @@
     }
   },
   "clientVideosSection": {
-    "title": "🎬 Videos",
+    "title": "Videos",
     "create": "Create",
     "uploadDialog": {
       "title": "Upload video"
@@ -930,12 +1006,12 @@
       "title": "Video title"
     },
     "dropzone": {
-      "placeholder": "Drag a video here or click to select (max. {max}MB)"
+      "placeholder": "Drag a video here or click to select (max {max}MB)"
     },
     "errors": {
-      "fileTooLarge": "The file is too large. Max allowed: {max}MB",
+      "fileTooLarge": "The file is too large. Maximum allowed: {max}MB",
       "fileInvalidType": "Invalid file type. Only videos are allowed.",
-      "fileProcess": "Could not process the file"
+      "fileProcess": "The file could not be processed"
     },
     "toasts": {
       "fileSelected": "File \"{name}\" selected"
@@ -943,7 +1019,7 @@
     "upload": "Upload",
     "uploading": "Uploading... {percent}%",
     "empty": {
-      "title": "No videos for this client yet.",
+      "title": "There are no videos for this client yet.",
       "hint": "Use the button to add the first one."
     },
     "a11y": {
@@ -959,7 +1035,7 @@
       "dateLabel": "Date",
       "timeLabel": "Time",
       "addButton": "Add",
-      "publishSwitch": "📢 Post on social networks"
+      "publishSwitch": "📢 Publish on social media"
     },
     "types": {
       "guion": "Script",
@@ -967,7 +1043,7 @@
     },
     "list": {
       "titleForDay": "Events on {date}",
-      "selectADay": "Select a day to see events",
+      "selectADay": "Select a day to view events",
       "noneForDay": "No events for this day.",
       "scheduledBadge": "📱 Scheduled on social",
       "platformStatus": "Platform: {platform} • Status: {status}",
@@ -991,43 +1067,28 @@
       "syncMetricool": "Event created but error syncing with Metricool",
       "create": "Could not create the event",
       "delete": "Error deleting the event",
-      "updateStatus": "Error updating the state"
+      "updateStatus": "Error updating status"
     },
     "success": {
       "added": "Event added successfully",
       "addedAndScheduled": "Event added and scheduled on social",
       "deleted": "Event deleted",
-      "stateUpdated": "State updated"
+      "stateUpdated": "Status updated"
     }
   },
-    "login": {
-    "titleLogin": "Welcome to KLIP",
-    "titleRegister": "Get started with KLIP",
+  "auth": {
+    "title": "Welcome to KLIP",
     "subtitle": "🤖 We automate ALL your social content.",
-    "form": {
-      "completeAll": "Fill in all fields.",
-      "invalidEmail": "Enter a valid email.",
-      "weakPassword": "The password must be at least 6 characters."
-    },
-    "toasts": {
-      "verifyEmail": "Verify your email before signing in."
-    },
-    "mfa": {
-      "completeCode": "Complete the 6-digit code.",
-      "incompleteProcess": "MFA process incomplete.",
-      "verified": "Verification completed",
-      "enrolled": "Phone enrolled correctly",
-      "deviceLabel": "Primary phone",
-      "invalidPhone": "Invalid phone number"
-    },
-    "firebase": {
-      "invalidEmail": "The email is not valid.",
-      "userNotFound": "No account exists with this email.",
-      "wrongPassword": "Incorrect password.",
-      "emailInUse": "This email is already registered.",
-      "weakPassword": "The password must be at least 6 characters.",
-      "tooMany": "Too many attempts. Try again later.",
-      "mfaRequired": "Multi-factor authentication is required."
-    }
+    "email": "Email",
+    "password": "Password",
+    "loading": "Loading...",
+    "login": "Log in",
+    "register": "Create account",
+    "orContinue": "or continue with",
+    "google": "Google",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "goRegister": "Sign up",
+    "goLogin": "Log in"
   }
 }

@@ -1,5 +1,6 @@
 // src/lib/i18n.ts
 import { useTranslations } from 'next-intl';
+import { useMemo } from 'react';
 
 /* -------------------------------------------------------------------------- */
 /* 🌐 Config básico de idiomas                                                */
@@ -80,15 +81,20 @@ export function changeLocale(locale: Locale) {
 /**
  * useT() envuelve useTranslations() e incluye fallback local
  * por si la clave no existe en el JSON, y soporta variables.
+ * 🔒 Memoizado para que NO cambie en cada render.
  */
 export function useT() {
   const t = useTranslations();
 
-  return (key: string, values?: Record<string, string | number>) => {
-    try {
-      return t(key, values); // pasa las variables al traductor
-    } catch {
-      return key; // fallback: devuelve la clave tal cual si no existe
-    }
-  };
+  return useMemo(
+    () =>
+      (key: string, values?: Record<string, string | number>) => {
+        try {
+          return t(key, values); // pasa las variables al traductor
+        } catch {
+          return key; // fallback: devuelve la clave tal cual si no existe
+        }
+      },
+    [t]
+  );
 }

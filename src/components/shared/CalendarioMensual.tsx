@@ -322,44 +322,47 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   return (
     <>
-      {/* CSS inline para los colores de días */}
+      {/* Overrides de estilos para integrarse con el tema */}
       <style>{`
+        /* Contenedor del calendario de react-day-picker */
+        .rdp {
+          background: hsl(var(--card));
+          color: hsl(var(--card-foreground));
+          border: 1px solid hsl(var(--border));
+          border-radius: 0.5rem;
+          padding: 0.5rem;
+        }
+        .rdp-caption_label { font-weight: 600; }
+        .rdp-head_cell { color: hsl(var(--muted-foreground)); }
+        .rdp-day { color: hsl(var(--card-foreground)); }
+        .rdp-day_today { outline: 1px dashed hsl(var(--primary)); outline-offset: 2px; }
+        .rdp-day_selected:not([disabled]) {
+          background-color: hsl(var(--primary)) !important;
+          color: hsl(var(--primary-foreground)) !important;
+          border-radius: 0.375rem !important;
+        }
+
+        /* Etiquetas de días con eventos (clases personalizadas) */
         .event-day-por-hacer {
-          background-color: #fee2e2 !important;
+          background-color: rgba(239, 68, 68, 0.18) !important;  /* red-500 ~ */
           border-radius: 0.375rem !important;
         }
         .event-day-en-proceso {
-          background-color: #ffedd5 !important;
+          background-color: rgba(245, 158, 11, 0.18) !important; /* amber-500 ~ */
           border-radius: 0.375rem !important;
         }
         .event-day-completado {
-          background-color: #dcfce7 !important;
+          background-color: rgba(34, 197, 94, 0.18) !important;  /* green-500 ~ */
           border-radius: 0.375rem !important;
         }
-        .rdp-day_selected:not([disabled]) {
-          background-color: #3b82f6 !important;
-          color: white !important;
-          border-radius: 0.375rem !important;
-        }
-        .event-badge {
-          position: absolute;
-          top: 2px;
-          right: 2px;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background-color: #3b82f6;
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-weight: bold;
-        }
+        /* Un pelín más intensas en dark */
+        .dark .event-day-por-hacer { background-color: rgba(239, 68, 68, 0.28) !important; }
+        .dark .event-day-en-proceso { background-color: rgba(245, 158, 11, 0.28) !important; }
+        .dark .event-day-completado { background-color: rgba(34, 197, 94, 0.25) !important; }
       `}</style>
 
       <div className="flex flex-col gap-8 p-4">
-        <div className="border rounded p-4 shadow">
+        <div className="border border-border rounded-lg p-4 shadow-sm bg-card text-card-foreground">
           <h3 className="text-lg font-semibold mb-3">➕ {t("addEventTitle")}</h3>
 
           <form
@@ -374,7 +377,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               <div className="flex flex-col">
                 <label className="block text-sm font-bold mb-1">{t("form.typeLabel")}</label>
                 <select
-                  className="border rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm bg-background text-foreground
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={tipo}
                   onChange={(e) => setTipo(e.target.value as "guion" | "video")}
                 >
@@ -391,11 +395,14 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   })}
                 </label>
                 <select
-                  className="border rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm bg-background text-foreground
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={itemId}
                   onChange={(e) => setItemId(e.target.value)}
                 >
-                  <option value="">{t("form.itemLabel", { type: t(tipo === "guion" ? "types.guion" : "types.video") })}</option>
+                  <option value="">
+                    {t("form.itemLabel", { type: t(tipo === "guion" ? "types.guion" : "types.video") })}
+                  </option>
                   {(tipo === "guion" ? guiones : videos).map((i) => (
                     <option key={i.firebaseId} value={i.firebaseId}>
                       {i.titulo}
@@ -409,7 +416,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                 <label className="block text-sm font-bold mb-1">{t("form.dateLabel")}</label>
                 <input
                   type="date"
-                  className="border rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm bg-background text-foreground
+                             placeholder:text-muted-foreground
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={fechaEvento}
                   onChange={(e) => setFechaEvento(e.target.value)}
                 />
@@ -420,7 +429,9 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                 <label className="block text-sm font-bold mb-1">{t("form.timeLabel")}</label>
                 <input
                   type="time"
-                  className="border rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm bg-background text-foreground
+                             placeholder:text-muted-foreground
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={horaEvento}
                   onChange={(e) => setHoraEvento(e.target.value)}
                 />
@@ -430,7 +441,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               <div className="flex flex-col justify-end">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm hover:bg-blue-700 h-[34px]"
+                  className="bg-primary text-primary-foreground rounded px-3 py-1.5 text-sm hover:bg-primary/90 h-[34px]"
                 >
                   {t("form.addButton")}
                 </button>
@@ -447,7 +458,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                   onChange={(e) => setPublicarEnRedes(e.target.checked)}
                   className="w-4 h-4"
                 />
-                <label htmlFor="publicarEnRedes" className="text-sm">
+                <label htmlFor="publicarEnRedes" className="text-sm text-muted-foreground">
                   {t("form.publishSwitch")}
                 </label>
               </div>
@@ -476,7 +487,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
               fixedWeeks
               pagedNavigation
               showOutsideDays
-              className="text-left"
+              className="rdp text-left"
               formatters={{
                 formatWeekdayName: (weekday: Date) => {
                   return weekdayShort[weekday.getDay()];
@@ -496,7 +507,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
             </h3>
 
             {selected && eventosDelDia.length === 0 && (
-              <p className="text-sm text-gray-500">{t("list.noneForDay")}</p>
+              <p className="text-sm text-muted-foreground">{t("list.noneForDay")}</p>
             )}
 
             <ul className="space-y-3">
@@ -504,33 +515,33 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                 let estadoColor = "";
                 switch (e.estado) {
                   case "por_hacer":
-                    estadoColor = "bg-red-100 border-red-300";
+                    estadoColor = "bg-red-100 border-red-300 dark:bg-red-900/30 dark:border-red-800";
                     break;
                   case "en_proceso":
-                    estadoColor = "bg-orange-100 border-orange-300";
+                    estadoColor = "bg-orange-100 border-orange-300 dark:bg-orange-900/30 dark:border-orange-800";
                     break;
                   case "completado":
-                    estadoColor = "bg-green-100 border-green-300";
+                    estadoColor = "bg-green-100 border-green-300 dark:bg-green-900/25 dark:border-green-800";
                     break;
                 }
 
                 return (
                   <li
                     key={e.id}
-                    className={`border rounded p-3 shadow-sm transition relative ${estadoColor}`}
+                    className={`border rounded-lg p-3 shadow-sm transition relative bg-card/50 ${estadoColor}`}
                   >
                     <p className="text-sm text-muted-foreground">
                       {e.tipo === "guion" ? `📜 ${t("types.guion")}` : `🎬 ${t("types.video")}`}
                       {e.syncedWithMetricool && (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 px-2 py-0.5 rounded">
                           {t("list.scheduledBadge")}
                         </span>
                       )}
                     </p>
-                    <p className="font-semibold">{e.titulo}</p>
-                    <p className="text-sm text-gray-600">🗓 {e.fecha}</p>
+                    <p className="font-semibold text-card-foreground">{e.titulo}</p>
+                    <p className="text-sm text-muted-foreground">🗓 {e.fecha}</p>
                     {e.plataforma && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         {t("list.platformStatus", {
                           platform: e.plataforma,
                           status: e.status ?? ""
@@ -543,7 +554,8 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
                         onChange={(ev) =>
                           handleCambiarEstado(e.id, ev.target.value as Estado)
                         }
-                        className="text-xs border rounded p-1 bg-white"
+                        className="text-xs border border-border rounded p-1 bg-background text-foreground
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         <option value="por_hacer">{t("states.por_hacer")}</option>
                         <option value="en_proceso">{t("states.en_proceso")}</option>
@@ -552,7 +564,7 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
                       <button
                         onClick={() => handleEliminarEvento(e.id)}
-                        className="text-xs bg-red-500 text-white rounded px-2 py-1 hover:bg-red-600"
+                        className="text-xs bg-destructive text-destructive-foreground rounded px-2 py-1 hover:bg-destructive/90"
                       >
                         {t("actions.delete")}
                       </button>

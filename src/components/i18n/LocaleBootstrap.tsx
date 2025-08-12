@@ -1,80 +1,94 @@
+// src/components/i18n/LocaleBootstrap.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 import { changeLocale, getStoredLocale, type Locale } from "@/lib/i18n";
+import { doc, getDoc } from "firebase/firestore";
 
 /**
- * Decide el mejor locale:
- * 1) cookie/localStorage (si existe)
- * 2) Firestore: users/{uid}/settings.lang
- * 3) navigator.language
+ * - Si hay idioma en Firestore (users/{uid}.settings.lang), lo prioriza.
+ * - Si no hay preferencia (cookie/LS) ni en Firestore: detecta con navigator.language.
+ * - Persiste (cookie + localStorage) y recarga la página una sola vez.
+ * - Cuando el usuario está autenticado, sincroniza lang en Firestore.
  */
-function pickFromNavigator(): Locale {
-  try {
-    const lang = (navigator.language || "").toLowerCase();
-    if (lang.startsWith("es")) return "es";
-    if (lang.startsWith("fr")) return "fr";
-    return "en";
-  } catch {
-    return "es";
-  }
-}
-
 export default function LocaleBootstrap() {
-  const ran = useRef(false);
-
   useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
+    // Evita bucles de recarga
+    if (sessionStorage.getItem("__klip_locale_bootstrapped__") === "1") return;
 
     (async () => {
-      // 1) Cookie/localStorage
-      const stored = getStoredLocale(); // 'es' | 'en' | 'fr' (o default interno)
-      if (stored) {
-        // Si ya coincide con <html lang>, no hacemos nada
-        if (typeof document !== "undefined" && document.documentElement.lang === stored) return;
+      const current = getStoredLocale(); // cookie/localStorage o 'es'
 
-        // Aplica inmediatamente (set cookie + reload)
-        changeLocale(stored);
+      // 1) Si hay usuario, intenta leer su lang en Firestore y priorizarlo
+      const profileLang = await getUserLangFromFirestore().catch(() => null);
+      if (profileLang && profileLang !== current) {
+        sessionStorage.setItem("__klip_locale_bootstrapped__", "1");
+        // Sincroniza y cambia (pone cookie/LS y recarga)
+        await syncUserLang(profileLang);
+        changeLocale(profileLang);
         return;
       }
 
-      // 2) Si hay usuario, intenta leer Firestore
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          const ref = doc(db, "users", user.uid);
-          const snap = await getDoc(ref);
-          const fsLocale = snap.exists() ? (snap.data()?.settings?.lang as Locale | undefined) : undefined;
+      // 2) Si no había cookie/LS, usa navegador
+      const hasCookieOrLS =
+        typeof document !== "undefined" &&
+        (document.cookie.includes("NEXT_LOCALE=") ||
+          localStorage.getItem("locale"));
 
-          if (fsLocale) {
-            changeLocale(fsLocale);
-            return;
-          }
-        } catch {
-          // silencioso
+      if (!hasCookieOrLS) {
+        const browser = guessFromNavigator();
+        if (browser && browser !== current) {
+          sessionStorage.setItem("__klip_locale_bootstrapped__", "1");
+          await syncUserLang(browser);
+          changeLocale(browser);
+          return;
         }
       }
 
-      // 3) Navigator fallback
-      const nav = pickFromNavigator();
-      // Guarda en Firestore si hay usuario y aún no estaba
-      if (user) {
-        try {
-          await setDoc(
-            doc(db, "users", user.uid),
-            { settings: { lang: nav, updatedAt: Date.now() } },
-            { merge: true }
-          );
-        } catch {
-          // silencioso
-        }
-      }
-      changeLocale(nav);
+      // 3) Ya estaba configurado: sincroniza perfil (si hay user) y marca bootstrap hecho
+      await syncUserLang(current);
+      sessionStorage.setItem("__klip_locale_bootstrapped__", "1");
     })();
   }, []);
 
   return null;
+}
+
+function guessFromNavigator(): Locale | null {
+  if (typeof navigator === "undefined") return null;
+  const n = navigator.language.toLowerCase();
+  if (n.startsWith("es")) return "es";
+  if (n.startsWith("en")) return "en";
+  if (n.startsWith("fr")) return "fr";
+  return "es";
+}
+
+async function getUserLangFromFirestore(): Promise<Locale | null> {
+  const u = auth.currentUser;
+  if (!u) return null;
+  const ref = doc(db, "users", u.uid);
+  const snap = await getDoc(ref);
+  const lang: unknown = snap.get("settings.lang");
+  if (lang === "es" || lang === "en" || lang === "fr") return lang;
+  return null;
+}
+
+async function syncUserLang(lang: Locale) {
+  try {
+    const u = auth.currentUser;
+    if (!u) return;
+    const token = await u.getIdToken();
+    await fetch("/api/users/settings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ lang }),
+      keepalive: true,
+    });
+  } catch {
+    // silencioso
+  }
 }

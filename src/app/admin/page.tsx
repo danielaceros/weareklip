@@ -27,6 +27,9 @@ type ClienteCompleto = {
   planName?: string;
   createdAt?: number;
   hasBeenScheduled?: boolean;
+  // ➕ Fechas de suscripción (ms epoch)
+  subStart?: number | null;
+  subEnd?: number | null;
 };
 
 type StripeResponse = {
