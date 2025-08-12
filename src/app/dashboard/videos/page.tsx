@@ -1,6 +1,7 @@
 "use client";
 
-import type { Video } from "@/types/video";
+import type { Video, ReelEstado } from "@/types/video";
+import type { ReactNode } from "react";
 import { useEffect, useState, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -13,6 +14,23 @@ import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import { logAction } from "@/lib/logs";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
+import { ProgressReel } from "@/components/shared/ProgressReel";
+
+/* ---- helpers de tipado para reelEstado ---- */
+const ALLOWED_REEL_ESTADOS: readonly ReelEstado[] = [
+  "Recibido",
+  "Guión aprobado",
+  "Voz generada",
+  "Vídeo creado",
+  "Entregado",
+] as const;
+
+function isReelEstado(v: unknown): v is ReelEstado {
+  return typeof v === "string" && (ALLOWED_REEL_ESTADOS as readonly string[]).includes(v);
+}
+function normalizeReelEstado(v: unknown): ReelEstado {
+  return isReelEstado(v) ? v : "Recibido";
+}
 
 export default function VideosPage() {
   const t = useTranslations("videosPage");
@@ -30,7 +48,7 @@ export default function VideosPage() {
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const estados: Record<number, React.ReactNode> = {
+  const estados: Record<number, ReactNode> = {
     0: <Badge className="bg-red-500 text-white">{t("state.new")}</Badge>,
     1: <Badge className="bg-yellow-400 text-black">{t("state.changes")}</Badge>,
     2: <Badge className="bg-green-500 text-white">{t("state.approved")}</Badge>,
@@ -52,35 +70,44 @@ export default function VideosPage() {
     }
   };
 
-  const fetchVideos = useCallback(async (uid: string) => {
-    setLoading(true);
-    try {
-      const ref = collection(db, "users", uid, "videos");
-      const snapshot = await getDocs(ref);
+  const fetchVideos = useCallback(
+    async (uid: string) => {
+      setLoading(true);
+      try {
+        const ref = collection(db, "users", uid, "videos");
+        const snapshot = await getDocs(ref);
 
-      if (snapshot.empty) {
-        toast(t("toast.noVideosYet"));
-      }
+        if (snapshot.empty) {
+          toast(t("toast.noVideosYet"));
+        }
 
-      const data: Video[] = snapshot.docs.map((d) => {
-        const v = d.data();
+        const data: Video[] = snapshot.docs.map((d) => {
+          const v = d.data() as Record<string, unknown>;
+          const estadoNum =
+            typeof v.estado === "number"
+              ? (v.estado as number)
+              : parseInt((v.estado as string) ?? "0", 10) || 0;
+
         return {
-          firebaseId: d.id,
-          titulo: v.titulo ?? t("untitled"),
-          url: v.url ?? "",
-          estado: typeof v.estado === "number" ? v.estado : 0,
-          notas: v.notas ?? "",
-        };
-      });
+            firebaseId: d.id,
+            titulo: (v.titulo as string) ?? t("untitled"),
+            url: (v.url as string) ?? "",
+            estado: estadoNum,
+            notas: (v.notas as string) ?? "",
+            reelEstado: normalizeReelEstado(v.reelEstado),
+          };
+        });
 
-      setVideos(data);
-    } catch (error) {
-      console.error("Error obteniendo vídeos:", error);
-      handleError(error, t("errors.loadVideos"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+        setVideos(data);
+      } catch (error) {
+        console.error("Error obteniendo vídeos:", error);
+        handleError(error, t("errors.loadVideos"));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -185,7 +212,6 @@ export default function VideosPage() {
           ? t("state.changes")
           : t("state.approved");
 
-      // Los correos siguen en ES (como en scripts)
       await sendNotificationEmail(
         `🎬 Video actualizado por ${userEmail}`,
         `Se ha actualizado el video "${tituloEditado.trim()}".\n\nEstado: ${estadoTexto}\nNotas: ${updatedVideo.notas || "Sin notas"}`
@@ -208,7 +234,7 @@ export default function VideosPage() {
 
           const contentType = res.headers.get("content-type");
           if (contentType && contentType.includes("application/json")) {
-            await res.json(); // opcional: log si quieres
+            await res.json();
           }
         } catch (error) {
           console.error("❌ Error al asignar tarea:", error);
@@ -308,6 +334,10 @@ export default function VideosPage() {
                   estados[v.estado] ?? <Badge variant="secondary">{t("common.unknown")}</Badge>
                 ) : null}
               </div>
+
+              {/* Progreso del reel */}
+              <ProgressReel estado={v.reelEstado} compact className="mb-2" />
+
               <video
                 controls
                 src={v.url}
@@ -339,6 +369,8 @@ export default function VideosPage() {
           }}
           videoId={selected.firebaseId}
           estadoAnterior={estadoOriginal}
+          /* 👉 ahora el modal recibe el progreso para mostrarlo en lectura */
+          reelEstado={selected.reelEstado ?? "Recibido"}
         />
       )}
 

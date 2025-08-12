@@ -24,6 +24,7 @@ import toast from "react-hot-toast";
 import { useLocale } from "next-intl";
 import { useT, LOCALES, type Locale } from "@/lib/i18n";
 import { createGuion } from "@/lib/scripts";
+import Comments from "@/components/shared/Comments";
 
 interface Guion {
   firebaseId: string;
@@ -217,6 +218,12 @@ export default function ScriptEditorModal({
     }
   };
 
+  // --- Comentarios: docPath para users/{uid}/guiones/{guionId}
+  const commentsDocPath =
+    auth.currentUser?.uid && guion?.firebaseId
+      ? `users/${auth.currentUser.uid}/guiones/${guion.firebaseId}`
+      : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -273,6 +280,17 @@ export default function ScriptEditorModal({
           <Button className="mt-2" onClick={handleGuardar} disabled={isSaving}>
             {isSaving ? t("scriptsModal.saving") : t("scriptsModal.save")}
           </Button>
+
+          {/* ====== Comentarios (tipo Notion) ====== */}
+          {commentsDocPath && (
+            <div className="mt-4 border-t pt-4 space-y-2">
+              <p className="text-sm font-medium">
+                {tf("scriptsModal.commentsLabel", "💬 Comentarios")}
+              </p>
+              <Comments docPath={commentsDocPath} />
+            </div>
+          )}
+          {/* ====================================== */}
 
           {/* ====== Duplicar en otro idioma (opcional) ====== */}
           <div className="mt-4 border-t pt-4 space-y-2">
