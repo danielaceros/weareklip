@@ -1,6 +1,6 @@
 // src/app/api/webhook/submagic/route.ts
 import { NextResponse } from "next/server";
-import { adminDB } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase-admin";
 
 export async function GET() {
   return NextResponse.json({ status: "Webhook endpoint ready" });
@@ -13,44 +13,51 @@ export async function POST(req: Request) {
     const userEmail = searchParams.get("email");
 
     if (!uid || !userEmail) {
-      return NextResponse.json(
-        { error: "Missing uid or email" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing uid or email" }, { status: 400 });
     }
 
     const body = await req.json();
 
-    // 🔍 Log detallado del webhook
     console.log("======================================");
     console.log("📩 Webhook recibido de Submagic");
     console.log("🔹 UID:", uid);
     console.log("🔹 Email:", userEmail);
-    console.log("🔹 Payload completo:");
-    console.log(JSON.stringify(body, null, 2));
+    console.log("🔹 Payload completo:", JSON.stringify(body, null, 2));
     console.log("======================================");
 
-    const { projectId, status, downloadUrl, timestamp } = body;
+    const {
+      projectId,
+      status,
+      title,
+      downloadUrl,
+      duration,
+      completedAt,
+      timestamp
+    } = body;
 
     if (!projectId || !status) {
-      return NextResponse.json(
-        { error: "Missing projectId or status" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing projectId or status" }, { status: 400 });
     }
 
-    // 📂 Guardar estado en Firestore
-    await adminDB
+    const now = new Date().toISOString();
+
+    // 📂 Guardar en Firestore con más info
+    await db
       .collection("users")
       .doc(uid)
       .collection("videos")
       .doc(projectId)
       .set(
         {
-          status,
+          projectId,
+          title: title || null,
+          status: status.toLowerCase(),
           downloadUrl: downloadUrl || null,
-          updatedAt: timestamp || new Date().toISOString(),
-          rawPayload: body, // 📝 Guardamos todo el payload para referencia
+          duration: duration || null,
+          completedAt: completedAt || null,
+          createdAt: timestamp || now,
+          updatedAt: now,
+          rawPayload: body
         },
         { merge: true }
       );
@@ -61,7 +68,7 @@ export async function POST(req: Request) {
         ? "http://localhost:3000"
         : "https://app.weareklip.com";
 
-    if (status === "completed" && downloadUrl) {
+    if (status.toLowerCase() === "completed" && downloadUrl) {
       console.log(`📧 Enviando email a ${userEmail} con enlace ${downloadUrl}`);
 
       await fetch(`${baseUrl}/api/send-email`, {
@@ -81,9 +88,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("❌ Error processing Submagic webhook:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

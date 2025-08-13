@@ -40,8 +40,9 @@ export default function SupportPage() {
       el.style.boxShadow = `0 6px 18px ${isDark ? "rgba(0,0,0,.45)" : "rgba(0,0,0,.12)"}`;
       el.style.zIndex = "9999";
       el.style.position = "fixed";
-      el.style.right = "28px";
-      el.style.top = "20px";
+      el.style.bottom = "20px"; // 👈 nuevo
+      el.style.right = "20px";  // 👈 nuevo
+      el.style.top = "";        // 👈 limpiar top
       el.style.border = `1px solid ${ring}`;
       (el.style as CSSStyleDeclaration).transformOrigin = "center";
 
@@ -60,6 +61,7 @@ export default function SupportPage() {
 
       return () => obs.disconnect();
     };
+
 
     const cleanup = applyButtonStyles();
 

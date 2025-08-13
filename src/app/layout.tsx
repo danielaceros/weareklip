@@ -79,7 +79,7 @@ export default async function RootLayout({
               <SyncStripe />
               {children}
             </AuthProvider>
-            <Toaster position="bottom-right" />
+            <Toaster position="top-center" />
             <div id="recaptcha-container" />
           </NextIntlClientProvider>
         </ThemeProvider>

@@ -49,12 +49,17 @@ export function Sidebar() {
 
   const links = [
     { href: '/dashboard', key: 'sidebar.home' },
-    { href: '/dashboard/ideas-virales', key: 'sidebar.viralIdeas' },
-    { href: '/dashboard/script', key: 'sidebar.scripts' },
-    { href: '/dashboard/voice', key: 'sidebar.voice' },
-    { href: '/dashboard/audio', key: 'sidebar.audio' },
-    { href: '/dashboard/edit', key: 'sidebar.videos' },
+    { href: '/dashboard/scripts', key: 'sidebar.scripts' },
+    { href: '/dashboard/videos', key: 'sidebar.videos' },
+
+    // Rutas adicionales traídas de main (manteniendo i18n)
+    { href: '/dashboard/calendario-publicacion', key: 'sidebar.calendar' },
     { href: '/dashboard/ia-marca', key: 'sidebar.brandAI' },
+    { href: '/dashboard/ideas-virales', key: 'sidebar.viralIdeas' },
+    { href: '/dashboard/solicitar-reel', key: 'sidebar.requestReel' },
+    { href: '/dashboard/archivos-recursos', key: 'sidebar.assets' },
+    { href: '/dashboard/estadisticas', key: 'sidebar.stats' },
+
     { href: '/dashboard/mynotifications', key: 'sidebar.notifications' },
     { href: '/dashboard/facturacion', key: 'sidebar.billing' },
     { href: '/dashboard/soporte', key: 'sidebar.support' },

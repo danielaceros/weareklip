@@ -26,8 +26,9 @@ export default function ZohoDeskScript() {
         label.style.whiteSpace = "nowrap";
         label.style.zIndex = "9999";
         label.style.position = "fixed";
-        label.style.right = "20px";
-        label.style.top = "10px";
+        label.style.right = "80px";
+        label.style.bottom = "18px"; // 👈 ahora abajo
+        label.style.top = "";        // 👈 eliminamos top
         label.style.transformOrigin = "center";
       } else {
         setTimeout(tryUpdateButton, 300);
