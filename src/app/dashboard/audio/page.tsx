@@ -25,7 +25,6 @@ export default function AudiosPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
-  // Escuchar cambios de autenticación
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, (currentUser) => {
@@ -33,17 +32,21 @@ export default function AudiosPage() {
     });
   }, []);
 
-  // Función para obtener audios, memorizada para no cambiar en cada render
   const fetchAudios = useCallback(async () => {
     if (!user) return;
     try {
       const audiosRef = collection(db, "users", user.uid, "audios");
       const snapshot = await getDocs(audiosRef);
       const data: AudioData[] = snapshot.docs.map((docSnap) => {
-        const docData = docSnap.data() as Omit<AudioData, "audioId">;
+        const docData = docSnap.data() as Partial<AudioData> & { audioUrl?: string };
         return {
           audioId: docSnap.id,
-          ...docData,
+          url: docData.audioUrl ?? "",
+          name: docData.name ?? "",
+          description: docData.description ?? "",
+          createdAt: docData.createdAt,
+          duration: docData.duration,
+          language: docData.language,
         };
       });
       setAudios(data);
@@ -54,7 +57,6 @@ export default function AudiosPage() {
     }
   }, [user]);
 
-  // Ejecutar la carga cuando haya usuario
   useEffect(() => {
     fetchAudios();
   }, [fetchAudios]);
@@ -70,7 +72,6 @@ export default function AudiosPage() {
 
   return (
     <div className="relative">
-      {/* Botón arriba derecha */}
       <div className="absolute right-0 -top-2 mb-4">
         <Link href="/dashboard/audio/new">
           <Button className="bg-blue-500 hover:bg-blue-600 text-white">

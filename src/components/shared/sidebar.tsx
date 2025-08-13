@@ -49,10 +49,11 @@ export function Sidebar() {
 
   const links = [
     { href: '/dashboard', key: 'sidebar.home' },
-    { href: '/dashboard/ideas-virales', key: 'sidebar.viralIdeas' },
+    { href: '/dashboard/ideas', key: 'sidebar.viralIdeas' },
     { href: '/dashboard/script', key: 'sidebar.scripts' },
     { href: '/dashboard/voice', key: 'sidebar.voice' },
     { href: '/dashboard/audio', key: 'sidebar.audio' },
+    { href: '/dashboard/video', key: 'sidebar.video' },
     { href: '/dashboard/edit', key: 'sidebar.videos' },
     { href: '/dashboard/ia-marca', key: 'sidebar.brandAI' },
     { href: '/dashboard/mynotifications', key: 'sidebar.notifications' },
