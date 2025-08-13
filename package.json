@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -63,6 +64,9 @@
     "undici": "^7.13.0",
     "uuid": "^11.1.0",
     "wavesurfer.js": "^7.10.1",
+    "youtube-transcript": "^1.2.1",
+    "youtubei.js": "^15.0.1",
+    "ytdl-core": "^4.11.5",
     "zod": "^3.25.28"
   },
   "devDependencies": {

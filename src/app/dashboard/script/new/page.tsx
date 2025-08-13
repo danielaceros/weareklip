@@ -77,11 +77,9 @@ export default function ScriptCreatorPage() {
         ctaText,
         script: data.script || "",
         createdAt: serverTimestamp(),
-        userEmail: user.email || "",
-        userName: user.displayName || "",
-        userPhoto: user.photoURL || "",
         scriptId,
         regenerations: 0,
+        isAI: true
       });
 
       toast.success("Guion generado correctamente");

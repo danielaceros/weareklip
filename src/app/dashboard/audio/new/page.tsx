@@ -2,23 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
+import { Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function AudioCreatorPage() {
+  const searchParams = useSearchParams();
+  const defaultText = searchParams.get("text") || "";
+  const [text, setText] = useState(defaultText);
   const [user, setUser] = useState<User | null>(null);
   const [voices, setVoices] = useState<{ id: string; name: string }[]>([]);
-  const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [languageCode, setLanguageCode] = useState("es");
   const [stability, setStability] = useState(0.5);
@@ -29,12 +30,13 @@ export default function AudioCreatorPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Detectar usuario y cargar voces asociadas
+  // Detectar usuario y cargar voces
   useEffect(() => {
     const auth = getAuth();
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        toast.info("Cargando voces disponibles...");
         try {
           const voicesRef = collection(db, "users", currentUser.uid, "voices");
           const snapshot = await getDocs(voicesRef);
@@ -42,23 +44,42 @@ export default function AudioCreatorPage() {
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             loadedVoices.push({
-              id: docSnap.id, // este es el elevenlabsId
+              id: docSnap.id,
               name: data.name || docSnap.id,
             });
           });
           setVoices(loadedVoices);
+          if (loadedVoices.length > 0) {
+            toast.success(`${loadedVoices.length} voces encontradas`);
+          } else {
+            toast.warning("No tienes voces guardadas, primero crea o clona una voz.");
+          }
         } catch (err) {
           console.error(err);
-          toast.error("Error cargando voces");
+          toast.error("Error cargando voces desde la base de datos.");
         }
+      } else {
+        setVoices([]);
       }
     });
+
     return () => unsub();
   }, []);
 
+  // Avisar si hay texto precargado
+  useEffect(() => {
+    if (defaultText) {
+      toast.success("Texto cargado automáticamente desde el guion seleccionado");
+    }
+  }, [defaultText]);
+
   const handleGenerate = async () => {
-    if (!text || !voiceId) {
-      toast.error("Por favor, completa el texto y selecciona una voz.");
+    if (!text.trim()) {
+      toast.error("Debes escribir el texto a convertir.");
+      return;
+    }
+    if (!voiceId) {
+      toast.error("Debes seleccionar una voz.");
       return;
     }
     if (!user) {
@@ -67,10 +88,17 @@ export default function AudioCreatorPage() {
     }
 
     setLoading(true);
+    toast.info("Generando audio, por favor espera...");
+
     try {
+      const token = await user.getIdToken();
+
       const res = await fetch("/api/elevenlabs/audio/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           text,
           voiceId,
@@ -88,44 +116,22 @@ export default function AudioCreatorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando audio");
 
-      const audioId = uuidv4();
-      await setDoc(doc(db, "users", user.uid, "audios", audioId), {
-        text,
-        voiceId,
-        languageCode,
-        stability,
-        similarityBoost,
-        style,
-        speed,
-        speakerBoost,
-        audioUrl: data.audioUrl || "",
-        createdAt: serverTimestamp(),
-        userEmail: user.email || "",
-        userName: user.displayName || "",
-        userPhoto: user.photoURL || "",
-        audioId,
-        generations: 1,
-      });
-
-      toast.success("Audio generado correctamente");
-      router.push("/dashboard/audios");
+      toast.success("✅ Audio generado correctamente");
+      router.push("/dashboard/audio");
     } catch (err: unknown) {
-        console.error(err);
-        if (err instanceof Error) {
-            toast.error(err.message);
-        } else {
-            toast.error("No se pudo generar el audio.");
-        }
-        } finally {
-        setLoading(false);
-        }
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "No se pudo generar el audio.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 py-8">
-      <h1 className="text-2xl font-bold">Generar nuevo audio</h1>
+      <h1 className="text-2xl font-bold flex items-center gap-2">
+        <AlertCircle className="w-6 h-6 text-primary" /> Generar nuevo audio
+      </h1>
 
-      {/* Texto */}
       <div>
         <Label>Texto *</Label>
         <Textarea
@@ -135,33 +141,31 @@ export default function AudioCreatorPage() {
         />
       </div>
 
-      {/* Voz */}
       <div>
         <Label>Voz *</Label>
         <Select onValueChange={setVoiceId} value={voiceId}>
-            <SelectTrigger>
-                <SelectValue placeholder="Selecciona una voz" />
-            </SelectTrigger>
-            <SelectContent>
-                {voices.length > 0 ? (
-                voices.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                    </SelectItem>
-                ))
-                ) : (
-                <SelectItem value="no-voices" disabled>
-                    No tienes voces guardadas
+          <SelectTrigger>
+            <SelectValue placeholder="Selecciona una voz" />
+          </SelectTrigger>
+          <SelectContent>
+            {voices.length > 0 ? (
+              voices.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name}
                 </SelectItem>
-                )}
-            </SelectContent>
-            </Select>
+              ))
+            ) : (
+              <SelectItem value="no-voices" disabled>
+                No tienes voces guardadas
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Idioma */}
       <div>
         <Label>Idioma</Label>
-        <Select onValueChange={setLanguageCode} defaultValue={languageCode}>
+        <Select onValueChange={setLanguageCode} value={languageCode}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -173,21 +177,20 @@ export default function AudioCreatorPage() {
         </Select>
       </div>
 
-      {/* Parámetros de voz */}
       <div>
-        <Label>Estabilidad ({stability})</Label>
+        <Label>Estabilidad ({stability.toFixed(2)})</Label>
         <Slider value={[stability]} min={0} max={1} step={0.01} onValueChange={(v) => setStability(v[0])} />
       </div>
       <div>
-        <Label>Similaridad ({similarityBoost})</Label>
+        <Label>Similaridad ({similarityBoost.toFixed(2)})</Label>
         <Slider value={[similarityBoost]} min={0} max={1} step={0.01} onValueChange={(v) => setSimilarityBoost(v[0])} />
       </div>
       <div>
-        <Label>Estilo ({style})</Label>
+        <Label>Estilo ({style.toFixed(2)})</Label>
         <Slider value={[style]} min={0} max={1} step={0.01} onValueChange={(v) => setStyle(v[0])} />
       </div>
       <div>
-        <Label>Velocidad ({speed})</Label>
+        <Label>Velocidad ({speed.toFixed(2)})</Label>
         <Slider value={[speed]} min={0.5} max={2.0} step={0.01} onValueChange={(v) => setSpeed(v[0])} />
       </div>
       <div className="flex items-center space-x-2">
@@ -195,10 +198,9 @@ export default function AudioCreatorPage() {
         <Label>Usar Speaker Boost</Label>
       </div>
 
-      {/* Botón */}
       <Button onClick={handleGenerate} disabled={loading} className="w-full">
         {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-        Generar audio
+        {loading ? "Generando audio..." : "Generar audio"}
       </Button>
     </div>
   );

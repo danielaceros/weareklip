@@ -23,6 +23,7 @@
     "videos": "Mis Videos",
     "audio": "Mis Audios",
     "voice": "Mis Voces",
+    "video": "Mis Clones",
     "notifications": "Mis Notificaciones",
     "calendar": "Calendario",
     "brandAI": "IA de Marca",
@@ -493,6 +494,7 @@
   },
   "viralIdeasPage": {
     "title": "Ideas Virales para tus videos",
+    "viewOnYoutube": "Ver en Youtube",
     "description": "Descubre ideas virales generadas por IA o inspiradas en tendencias de TikTok, Instagram y YouTube.\nMarca tus favoritas y crea un guion en 1 clic.",
     "useIdea": "Usar esta idea",
     "favoritesTitle": "Tus Ideas Favoritas",

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -16,12 +18,17 @@ import { uploadVideo } from "@/lib/uploadVideo";
 type LanguageOption = { name: string; code: string };
 
 export default function SubmagicUploader() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const preloadedVideoUrl = searchParams.get("videoUrl");
+
   const [templates, setTemplates] = useState<string[]>([]);
   const [languages, setLanguages] = useState<LanguageOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [loadingLanguages, setLoadingLanguages] = useState(true);
 
   const [file, setFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(preloadedVideoUrl);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const [template, setTemplate] = useState("");
@@ -32,54 +39,67 @@ export default function SubmagicUploader() {
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch templates
   useEffect(() => {
     fetch("/api/submagic/templates")
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
       .finally(() => setLoadingTemplates(false));
-  }, []);
 
-  // Fetch languages
-  useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
       .then((data) => setLanguages(data.languages || []))
       .finally(() => setLoadingLanguages(false));
   }, []);
 
-  // Drag & Drop
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles[0]) setFile(acceptedFiles[0]);
+    if (acceptedFiles[0]) {
+      setFile(acceptedFiles[0]);
+      setVideoUrl(null);
+    }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
     multiple: false,
+    disabled: !!videoUrl,
   });
 
   const handleSubmit = async () => {
-    if (!file || !language) return alert("Sube un vídeo y selecciona idioma");
-
     const user = auth.currentUser;
-    if (!user) return alert("Debes iniciar sesión");
+
+    if (!user) {
+      toast.error("Debes iniciar sesión");
+      return;
+    }
+    if (!videoUrl && !file) {
+      toast.error("Debes subir un vídeo o usar uno precargado");
+      return;
+    }
+    if (!language) {
+      toast.error("Debes seleccionar un idioma");
+      return;
+    }
 
     setSubmitting(true);
     setUploadProgress(0);
 
     try {
-      // 1. Subir vídeo a Firebase Storage
-      const { downloadURL } = await uploadVideo(file, user.uid, setUploadProgress);
+      let finalVideoUrl = videoUrl;
 
-      // 2. Llamar a API interna que crea el proyecto en Submagic
+      if (!finalVideoUrl && file) {
+        const { downloadURL } = await uploadVideo(file, user.uid, setUploadProgress);
+        finalVideoUrl = downloadURL;
+      }
+      if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
+
       const res = await fetch("/api/submagic/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: file.name,
+          title: file?.name || "video-preloaded",
           language,
-          videoUrl: downloadURL,
+          videoUrl: finalVideoUrl,
           templateName: template || undefined,
           dictionary: dictionary ? dictionary.split(",").map((w) => w.trim()) : undefined,
           magicZooms,
@@ -92,15 +112,16 @@ export default function SubmagicUploader() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(`✅ Proyecto creado con ID: ${data.id}`);
+        toast.success("✅ Vídeo creado correctamente");
         setFile(null);
         setUploadProgress(0);
+        router.push("/dashboard/edit");
       } else {
-        alert("❌ Error: " + (data.error || "Error desconocido"));
+        toast.error(data.error || "Error desconocido al crear el vídeo");
       }
     } catch (error) {
       console.error(error);
-      alert("❌ Error subiendo o procesando el vídeo");
+      toast.error("Error subiendo o procesando el vídeo");
     } finally {
       setSubmitting(false);
     }
@@ -108,28 +129,33 @@ export default function SubmagicUploader() {
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
-      {/* Drag & Drop */}
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer w-full aspect-[9/16] transition ${
-          isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
-        }`}
-      >
-        <input {...getInputProps()} />
-        {file ? (
-          <>
-            <VideoIcon className="w-10 h-10 mb-2 text-primary" />
-            <p className="text-sm font-medium text-center">{file.name}</p>
-          </>
-        ) : (
-          <>
-            <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground text-center">
-              {isDragActive ? "Suelta el vídeo aquí..." : "Arrastra un vídeo o haz click"}
-            </p>
-          </>
-        )}
-      </div>
+      {videoUrl ? (
+        <div className="rounded-xl overflow-hidden border w-full aspect-[9/16]">
+          <video src={videoUrl} controls className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer w-full aspect-[9/16] transition ${
+            isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
+          }`}
+        >
+          <input {...getInputProps()} />
+          {file ? (
+            <>
+              <VideoIcon className="w-10 h-10 mb-2 text-primary" />
+              <p className="text-sm font-medium text-center">{file.name}</p>
+            </>
+          ) : (
+            <>
+              <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground text-center">
+                {isDragActive ? "Suelta el vídeo aquí..." : "Arrastra un vídeo o haz click"}
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {uploadProgress > 0 && <Progress value={uploadProgress} />}
 
@@ -216,11 +242,11 @@ export default function SubmagicUploader() {
       {/* Botón */}
       <Button
         onClick={handleSubmit}
-        disabled={submitting || !auth.currentUser}
+        disabled={submitting}
         className="w-full"
       >
         {submitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-        {auth.currentUser ? "Crear vídeo" : "Inicia sesión para continuar"}
+        Crear vídeo
       </Button>
     </div>
   );
