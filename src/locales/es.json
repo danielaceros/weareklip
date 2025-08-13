@@ -1126,5 +1126,50 @@
     "haveAccount": "¿Ya tienes cuenta?",
     "goRegister": "Regístrate",
     "goLogin": "Inicia sesión"
+  },
+  "profile": {
+    "sectionTitle": "Perfil",
+    "labels": {
+      "name": "Nombre",
+      "instagramUser": "Usuario de Instagram",
+      "phone": "Teléfono",
+      "emailReadonly": "Correo electrónico (solo lectura)"
+    },
+    "placeholders": {
+      "name": "Nombre",
+      "instagramUser": "Usuario de Instagram",
+      "phone": "Teléfono"
+    },
+    "actions": {
+      "save": "Guardar"
+    }
+  },
+  "subscription": {
+    "sectionTitle": "Suscripción",
+    "noActive": "No tienes ninguna suscripción activa"
+  },
+  "clonacion": {
+    "mustLogin": "Debes iniciar sesión para usar la clonación",
+    "uploadError": "Error al subir el vídeo",
+    "uploadSuccess": "Vídeo subido correctamente",
+    "confirmDelete": "¿Seguro que quieres eliminar este vídeo?",
+    "deleteSuccess": "Vídeo eliminado",
+    "deleteError": "Error al eliminar el vídeo",
+    "noVideos": "No tienes vídeos de clonación aún",
+    "sectionTitle": "Vídeos de clonación",
+    "noFileSelected": "Ningún archivo seleccionado"
+  },
+  "panel": {
+    "loading": "Cargando datos...",
+    "error": "Error al cargar el panel",
+    "welcome": "Bienvenido, {name}",
+    "scripts": "Guiones",
+    "videos": "Vídeos",
+    "voices": "Voces",
+    "ideas": "Ideas virales",
+    "clonacion": "Vídeos de clonación",
+    "settings": "Configuración",
+    "logout": "Cerrar sesión"
   }
 }
+
