@@ -11,6 +11,7 @@ import { AuthProvider } from '@/context/authContext';
 import { SyncStripe } from '@/components/shared/syncstripe';
 import { Toaster } from 'react-hot-toast';
 import LocaleBootstrap from '@/components/i18n/LocaleBootstrap';
+import CreateReelGlobalButton from '@/components/wizard/CreateReelGlobalButton';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -78,6 +79,7 @@ export default async function RootLayout({
             <AuthProvider>
               <SyncStripe />
               {children}
+              <CreateReelGlobalButton />
             </AuthProvider>
             <Toaster position="top-center" />
             <div id="recaptcha-container" />

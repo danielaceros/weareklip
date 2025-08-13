@@ -9,8 +9,15 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const nextConfig: NextConfig = {
   images: {
     domains: ['firebasestorage.googleapis.com'],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
+        port: "",
+        pathname: "/**",
+      },
+    ],
   },
-  // ...otros ajustes de Next.js
 };
 
 export default withNextIntl(nextConfig);
