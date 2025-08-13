@@ -1,12 +1,14 @@
 // lib/firebase-admin.ts
 import admin from "firebase-admin";
 
-function initAdmin() {
+export function initAdmin() {
   if (admin.apps.length) return;
 
-  if (!process.env.FIREBASE_PROJECT_ID || 
-      !process.env.FIREBASE_CLIENT_EMAIL || 
-      !process.env.FIREBASE_PRIVATE_KEY) {
+  if (
+    !process.env.FIREBASE_PROJECT_ID || 
+    !process.env.FIREBASE_CLIENT_EMAIL || 
+    !process.env.FIREBASE_PRIVATE_KEY
+  ) {
     throw new Error("Missing Firebase Admin environment variables");
   }
 
@@ -17,6 +19,7 @@ function initAdmin() {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
       }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
       databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
     });
 
@@ -28,8 +31,16 @@ function initAdmin() {
   }
 }
 
-// Inicializar al cargar este módulo
 initAdmin();
 
-export const adminDB = admin.firestore();
-export const adminAuth = admin.auth();
+// Exportaciones con alias para compatibilidad
+export const db = admin.firestore();
+export const adminDB = db; // alias para compatibilidad con el resto del código
+
+export const auth = admin.auth();
+export const adminAuth = auth; // alias para compatibilidad
+
+export const storage = admin.storage().bucket();
+export const adminStorage = admin.storage(); // si quieres el objeto storage entero
+
+export { admin }; // por si necesitas el objeto completo
