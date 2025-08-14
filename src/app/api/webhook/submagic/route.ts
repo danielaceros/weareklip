@@ -8,40 +8,56 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const uid = searchParams.get("uid");
-    const userEmail = searchParams.get("email");
-
-    if (!uid || !userEmail) {
-      return NextResponse.json({ error: "Missing uid or email" }, { status: 400 });
+    const { uid } = Object.fromEntries(new URL(req.url).searchParams);
+    if (!uid) {
+      return NextResponse.json({ error: "UID is required" }, { status: 400 });
     }
 
     const body = await req.json();
+    console.log("📩 Webhook recibido de Submagic:", JSON.stringify(body, null, 2));
 
-    console.log("======================================");
-    console.log("📩 Webhook recibido de Submagic");
-    console.log("🔹 UID:", uid);
-    console.log("🔹 Email:", userEmail);
-    console.log("🔹 Payload completo:", JSON.stringify(body, null, 2));
-    console.log("======================================");
-
-    const {
-      projectId,
-      status,
-      title,
-      downloadUrl,
-      duration,
-      completedAt,
-      timestamp
-    } = body;
-
+    const { projectId, status, title, downloadUrl, duration, completedAt, timestamp } = body;
     if (!projectId || !status) {
       return NextResponse.json({ error: "Missing projectId or status" }, { status: 400 });
     }
 
+    const normalizedStatus = status.toLowerCase();
     const now = new Date().toISOString();
 
-    // 📂 Guardar en Firestore con más info
+    // 🔍 Buscar lipsync por submagicProjectId
+    const lipsyncQuery = await db
+      .collection("users")
+      .doc(uid)
+      .collection("lipsync")
+      .where("submagicProjectId", "==", projectId)
+      .limit(1)
+      .get();
+
+    if (lipsyncQuery.empty) {
+      console.warn(`⚠️ No se encontró lipsync con submagicProjectId=${projectId} para el usuario ${uid}`);
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const lipsyncDoc = lipsyncQuery.docs[0];
+    const lipsyncRef = lipsyncDoc.ref;
+    const lipsyncData = lipsyncDoc.data();
+    const userEmail = lipsyncData.email;
+
+    console.log(`🔗 Emparejado lipsync docId=${lipsyncDoc.id} para usuario ${uid}`);
+
+    // 📂 Actualizar documento lipsync
+    await lipsyncRef.set(
+      {
+        submagicStatus: normalizedStatus,
+        submagicDownloadUrl: downloadUrl || null,
+        submagicDuration: duration ?? null,
+        submagicCompletedAt: completedAt || lipsyncData.submagicCompletedAt || null,
+        submagicUpdatedAt: now,
+      },
+      { merge: true }
+    );
+
+    // 📂 Guardar también en "videos"
     await db
       .collection("users")
       .doc(uid)
@@ -51,25 +67,25 @@ export async function POST(req: Request) {
         {
           projectId,
           title: title || null,
-          status: status.toLowerCase(),
+          status: normalizedStatus,
           downloadUrl: downloadUrl || null,
-          duration: duration || null,
+          duration: duration ?? null,
           completedAt: completedAt || null,
           createdAt: timestamp || now,
           updatedAt: now,
-          rawPayload: body
+          rawPayload: body,
         },
         { merge: true }
       );
 
     // 📧 Enviar email si está completado
-    const baseUrl =
-      process.env.NODE_ENV === "development"
-        ? "http://localhost:3000"
-        : "https://app.weareklip.com";
-
-    if (status.toLowerCase() === "completed" && downloadUrl) {
+    if (normalizedStatus === "completed" && downloadUrl && userEmail) {
       console.log(`📧 Enviando email a ${userEmail} con enlace ${downloadUrl}`);
+
+      const baseUrl =
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:3000"
+          : "https://app.weareklip.com";
 
       await fetch(`${baseUrl}/api/send-email`, {
         method: "POST",

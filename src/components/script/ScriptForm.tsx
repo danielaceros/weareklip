@@ -50,7 +50,7 @@ export function ScriptForm({
   onSubmit
 }: ScriptFormProps) {
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-8">
+    <div className="w-full space-y-6 py-4">
       <h1 className="text-2xl font-bold">Crear nuevo guion</h1>
 
       <div>
@@ -59,13 +59,14 @@ export function ScriptForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ej: Quiero un reel motivador sobre productividad para emprendedores"
+          className="w-full"
         />
       </div>
 
       <div>
         <Label>Tono *</Label>
         <Select onValueChange={setTone} defaultValue={tone}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona un tono" />
           </SelectTrigger>
           <SelectContent>
@@ -83,7 +84,7 @@ export function ScriptForm({
       <div>
         <Label>Plataforma *</Label>
         <Select onValueChange={setPlatform} defaultValue={platform}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona la plataforma" />
           </SelectTrigger>
           <SelectContent>
@@ -98,7 +99,7 @@ export function ScriptForm({
       <div>
         <Label>Duración *</Label>
         <Select onValueChange={setDuration} defaultValue={duration}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona la duración" />
           </SelectTrigger>
           <SelectContent>
@@ -113,7 +114,7 @@ export function ScriptForm({
       <div>
         <Label>Idioma *</Label>
         <Select onValueChange={setLanguage} defaultValue={language || "es"}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona un idioma" />
           </SelectTrigger>
           <SelectContent>
@@ -127,7 +128,7 @@ export function ScriptForm({
       <div>
         <Label>Estructura *</Label>
         <Select onValueChange={setStructure} defaultValue={structure}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona una estructura" />
           </SelectTrigger>
           <SelectContent>
@@ -153,6 +154,7 @@ export function ScriptForm({
             value={ctaText}
             onChange={(e) => setCtaText(e.target.value)}
             placeholder="Ej: Sígueme para más consejos"
+            className="w-full"
           />
         )}
       </div>

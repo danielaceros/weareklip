@@ -45,14 +45,18 @@ export function AudioForm(props: AudioFormProps) {
   } = props;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-8">
+    <div className="w-full space-y-6 py-8">
       <h1 className="text-2xl font-bold flex items-center gap-2">
         <AlertCircle className="w-6 h-6 text-primary" /> Generar nuevo audio
       </h1>
 
       <div>
         <Label>Texto *</Label>
-        <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe el texto..." />
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Escribe el texto..."
+        />
       </div>
 
       <div>
@@ -62,9 +66,11 @@ export function AudioForm(props: AudioFormProps) {
             <SelectValue placeholder="Selecciona una voz" />
           </SelectTrigger>
           <SelectContent>
-            {voices.length > 0 ? voices.map(v => (
-              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-            )) : (
+            {voices.length > 0 ? (
+              voices.map(v => (
+                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+              ))
+            ) : (
               <SelectItem value="no-voices" disabled>No tienes voces guardadas</SelectItem>
             )}
           </SelectContent>
