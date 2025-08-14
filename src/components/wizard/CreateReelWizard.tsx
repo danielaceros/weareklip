@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { ScriptForm } from "@/components/script/ScriptForm";
 import { AudioForm } from "@/components/audio/AudioForm";
 import { useAudioForm } from "@/components/audio/useAudioForm";
@@ -11,14 +11,28 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { LanguageSelect } from "@/components/edit/LanguageSelect";
+import { TemplateSelect } from "@/components/edit/TemplateSelect";
+import { DictionaryInput } from "@/components/edit/DictionaryInput";
+import { MagicOptions } from "@/components/edit/MagicOptions";
+import { collection, getDocs, getFirestore } from "firebase/firestore";
 
 interface ReelData {
   script: string;
   audioUrl?: string;
+  selectedVideo?: string;
+  subLang?: string;
+  template?: string;
+  dictionary?: string;
+  magicZooms?: boolean;
+  magicBrolls?: boolean;
+  magicBrollsPercentage?: number;
 }
 
 interface CreateReelWizardProps {
@@ -27,16 +41,12 @@ interface CreateReelWizardProps {
   onComplete: (data: ReelData) => void;
 }
 
-export default function CreateReelWizard({
-  open,
-  onClose,
-}: CreateReelWizardProps) {
+export default function CreateReelWizard({ open, onClose, onComplete }: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
-
-  // pasos: 1 = guion, 2 = audio
   const [step, setStep] = useState(1);
+  const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
 
-  // Datos guion
+  // Paso 1 - Guion
   const [description, setDescription] = useState("");
   const [tone, setTone] = useState("");
   const [platform, setPlatform] = useState("");
@@ -47,19 +57,29 @@ export default function CreateReelWizard({
   const [ctaText, setCtaText] = useState("");
   const [loading, setLoading] = useState(false);
   const [script, setScript] = useState("");
-  const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
 
-  // Datos audio
+  // Paso 2 - Audio
   const audioForm = useAudioForm("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+
+  // Paso 3 - Submagic
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState("");
+  const [subLang, setSubLang] = useState("");
+  const [template, setTemplate] = useState("");
+  const [dictionary, setDictionary] = useState("");
+  const [magicZooms, setMagicZooms] = useState(false);
+  const [magicBrolls, setMagicBrolls] = useState(false);
+  const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
+
+  const [syncLoading, setSyncLoading] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
   }, []);
 
-  // Paso 1 - Generar guion
   const generateScript = async () => {
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
@@ -70,31 +90,25 @@ export default function CreateReelWizard({
       return;
     }
 
+    const loadingId = toast.loading("✍️ Generando guion...");
     setLoading(true);
+
     try {
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description,
-          tone,
-          platform,
-          duration,
-          language,
-          structure,
-          addCTA,
-          ctaText,
-        }),
+        body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando guion");
 
       setScript(data.script || "");
-      setIsScriptModalOpen(true);
+      setModalType("script");
+      toast.success("✅ Guion generado correctamente", { id: loadingId });
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo generar el guion.");
+      toast.error("❌ No se pudo generar el guion.", { id: loadingId });
     } finally {
       setLoading(false);
     }
@@ -102,11 +116,11 @@ export default function CreateReelWizard({
 
   const acceptScript = () => {
     audioForm.setText(script);
-    setIsScriptModalOpen(false);
+    toast.success("📜 Guion aceptado. Pasamos al audio.");
+    setModalType("main");
     setStep(2);
   };
 
-  // Paso 2 - Generar audio
   const generateAudio = async () => {
     if (!audioForm.voiceId) {
       toast.error("Selecciona una voz antes de continuar.");
@@ -117,15 +131,14 @@ export default function CreateReelWizard({
       return;
     }
 
+    const loadingId = toast.loading("🎙 Generando audio...");
     audioForm.setLoading(true);
+
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           text: audioForm.text,
           voiceId: audioForm.voiceId,
@@ -144,98 +157,233 @@ export default function CreateReelWizard({
       if (!res.ok) throw new Error(data.error || "Error generando audio");
 
       setAudioUrl(data.audioUrl);
-      setIsAudioModalOpen(true);
-      toast.success("✅ Audio generado correctamente");
+      setModalType("audio");
+      toast.success("✅ Audio generado correctamente", { id: loadingId });
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo generar el audio.");
+      toast.error("❌ No se pudo generar el audio.", { id: loadingId });
     } finally {
       audioForm.setLoading(false);
     }
   };
 
-    const acceptAudio = () => {
-    setIsAudioModalOpen(false);
-    onClose();
-    };
+  const acceptAudio = () => {
+    toast.success("🎧 Audio aceptado. Vamos al paso de vídeo.");
+    setModalType("main");
+    setStep(3);
+    loadClonacionVideos();
+  };
+
+  const loadClonacionVideos = async () => {
+    if (!user) return;
+    setLoadingVideos(true);
+
+    try {
+      const db = getFirestore();
+      const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
+      const snap = await getDocs(clonacionRef);
+      if (snap.empty) {
+        setVideos([]);
+        toast("ℹ️ No tienes vídeos de clonación todavía.");
+        return;
+      }
+
+      const videosData = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data?.titulo ?? doc.id,
+          url: data?.url ?? "",
+        };
+      });
+
+      setVideos(videosData);
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ No se pudieron cargar los vídeos de clonación.");
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  const finishWizard = async () => {
+    if (!audioUrl || !selectedVideo) {
+      toast.error("Falta el audio o el vídeo para continuar.");
+      return;
+    }
+    if (!user) {
+      toast.error("Debes iniciar sesión.");
+      return;
+    }
+
+    const loadingId = toast.loading("🚀 Enviando vídeo para editar...");
+    setSyncLoading(true);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/sync/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          audioUrl,
+          videoUrl: selectedVideo,
+          subLang,
+          template,
+          dictionary,
+          magicZooms,
+          magicBrolls,
+          magicBrollsPercentage,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al iniciar lipsync");
+
+      toast.success(`🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`, { id: loadingId });
+
+      onComplete({
+        script,
+        audioUrl,
+        selectedVideo,
+        subLang,
+        template,
+        dictionary,
+        magicZooms,
+        magicBrolls,
+        magicBrollsPercentage,
+      });
+
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ No se pudo iniciar el lipsync.", { id: loadingId });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Crear Reel IA</DialogTitle>
-        </DialogHeader>
-
-        {/* Paso 1 - Guion */}
-        {step === 1 && (
+        {modalType === "main" && (
           <>
-            <ScriptForm
-              description={description}
-              tone={tone}
-              platform={platform}
-              duration={duration}
-              language={language}
-              structure={structure}
-              addCTA={addCTA}
-              ctaText={ctaText}
-              loading={loading}
-              setDescription={setDescription}
-              setTone={setTone}
-              setPlatform={setPlatform}
-              setDuration={setDuration}
-              setLanguage={setLanguage}
-              setStructure={setStructure}
-              setAddCTA={setAddCTA}
-              setCtaText={setCtaText}
-              onSubmit={generateScript}
-            />
+            <DialogHeader>
+              <DialogTitle>Crear Reel IA</DialogTitle>
+              <DialogDescription>Completa los pasos para generar tu reel</DialogDescription>
+            </DialogHeader>
 
-            {/* Modal de guion */}
-            <Dialog open={isScriptModalOpen} onOpenChange={setIsScriptModalOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Guion generado</DialogTitle>
-                </DialogHeader>
-                <Textarea
-                  value={script}
-                  onChange={(e) => setScript(e.target.value)}
-                  className="min-h-[200px]"
+            {step === 1 && (
+              <ScriptForm
+                description={description}
+                tone={tone}
+                platform={platform}
+                duration={duration}
+                language={language}
+                structure={structure}
+                addCTA={addCTA}
+                ctaText={ctaText}
+                loading={loading}
+                setDescription={setDescription}
+                setTone={setTone}
+                setPlatform={setPlatform}
+                setDuration={setDuration}
+                setLanguage={setLanguage}
+                setStructure={setStructure}
+                setAddCTA={setAddCTA}
+                setCtaText={setCtaText}
+                onSubmit={generateScript}
+              />
+            )}
+
+            {step === 2 && <AudioForm {...audioForm} onGenerate={generateAudio} />}
+
+            {step === 3 && (
+              <div className="space-y-4">
+                <Label>Selecciona un vídeo de clonación</Label>
+                {loadingVideos ? (
+                  <p>Cargando vídeos...</p>
+                ) : videos.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {videos.map((v) => (
+                      <div
+                        key={v.id}
+                        onClick={() => setSelectedVideo(v.url)}
+                        className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
+                          selectedVideo === v.url ? "ring-2 ring-blue-500" : ""
+                        }`}
+                      >
+                        <video
+                          src={v.url}
+                          className="w-full h-40 object-cover"
+                          controls={false}
+                          muted
+                          loop
+                          playsInline
+                          onMouseEnter={(e) => e.currentTarget.play()}
+                          onMouseLeave={(e) => e.currentTarget.pause()}
+                        />
+                        <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No hay vídeos en clonación.</p>
+                )}
+
+                <LanguageSelect value={subLang} onChange={setSubLang} />
+                <TemplateSelect value={template} onChange={setTemplate} />
+                <DictionaryInput value={dictionary} onChange={setDictionary} />
+                <MagicOptions
+                  magicZooms={magicZooms}
+                  setMagicZooms={setMagicZooms}
+                  magicBrolls={magicBrolls}
+                  setMagicBrolls={setMagicBrolls}
+                  magicBrollsPercentage={magicBrollsPercentage}
+                  setMagicBrollsPercentage={setMagicBrollsPercentage}
                 />
-                <DialogFooter className="flex justify-between">
-                  <Button variant="outline" onClick={generateScript}>
-                    Regenerar
-                  </Button>
-                  <Button onClick={acceptScript}>Aceptar y continuar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+
+                <Button
+                  disabled={!selectedVideo || syncLoading}
+                  onClick={finishWizard}
+                  className="w-full"
+                >
+                  {syncLoading ? "Procesando..." : "Guardar y salir"}
+                </Button>
+              </div>
+            )}
           </>
         )}
 
-        {/* Paso 2 - Audio */}
-        {step === 2 && (
+        {modalType === "script" && (
           <>
-            <AudioForm {...audioForm} onGenerate={generateAudio} />
+            <DialogHeader>
+              <DialogTitle>Guion generado</DialogTitle>
+            </DialogHeader>
+            <Textarea
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              className="min-h-[200px] w-full resize-none"
+            />
+            <DialogFooter className="flex justify-between">
+              <Button variant="outline" onClick={generateScript}>Regenerar</Button>
+              <Button onClick={acceptScript}>Aceptar y continuar</Button>
+            </DialogFooter>
+          </>
+        )}
 
-            {/* Modal de audio */}
-            <Dialog open={isAudioModalOpen} onOpenChange={setIsAudioModalOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Audio generado</DialogTitle>
-                </DialogHeader>
-                {audioUrl ? (
-                  <audio controls src={audioUrl} className="w-full my-4" />
-                ) : (
-                  <p>No se ha generado audio.</p>
-                )}
-                <DialogFooter className="flex justify-between">
-                  <Button variant="outline" onClick={generateAudio}>
-                    Regenerar
-                  </Button>
-                  <Button onClick={acceptAudio}>Aceptar y continuar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+        {modalType === "audio" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Audio generado</DialogTitle>
+            </DialogHeader>
+            {audioUrl ? (
+              <audio controls src={audioUrl} className="w-full my-4" />
+            ) : (
+              <p>No se ha generado audio.</p>
+            )}
+            <DialogFooter className="flex justify-between">
+              <Button variant="outline" onClick={generateAudio}>Regenerar</Button>
+              <Button onClick={acceptAudio}>Aceptar y continuar</Button>
+            </DialogFooter>
           </>
         )}
       </DialogContent>

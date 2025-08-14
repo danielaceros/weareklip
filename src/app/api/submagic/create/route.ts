@@ -3,10 +3,24 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { title, language, videoUrl, templateName, uid, email } = body;
+  const {
+    title,
+    language,
+    videoUrl,
+    templateName,
+    uid,
+    email,
+    dictionary,
+    magicZooms,
+    magicBrolls,
+    magicBrollsPercentage,
+  } = body;
 
   if (!title || !language || !videoUrl || !uid || !email) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 }
+    );
   }
 
   // Detectar si es desarrollo o producción
@@ -15,7 +29,9 @@ export async function POST(req: Request) {
       ? process.env.NGROK_URL || "http://localhost:3000"
       : "https://app.weareklip.com";
 
-  const webhookUrl = `${baseUrl}/api/webhook/submagic?uid=${uid}&email=${encodeURIComponent(email)}`;
+  const webhookUrl = `${baseUrl}/api/webhook/submagic?uid=${uid}&email=${encodeURIComponent(
+    email
+  )}`;
 
   console.log("Payload recibido en API /submagic/create:", body);
   console.log("Webhook URL generada:", webhookUrl);
@@ -32,9 +48,13 @@ export async function POST(req: Request) {
       videoUrl,
       templateName,
       webhookUrl,
-      magicZooms: true,
-      magicBrolls: true,
-      magicBrollsPercentage: 70,
+      dictionary: dictionary || null,
+      magicZooms: magicZooms ?? true,
+      magicBrolls: magicBrolls ?? true,
+      magicBrollsPercentage:
+        typeof magicBrollsPercentage === "number"
+          ? magicBrollsPercentage
+          : 70,
     }),
   });
 
@@ -45,7 +65,10 @@ export async function POST(req: Request) {
   try {
     data = JSON.parse(rawResponse);
   } catch {
-    data = { error: "Invalid JSON response from Submagic", raw: rawResponse };
+    data = {
+      error: "Invalid JSON response from Submagic",
+      raw: rawResponse,
+    };
   }
 
   return NextResponse.json(data, { status: r.status });
