@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import type { User } from "firebase/auth";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { es as dfnsEs, enUS as dfnsEn, fr as dfnsFr } from "date-fns/locale";
-import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
@@ -74,7 +73,6 @@ interface DashboardStats {
   videos: number;
 }
 
-/* --------- Tipos de documentos Firestore --------- */
 type CalendarioDoc = {
   tipo: "guion" | "video";
   titulo: string;
@@ -96,24 +94,26 @@ type VideoDoc = {
   estado?: number | string;
   creadoEn?: string;
 };
-/* -------------------------------------------------- */
 
 function formatDateToISO(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export default function DashboardPage() {
   const t = useT();
-  const locale = useLocale(); // 'es' | 'en' | 'fr'
-  const dfnsLocale = locale === "es" ? dfnsEs : locale === "fr" ? dfnsFr : dfnsEn;
-  const displayLocale = locale === "es" ? "es-ES" : locale === "fr" ? "fr-FR" : "en-US";
-  const langLabel = (locale || "es").toUpperCase(); // ES | EN | FR
+  const router = useRouter();
+  const locale = useLocale();
+  const dfnsLocale =
+    locale === "fr" ? dfnsFr : locale === "es" ? dfnsEs : dfnsEn;
+  const displayLocale =
+    locale === "fr" ? "fr-FR" : locale === "es" ? "es-ES" : "en-US";
+  const langLabel = (locale || "es").toUpperCase();
 
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Date | undefined>(undefined);
+  const [selected, setSelected] = useState<Date | undefined>();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [ultimoGuion, setUltimoGuion] = useState<UltimoGuion | null>(null);
   const [ultimoVideo, setUltimoVideo] = useState<UltimoVideo | null>(null);
@@ -127,8 +127,6 @@ export default function DashboardPage() {
     videos: 0,
   });
 
-  const router = useRouter();
-
   const fetchEventos = useCallback(async (uid: string) => {
     try {
       const colRef = collection(
@@ -137,7 +135,6 @@ export default function DashboardPage() {
         uid,
         "calendario"
       ) as CollectionReference<CalendarioDoc>;
-
       const snap = await getDocs(colRef);
       const data: Evento[] = snap.docs.map((docSnap) => {
         const d = docSnap.data();
@@ -152,8 +149,8 @@ export default function DashboardPage() {
         };
       });
       setEventos(data);
-    } catch (error) {
-      console.error("Error cargando eventos:", error);
+    } catch (e) {
+      console.error("Error cargando eventos:", e);
     }
   }, []);
 
@@ -166,38 +163,24 @@ export default function DashboardPage() {
           uid,
           "guiones"
         ) as CollectionReference<GuionDoc>;
-
         const qy = query(colRef, orderBy("creadoEn", "desc"), limit(1));
         const snap = await getDocs(qy);
 
-        if (!snap.empty) {
-          const docSnap = snap.docs[0];
-          const data = docSnap.data();
+        const useDoc = !snap.empty
+          ? snap.docs[0]
+          : (await getDocs(colRef)).docs[0];
+        if (useDoc) {
+          const data = useDoc.data();
           setUltimoGuion({
-            id: docSnap.id,
-            titulo: data.titulo ?? t("scripts.untitled"),
-            contenido: data.contenido ?? "",
-            estado: data.estado ?? 0,
-            createdAt: data.creadoEn,
-          });
-          return;
-        }
-
-        // Fallback sin ordenar
-        const snapFallback = await getDocs(colRef);
-        if (!snapFallback.empty) {
-          const docSnap = snapFallback.docs[0];
-          const data = docSnap.data();
-          setUltimoGuion({
-            id: docSnap.id,
+            id: useDoc.id,
             titulo: data.titulo ?? t("scripts.untitled"),
             contenido: data.contenido ?? "",
             estado: data.estado ?? 0,
             createdAt: data.creadoEn,
           });
         }
-      } catch (error) {
-        console.error("Error cargando último guión:", error);
+      } catch (e) {
+        console.error("Error cargando último guión:", e);
       }
     },
     [t]
@@ -212,38 +195,24 @@ export default function DashboardPage() {
           uid,
           "videos"
         ) as CollectionReference<VideoDoc>;
-
         const qy = query(colRef, orderBy("creadoEn", "desc"), limit(1));
         const snap = await getDocs(qy);
 
-        if (!snap.empty) {
-          const docSnap = snap.docs[0];
-          const data = docSnap.data();
+        const useDoc = !snap.empty
+          ? snap.docs[0]
+          : (await getDocs(colRef)).docs[0];
+        if (useDoc) {
+          const data = useDoc.data();
           setUltimoVideo({
-            id: docSnap.id,
-            titulo: data.titulo ?? t("videos.untitled"),
-            url: data.url ?? "",
-            estado: Number(data.estado ?? 0),
-            createdAt: data.creadoEn,
-          });
-          return;
-        }
-
-        // Fallback sin ordenar
-        const snapFallback = await getDocs(colRef);
-        if (!snapFallback.empty) {
-          const docSnap = snapFallback.docs[0];
-          const data = docSnap.data();
-          setUltimoVideo({
-            id: docSnap.id,
+            id: useDoc.id,
             titulo: data.titulo ?? t("videos.untitled"),
             url: data.url ?? "",
             estado: Number(data.estado ?? 0),
             createdAt: data.creadoEn,
           });
         }
-      } catch (error) {
-        console.error("Error cargando último video:", error);
+      } catch (e) {
+        console.error("Error cargando último video:", e);
       }
     },
     [t]
@@ -262,10 +231,8 @@ export default function DashboardPage() {
       let nuevos = 0,
         cambios = 0,
         aprobados = 0;
-
       guionesSnap.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        const estado = data.estado ?? 0;
+        const estado = docSnap.data().estado ?? 0;
         if (estado === 0) nuevos++;
         else if (estado === 1) cambios++;
         else if (estado === 2) aprobados++;
@@ -285,33 +252,46 @@ export default function DashboardPage() {
         guiones: { nuevos, cambios, aprobados },
         videos: totalVideos,
       }));
-    } catch (error) {
-      console.error("Error cargando estadísticas:", error);
+    } catch (e) {
+      console.error("Error cargando estadísticas:", e);
     }
   }, []);
 
   const fetchData = useCallback(
     async (user: User) => {
       try {
-        const token = await user.getIdToken();
-        const res = await fetch("/api/stripe/subscription", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // Si tienes API de suscripción, déjalo. Si no, ignora el error y muestra "none".
+        const token = await user.getIdToken().catch(() => null);
+        if (token) {
+          const res = await fetch("/api/stripe/subscription", {
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => null);
 
-        const data = await res.json();
-
-        setStats((prev) => ({
-          ...prev,
-          subscripcion: {
-            status: (data.status ?? "no_active") as SubscriptionStatus,
-            plan: data.plan ?? t("dashboard.subscription.unknownPlan"),
-            renovacion: data.current_period_end
-              ? new Date(data.current_period_end * 1000).toLocaleDateString(
-                  displayLocale
-                )
-              : t("dashboard.subscription.unknownRenewal"),
-          },
-        }));
+          if (res && res.ok) {
+            const data = await res.json();
+            setStats((prev) => ({
+              ...prev,
+              subscripcion: {
+                status: (data.status ?? "no_active") as SubscriptionStatus,
+                plan: data.plan ?? t("dashboard.subscription.unknownPlan"),
+                renovacion: data.current_period_end
+                  ? new Date(data.current_period_end * 1000).toLocaleDateString(
+                      displayLocale
+                    )
+                  : t("dashboard.subscription.unknownRenewal"),
+              },
+            }));
+          } else {
+            setStats((prev) => ({
+              ...prev,
+              subscripcion: {
+                status: "no_active",
+                plan: t("dashboard.subscription.none"),
+                renovacion: t("dashboard.subscription.unknownRenewal"),
+              },
+            }));
+          }
+        }
 
         await Promise.all([
           fetchEventos(user.uid),
@@ -319,13 +299,12 @@ export default function DashboardPage() {
           fetchUltimoVideo(user.uid),
           fetchStats(user.uid),
         ]);
-      } catch (error) {
-        console.error("Error al cargar dashboard:", error);
+      } catch (e) {
+        console.error("Error al cargar dashboard:", e);
         toast.error(t("dashboard.subscription.loadError"), {
           description: t("dashboard.subscription.unknown"),
           duration: 8000,
         });
-
         setStats((prev) => ({
           ...prev,
           subscripcion: {
@@ -338,51 +317,55 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [fetchEventos, fetchUltimoGuion, fetchUltimoVideo, fetchStats, t, displayLocale]
+    [
+      fetchEventos,
+      fetchUltimoGuion,
+      fetchUltimoVideo,
+      fetchStats,
+      t,
+      displayLocale,
+    ]
   );
 
+  // Redirección si no hay sesión
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
         toast.error(t("dashboard.authError.title"), {
           description: t("dashboard.authError.description"),
         });
+        router.replace("/login");
         setLoading(false);
         return;
       }
       fetchData(user);
     });
-    return () => unsubscribe();
-  }, [fetchData, t]);
+    return () => unsub();
+  }, [router, fetchData, t]);
 
-  // ======== Agregación de calendario por día ========
+  // ======== Agregación por días del calendario ========
   type DiaInfo = { estado: Estado | null; cantidad: number };
   const eventosPorDia: Record<string, DiaInfo> = {};
-
-  eventos.forEach((evento) => {
-    const fecha = evento.fecha;
-    if (!eventosPorDia[fecha]) {
-      eventosPorDia[fecha] = { estado: evento.estado, cantidad: 1 };
-    } else {
-      eventosPorDia[fecha].cantidad += 1;
-      const estados: (Estado | null)[] = [eventosPorDia[fecha].estado, evento.estado];
-      if (estados.includes("por_hacer")) {
-        eventosPorDia[fecha].estado = "por_hacer";
-      } else if (estados.includes("en_proceso")) {
-        eventosPorDia[fecha].estado = "en_proceso";
-      } else {
-        eventosPorDia[fecha].estado = "completado";
-      }
+  eventos.forEach((ev) => {
+    const k = ev.fecha;
+    if (!eventosPorDia[k])
+      eventosPorDia[k] = { estado: ev.estado, cantidad: 1 };
+    else {
+      eventosPorDia[k].cantidad += 1;
+      const estados: (Estado | null)[] = [eventosPorDia[k].estado, ev.estado];
+      if (estados.includes("por_hacer")) eventosPorDia[k].estado = "por_hacer";
+      else if (estados.includes("en_proceso"))
+        eventosPorDia[k].estado = "en_proceso";
+      else eventosPorDia[k].estado = "completado";
     }
   });
 
   const fechasPorHacer: Date[] = [];
   const fechasEnProceso: Date[] = [];
   const fechasCompletado: Date[] = [];
-
-  Object.entries(eventosPorDia).forEach(([fechaISO, info]) => {
-    const [year, month, day] = fechaISO.split("-").map(Number);
-    const fecha = new Date(year, month - 1, day);
+  Object.entries(eventosPorDia).forEach(([iso, info]) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const fecha = new Date(y, m - 1, d);
     if (info.estado === "por_hacer") fechasPorHacer.push(fecha);
     else if (info.estado === "en_proceso") fechasEnProceso.push(fecha);
     else if (info.estado === "completado") fechasCompletado.push(fecha);
@@ -392,30 +375,23 @@ export default function DashboardPage() {
     ? eventos.filter((e) => e.fecha === formatDateToISO(selected))
     : [];
 
-  // Badge de estado (traducido)
   const getEstadoBadge = (estado: number) => {
-    switch (estado) {
-      case 0:
-        return <Badge className="bg-red-500 text-white">{t("status.new")}</Badge>;
-      case 1:
-        return (
-          <Badge className="bg-yellow-400 text-black">{t("status.changes")}</Badge>
-        );
-      case 2:
-        return (
-          <Badge className="bg-green-500 text-white">{t("status.approved")}</Badge>
-        );
-      default:
-        return <Badge variant="secondary">{t("common.unknown")}</Badge>;
-    }
+    if (estado === 0)
+      return <Badge className="bg-red-500 text-white">{t("status.new")}</Badge>;
+    if (estado === 1)
+      return (
+        <Badge className="bg-yellow-400 text-black">
+          {t("status.changes")}
+        </Badge>
+      );
+    if (estado === 2)
+      return (
+        <Badge className="bg-green-500 text-white">
+          {t("status.approved")}
+        </Badge>
+      );
+    return <Badge variant="secondary">{t("common.unknown")}</Badge>;
   };
-
-  const weekdayLabels =
-    locale === "es"
-      ? ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"]
-      : locale === "fr"
-      ? ["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"]
-      : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   if (loading) {
     return (
@@ -432,27 +408,13 @@ export default function DashboardPage() {
         .event-day-en-proceso { background-color: #ffedd5 !important; border-radius: 0.375rem !important; }
         .event-day-completado { background-color: #dcfce7 !important; border-radius: 0.375rem !important; }
         .rdp-day_selected:not([disabled]) { background-color: #3b82f6 !important; color: white !important; border-radius: 0.375rem !important; }
-        @media (max-width: 1024px) {
-          .rdp { font-size: 0.875rem; }
-          .rdp-table { max-width: 100%; width: 100%; }
-          .rdp-cell { width: 2rem; height: 2rem; }
-          .rdp-button { width: 1.75rem; height: 1.75rem; font-size: 0.75rem; }
-        }
-        @media (max-width: 640px) {
-          .rdp { font-size: 0.75rem; }
-          .rdp-cell { width: 1.5rem; height: 1.5rem; }
-          .rdp-button { width: 1.25rem; height: 1.25rem; font-size: 0.625rem; }
-        }
-        .video-container { position: relative; width: 100%; max-width: 250px; margin: 0 auto; background: #f3f4f6; border-radius: 0.5rem; overflow: hidden; }
-        .video-container.vertical { aspect-ratio: 9/16; }
-        .video-container video { width: 100%; height: 100%; object-fit: cover; }
       `}</style>
 
       <div className="p-6 space-y-8">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">{t("dashboard.title")}</h1>
           <Badge variant="outline" className="uppercase" title="Idioma">
-            {langLabel}
+            {(langLabel as string) || "ES"}
           </Badge>
         </div>
         <p className="text-muted-foreground">{t("dashboard.subtitle")}</p>
@@ -484,15 +446,9 @@ export default function DashboardPage() {
                   pagedNavigation
                   showOutsideDays
                   className="text-left text-xs lg:text-sm mx-auto"
-                  formatters={{
-                    formatWeekdayName: (weekday) => {
-                      return weekdayLabels[weekday.getDay()];
-                    },
-                  }}
                 />
               </div>
 
-              {/* Eventos del día seleccionado */}
               {selected && (
                 <div>
                   <h4 className="font-medium text-sm mb-2">
@@ -505,22 +461,20 @@ export default function DashboardPage() {
                   ) : (
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {eventosDelDia.map((e) => {
-                        let estadoColor = "";
-                        switch (e.estado) {
-                          case "por_hacer":
-                            estadoColor = "bg-red-100 text-red-800";
-                            break;
-                          case "en_proceso":
-                            estadoColor = "bg-orange-100 text-orange-800";
-                            break;
-                          case "completado":
-                            estadoColor = "bg-green-100 text-green-800";
-                            break;
-                        }
-
+                        const color =
+                          e.estado === "por_hacer"
+                            ? "bg-red-100 text-red-800"
+                            : e.estado === "en_proceso"
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-green-100 text-green-800";
                         return (
-                          <div key={e.id} className={`text-xs p-2 rounded ${estadoColor}`}>
-                            <span>{e.tipo === "guion" ? "📜" : "🎬"} {e.titulo}</span>
+                          <div
+                            key={e.id}
+                            className={`text-xs p-2 rounded ${color}`}
+                          >
+                            <span>
+                              {e.tipo === "guion" ? "📜" : "🎬"} {e.titulo}
+                            </span>
                           </div>
                         );
                       })}
@@ -529,7 +483,6 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Leyenda */}
               <div className="space-y-1">
                 <div className="flex items-center gap-1 text-xs">
                   <div className="w-3 h-3 bg-red-200 rounded"></div>
@@ -547,7 +500,7 @@ export default function DashboardPage() {
             </div>
           </Card>
 
-          {/* Último Guión */}
+          {/* Último Guion */}
           <Card className="p-3 lg:p-4">
             <h2 className="font-semibold text-base lg:text-lg mb-3">
               📜 {t("dashboard.latestScript.title")}
@@ -559,7 +512,9 @@ export default function DashboardPage() {
                     <h3 className="font-medium text-base mb-2 line-clamp-2">
                       {ultimoGuion.titulo}
                     </h3>
-                    <div className="mb-3">{getEstadoBadge(ultimoGuion.estado)}</div>
+                    <div className="mb-3">
+                      {getEstadoBadge(ultimoGuion.estado)}
+                    </div>
                     <p className="text-sm text-gray-600 line-clamp-3 mb-4">
                       {ultimoGuion.contenido.substring(0, 150)}
                       {ultimoGuion.contenido.length > 150 ? "..." : ""}
@@ -607,11 +562,18 @@ export default function DashboardPage() {
                     <h3 className="font-medium text-base mb-2 line-clamp-2">
                       {ultimoVideo.titulo}
                     </h3>
-                    <div className="mb-3">{getEstadoBadge(ultimoVideo.estado)}</div>
+                    <div className="mb-3">
+                      {getEstadoBadge(ultimoVideo.estado)}
+                    </div>
                     {ultimoVideo.url && (
                       <div className="mb-4">
                         <div className="video-container vertical">
-                          <video controls src={ultimoVideo.url} preload="metadata" className="rounded" />
+                          <video
+                            controls
+                            src={ultimoVideo.url}
+                            preload="metadata"
+                            className="rounded"
+                          />
                         </div>
                       </div>
                     )}
