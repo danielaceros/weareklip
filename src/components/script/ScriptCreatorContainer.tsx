@@ -24,7 +24,9 @@ export default function ScriptCreatorContainer() {
 
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
+    const unsub = onAuthStateChanged(auth, (currentUser) =>
+      setUser(currentUser)
+    );
     return () => unsub();
   }, []);
 
@@ -73,7 +75,7 @@ export default function ScriptCreatorContainer() {
         createdAt: serverTimestamp(),
         scriptId,
         regenerations: 0,
-        isAI: true
+        isAI: true,
       });
 
       toast.success("Guion generado correctamente");

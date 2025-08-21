@@ -150,7 +150,8 @@ export default function BillingPage() {
         body: JSON.stringify({ kind, quantity: q }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Error registrando uso");
+      if (!res.ok)
+        throw new Error(data?.error || "Máximo alcanzado, continuar mañana");
       await loadSummary();
     } catch (err) {
       console.error(err);

@@ -1,3 +1,4 @@
+// src/components/wizard/CreateReelWizard.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,6 +23,7 @@ import { TemplateSelect } from "@/components/edit/TemplateSelect";
 import { DictionaryInput } from "@/components/edit/DictionaryInput";
 import { MagicOptions } from "@/components/edit/MagicOptions";
 import { collection, getDocs, getFirestore } from "firebase/firestore";
+import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 NUEVO
 
 interface ReelData {
   script: string;
@@ -41,10 +43,16 @@ interface CreateReelWizardProps {
   onComplete: (data: ReelData) => void;
 }
 
-export default function CreateReelWizard({ open, onClose, onComplete }: CreateReelWizardProps) {
+export default function CreateReelWizard({
+  open,
+  onClose,
+  onComplete,
+}: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
   const [step, setStep] = useState(1);
-  const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
+  const [modalType, setModalType] = useState<"main" | "script" | "audio">(
+    "main"
+  );
 
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
@@ -63,7 +71,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   // Paso 3 - Submagic
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<
+    { id: string; name: string; url: string }[]
+  >([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState("");
   const [subLang, setSubLang] = useState("");
@@ -75,12 +85,18 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
 
   const [syncLoading, setSyncLoading] = useState(false);
 
+  const { ensureSubscribed } = useSubscriptionGate(); // 👈 NUEVO
+
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
   }, []);
 
   const generateScript = async () => {
+    // 👇 GATE: exige suscripción antes de generar guion
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
       return;
@@ -97,7 +113,16 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
+        body: JSON.stringify({
+          description,
+          tone,
+          platform,
+          duration,
+          language,
+          structure,
+          addCTA,
+          ctaText,
+        }),
       });
 
       const data = await res.json();
@@ -122,6 +147,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   };
 
   const generateAudio = async () => {
+    // 👇 GATE: exige suscripción antes de generar audio
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!audioForm.voiceId) {
       toast.error("Selecciona una voz antes de continuar.");
       return;
@@ -138,7 +167,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const token = await user.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           text: audioForm.text,
           voiceId: audioForm.voiceId,
@@ -207,6 +239,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   };
 
   const finishWizard = async () => {
+    // 👇 GATE: exige suscripción antes de enviar el pipeline
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!audioUrl || !selectedVideo) {
       toast.error("Falta el audio o el vídeo para continuar.");
       return;
@@ -223,7 +259,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const token = await user.getIdToken();
       const res = await fetch("/api/sync/pipeline", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           audioUrl,
           videoUrl: selectedVideo,
@@ -238,7 +277,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al iniciar lipsync");
 
-      toast.success(`🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`, { id: loadingId });
+      toast.success(
+        `🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`,
+        { id: loadingId }
+      );
 
       onComplete({
         script,
@@ -268,7 +310,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
           <>
             <DialogHeader>
               <DialogTitle>Crear Reel IA</DialogTitle>
-              <DialogDescription>Completa los pasos para generar tu reel</DialogDescription>
+              <DialogDescription>
+                Completa los pasos para generar tu reel
+              </DialogDescription>
             </DialogHeader>
 
             {step === 1 && (
@@ -294,7 +338,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               />
             )}
 
-            {step === 2 && <AudioForm {...audioForm} onGenerate={generateAudio} />}
+            {step === 2 && (
+              <AudioForm {...audioForm} onGenerate={generateAudio} />
+            )}
 
             {step === 3 && (
               <div className="space-y-4">
@@ -321,12 +367,16 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
                           onMouseEnter={(e) => e.currentTarget.play()}
                           onMouseLeave={(e) => e.currentTarget.pause()}
                         />
-                        <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+                        <div className="p-2 text-sm font-medium truncate">
+                          {v.name}
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No hay vídeos en clonación.</p>
+                  <p className="text-muted-foreground">
+                    No hay vídeos en clonación.
+                  </p>
                 )}
 
                 <LanguageSelect value={subLang} onChange={setSubLang} />
@@ -364,7 +414,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               className="min-h-[200px] w-full resize-none"
             />
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateScript}>Regenerar</Button>
+              <Button variant="outline" onClick={generateScript}>
+                Regenerar
+              </Button>
               <Button onClick={acceptScript}>Aceptar y continuar</Button>
             </DialogFooter>
           </>
@@ -381,7 +433,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               <p>No se ha generado audio.</p>
             )}
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateAudio}>Regenerar</Button>
+              <Button variant="outline" onClick={generateAudio}>
+                Regenerar
+              </Button>
               <Button onClick={acceptAudio}>Aceptar y continuar</Button>
             </DialogFooter>
           </>

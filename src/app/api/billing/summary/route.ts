@@ -1,8 +1,8 @@
+// src/app/api/billing/summary/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
 
-/* ========= Config ========= */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -18,57 +18,46 @@ interface SubscriptionInfo {
   lastUpdated?: FireTimestamp | null;
   lastPayment?: FireTimestamp | null;
 }
-
 interface UserDoc {
   stripeCustomerId?: string;
   subscription?: SubscriptionInfo;
   trialCreditCents?: number;
   usage?: Partial<Record<UsageKind, number>>;
+  pendingLocalCents?: number;
+  pendingLocalResetAt?: FireTimestamp | null;
 }
-
-/* ========= Helpers ========= */
 
 function daysLeftFrom(ts?: FireTimestamp | null): number | null {
   if (!ts?.seconds) return null;
   const ms = ts.seconds * 1000 - Date.now();
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
-
 function safeNumber(n: unknown, fallback = 0): number {
   return typeof n === "number" && isFinite(n) ? n : fallback;
 }
 
-/** Wrapper para evitar `any` si tu versión de stripe-node no tipa retrieveUpcoming */
-type RetrieveUpcomingFn = (p: { customer: string }) => Promise<unknown>;
+/** Wrapper para invoices.retrieveUpcoming con expand de líneas/precio */
+type RetrieveUpcomingFn = (p: { customer: string; expand?: string[] }) => Promise<unknown>;
 function getRetrieveUpcoming(): RetrieveUpcomingFn {
   const inv = stripe.invoices as unknown as { retrieveUpcoming?: RetrieveUpcomingFn };
   if (!inv.retrieveUpcoming) {
-    throw new Error(
-      "Tu versión de stripe-node no expone `invoices.retrieveUpcoming` en tipos. Actualiza `stripe`."
-    );
+    throw new Error("Tu versión de stripe-node no expone invoices.retrieveUpcoming en tipos. Actualiza stripe.");
   }
   return inv.retrieveUpcoming.bind(stripe.invoices);
 }
 
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500");
-
-/* ========= Handler ========= */
+const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "1500");
 
 export async function GET(req: NextRequest) {
   try {
     // 1) Auth
     const authHeader = req.headers.get("authorization");
-    const idToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : undefined;
-
-    if (!idToken) {
-      return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
-    }
+    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : undefined;
+    if (!idToken) return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
     const decoded = await adminAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    // 2) Cargar doc de usuario
+    // 2) User
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     const user: UserDoc = snap.exists ? ((snap.data() as unknown) as UserDoc) : {};
@@ -76,12 +65,9 @@ export async function GET(req: NextRequest) {
     const sub = user.subscription ?? {};
     const customerId = user.stripeCustomerId;
 
-    // 3) Info de suscripción (para el front)
+    // 3) Info suscripción
     const renewalAtMs =
-      sub.renewal?.seconds && Number.isFinite(sub.renewal.seconds)
-        ? sub.renewal.seconds * 1000
-        : null;
-
+      sub.renewal?.seconds && Number.isFinite(sub.renewal.seconds) ? sub.renewal.seconds * 1000 : null;
     const trialing = sub.status === "trialing";
     const daysLeft = trialing ? daysLeftFrom(sub.renewal ?? null) : null;
 
@@ -93,47 +79,48 @@ export async function GET(req: NextRequest) {
       edit: safeNumber(user.usage?.edit),
     };
 
-    // 4.1) Inicializar crédito si está en trial y aún no existe
+    // 4.1) Inicializar crédito si está en trial
     let trialCreditCents =
-      typeof user.trialCreditCents === "number"
-        ? user.trialCreditCents
-        : null;
-
+      typeof user.trialCreditCents === "number" ? user.trialCreditCents : null;
     if (trialing && (trialCreditCents === null || trialCreditCents === undefined)) {
       trialCreditCents = DEFAULT_TRIAL_CENTS;
-      await userRef.set(
-        { trialCreditCents, lastUpdated: adminTimestamp.now() },
-        { merge: true }
-      );
+      await userRef.set({ trialCreditCents, lastUpdated: adminTimestamp.now() }, { merge: true });
     }
 
-    // 5) € acumulados pendientes en Stripe (próxima factura)
-    let pendingCents = 0;
-
+    // 5) Pendiente en próxima factura (sumar SOLO líneas metered)
+    let pendingCentsStripe = 0;
     if (customerId) {
       try {
         const retrieveUpcoming = getRetrieveUpcoming();
-        const upcoming = await retrieveUpcoming({ customer: customerId });
+        const upcoming = await retrieveUpcoming({
+          customer: customerId,
+          expand: ["lines.data.price"],
+        });
 
-        type Line = { description?: unknown; amount?: unknown };
-        type UpcomingShape = { lines?: { data?: Line[] } };
+        type Recurring = { usage_type?: unknown } | null | undefined;
+        type Price = { recurring?: Recurring } | null | undefined;
+        type Line = { amount?: unknown; price?: Price } | null | undefined;
+        type UpcomingShape = { lines?: { data?: Line[] } } | null | undefined;
 
         const up = (upcoming as UpcomingShape) ?? {};
         const lines = Array.isArray(up.lines?.data) ? up.lines!.data! : [];
 
         for (const line of lines) {
-          const desc = typeof line.description === "string" ? line.description : "";
-          const amt = safeNumber(line.amount, 0);
-          if (desc.startsWith("usage:")) pendingCents += amt;
+          const amt = safeNumber(line?.amount, 0);
+          const usageType = (line?.price?.recurring as { usage_type?: string } | null | undefined)?.usage_type;
+          if (usageType === "metered") pendingCentsStripe += amt;
         }
-
-        if (pendingCents < 0) pendingCents = 0;
+        if (pendingCentsStripe < 0) pendingCentsStripe = 0;
       } catch {
         /* sin upcoming, ignoramos */
       }
     }
 
-    // 6) Respuesta
+    // 6) Fallback local si Stripe aún no ha agregado los eventos recientes
+    const pendingCentsLocal = safeNumber(user.pendingLocalCents);
+    const pendingCents = Math.max(pendingCentsStripe, pendingCentsLocal);
+
+    // 7) Respuesta
     return NextResponse.json(
       {
         subscription: {
@@ -146,7 +133,12 @@ export async function GET(req: NextRequest) {
         },
         trialCreditCents: safeNumber(trialCreditCents),
         usage,
-        pendingCents,
+        pendingCents,          // ← la UI puede seguir usando este campo
+        // opcionalmente, te devuelvo también ambos para depurar
+        debug: {
+          pendingCentsStripe,
+          pendingCentsLocal,
+        },
       },
       { status: 200 }
     );

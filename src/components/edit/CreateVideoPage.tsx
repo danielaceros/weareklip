@@ -1,3 +1,4 @@
+// src/components/edit/CreateVideoPage.tsx  (ajusta la ruta si es otra)
 "use client";
 
 import { useState } from "react";
@@ -14,6 +15,9 @@ import { LanguageSelect } from "./LanguageSelect";
 import { TemplateSelect } from "./TemplateSelect";
 import { DictionaryInput } from "./DictionaryInput";
 import { MagicOptions } from "./MagicOptions";
+
+// 👇 importamos el hook del paywall
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 export default function CreateVideoPage() {
   const router = useRouter();
@@ -35,7 +39,14 @@ export default function CreateVideoPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // 👇 gate de suscripción
+  const { ensureSubscribed } = useSubscriptionGate();
+
   const handleSubmit = async () => {
+    // 1) Bloqueo por suscripción ANTES de subir nada
+    const ok = await ensureSubscribed({ feature: "submagic" }); // etiqueta libre para analytics
+    if (!ok) return;
+
     const user = auth.currentUser;
 
     if (!user) {
@@ -59,10 +70,15 @@ export default function CreateVideoPage() {
 
       // si no hay URL, subimos el archivo a Firebase
       if (!finalVideoUrl && file) {
-        const { downloadURL } = await uploadVideo(file, user.uid, setUploadProgress);
+        const { downloadURL } = await uploadVideo(
+          file,
+          user.uid,
+          setUploadProgress
+        );
         finalVideoUrl = downloadURL;
       }
-      if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl)
+        throw new Error("No se pudo obtener la URL del vídeo");
 
       // enviamos a API para crear en Submagic
       const res = await fetch("/api/submagic/create", {
@@ -73,7 +89,9 @@ export default function CreateVideoPage() {
           language,
           videoUrl: finalVideoUrl,
           templateName: template || undefined,
-          dictionary: dictionary ? dictionary.split(",").map((w) => w.trim()) : undefined,
+          dictionary: dictionary
+            ? dictionary.split(",").map((w) => w.trim())
+            : undefined,
           magicZooms,
           magicBrolls,
           magicBrollsPercentage,

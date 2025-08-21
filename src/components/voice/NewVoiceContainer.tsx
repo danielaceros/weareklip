@@ -1,3 +1,4 @@
+// src/components/voice/NewVoiceContainer.tsx
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15,17 +16,24 @@ import {
 import { useRouter } from "next/navigation";
 import { VoiceSamplesList } from "./VoiceSamplesList";
 import { ProgressBar } from "./ProgressBar";
+import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // ⬅️ NUEVO
 
 export default function NewVoiceContainer() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [samples, setSamples] = useState<{ name: string; duration: number; url: string }[]>([]);
+  const [samples, setSamples] = useState<
+    { name: string; duration: number; url: string }[]
+  >([]);
   const [totalDuration, setTotalDuration] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+  const [uploadProgress, setUploadProgress] = useState<{
+    [key: string]: number;
+  }>({});
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const storage = getStorage();
+
+  const { ensureSubscribed } = useSubscriptionGate(); // ⬅️ NUEVO
 
   useEffect(() => {
     const auth = getAuth();
@@ -60,7 +68,9 @@ export default function NewVoiceContainer() {
       setTotalDuration(total);
 
       if (total > 180) {
-        toast.error("⚠ Has superado el límite de 3 minutos, elimina muestras para continuar.");
+        toast.error(
+          "⚠ Has superado el límite de 3 minutos, elimina muestras para continuar."
+        );
       }
     } catch (err) {
       console.error(err);
@@ -74,8 +84,13 @@ export default function NewVoiceContainer() {
         toast.error("Debes iniciar sesión");
         return;
       }
-      const fileName = `voice-sample-${Date.now()}.${file.type.split("/")[1] || "webm"}`;
-      const storageRef = ref(storage, `users/${user.uid}/voice-samples/${fileName}`);
+      const fileName = `voice-sample-${Date.now()}.${
+        file.type.split("/")[1] || "webm"
+      }`;
+      const storageRef = ref(
+        storage,
+        `users/${user.uid}/voice-samples/${fileName}`
+      );
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       toast(`📤 Subiendo ${file.name}...`);
@@ -84,7 +99,9 @@ export default function NewVoiceContainer() {
         uploadTask.on(
           "state_changed",
           (snapshot) => {
-            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            const progress = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
             setUploadProgress((prev) => ({ ...prev, [fileName]: progress }));
           },
           (error) => {
@@ -148,7 +165,9 @@ export default function NewVoiceContainer() {
 
       mediaRecorderRef.current.onstop = async () => {
         const blob = new Blob(audioChunks.current, { type: "audio/webm" });
-        const file = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
+        const file = new File([blob], `recording-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
         await uploadToFirebase(file);
         stream.getTracks().forEach((t) => t.stop());
       };
@@ -162,7 +181,10 @@ export default function NewVoiceContainer() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
@@ -171,7 +193,9 @@ export default function NewVoiceContainer() {
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
-      await deleteObject(ref(storage, `users/${user.uid}/voice-samples/${sampleName}`));
+      await deleteObject(
+        ref(storage, `users/${user.uid}/voice-samples/${sampleName}`)
+      );
       toast("🗑 Muestra eliminada");
       await fetchSamples();
     } catch {
@@ -188,6 +212,10 @@ export default function NewVoiceContainer() {
       toast.error("Debes subir al menos una muestra de voz");
       return;
     }
+
+    // ⬇️ PAYWALL: bloquea si no tiene trial/activa y redirige a facturación
+    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
+    if (!ok) return;
 
     try {
       const paths = samples
@@ -217,7 +245,9 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      const { getFirestore, doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+      const { getFirestore, doc, setDoc, serverTimestamp } = await import(
+        "firebase/firestore"
+      );
       const db = getFirestore();
 
       await setDoc(doc(db, `users/${user.uid}/voices/${data.voice_id}`), {
@@ -257,7 +287,9 @@ export default function NewVoiceContainer() {
         <button
           onClick={recording ? stopRecording : startRecording}
           className={`px-6 py-3 rounded-full text-white font-semibold transition ${
-            recording ? "bg-red-500 hover:bg-red-600" : "bg-blue-500 hover:bg-blue-600"
+            recording
+              ? "bg-red-500 hover:bg-red-600"
+              : "bg-blue-500 hover:bg-blue-600"
           }`}
         >
           {recording ? "⏹ Detener grabación" : "🎙 Grabar muestra"}
@@ -265,13 +297,19 @@ export default function NewVoiceContainer() {
       </div>
 
       <ProgressBar totalDuration={totalDuration} />
-      <VoiceSamplesList samples={samples} uploadProgress={uploadProgress} onRemove={removeSample} />
+      <VoiceSamplesList
+        samples={samples}
+        uploadProgress={uploadProgress}
+        onRemove={removeSample}
+      />
 
       {/* Botón Crear Voz */}
       <div className="mt-8 flex justify-end">
         <button
           onClick={createVoice}
           className="px-6 py-3 rounded-full bg-green-500 hover:bg-green-600 text-white font-semibold transition"
+          data-paywall
+          data-paywall-feature="elevenlabs-voice"
         >
           🚀 Crear voz en ElevenLabs
         </button>

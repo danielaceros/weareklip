@@ -1,3 +1,4 @@
+// src/components/lipsync/LipsyncPage.tsx  (ajusta la ruta si la tuya es distinta)
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { AudioSelect } from "./AudioSelect";
 import { VideoSelect } from "./VideoSelect";
 import { GenerateButton } from "./GenerateButton";
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 interface AudioItem {
   id: string;
@@ -31,6 +33,9 @@ export default function LipsyncPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // 👇 gate de suscripción
+  const { ensureSubscribed } = useSubscriptionGate();
+
   useEffect(() => {
     const auth = getAuth();
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
@@ -45,7 +50,9 @@ export default function LipsyncPage() {
   const loadMedia = async (uid: string) => {
     try {
       const audiosSnap = await getDocs(collection(db, "users", uid, "audios"));
-      const videosSnap = await getDocs(collection(db, "users", uid, "clonacion"));
+      const videosSnap = await getDocs(
+        collection(db, "users", uid, "clonacion")
+      );
 
       setAudios(
         audiosSnap.docs.map((doc) => {
@@ -60,7 +67,10 @@ export default function LipsyncPage() {
 
       setVideos(
         videosSnap.docs.map((doc) => {
-          const data = doc.data() as Partial<VideoItem> & { url?: string; titulo?: string };
+          const data = doc.data() as Partial<VideoItem> & {
+            url?: string;
+            titulo?: string;
+          };
           return {
             id: doc.id,
             url: data.url ?? "",
@@ -75,6 +85,10 @@ export default function LipsyncPage() {
   };
 
   const handleGenerate = async () => {
+    // 🚧 1) Bloqueo por suscripción
+    const ok = await ensureSubscribed({ feature: "lipsync" });
+    if (!ok) return;
+
     const audio = audios.find((a) => a.id === selectedAudio);
     const video = videos.find((v) => v.id === selectedVideo);
 

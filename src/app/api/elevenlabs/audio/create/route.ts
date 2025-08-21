@@ -1,6 +1,6 @@
 // src/app/api/elevenlabs/audio/create/route.ts
 import { NextResponse } from "next/server";
-import { db, auth, storage } from "@/lib/firebase-admin";
+import { db, auth, bucket as storage } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
 import fetch from "node-fetch";
 

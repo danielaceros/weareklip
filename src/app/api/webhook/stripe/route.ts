@@ -2,13 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
-import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { adminDB, adminTimestamp, adminFieldValue } from "@/lib/firebase-admin";
 
 /* ================== config ================== */
 
 type PlanId = "starter" | "mid" | "creator" | "business" | "usage" | "access";
 
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500");
+const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500"); // p.ej. 5,00 €
+const USAGE_THRESHOLD_CENTS = Number(process.env.USAGE_THRESHOLD_CENTS || "0"); // p.ej. 10000 (=100€)
 
 // (opcional) precios de uso para crear la sub "usage" tras el checkout
 const PRICE_USAGE: string[] = [
@@ -26,10 +27,14 @@ const tsFromSeconds = (sec?: number) =>
 const isStripeError = (x: unknown): x is { type?: string; code?: string; message?: string } =>
   typeof x === "object" && x !== null;
 
+const safeNumber = (x: unknown) => {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+};
+
 const safeCurrentPeriodEnd = (
   sub: Stripe.Subscription | (Stripe.Subscription & Record<string, unknown>)
 ): number | undefined => {
-  // leer de forma segura sin depender de los tipos de Stripe
   const raw = (sub as Record<string, unknown>)?.["current_period_end"];
   return typeof raw === "number" ? raw : undefined;
 };
@@ -59,11 +64,8 @@ const subscriptionIdFromInvoice = (evtObj: unknown) => {
 };
 
 const planFromSubscription = (sub: Stripe.Subscription): PlanId | undefined => {
-  // prioridad a metadata.plan
   const fromMeta = sub.metadata?.plan as PlanId | undefined;
   if (fromMeta) return fromMeta;
-
-  // o bien al lookup_key del primer item
   const price = sub.items?.data?.[0]?.price;
   const lookup = price?.lookup_key as PlanId | undefined;
   return lookup;
@@ -187,7 +189,7 @@ async function ensureTrialCreditOnce(
 
   await userRef.set(
     {
-      trialCreditCents: DEFAULT_TRIAL_CENTS, // p. ej. 500 (5 €)
+      trialCreditCents: DEFAULT_TRIAL_CENTS,
       trialCreditEverGranted: true,
       trialCreditCustomerId: customerId,
       trialCreditGrantedAt: adminTimestamp.now(),
@@ -203,7 +205,7 @@ async function ensureTrialCreditOnce(
   }
 }
 
-/** Crea (si no existe) la sub de uso con los 4 prices */
+/** Crea (si no existe) la sub de uso con los prices, PM por defecto y umbral */
 async function ensureUsageSubscription(customerId: string, uid?: string) {
   if (!PRICE_USAGE.length) return;
 
@@ -216,11 +218,43 @@ async function ensureUsageSubscription(customerId: string, uid?: string) {
   const existing = subs.data.find((s) => s.metadata?.plan === "usage" && s.status !== "canceled");
   if (existing) return;
 
+  // 1) PM por defecto del Customer
+  let defaultPm: string | undefined;
+  try {
+    const c = await stripe.customers.retrieve(customerId);
+    if (!("deleted" in c)) {
+      const pm =
+        c.invoice_settings?.default_payment_method as
+          | string
+          | Stripe.PaymentMethod
+          | null
+          | undefined;
+      defaultPm = typeof pm === "string" ? pm : pm?.id;
+    }
+  } catch {
+    /* noop */
+  }
+
+  // 2) Fallback: PM de Access (si existe)
+  if (!defaultPm) {
+    const access = subs.data.find((s) => s.metadata?.plan === "access" && s.status !== "canceled");
+    const pm =
+      access?.default_payment_method as string | Stripe.PaymentMethod | null | undefined;
+    defaultPm = typeof pm === "string" ? pm : pm?.id;
+  }
+
+  const threshold =
+    Number.isFinite(USAGE_THRESHOLD_CENTS) && USAGE_THRESHOLD_CENTS > 0
+      ? { amount_gte: USAGE_THRESHOLD_CENTS }
+      : undefined;
+
   await stripe.subscriptions.create({
     customer: customerId,
     collection_method: "charge_automatically",
+    default_payment_method: defaultPm, // ← que pueda cobrar solo
+    payment_settings: { save_default_payment_method: "on_subscription" },
+    ...(threshold ? { billing_thresholds: threshold } : {}),
     items: PRICE_USAGE.map((p) => ({ price: p })),
-    // no prorrateamos nada; cada price ya define su ciclo (semanal)
     proration_behavior: "none",
     metadata: uid ? { plan: "usage", uid } : { plan: "usage" },
   });
@@ -300,7 +334,43 @@ export async function POST(req: NextRequest) {
           await ensureTrialCreditOnce(userRef, customerId, status);
         }
 
-        // Crear la sub de USO (semanal) si no existe
+        // Guardar el PM en el Customer para que Usage cobre solo
+        if (subscriptionId && customerId) {
+          try {
+            const params: Stripe.SubscriptionUpdateParams = {
+              payment_settings: { save_default_payment_method: "on_subscription" },
+            };
+            await stripe.subscriptions.update(subscriptionId, params);
+          } catch {
+            /* ok si falla; continuamos */
+          }
+
+          const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+            expand: ["default_payment_method"],
+          });
+
+          let pmId: string | undefined =
+            typeof sub.default_payment_method === "string"
+              ? sub.default_payment_method
+              : sub.default_payment_method?.id;
+
+          if (!pmId) {
+            const pms = await stripe.paymentMethods.list({
+              customer: customerId,
+              type: "card",
+              limit: 1,
+            });
+            pmId = pms.data[0]?.id;
+          }
+
+          if (pmId) {
+            await stripe.customers.update(customerId, {
+              invoice_settings: { default_payment_method: pmId },
+            });
+          }
+        }
+
+        // Crear la sub de USO (diaria) si no existe — ahora con PM y umbral (si definido)
         if (customerId) {
           await ensureUsageSubscription(customerId, uid);
         }
@@ -338,8 +408,45 @@ export async function POST(req: NextRequest) {
         });
 
         if (uid && customerId) await upsertCustomerMapping(uid, customerId, email);
-
         if (userRef && customerId) await ensureTrialCreditOnce(userRef, customerId, sub.status);
+
+        // Marcar bloqueo si el estado es malo
+        const bad = ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(
+          sub.status
+        );
+        const ref = userRef ?? (await findUserRef({ uid, email, customerId }));
+        if (ref) {
+          await ref.set(
+            bad
+              ? {
+                  billingBlocked: true,
+                  billingBlockedReason: "subscription_" + sub.status,
+                  lastUpdated: adminTimestamp.now(),
+                }
+              : {
+                  billingBlocked: false,
+                  billingBlockedReason: adminFieldValue.delete(),
+                  lastUpdated: adminTimestamp.now(),
+                },
+            { merge: true }
+          );
+        }
+
+        // Si Access cambia PM, propagar al Customer
+        if (plan === "access" && customerId) {
+          const pm = sub.default_payment_method as
+            | string
+            | Stripe.PaymentMethod
+            | null
+            | undefined;
+          const pmId = typeof pm === "string" ? pm : pm?.id;
+          if (pmId) {
+            await stripe.customers.update(customerId, {
+              invoice_settings: { default_payment_method: pmId },
+            });
+          }
+        }
+
         break;
       }
 
@@ -378,13 +485,77 @@ export async function POST(req: NextRequest) {
         const customerId = (inv.customer as string | undefined) ?? undefined;
         const subscriptionId = subscriptionIdFromInvoice(inv as unknown);
 
-        await upsertUser({
+        // Upsert básico (último pago, etc.)
+        const ref = await upsertUser({
           uid,
           email,
           customerId,
           subscriptionId,
           lastPayment: paidAt,
         });
+
+        // ¿Es la suscripción de USO?
+        let isUsage = false;
+        if (subscriptionId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(subscriptionId);
+            isUsage = sub.metadata?.plan === "usage";
+          } catch {
+            /* noop */
+          }
+        }
+
+        // Desbloquear siempre en pago correcto
+        if (ref) {
+          const baseUpdate: Record<string, unknown> = {
+            billingBlocked: false,
+            billingBlockedReason: adminFieldValue.delete(),
+            pastDueAmountCents: 0,
+            lastUpdated: adminTimestamp.now(),
+          };
+
+          // Si es la de uso: reseteo del acumulado y sello de reset
+          if (isUsage) {
+            const periodEndSec =
+              typeof inv.period_end === "number" ? inv.period_end : undefined;
+            if (periodEndSec) {
+              baseUpdate["pendingLocalCents"] = 0;
+              baseUpdate["pendingLocalResetAt"] = adminTimestamp.fromMillis(
+                periodEndSec * 1000
+              );
+            } else {
+              baseUpdate["pendingLocalCents"] = 0;
+              baseUpdate["pendingLocalResetAt"] = adminTimestamp.now();
+            }
+          }
+
+          await ref.set(baseUpdate, { merge: true });
+        }
+        break;
+      }
+
+      /* ------------------------ invoice.payment_failed ------------------------ */
+      case "invoice.payment_failed": {
+        const inv = event.data.object as Stripe.Invoice;
+        const email = emailFromInvoice(inv);
+        const uid = uidFromInvoice(inv);
+        const customerId = (inv.customer as string | undefined) ?? undefined;
+
+        const userRef = await findUserRef({ uid, email, customerId });
+        if (userRef) {
+          await userRef.set(
+            {
+              billingBlocked: true,
+              billingBlockedReason: "payment_failed",
+              pastDueAmountCents:
+                typeof inv.amount_remaining === "number"
+                  ? inv.amount_remaining
+                  : safeNumber(inv.amount_due),
+              lastUpdated: adminTimestamp.now(),
+            },
+            { merge: true }
+          );
+        }
         break;
       }
 
