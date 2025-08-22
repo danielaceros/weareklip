@@ -1,30 +1,30 @@
 // src/app/layout.tsx
-import React from 'react';
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import { ThemeProvider } from 'next-themes';
-import { NextIntlClientProvider, type AbstractIntlMessages } from 'next-intl';
-import { cookies } from 'next/headers';
+import React from "react";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "next-themes";
+import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
+import { cookies } from "next/headers";
 
-import './globals.css';
-import { AuthProvider } from '@/context/authContext';
-import { SyncStripe } from '@/components/shared/syncstripe';
-import { Toaster } from 'react-hot-toast';
-import LocaleBootstrap from '@/components/i18n/LocaleBootstrap';
-import CreateReelGlobalButton from '@/components/wizard/CreateReelGlobalButton';
+import "./globals.css";
+import { AuthProvider } from "@/context/authContext";
+import { SyncStripe } from "@/components/shared/syncstripe";
+import { Toaster } from "react-hot-toast";
+import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
+import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: 'KLIP',
-  description: '🤖 Automatizamos TODO tu contenido en redes',
+  title: "KLIP",
+  description: "🤖 Automatizamos TODO tu contenido en redes",
 };
 
 export default async function RootLayout({
@@ -33,11 +33,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   // ✅ En tu versión, cookies() es async -> usa await
-  const cookieLocale = (await cookies()).get('NEXT_LOCALE')?.value;
+  const cookieLocale = (await cookies()).get("NEXT_LOCALE")?.value;
   const locale =
-    cookieLocale === 'en' || cookieLocale === 'es' || cookieLocale === 'fr'
+    cookieLocale === "en" || cookieLocale === "es" || cookieLocale === "fr"
       ? cookieLocale
-      : 'es';
+      : "es";
 
   // 🔠 Carga de mensajes del locale seleccionado
   const messages: AbstractIntlMessages = (
@@ -65,7 +65,9 @@ export default async function RootLayout({
         />
       </head>
 
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

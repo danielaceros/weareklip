@@ -1083,35 +1083,63 @@
       "stateUpdated": "Estado actualizado"
     }
   },
-  "login": {
-    "titleLogin": "Iniciar sesión",
-    "subtitle": "Accede a tu cuenta para continuar",
-    "email": "Correo electrónico",
-    "password": "Contraseña",
-    "continue": "Continuar",
-    "signIn": "Entrar",
-    "signInWithGoogle": "Entrar con Google",
-    "forgotPassword": "¿Olvidaste la contraseña?",
-    "noAccount": "¿No tienes cuenta?",
-    "createAccount": "Crear cuenta",
-    "mfa": {
-      "title": "Verificación en dos pasos",
-      "subtitle": "Introduce el código de verificación de 6 dígitos",
-      "codeLabel": "Código",
-      "codePlaceholder": "123 456",
-      "sendCode": "Enviar código",
-      "resendCode": "Reenviar código",
-      "verify": "Verificar",
-      "verifying": "Verificando...",
-      "verified": "Verificación completada",
-      "invalidCode": "Código incorrecto o caducado",
-      "tooManyAttempts": "Demasiados intentos. Inténtalo más tarde.",
-      "smsSent": "Hemos enviado un SMS con tu código",
-      "callSent": "Te llamaremos con tu código",
-      "cancel": "Cancelar",
-      "back": "Volver"
-    }
+ "login": {
+  "titleLogin": "Iniciar sesión",
+  "titleRegister": "Crear cuenta",
+  "subtitle": "Accede a tu cuenta para continuar",
+  "email": "Correo electrónico",
+  "password": "Contraseña",
+  "continue": "Continuar",
+  "signIn": "Entrar",
+  "signInWithGoogle": "Entrar con Google",
+  "forgotPassword": "¿Olvidaste la contraseña?",
+  "noAccount": "¿No tienes cuenta?",
+  "createAccount": "Crear cuenta",
+
+  "form": {
+    "completeAll": "Completa todos los campos.",
+    "invalidEmail": "Correo electrónico no válido.",
+    "weakPassword": "La contraseña es demasiado débil."
   },
+
+  "toasts": {
+    "verifyEmail": "Te hemos enviado un correo para verificar tu email. Revísalo para continuar."
+  },
+
+  "firebase": {
+    "emailInUse": "Este correo ya está en uso",
+    "invalidEmail": "Correo electrónico no válido",
+    "userNotFound": "Usuario no encontrado",
+    "wrongPassword": "Contraseña incorrecta",
+    "weakPassword": "La contraseña es demasiado débil",
+    "tooMany": "Demasiados intentos, intenta más tarde",
+    "mfaRequired": "Se requiere verificación en dos pasos"
+  },
+
+  "mfa": {
+    "title": "Verificación en dos pasos",
+    "subtitle": "Introduce el código de verificación de 6 dígitos",
+    "codeLabel": "Código",
+    "codePlaceholder": "123 456",
+    "sendCode": "Enviar código",
+    "resendCode": "Reenviar código",
+    "verify": "Verificar",
+    "verifying": "Verificando...",
+    "verified": "Verificación completada",
+    "invalidCode": "Código incorrecto o caducado",
+    "tooManyAttempts": "Demasiados intentos. Inténtalo más tarde.",
+    "smsSent": "Hemos enviado un SMS con tu código",
+    "callSent": "Te llamaremos con tu código",
+    "cancel": "Cancelar",
+    "back": "Volver",
+    "pleaseEnroll": "Activa la verificación en dos pasos para continuar.",
+    "invalidPhone": "Número de teléfono no válido.",
+    "deviceLabel": "Teléfono principal",
+    "completeCode": "Introduce los 6 dígitos del código.",
+    "enrolled": "Verificación en dos pasos activada.",
+    "incompleteProcess": "Proceso de verificación incompleto."
+  }
+},
   "auth": {
     "title": "Bienvenido a KLIP",
     "subtitle": "🤖 Automatizamos TODO tu contenido en redes.",

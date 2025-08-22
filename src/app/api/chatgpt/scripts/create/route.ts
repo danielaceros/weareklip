@@ -1,19 +1,54 @@
-// src/app/api/scripts/create/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
+import { adminAuth } from "@/lib/firebase-admin";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+type UsageResp = {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+  chargedCents?: number;
+  creditedCents?: number;
+  currency?: string;
+};
+
+export async function POST(req: NextRequest) {
+  // Usamos una misma key para toda la operación (idempotente)
+  const idem = req.headers.get("x-idempotency-key") || randomUUID();
+
   try {
-    const { description, tone, platform, duration, language, structure, addCTA, ctaText } = await req.json();
+    // 1) Auth: vamos a reenviar el mismo token a /api/billing/usage
+    const authHeader = req.headers.get("authorization") || "";
+    const m = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!m) return NextResponse.json({ error: "No auth" }, { status: 401 });
+    const idToken = m[1];
+
+    const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+    const uid = decoded?.uid;
+    if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
+
+    // 2) Body (igual que antes)
+    const {
+      description,
+      tone,
+      platform,
+      duration,
+      language,
+      structure,
+      addCTA,
+      ctaText,
+    } = await req.json();
 
     if (!description || !tone || !platform || !duration || !language || !structure) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
 
+    // 3) Prompt (igual que tenías)
     const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
@@ -36,8 +71,9 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 
 Tu salida debe ser SOLO el texto final del guion listo para usarse.
-    `.trim();
+`.trim();
 
+    // 4) Generación con OpenAI (como antes)
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
@@ -46,16 +82,40 @@ Tu salida debe ser SOLO el texto final del guion listo para usarse.
     });
 
     let script = completion.choices[0]?.message?.content || "";
-
-    // Limpieza adicional para evitar basura extra
     script = script
-      .replace(/^["'\s]+|["'\s]+$/g, "") // quita comillas y espacios al inicio/fin
-      .replace(/^(Aquí.*?:\s*)/i, "") // quita frases tipo "Aquí tienes..."
+      .replace(/^["'\s]+|["'\s]+$/g, "") // quita comillas/espacios inicio-fin
+      .replace(/^(Aquí.*?:\s*)/i, "")    // quita "Aquí tienes..." etc
       .trim();
 
+    // 5) Registrar uso en TU backend (meters, crédito, tope…)
+    const usageUrl = new URL("/api/billing/usage", req.nextUrl.origin).toString();
+    const usageRes = await fetch(usageUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,  // reenviamos el mismo Bearer
+        "X-Idempotency-Key": idem,  // misma clave para reintentos
+      },
+      body: JSON.stringify({ kind: "script", quantity: 1, idem }),
+    });
+
+    let usage: UsageResp = {};
+    try {
+      usage = (await usageRes.json()) as UsageResp;
+    } catch {
+      usage = {};
+    }
+
+    if (!usageRes.ok || usage.ok !== true) {
+      const msg = usage.message || usage.error || `usage status ${usageRes.status}`;
+      throw new Error(msg);
+    }
+
+    // 6) Respuesta (igual que esperaba tu cliente)
     return NextResponse.json({ script });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error interno generando guion" }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Error interno generando guion";
+    const isAuth = /No auth|No uid/i.test(msg);
+    return NextResponse.json({ error: msg }, { status: isAuth ? 401 : 500 });
   }
 }

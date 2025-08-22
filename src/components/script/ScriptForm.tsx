@@ -2,11 +2,18 @@
 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 interface ScriptFormProps {
   description: string;
@@ -47,8 +54,18 @@ export function ScriptForm({
   setStructure,
   setAddCTA,
   setCtaText,
-  onSubmit
+  onSubmit,
 }: ScriptFormProps) {
+  // ⬇️ hook del paywall
+  const { ensureSubscribed } = useSubscriptionGate();
+
+  // ⬇️ gate + submit real
+  const handleSubmit = async () => {
+    const ok = await ensureSubscribed({ feature: "script" });
+    if (!ok) return; // te redirige a /dashboard/facturacion
+    onSubmit(); // sólo si está en trial/activa
+  };
+
   return (
     <div className="w-full space-y-6 py-4">
       <h1 className="text-2xl font-bold">Crear nuevo guion</h1>
@@ -132,13 +149,19 @@ export function ScriptForm({
             <SelectValue placeholder="Selecciona una estructura" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="gancho-desarrollo-cierre">Gancho – Desarrollo – Cierre</SelectItem>
+            <SelectItem value="gancho-desarrollo-cierre">
+              Gancho – Desarrollo – Cierre
+            </SelectItem>
             <SelectItem value="storytelling">Storytelling</SelectItem>
             <SelectItem value="lista-tips">Lista de tips</SelectItem>
             <SelectItem value="pregunta-retorica">Pregunta retórica</SelectItem>
-            <SelectItem value="comparativa-antes-despues">Comparativa antes/después</SelectItem>
+            <SelectItem value="comparativa-antes-despues">
+              Comparativa antes/después
+            </SelectItem>
             <SelectItem value="mito-vs-realidad">Mito vs realidad</SelectItem>
-            <SelectItem value="problema-solucion">Problema – Solución</SelectItem>
+            <SelectItem value="problema-solucion">
+              Problema – Solución
+            </SelectItem>
             <SelectItem value="testimonio">Testimonio</SelectItem>
           </SelectContent>
         </Select>
@@ -159,7 +182,15 @@ export function ScriptForm({
         )}
       </div>
 
-      <Button onClick={onSubmit} disabled={loading} className="w-full">
+      {/* ⬇️ Botón con gate */}
+      <Button
+        type="button"
+        onClick={handleSubmit}
+        disabled={loading}
+        className="w-full"
+        data-paywall
+        data-paywall-feature="script"
+      >
         {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
         Generar guion
       </Button>

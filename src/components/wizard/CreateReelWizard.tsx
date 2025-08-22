@@ -1,7 +1,8 @@
+// src/components/wizard/CreateReelWizard.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import toast from "react-hot-toast";
 import { ScriptForm } from "@/components/script/ScriptForm";
 import { AudioForm } from "@/components/audio/AudioForm";
@@ -22,8 +23,9 @@ import { TemplateSelect } from "@/components/edit/TemplateSelect";
 import { DictionaryInput } from "@/components/edit/DictionaryInput";
 import { MagicOptions } from "@/components/edit/MagicOptions";
 import { collection, getDocs, getFirestore } from "firebase/firestore";
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
-interface ReelData {
+type ReelData = {
   script: string;
   audioUrl?: string;
   selectedVideo?: string;
@@ -33,18 +35,34 @@ interface ReelData {
   magicZooms?: boolean;
   magicBrolls?: boolean;
   magicBrollsPercentage?: number;
-}
+};
 
-interface CreateReelWizardProps {
+type CreateReelWizardProps = {
   open: boolean;
   onClose: () => void;
   onComplete: (data: ReelData) => void;
+};
+
+// helpers sin any
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function hasString(v: unknown, key: string): v is Record<string, string> {
+  return isRecord(v) && typeof v[key] === "string";
 }
 
-export default function CreateReelWizard({ open, onClose, onComplete }: CreateReelWizardProps) {
+export default function CreateReelWizard({
+  open,
+  onClose,
+  onComplete,
+}: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
+
+  // flujo de pasos
   const [step, setStep] = useState(1);
-  const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
+  const [modalType, setModalType] = useState<"main" | "script" | "audio">(
+    "main"
+  );
 
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
@@ -63,7 +81,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   // Paso 3 - Submagic
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<
+    { id: string; name: string; url: string }[]
+  >([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState("");
   const [subLang, setSubLang] = useState("");
@@ -72,15 +92,23 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   const [magicZooms, setMagicZooms] = useState(false);
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
-
   const [syncLoading, setSyncLoading] = useState(false);
+
+  const { ensureSubscribed } = useSubscriptionGate();
 
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
+    const unsub = onAuthStateChanged(auth, (currentUser) =>
+      setUser(currentUser)
+    );
+    return () => unsub();
   }, []);
 
+  // --- Paso 1: guion ---
   const generateScript = async () => {
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
       return;
@@ -97,13 +125,27 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
+        body: JSON.stringify({
+          description,
+          tone,
+          platform,
+          duration,
+          language,
+          structure,
+          addCTA,
+          ctaText,
+        }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error generando guion");
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error generando guion"
+        );
 
-      setScript(data.script || "");
+      setScript(hasString(parsed, "script") ? parsed.script : "");
       setModalType("script");
       toast.success("✅ Guion generado correctamente", { id: loadingId });
     } catch (err) {
@@ -121,7 +163,11 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
     setStep(2);
   };
 
+  // --- Paso 2: audio ---
   const generateAudio = async () => {
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!audioForm.voiceId) {
       toast.error("Selecciona una voz antes de continuar.");
       return;
@@ -138,7 +184,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const token = await user.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           text: audioForm.text,
           voiceId: audioForm.voiceId,
@@ -153,10 +202,15 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error generando audio");
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error generando audio"
+        );
 
-      setAudioUrl(data.audioUrl);
+      setAudioUrl(hasString(parsed, "audioUrl") ? parsed.audioUrl : null);
       setModalType("audio");
       toast.success("✅ Audio generado correctamente", { id: loadingId });
     } catch (err) {
@@ -171,9 +225,10 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
     toast.success("🎧 Audio aceptado. Vamos al paso de vídeo.");
     setModalType("main");
     setStep(3);
-    loadClonacionVideos();
+    void loadClonacionVideos();
   };
 
+  // --- Paso 3: vídeos de clonación y envío ---
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
@@ -182,22 +237,19 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
       const db = getFirestore();
       const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
       const snap = await getDocs(clonacionRef);
+
       if (snap.empty) {
         setVideos([]);
         toast("ℹ️ No tienes vídeos de clonación todavía.");
         return;
       }
 
-      const videosData = snap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data?.titulo ?? doc.id,
-          url: data?.url ?? "",
-        };
+      const list = snap.docs.map((doc) => {
+        const d = doc.data() as { titulo?: string; url?: string } | undefined;
+        return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
       });
 
-      setVideos(videosData);
+      setVideos(list);
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudieron cargar los vídeos de clonación.");
@@ -207,6 +259,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
   };
 
   const finishWizard = async () => {
+    const ok = await ensureSubscribed({ feature: "reel" });
+    if (!ok) return;
+
     if (!audioUrl || !selectedVideo) {
       toast.error("Falta el audio o el vídeo para continuar.");
       return;
@@ -221,9 +276,13 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
 
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/sync/pipeline", {
+      // Usa /api/sync/create (ajusta si tu endpoint es otro)
+      const res = await fetch("/api/sync/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           audioUrl,
           videoUrl: selectedVideo,
@@ -235,10 +294,19 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
           magicBrollsPercentage,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al iniciar lipsync");
 
-      toast.success(`🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`, { id: loadingId });
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error al iniciar lipsync"
+        );
+
+      toast.success(
+        `🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`,
+        { id: loadingId }
+      );
 
       onComplete({
         script,
@@ -268,7 +336,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
           <>
             <DialogHeader>
               <DialogTitle>Crear Reel IA</DialogTitle>
-              <DialogDescription>Completa los pasos para generar tu reel</DialogDescription>
+              <DialogDescription>
+                Completa los pasos para generar tu reel
+              </DialogDescription>
             </DialogHeader>
 
             {step === 1 && (
@@ -294,11 +364,14 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               />
             )}
 
-            {step === 2 && <AudioForm {...audioForm} onGenerate={generateAudio} />}
+            {step === 2 && (
+              <AudioForm {...audioForm} onGenerate={generateAudio} />
+            )}
 
             {step === 3 && (
               <div className="space-y-4">
                 <Label>Selecciona un vídeo de clonación</Label>
+
                 {loadingVideos ? (
                   <p>Cargando vídeos...</p>
                 ) : videos.length > 0 ? (
@@ -321,12 +394,16 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
                           onMouseEnter={(e) => e.currentTarget.play()}
                           onMouseLeave={(e) => e.currentTarget.pause()}
                         />
-                        <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+                        <div className="p-2 text-sm font-medium truncate">
+                          {v.name}
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No hay vídeos en clonación.</p>
+                  <p className="text-muted-foreground">
+                    No hay vídeos en clonación.
+                  </p>
                 )}
 
                 <LanguageSelect value={subLang} onChange={setSubLang} />
@@ -364,7 +441,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               className="min-h-[200px] w-full resize-none"
             />
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateScript}>Regenerar</Button>
+              <Button variant="outline" onClick={generateScript}>
+                Regenerar
+              </Button>
               <Button onClick={acceptScript}>Aceptar y continuar</Button>
             </DialogFooter>
           </>
@@ -381,7 +460,9 @@ export default function CreateReelWizard({ open, onClose, onComplete }: CreateRe
               <p>No se ha generado audio.</p>
             )}
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateAudio}>Regenerar</Button>
+              <Button variant="outline" onClick={generateAudio}>
+                Regenerar
+              </Button>
               <Button onClick={acceptAudio}>Aceptar y continuar</Button>
             </DialogFooter>
           </>

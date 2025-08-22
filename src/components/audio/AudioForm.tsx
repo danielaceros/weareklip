@@ -1,13 +1,26 @@
+// src/components/audio/AudioForm.tsx  (ajusta la ruta si es otra)
 "use client";
+
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle } from "lucide-react";
+// ⬇️ importamos el gate de suscripción
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
-interface Voice { id: string; name: string; }
+interface Voice {
+  id: string;
+  name: string;
+}
 
 interface AudioFormProps {
   text: string;
@@ -33,16 +46,36 @@ interface AudioFormProps {
 
 export function AudioForm(props: AudioFormProps) {
   const {
-    text, setText,
-    voices, voiceId, setVoiceId,
-    languageCode, setLanguageCode,
-    stability, setStability,
-    similarityBoost, setSimilarityBoost,
-    style, setStyle,
-    speed, setSpeed,
-    speakerBoost, setSpeakerBoost,
-    onGenerate, loading
+    text,
+    setText,
+    voices,
+    voiceId,
+    setVoiceId,
+    languageCode,
+    setLanguageCode,
+    stability,
+    setStability,
+    similarityBoost,
+    setSimilarityBoost,
+    style,
+    setStyle,
+    speed,
+    setSpeed,
+    speakerBoost,
+    setSpeakerBoost,
+    onGenerate,
+    loading,
   } = props;
+
+  // ⬇️ obtenemos el verificador de suscripción
+  const { ensureSubscribed } = useSubscriptionGate();
+
+  // ⬇️ envolvemos el click para chequear suscripción antes de generar
+  const handleGenerateClick = async () => {
+    const ok = await ensureSubscribed({ feature: "audio" });
+    if (!ok) return; // si no tiene plan, redirige y no continúa
+    onGenerate(); // si está OK, ejecuta la lógica original
+  };
 
   return (
     <div className="w-full space-y-6 py-8">
@@ -67,11 +100,15 @@ export function AudioForm(props: AudioFormProps) {
           </SelectTrigger>
           <SelectContent>
             {voices.length > 0 ? (
-              voices.map(v => (
-                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+              voices.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name}
+                </SelectItem>
               ))
             ) : (
-              <SelectItem value="no-voices" disabled>No tienes voces guardadas</SelectItem>
+              <SelectItem value="no-voices" disabled>
+                No tienes voces guardadas
+              </SelectItem>
             )}
           </SelectContent>
         </Select>
@@ -93,27 +130,58 @@ export function AudioForm(props: AudioFormProps) {
 
       <div>
         <Label>Estabilidad ({stability.toFixed(2)})</Label>
-        <Slider value={[stability]} min={0} max={1} step={0.01} onValueChange={(v) => setStability(v[0])} />
+        <Slider
+          value={[stability]}
+          min={0}
+          max={1}
+          step={0.01}
+          onValueChange={(v) => setStability(v[0])}
+        />
       </div>
       <div>
         <Label>Similaridad ({similarityBoost.toFixed(2)})</Label>
-        <Slider value={[similarityBoost]} min={0} max={1} step={0.01} onValueChange={(v) => setSimilarityBoost(v[0])} />
+        <Slider
+          value={[similarityBoost]}
+          min={0}
+          max={1}
+          step={0.01}
+          onValueChange={(v) => setSimilarityBoost(v[0])}
+        />
       </div>
       <div>
         <Label>Estilo ({style.toFixed(2)})</Label>
-        <Slider value={[style]} min={0} max={1} step={0.01} onValueChange={(v) => setStyle(v[0])} />
+        <Slider
+          value={[style]}
+          min={0}
+          max={1}
+          step={0.01}
+          onValueChange={(v) => setStyle(v[0])}
+        />
       </div>
       <div>
         <Label>Velocidad ({speed.toFixed(2)})</Label>
-        <Slider value={[speed]} min={0.5} max={2.0} step={0.01} onValueChange={(v) => setSpeed(v[0])} />
+        <Slider
+          value={[speed]}
+          min={0.5}
+          max={2.0}
+          step={0.01}
+          onValueChange={(v) => setSpeed(v[0])}
+        />
       </div>
 
       <div className="flex items-center space-x-2">
-        <Checkbox checked={speakerBoost} onCheckedChange={(c) => setSpeakerBoost(!!c)} />
+        <Checkbox
+          checked={speakerBoost}
+          onCheckedChange={(c) => setSpeakerBoost(!!c)}
+        />
         <Label>Usar Speaker Boost</Label>
       </div>
 
-      <Button onClick={onGenerate} disabled={loading} className="w-full">
+      <Button
+        onClick={handleGenerateClick}
+        disabled={loading}
+        className="w-full"
+      >
         {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
         {loading ? "Generando audio..." : "Generar audio"}
       </Button>

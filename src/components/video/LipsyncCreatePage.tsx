@@ -1,127 +1,119 @@
+// src/components/video/LipsyncCreatePage.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
 import { AudioSelect } from "./AudioSelect";
 import { VideoSelect } from "./VideoSelect";
 import { GenerateButton } from "./GenerateButton";
 
-interface AudioItem {
-  id: string;
-  audioUrl: string;
-  name?: string;
-}
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
-interface VideoItem {
-  id: string;
-  url: string;
-  name?: string;
-}
+type AudioItem = { id: string; audioUrl: string; name?: string };
+type VideoItem = { id: string; url: string; name?: string };
 
-export default function LipsyncPage() {
+export default function LipsyncCreatePage() {
   const [user, setUser] = useState<User | null>(null);
   const [audios, setAudios] = useState<AudioItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [selectedAudio, setSelectedAudio] = useState("");
-  const [selectedVideo, setSelectedVideo] = useState("");
+  const [selectedAudioId, setSelectedAudioId] = useState("");
+  const [selectedVideoId, setSelectedVideoId] = useState("");
   const [loading, setLoading] = useState(false);
+
   const router = useRouter();
+  const { ensureSubscribed } = useSubscriptionGate();
 
   useEffect(() => {
     const auth = getAuth();
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        await loadMedia(currentUser.uid);
-      }
+      if (currentUser) await loadMedia(currentUser.uid);
     });
     return () => unsub();
   }, []);
 
-  const loadMedia = async (uid: string) => {
+  async function loadMedia(uid: string) {
     try {
       const audiosSnap = await getDocs(collection(db, "users", uid, "audios"));
-      const videosSnap = await getDocs(collection(db, "users", uid, "clonacion"));
+      const a: AudioItem[] = audiosSnap.docs.map((doc) => {
+        const data = doc.data() as Partial<AudioItem> & { audioUrl?: string };
+        return {
+          id: doc.id,
+          audioUrl: data.audioUrl ?? "",
+          name: data.name || doc.id,
+        };
+      });
 
-      setAudios(
-        audiosSnap.docs.map((doc) => {
-          const data = doc.data() as Partial<AudioItem> & { audioUrl?: string };
-          return {
-            id: doc.id,
-            audioUrl: data.audioUrl ?? "",
-            name: data.name || doc.id,
-          };
-        })
+      const videosSnap = await getDocs(
+        collection(db, "users", uid, "clonacion")
       );
+      const v: VideoItem[] = videosSnap.docs.map((doc) => {
+        const data = doc.data() as Partial<VideoItem> & {
+          url?: string;
+          titulo?: string;
+        };
+        return { id: doc.id, url: data.url ?? "", name: data.titulo || doc.id };
+      });
 
-      setVideos(
-        videosSnap.docs.map((doc) => {
-          const data = doc.data() as Partial<VideoItem> & { url?: string; titulo?: string };
-          return {
-            id: doc.id,
-            url: data.url ?? "",
-            name: data.titulo || doc.id,
-          };
-        })
-      );
+      setAudios(a);
+      setVideos(v);
     } catch (err) {
-      toast.error("Error cargando medios");
       console.error(err);
+      toast.error("Error cargando audios/vídeos");
     }
-  };
+  }
 
-  const handleGenerate = async () => {
-    const audio = audios.find((a) => a.id === selectedAudio);
-    const video = videos.find((v) => v.id === selectedVideo);
+  async function handleGenerate() {
+    // Paywall: si no tiene método de pago, el hook redirige a facturación.
+    const ok = await ensureSubscribed({ feature: "lipsync" });
+    if (!ok) return;
 
+    if (!user) return toast.error("Debes iniciar sesión");
+
+    const audio = audios.find((a) => a.id === selectedAudioId);
+    const video = videos.find((v) => v.id === selectedVideoId);
     if (!audio?.audioUrl || !video?.url) {
-      toast.error("Debes seleccionar un audio y un vídeo válidos");
-      return;
+      return toast.error("Selecciona un audio y un vídeo válidos");
     }
-    if (!user) {
-      toast.error("No estás autenticado");
-      return;
-    }
-
-    setLoading(true);
-    toast.info("Enviando solicitud de generación...");
 
     try {
+      setLoading(true);
       const token = await user.getIdToken();
+
       const res = await fetch("/api/sync/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          audioUrl: audio.audioUrl,
-          videoUrl: video.url,
-        }),
+        body: JSON.stringify({ audioUrl: audio.audioUrl, videoUrl: video.url }),
       });
 
-      const data: { error?: string } = await res.json();
+      const data = (await res.json()) as { id?: string; error?: string };
       if (!res.ok) throw new Error(data.error || "Error creando vídeo");
 
-      toast.success("Solicitud enviada. El vídeo se generará en breve.");
-      router.push("/dashboard/video");
+      toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
+      router.push("/dashboard/video"); // <-- ahora sí usamos router
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error desconocido");
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo crear el lipsync"
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="max-w-xl mx-auto py-8 space-y-6">
       <h1 className="text-2xl font-bold">Nuevo vídeo con lipsync</h1>
-
-      <AudioSelect audios={audios} onChange={setSelectedAudio} />
-      <VideoSelect videos={videos} onChange={setSelectedVideo} />
+      <AudioSelect audios={audios} onChange={setSelectedAudioId} />
+      <VideoSelect videos={videos} onChange={setSelectedVideoId} />
       <GenerateButton loading={loading} onClick={handleGenerate} />
     </div>
   );

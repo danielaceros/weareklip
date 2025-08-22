@@ -1,255 +1,325 @@
-// src/app/dashboard/facturacion/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
-import { Button } from "@/components/ui/button";
-import clsx from "clsx";
-import { FileDown, CreditCard, Pause, XCircle, Loader2 } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { useEffect, useMemo, useState } from "react";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, getIdToken, type User } from "firebase/auth";
+import {
+  doc,
+  onSnapshot,
+  type FirestoreDataConverter,
+  type DocumentData,
+} from "firebase/firestore";
 
-interface StripeSubscription {
-  status: string;
-  plan: string;
-  current_period_end: number | null;
-  amount: number | null;
-  interval: string;
-  currency: string;
-  cancel_at_period_end: boolean;
+/* ===== Tipos Firestore ===== */
+type FireTimestamp = { seconds: number; nanoseconds: number };
+
+interface SubscriptionInfo {
+  id?: string | null;
+  plan?: string | null;
+  status?: string;
+  active?: boolean;
+  renewal?: FireTimestamp | null;
+  lastUpdated?: FireTimestamp | null;
+  lastPayment?: FireTimestamp | null;
 }
-
-interface StripeInvoice {
-  id: string;
-  created: number;
-  amount_paid: number;
-  currency: string;
-  url: string;
+interface UserDoc {
+  stripeCustomerId?: string;
+  subscription?: SubscriptionInfo;
+  usage?: { tokens?: number; euros?: number }; // (opcional antiguo)
 }
-
-// chips con soporte dark
-const getStatusChipStyle = (status: string) => {
-  switch (status) {
-    case "active":
-      return "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800";
-    case "trialing":
-      return "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800";
-    case "past_due":
-      return "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800";
-    case "unpaid":
-      return "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800";
-    case "canceled":
-      return "bg-muted text-muted-foreground border-border";
-    default:
-      return "bg-muted text-muted-foreground border-border";
-  }
+const userConverter: FirestoreDataConverter<UserDoc> = {
+  toFirestore: (data: UserDoc) => data as DocumentData,
+  fromFirestore: (snap, options) => snap.data(options) as UserDoc,
 };
 
-export default function FacturacionPage() {
-  const t = useT();
+/* ===== Tipos del summary API ===== */
+type Summary = {
+  subscription: {
+    status: string | null;
+    active: boolean;
+    plan: string | null;
+    renewalAt: number | null; // ms epoch
+    daysLeft: number | null;
+    trialing: boolean;
+  };
+  trialCreditCents: number;
+  usage: { script: number; voice: number; lipsync: number; edit: number };
+  pendingCents: number;
+};
 
-  const [sub, setSub] = useState<StripeSubscription | null>(null);
-  const [loadingSub, setLoadingSub] = useState(true);
-  const [invoices, setInvoices] = useState<StripeInvoice[]>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(true);
+/* ===== Helpers UI ===== */
+function tsToDate(ts?: FireTimestamp | null) {
+  if (!ts?.seconds) return null;
+  return new Date(ts.seconds * 1000);
+}
+function fmtDate(d: Date | null) {
+  return d ? d.toLocaleDateString() : "-";
+}
+
+/* ===== Página ===== */
+export default function BillingPage() {
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [docData, setDocData] = useState<UserDoc | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
 
   useEffect(() => {
-    const loadSub = async () => {
-      setLoadingSub(true);
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          setLoadingSub(false);
-          return;
-        }
-        try {
-          const token = await user.getIdToken();
-          const res = await fetch("/api/stripe/subscription", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!res.ok) throw new Error("No se pudo obtener la suscripción");
-          const data = await res.json();
-          setSub(data);
-        } catch (err) {
-          console.error("Error obteniendo suscripción:", err);
-          setSub(null);
-        } finally {
-          setLoadingSub(false);
-        }
-      });
-    };
+    if (!user) return;
+    const ref = doc(db, "users", user.uid).withConverter(userConverter);
+    return onSnapshot(ref, (snap) => setDocData(snap.data() ?? null));
+  }, [user]);
 
-    const loadInvoices = async () => {
-      setLoadingInvoices(true);
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          setLoadingInvoices(false);
-          return;
-        }
-        try {
-          // demo
-          setTimeout(() => {
-            setInvoices([
-              {
-                id: "in_001",
-                created: Date.now() / 1000 - 3600 * 24 * 32,
-                amount_paid: 2900,
-                currency: "eur",
-                url: "#",
-              },
-              {
-                id: "in_002",
-                created: Date.now() / 1000 - 3600 * 24 * 62,
-                amount_paid: 2900,
-                currency: "eur",
-                url: "#",
-              },
-            ]);
-            setLoadingInvoices(false);
-          }, 800);
-        } catch (err) {
-          console.error("Error obteniendo facturas:", err);
-          setInvoices([]);
-          setLoadingInvoices(false);
-        }
+  // Cargar /api/billing/summary
+  const loadSummary = async () => {
+    if (!user) return;
+    setLoadingSummary(true);
+    try {
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/billing/summary", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-    };
+      const data = (await res.json()) as Summary & { error?: string };
+      if (!res.ok) throw new Error(data.error || "Error summary");
+      setSummary(data);
+    } catch (e) {
+      console.error(e);
+      setSummary(null);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
 
-    loadSub();
-    loadInvoices();
-  }, []);
+  useEffect(() => {
+    if (user) loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const sub = docData?.subscription ?? null;
+  const renewalDate = useMemo(() => tsToDate(sub?.renewal ?? null), [sub]);
+
+  const statusLabel = useMemo(() => {
+    if (!sub?.status) return "Sin suscripción";
+    if (sub.status === "trialing") {
+      const left = summary?.subscription.daysLeft ?? null;
+      return `Prueba (${left ?? 0} días restantes)`;
+    }
+    if (sub.active) return "Activa";
+    return sub.status;
+  }, [sub, summary]);
+
+  const onboard = async () => {
+    if (!user) return alert("Inicia sesión");
+    try {
+      setRedirecting(true);
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/stripe/onboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url)
+        throw new Error(data.error ?? "No se pudo iniciar");
+      window.location.href = data.url as string;
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo iniciar la prueba/suscripción");
+      setRedirecting(false);
+    }
+  };
+
+  // === Registrar uso contra /api/billing/usage ===
+  const recordUsage = async (
+    kind: "script" | "voice" | "lipsync" | "edit",
+    q = 1
+  ) => {
+    if (!user) return;
+    try {
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/billing/usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kind, quantity: q }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data?.error || "Máximo alcanzado, continuar mañana");
+      await loadSummary();
+    } catch (err) {
+      console.error(err);
+      alert((err as Error).message);
+    }
+  };
+
+  // === Liquidar ahora (sólo dev) ===
+  const settleNowDev = async () => {
+    if (!user) return;
+    try {
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/billing/settle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(
+          (data as { error?: string }).error || "No se pudo liquidar"
+        );
+      alert("Liquidación ejecutada (dev). Revisa Stripe.");
+      await loadSummary();
+    } catch (e) {
+      console.error(e);
+      alert((e as Error).message ?? "Error liquidando");
+    }
+  };
+
+  const euro = (cents: number | undefined | null) =>
+    (Math.max(0, cents ?? 0) / 100).toFixed(2);
 
   return (
-    <div className="min-h-[85vh] flex flex-col items-center bg-background py-10 px-2">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-3xl shadow-sm p-10 text-foreground">
-        <div className="flex items-center gap-2 mb-4">
-          <CreditCard className="text-primary" size={28} />
-          <h1 className="text-3xl font-bold">{t("billing.title")}</h1>
-        </div>
-        <p className="mb-8 text-muted-foreground max-w-lg">{t("billing.subtitle")}</p>
+    <main className="mx-auto max-w-5xl p-6">
+      <h1 className="text-2xl font-bold mb-6">Facturación / Suscripción</h1>
 
-        {/* Detalles de suscripción */}
-        <section className="border border-border rounded-2xl p-6 mb-8 bg-muted/40">
-          <h2 className="text-xl font-semibold mb-3">{t("billing.mySubscription")}</h2>
-          {loadingSub ? (
-            <div className="flex items-center gap-2 text-primary">
-              <Loader2 className="animate-spin" size={20} /> {t("billing.loadingSubscription")}
-            </div>
-          ) : !sub ? (
-            <div className="text-muted-foreground">{t("billing.noSubscription")}</div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{t("billing.status")}:</span>
-                <span
-                  className={clsx(
-                    "px-3 py-1 rounded-full text-sm border",
-                    getStatusChipStyle(sub.status)
-                  )}
-                >
-                  {sub.status}
-                </span>
-                {sub.cancel_at_period_end && (
-                  <span className="text-xs bg-orange-200 text-orange-900 dark:bg-orange-900/30 dark:text-orange-200 px-2 py-1 rounded ml-2">
-                    {t("billing.cancelAtPeriodEnd")}
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <span className="font-medium">{t("billing.plan")}:</span>{" "}
-                <span className="text-primary font-semibold">{sub.plan}</span>
-              </div>
-
-              <div>
-                <span className="font-medium">{t("billing.price")}:</span>{" "}
-                <span>
-                  {sub.amount
-                    ? `${sub.amount.toFixed(2)} ${sub.currency.toUpperCase()} / ${sub.interval}`
-                    : t("billing.notAvailable")}
-                </span>
-              </div>
-
-              <div>
-                <span className="font-medium">{t("billing.renewal")}:</span>{" "}
-                <span>
-                  {sub.current_period_end
-                    ? new Date(sub.current_period_end * 1000).toLocaleDateString()
-                    : t("billing.notAvailable")}
-                </span>
-              </div>
-
-              <Button asChild className="mt-2" variant="secondary">
-                <a
-                  href="https://billing.stripe.com/p/login/aFadR981S6441s57tE4ko00"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t("billing.manageSubscription")}
-                </a>
-              </Button>
-
-              <div className="flex gap-2 mt-4">
-                <Button variant="outline">
-                  <Pause size={16} className="mr-2" /> {t("billing.pause")}
-                </Button>
-                <Button variant="destructive">
-                  <XCircle size={16} className="mr-2" /> {t("billing.cancel")}
-                </Button>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Facturas */}
-        <section className="border border-border rounded-2xl p-6 bg-muted/40">
-          <h2 className="text-xl font-semibold mb-3">{t("billing.recentInvoices")}</h2>
-          {loadingInvoices ? (
-            <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
-              <Loader2 className="animate-spin" size={20} /> {t("billing.loadingInvoices")}
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="text-muted-foreground">{t("billing.noInvoices")}</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground border-b border-border">
-                    <th className="py-1 px-2">{t("billing.date")}</th>
-                    <th className="py-1 px-2">{t("billing.amount")}</th>
-                    <th className="py-1 px-2">{t("billing.download")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-border/60">
-                      <td className="py-2 px-2">
-                        {new Date(inv.created * 1000).toLocaleDateString()}
-                      </td>
-                      <td className="py-2 px-2">
-                        {(inv.amount_paid / 100).toFixed(2)} {inv.currency.toUpperCase()}
-                      </td>
-                      <td className="py-2 px-2">
-                        <a
-                          href={inv.url}
-                          download
-                          className="inline-flex items-center gap-1 text-primary hover:underline"
-                        >
-                          <FileDown size={16} /> PDF
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Cambiar de plan */}
-        <section className="mt-8 text-center">
-          <h2 className="text-xl font-semibold mb-2">{t("billing.upgradeTitle")}</h2>
-          <Button className="mt-2">{t("billing.changePlan")}</Button>
-        </section>
+      {/* Bloque estado suscripción */}
+      <div className="rounded-2xl border p-5 mb-8">
+        <h2 className="font-semibold mb-2">Tu suscripción</h2>
+        <p>Estado: {statusLabel}</p>
+        <p>Plan: {sub?.plan ?? "-"}</p>
+        <p>
+          {sub?.status === "trialing" ? "Fin de prueba:" : "Renovación:"}{" "}
+          {fmtDate(renewalDate)}
+        </p>
+        <p>Stripe status: {sub?.status ?? "-"}</p>
       </div>
-    </div>
+
+      {/* Tarjeta de alta + Consumo */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Plan Access */}
+        <div className="rounded-2xl border p-5">
+          <div className="text-lg font-medium">Access</div>
+          <div className="text-2xl mt-1">29,99 €/mes</div>
+          <div className="text-sm text-gray-500 mt-1">
+            Acceso a la plataforma. Prueba de 7 días.
+          </div>
+
+          {sub?.status === "trialing" || sub?.active ? (
+            <button
+              disabled
+              className="mt-4 w-full rounded-xl border px-4 py-2 opacity-60"
+              title="Ya tienes una suscripción activa o en prueba"
+            >
+              Suscripción en curso
+            </button>
+          ) : (
+            <button
+              onClick={onboard}
+              disabled={redirecting}
+              className="mt-4 w-full rounded-xl border px-4 py-2 hover:bg-gray-50 disabled:opacity-60"
+            >
+              {redirecting ? "Redirigiendo…" : "Empezar prueba gratuita"}
+            </button>
+          )}
+        </div>
+
+        {/* Consumo / Crédito / Pendiente */}
+        <div className="rounded-2xl border p-5 col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-lg font-medium">Consumo</div>
+            <div className="flex items-center gap-2">
+              {process.env.NODE_ENV === "development" && (
+                <button
+                  onClick={settleNowDev}
+                  className="text-sm rounded-lg border px-3 py-1 hover:bg-gray-50"
+                  title="Forzar liquidación inmediata (entorno de desarrollo)"
+                >
+                  Liquidar ahora (dev)
+                </button>
+              )}
+              <button
+                onClick={loadSummary}
+                disabled={loadingSummary}
+                className="text-sm rounded-lg border px-3 py-1 hover:bg-gray-50 disabled:opacity-60"
+              >
+                {loadingSummary ? "Actualizando…" : "Actualizar"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-gray-500">
+                Crédito de prueba restante
+              </div>
+              <div className="text-xl mt-1">
+                € {euro(summary?.trialCreditCents ?? 0)}
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-gray-500">Pendiente a liquidar</div>
+              <div className="text-xl mt-1">
+                € {euro(summary?.pendingCents ?? 0)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                (se cobrará al final del periodo)
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-gray-500">
+                Operaciones (periodo actual)
+              </div>
+              <div className="mt-1 text-sm">
+                Guiones: {summary?.usage.script ?? 0}
+                {" · "}Voz: {summary?.usage.voice ?? 0}
+                {" · "}LipSync: {summary?.usage.lipsync ?? 0}
+                {" · "}Edición: {summary?.usage.edit ?? 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Botonera de prueba de uso: sólo visible en development */}
+          {process.env.NODE_ENV === "development" && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border px-3 py-1"
+                onClick={() => recordUsage("script")}
+              >
+                +1 Guión
+              </button>
+              <button
+                className="rounded-lg border px-3 py-1"
+                onClick={() => recordUsage("voice")}
+              >
+                +1 Voz
+              </button>
+              <button
+                className="rounded-lg border px-3 py-1"
+                onClick={() => recordUsage("lipsync")}
+              >
+                +1 LipSync
+              </button>
+              <button
+                className="rounded-lg border px-3 py-1"
+                onClick={() => recordUsage("edit")}
+              >
+                +1 Edición
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }

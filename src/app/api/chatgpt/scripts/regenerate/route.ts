@@ -4,29 +4,40 @@ import OpenAI from "openai";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const FREE_LIMIT = 2;
 
 export async function POST(req: Request) {
   try {
-    const { uid, scriptId } = await req.json();
+    const body = await req.json().catch(() => ({} as Record<string, unknown>));
+    const uid = String((body as Record<string, unknown>).uid ?? "");
+    const scriptId = String((body as Record<string, unknown>).scriptId ?? "");
+    const paid =
+      String(req.headers.get("x-paid") || "").trim() === "1" ||
+      (body as Record<string, unknown>).paid === true;
 
     if (!uid || !scriptId) {
-      return NextResponse.json({ error: "Faltan parámetros (uid, scriptId)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Faltan parámetros (uid, scriptId)" },
+        { status: 400 }
+      );
     }
 
     const scriptRef = doc(db, "users", uid, "guiones", scriptId);
     const snap = await getDoc(scriptRef);
-
     if (!snap.exists()) {
       return NextResponse.json({ error: "Guion no encontrado" }, { status: 404 });
     }
 
-    const data = snap.data();
+    const data = snap.data() as Record<string, unknown>;
+    const regenCount = Number(data.regenerations ?? 0);
 
-    if ((data.regenerations || 0) >= 3) {
-      return NextResponse.json({ error: "Has alcanzado el límite de 3 regeneraciones" }, { status: 403 });
+    if (regenCount >= FREE_LIMIT && !paid) {
+      // 402: Payment Required
+      return NextResponse.json(
+        { error: "Has gastado los 2 intentos gratis. Debes pasar por caja para regenerar de nuevo." },
+        { status: 402 }
+      );
     }
 
     const prompt = `
@@ -64,19 +75,23 @@ Reglas estrictas:
       .replace(/^(Aquí.*?:\s*)/i, "")
       .trim();
 
+    const newCount = regenCount + 1;
     await updateDoc(scriptRef, {
       script: regeneratedScript,
-      regenerations: (data.regenerations || 0) + 1,
+      regenerations: newCount,
       updatedAt: serverTimestamp(),
     });
 
     return NextResponse.json({
       scriptId,
-      regenerations: (data.regenerations || 0) + 1,
+      regenerations: newCount,
       script: regeneratedScript,
     });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Error interno regenerando guion" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error interno regenerando guion" },
+      { status: 500 }
+    );
   }
 }
