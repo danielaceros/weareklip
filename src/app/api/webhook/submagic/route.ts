@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       const baseUrl =
         process.env.NODE_ENV === "development"
           ? "http://localhost:3000"
-          : "https://app.weareklip.com";
+          : "https://app.viralizalo.ai";
 
       await fetch(`${baseUrl}/api/send-email`, {
         method: "POST",

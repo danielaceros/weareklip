@@ -30,7 +30,7 @@ function appBaseUrl() {
   }
   return (
     process.env.NEXT_PUBLIC_BASE_URL ||
-    "https://app.weareklip.com"
+    "https://app.viralizalo.ai"
   );
 }
 
