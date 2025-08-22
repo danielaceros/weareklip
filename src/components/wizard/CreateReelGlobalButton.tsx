@@ -1,18 +1,18 @@
-// src/components/wizard/CreateReelGlobalBotton.tsx
+// src/components/wizard/CreateReelGlobalButton.tsx
 "use client";
 
 import { useState, useCallback } from "react";
 import { PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CreateReelWizard from "@/components/wizard/CreateReelWizard";
-import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 NUEVO
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 export default function CreateReelGlobalButton() {
   const [open, setOpen] = useState(false);
   const { ensureSubscribed } = useSubscriptionGate();
 
   const handleClick = useCallback(async () => {
-    // Comprueba suscripción (activa o trial). Si no, redirige a facturación.
+    // comprueba plan/trial y redirige a facturación si no cumple
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
     setOpen(true);
@@ -34,12 +34,12 @@ export default function CreateReelGlobalButton() {
         </Button>
       </div>
 
-      {/* Modal Wizard */}
+      {/* Wizard */}
       <CreateReelWizard
         open={open}
         onClose={() => setOpen(false)}
-        onComplete={(data) => {
-          console.log("Datos del guion aceptado:", data);
+        onComplete={() => {
+          // opcional: navega o refresca listas
         }}
       />
     </>

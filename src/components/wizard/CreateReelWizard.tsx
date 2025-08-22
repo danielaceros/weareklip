@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import toast from "react-hot-toast";
 import { ScriptForm } from "@/components/script/ScriptForm";
 import { AudioForm } from "@/components/audio/AudioForm";
@@ -23,9 +23,9 @@ import { TemplateSelect } from "@/components/edit/TemplateSelect";
 import { DictionaryInput } from "@/components/edit/DictionaryInput";
 import { MagicOptions } from "@/components/edit/MagicOptions";
 import { collection, getDocs, getFirestore } from "firebase/firestore";
-import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 NUEVO
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
-interface ReelData {
+type ReelData = {
   script: string;
   audioUrl?: string;
   selectedVideo?: string;
@@ -35,12 +35,20 @@ interface ReelData {
   magicZooms?: boolean;
   magicBrolls?: boolean;
   magicBrollsPercentage?: number;
-}
+};
 
-interface CreateReelWizardProps {
+type CreateReelWizardProps = {
   open: boolean;
   onClose: () => void;
   onComplete: (data: ReelData) => void;
+};
+
+// helpers sin any
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function hasString(v: unknown, key: string): v is Record<string, string> {
+  return isRecord(v) && typeof v[key] === "string";
 }
 
 export default function CreateReelWizard({
@@ -49,6 +57,8 @@ export default function CreateReelWizard({
   onComplete,
 }: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
+
+  // flujo de pasos
   const [step, setStep] = useState(1);
   const [modalType, setModalType] = useState<"main" | "script" | "audio">(
     "main"
@@ -82,18 +92,20 @@ export default function CreateReelWizard({
   const [magicZooms, setMagicZooms] = useState(false);
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
-
   const [syncLoading, setSyncLoading] = useState(false);
 
-  const { ensureSubscribed } = useSubscriptionGate(); // 👈 NUEVO
+  const { ensureSubscribed } = useSubscriptionGate();
 
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
+    const unsub = onAuthStateChanged(auth, (currentUser) =>
+      setUser(currentUser)
+    );
+    return () => unsub();
   }, []);
 
+  // --- Paso 1: guion ---
   const generateScript = async () => {
-    // 👇 GATE: exige suscripción antes de generar guion
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
 
@@ -125,10 +137,15 @@ export default function CreateReelWizard({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error generando guion");
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error generando guion"
+        );
 
-      setScript(data.script || "");
+      setScript(hasString(parsed, "script") ? parsed.script : "");
       setModalType("script");
       toast.success("✅ Guion generado correctamente", { id: loadingId });
     } catch (err) {
@@ -146,8 +163,8 @@ export default function CreateReelWizard({
     setStep(2);
   };
 
+  // --- Paso 2: audio ---
   const generateAudio = async () => {
-    // 👇 GATE: exige suscripción antes de generar audio
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
 
@@ -185,10 +202,15 @@ export default function CreateReelWizard({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error generando audio");
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error generando audio"
+        );
 
-      setAudioUrl(data.audioUrl);
+      setAudioUrl(hasString(parsed, "audioUrl") ? parsed.audioUrl : null);
       setModalType("audio");
       toast.success("✅ Audio generado correctamente", { id: loadingId });
     } catch (err) {
@@ -203,9 +225,10 @@ export default function CreateReelWizard({
     toast.success("🎧 Audio aceptado. Vamos al paso de vídeo.");
     setModalType("main");
     setStep(3);
-    loadClonacionVideos();
+    void loadClonacionVideos();
   };
 
+  // --- Paso 3: vídeos de clonación y envío ---
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
@@ -214,22 +237,19 @@ export default function CreateReelWizard({
       const db = getFirestore();
       const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
       const snap = await getDocs(clonacionRef);
+
       if (snap.empty) {
         setVideos([]);
         toast("ℹ️ No tienes vídeos de clonación todavía.");
         return;
       }
 
-      const videosData = snap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data?.titulo ?? doc.id,
-          url: data?.url ?? "",
-        };
+      const list = snap.docs.map((doc) => {
+        const d = doc.data() as { titulo?: string; url?: string } | undefined;
+        return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
       });
 
-      setVideos(videosData);
+      setVideos(list);
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudieron cargar los vídeos de clonación.");
@@ -239,7 +259,6 @@ export default function CreateReelWizard({
   };
 
   const finishWizard = async () => {
-    // 👇 GATE: exige suscripción antes de enviar el pipeline
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
 
@@ -257,7 +276,8 @@ export default function CreateReelWizard({
 
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/sync/pipeline", {
+      // Usa /api/sync/create (ajusta si tu endpoint es otro)
+      const res = await fetch("/api/sync/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -274,8 +294,14 @@ export default function CreateReelWizard({
           magicBrollsPercentage,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al iniciar lipsync");
+
+      const parsed = await res
+        .json()
+        .catch(() => ({} as Record<string, unknown>));
+      if (!res.ok)
+        throw new Error(
+          (parsed as { error?: string }).error || "Error al iniciar lipsync"
+        );
 
       toast.success(
         `🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`,
@@ -345,6 +371,7 @@ export default function CreateReelWizard({
             {step === 3 && (
               <div className="space-y-4">
                 <Label>Selecciona un vídeo de clonación</Label>
+
                 {loadingVideos ? (
                   <p>Cargando vídeos...</p>
                 ) : videos.length > 0 ? (

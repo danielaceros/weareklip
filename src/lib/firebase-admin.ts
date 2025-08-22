@@ -2,71 +2,62 @@
 import admin from "firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
-// Normaliza la private key (maneja comillas y \n)
-function normalizePrivateKey(key?: string) {
-  if (!key) return undefined;
-  let unwrapped = key;
-  if (unwrapped.startsWith('"') && unwrapped.endsWith('"')) {
-    unwrapped = unwrapped.slice(1, -1);
-  }
-  return unwrapped.replace(/\\n/g, "\n");
+function normalizePK(pk?: string) {
+  if (!pk) return undefined;
+  let v = pk.trim();
+  if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
+  return v.replace(/\\n/g, "\n");
 }
 
-export function initAdmin(): void {
+export function initAdmin() {
   if (admin.apps.length) return;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
-  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
-  const databaseURL =
-    process.env.FIREBASE_DATABASE_URL ||
-    (projectId ? `https://${projectId}.firebaseio.com` : undefined);
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(
-      "[firebase-admin] Faltan FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY"
-    );
+  if (
+    !process.env.FIREBASE_PROJECT_ID ||
+    !process.env.FIREBASE_CLIENT_EMAIL ||
+    !process.env.FIREBASE_PRIVATE_KEY
+  ) {
+    throw new Error("Missing Firebase Admin environment variables");
   }
 
+  // Normaliza bucket y fuerza .appspot.com
+  let storageBucket =
+    (process.env.FIREBASE_STORAGE_BUCKET || "").trim() ||
+    `${process.env.FIREBASE_PROJECT_ID}.appspot.com`;
+  storageBucket = storageBucket.replace(/\.firebasestorage\.app$/i, ".appspot.com");
+
   admin.initializeApp({
-    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-    ...(storageBucket ? { storageBucket } : {}),
-    ...(databaseURL ? { databaseURL } : {}),
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: normalizePK(process.env.FIREBASE_PRIVATE_KEY),
+    }),
+    storageBucket,
+    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
   });
 
   if (process.env.NODE_ENV !== "production") {
-    console.log("[firebase-admin] initialized");
+    console.log("Firebase Admin initialized successfully");
+    console.log("Bucket:", storageBucket);
   }
 }
 initAdmin();
 
-// App
-const app = admin.app();
+// Firestore
+export const db = admin.firestore();
+export const adminDB = db;
 
 // Auth
-export const adminAuth = admin.auth(app);
-export const auth = adminAuth; // alias
+export const auth = admin.auth();
+export const adminAuth = auth;
 
-// Firestore
-export const adminDB = admin.firestore(app);
-export const db = adminDB; // alias
+// Storage (Bucket por defecto)
+export const storage = admin.storage().bucket();
+export const adminStorage = admin.storage();
 
-// Storage (objeto Storage y Bucket por defecto)
-export const adminStorage = admin.storage(app); // objeto Storage
-export const storageObj = adminStorage;         // alias explícito del objeto Storage
-export const storageBucket = process.env.FIREBASE_STORAGE_BUCKET
-  ? adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET)
-  : adminStorage.bucket();                      // Bucket por defecto
-export const bucket = storageBucket;            // alias del Bucket
-
-// Para compatibilidad: muchos proyectos esperan "storage" como Bucket
-export const storage = storageBucket;
-
-// Helpers Firestore
+// ✅ Re-exporta helpers que usa tu código
 export const adminFieldValue = FieldValue;
 export const adminTimestamp = Timestamp;
 
-// Por si necesitas el namespace completo o la app
+// Por si necesitas el objeto completo
 export { admin };
-export { app };

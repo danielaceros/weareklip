@@ -293,32 +293,40 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 12) Reportar uso (solo parte de pago) → Meter Events + acumular pendiente local
-    let usageEventId: string | null = null;
-    if (paidQty > 0) {
-      const ident = `${uid}:${kind}:${Date.now()}`;
-      const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } })
-        .billing?.meterEvents;
-      if (!meter || typeof meter.create !== "function") {
-        throw new Error("Tu SDK de Stripe no soporta billing.meterEvents.create. Actualiza 'stripe'.");
-      }
-      const evt = await meter.create(
-        {
-          event_name: meterEventName,
-          payload: { value: paidQty, stripe_customer_id: customerId },
-          identifier: ident,
-        },
-        { idempotencyKey: ident }
-      );
-      usageEventId = evt.id ?? null;
+// 12) Reportar uso (solo parte de pago) → Meter Events + acumular pendiente local
+let usageEventId: string | null = null;
+if (paidQty > 0) {
+  // Soporte idempotencia: mismo ident si reintentas con la misma key
+  const idemHeader = req.headers.get("x-idempotency-key");
+  const idemBody = typeof body.idem === "string" ? body.idem : undefined;
+  const idem = idemHeader || idemBody || String(Date.now());
+  const ident = `${uid}:${kind}:${idem}`;
 
-      if (chargedCentsThisCall > 0) {
-        await userRef.update({
-          pendingLocalCents: adminFieldValue.increment(chargedCentsThisCall),
-          lastUpdated: adminTimestamp.now(),
-        });
-      }
-    }
+  const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } })
+    .billing?.meterEvents;
+  if (!meter || typeof meter.create !== "function") {
+    throw new Error("Tu SDK de Stripe no soporta billing.meterEvents.create. Actualiza 'stripe'.");
+  }
+
+  const evt = await meter.create(
+    {
+      event_name: meterEventName,
+      payload: { value: paidQty, stripe_customer_id: customerId },
+      identifier: ident,
+    },
+    { idempotencyKey: ident }
+  );
+  usageEventId = evt.id ?? null;
+
+  if (chargedCentsThisCall > 0) {
+    await userRef.update({
+      pendingLocalCents: adminFieldValue.increment(chargedCentsThisCall),
+      lastUpdated: adminTimestamp.now(),
+    });
+  }
+}
+
+
 
     // 13) Contadores locales (estadísticos)
     await userRef.update({

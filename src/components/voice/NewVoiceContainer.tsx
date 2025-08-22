@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { onAuthStateChanged, getAuth, User } from "firebase/auth";
+import { onAuthStateChanged, getAuth, type User } from "firebase/auth";
 import { useDropzone } from "react-dropzone";
 import toast from "react-hot-toast";
 import {
@@ -16,7 +16,11 @@ import {
 import { useRouter } from "next/navigation";
 import { VoiceSamplesList } from "./VoiceSamplesList";
 import { ProgressBar } from "./ProgressBar";
-import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // ⬅️ NUEVO
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import { v4 as uuidv4 } from "uuid";
+
+type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
+type VoiceCreateErr = { error?: string; message?: string };
 
 export default function NewVoiceContainer() {
   const router = useRouter();
@@ -26,30 +30,29 @@ export default function NewVoiceContainer() {
   >([]);
   const [totalDuration, setTotalDuration] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{
-    [key: string]: number;
-  }>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const storage = getStorage();
 
-  const { ensureSubscribed } = useSubscriptionGate(); // ⬅️ NUEVO
+  const { ensureSubscribed } = useSubscriptionGate();
+
+  useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
   useEffect(() => {
-    const auth = getAuth();
-    return onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-    });
-  }, []);
+    if (user) void fetchSamples();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-  const getAudioDurationFromURL = (url: string): Promise<number> => {
-    return new Promise((resolve, reject) => {
+  const getAudioDurationFromURL = (url: string): Promise<number> =>
+    new Promise((resolve, reject) => {
       const audio = document.createElement("audio");
       audio.src = url;
       audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
       audio.addEventListener("error", (e) => reject(e));
     });
-  };
 
   const fetchSamples = useCallback(async () => {
     if (!user) return;
@@ -84,9 +87,10 @@ export default function NewVoiceContainer() {
         toast.error("Debes iniciar sesión");
         return;
       }
-      const fileName = `voice-sample-${Date.now()}.${
-        file.type.split("/")[1] || "webm"
-      }`;
+      const rawExt = file.type.split("/")[1] || "webm";
+      const safeExt = rawExt === "x-m4a" ? "m4a" : rawExt;
+      const fileName = `voice-sample-${Date.now()}.${safeExt}`;
+
       const storageRef = ref(
         storage,
         `users/${user.uid}/voice-samples/${fileName}`
@@ -107,18 +111,18 @@ export default function NewVoiceContainer() {
           (error) => {
             toast.error(`Error al subir ${file.name}`);
             setUploadProgress((prev) => {
-              const newState = { ...prev };
-              delete newState[fileName];
-              return newState;
+              const next = { ...prev };
+              delete next[fileName];
+              return next;
             });
             reject(error);
           },
           async () => {
             toast.success(`✅ ${file.name} subida correctamente`);
             setUploadProgress((prev) => {
-              const newState = { ...prev };
-              delete newState[fileName];
-              return newState;
+              const next = { ...prev };
+              delete next[fileName];
+              return next;
             });
             await fetchSamples();
             resolve();
@@ -213,16 +217,26 @@ export default function NewVoiceContainer() {
       return;
     }
 
-    // ⬇️ PAYWALL: bloquea si no tiene trial/activa y redirige a facturación
     const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
     if (!ok) return;
 
     try {
+      const idToken = await user.getIdToken(true);
+      const idem = uuidv4();
+
+      // Extrae los paths de Storage desde las URLs de descarga
       const paths = samples
         .map((s) => {
-          const decoded = decodeURIComponent(s.url);
-          const match = decoded.match(/o\/(.+?)\?/);
-          return match ? match[1] : "";
+          try {
+            const u = new URL(s.url);
+            const m = u.pathname.match(/\/o\/(.+)$/);
+            const p = m ? decodeURIComponent(m[1]) : "";
+            return p.split("?")[0];
+          } catch {
+            const decoded = decodeURIComponent(s.url);
+            const m = decoded.match(/\/o\/(.+?)\?/);
+            return m ? m[1] : "";
+          }
         })
         .filter(Boolean);
 
@@ -230,18 +244,40 @@ export default function NewVoiceContainer() {
 
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+          "X-Idempotency-Key": idem,
+        },
         body: JSON.stringify({
           paths,
           voiceName: `Voz-${Date.now()}`,
         }),
       });
 
+      // Parse seguro: JSON o texto
+      let data: VoiceCreateOk | VoiceCreateErr;
+      try {
+        data = (await res.json()) as VoiceCreateOk | VoiceCreateErr;
+      } catch {
+        const txt = await res.text().catch(() => "");
+        data = { error: txt || "Respuesta no JSON" };
+      }
+
       toast.dismiss();
 
-      const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Error al crear voz");
+        const msg =
+          ("error" in data && data.error) ||
+          ("message" in data && data.message) ||
+          `HTTP ${res.status} al crear voz`;
+        console.error("voice/create error:", res.status, data);
+        toast.error(msg);
+        return;
+      }
+
+      if (!("voice_id" in data) || typeof data.voice_id !== "string") {
+        toast.error("Respuesta inválida del servidor");
         return;
       }
 
@@ -252,10 +288,14 @@ export default function NewVoiceContainer() {
 
       await setDoc(doc(db, `users/${user.uid}/voices/${data.voice_id}`), {
         voice_id: data.voice_id,
-        requires_verification: data.requires_verification,
+        requires_verification:
+          "requires_verification" in data
+            ? data.requires_verification
+            : undefined,
         name: `Voz-${Date.now()}`,
         paths,
         created_at: serverTimestamp(),
+        idem,
       });
 
       toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
@@ -263,7 +303,9 @@ export default function NewVoiceContainer() {
     } catch (err) {
       console.error(err);
       toast.dismiss();
-      toast.error("Error de conexión al crear la voz");
+      toast.error(
+        (err as Error).message || "Error de conexión al crear la voz"
+      );
     }
   };
 

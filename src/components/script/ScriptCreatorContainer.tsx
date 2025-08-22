@@ -41,11 +41,18 @@ export default function ScriptCreatorContainer() {
     }
 
     setLoading(true);
-
     try {
+      // Token Firebase para auth del backend
+      const idToken = await user.getIdToken();
+
+      // Llamada a TU endpoint seguro (genera y registra uso)
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`, // 👈 obligatorio
+          "X-Idempotency-Key": uuidv4(), // 👈 evita dobles cobros en reintentos
+        },
         body: JSON.stringify({
           description,
           tone,
@@ -61,6 +68,7 @@ export default function ScriptCreatorContainer() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando guion");
 
+      // Guardar igual que antes
       const scriptId = uuidv4();
       await setDoc(doc(db, "users", user.uid, "guiones", scriptId), {
         description,
@@ -82,11 +90,9 @@ export default function ScriptCreatorContainer() {
       router.push("/dashboard/script");
     } catch (err: unknown) {
       console.error(err);
-      if (err instanceof Error) {
-        toast.error(err.message);
-      } else {
-        toast.error("No se pudo generar el guion.");
-      }
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo generar el guion."
+      );
     } finally {
       setLoading(false);
     }
