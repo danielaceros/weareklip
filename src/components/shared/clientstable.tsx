@@ -1,3 +1,4 @@
+// src/components/shared/clientstable.tsx
 "use client";
 
 import * as React from "react";
@@ -46,7 +47,7 @@ export default function ClientsTable({
   const COL_EMAIL = t("admin.clients.table.email");
   const COL_STATUS = t("admin.clients.table.status");
   const COL_PLAN = t("admin.clients.table.plan");
-  const COL_SUBSCRIPTION = t("admin.clients.table.subscription"); // Inicio/Fin
+  const COL_SUBSCRIPTION = t("admin.clients.table.subscription");
   const COL_SUB_END = t("admin.clients.table.subEnd");
   const COL_NOTES = t("clientForm.labels.internalNotes");
 
@@ -62,26 +63,28 @@ export default function ClientsTable({
       )}
     >
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-foreground">
+        <table
+          className="w-full text-sm text-foreground"
+          role="table"
+          aria-label={t("admin.clients.title")}
+        >
           <thead className="bg-muted/60 border-b border-border">
             <tr>
-              {[
-                <Th key="name">{COL_NAME}</Th>,
-                <Th key="email">{COL_EMAIL}</Th>,
-                <Th key="status" className="w-[260px]">
-                  {COL_STATUS}
-                </Th>,
-                <Th key="plan">{COL_PLAN}</Th>,
-                <Th key="sub" className="whitespace-nowrap">
-                  {COL_SUBSCRIPTION}
-                </Th>,
-                <Th key="end" className="w-[180px]">
-                  {COL_SUB_END}
-                </Th>,
-                <Th key="notes" className="w-[280px]">
-                  {COL_NOTES}
-                </Th>,
-              ]}
+              <Th scope="col">{COL_NAME}</Th>
+              <Th scope="col">{COL_EMAIL}</Th>
+              <Th scope="col" className="w-[260px]">
+                {COL_STATUS}
+              </Th>
+              <Th scope="col">{COL_PLAN}</Th>
+              <Th scope="col" className="whitespace-nowrap">
+                {COL_SUBSCRIPTION}
+              </Th>
+              <Th scope="col" className="w-[180px]">
+                {COL_SUB_END}
+              </Th>
+              <Th scope="col" className="w-[280px]">
+                {COL_NOTES}
+              </Th>
             </tr>
           </thead>
 
@@ -95,7 +98,9 @@ export default function ClientsTable({
                   "hover:bg-muted/70 cursor-pointer"
                 )}
               >
-                <Td className="whitespace-nowrap">{c.name?.trim() || "—"}</Td>
+                <Td className="whitespace-nowrap font-medium">
+                  {c.name?.trim() || "—"}
+                </Td>
 
                 <Td className="whitespace-nowrap text-muted-foreground">
                   {c.email}
@@ -110,7 +115,7 @@ export default function ClientsTable({
                           ? "bg-emerald-500"
                           : "bg-muted-foreground/40"
                       )}
-                      aria-hidden
+                      aria-hidden="true"
                     />
                     <select
                       className={cn(
@@ -118,6 +123,7 @@ export default function ClientsTable({
                         "bg-card text-foreground border border-border",
                         "focus:outline-none focus:ring-2 focus:ring-primary/40"
                       )}
+                      aria-label={COL_STATUS}
                       value={c.estado || "Nuevo Cliente"}
                       onChange={(e) => onChange(c.uid, "estado", e.target.value)}
                     >
@@ -136,17 +142,14 @@ export default function ClientsTable({
                   {c.planName || "—"}
                 </Td>
 
-                {/* Subscripción (inicio) */}
                 <Td className="whitespace-nowrap text-muted-foreground">
                   {formatDateSafe(c.startDate ?? c.createdAt)}
                 </Td>
 
-                {/* Fin */}
                 <Td className="whitespace-nowrap text-muted-foreground">
                   {formatDateSafe(c.endDate)}
                 </Td>
 
-                {/* Notas */}
                 <Td onClick={(e) => e.stopPropagation()}>
                   <input
                     className={cn(
@@ -155,6 +158,7 @@ export default function ClientsTable({
                       "placeholder:text-muted-foreground/70",
                       "focus:outline-none focus:ring-2 focus:ring-primary/40"
                     )}
+                    aria-label={COL_NOTES}
                     value={c.notas || ""}
                     placeholder="—"
                     onChange={(e) => onChange(c.uid, "notas", e.target.value)}
@@ -165,7 +169,10 @@ export default function ClientsTable({
 
             {clients.length === 0 && (
               <tr>
-                <Td colSpan={7} className="text-center py-10 text-muted-foreground">
+                <Td
+                  colSpan={7}
+                  className="text-center py-10 text-muted-foreground"
+                >
                   {LABEL_EMPTY}
                 </Td>
               </tr>
@@ -185,6 +192,7 @@ export default function ClientsTable({
             }}
             disabled={loadingMore}
             aria-busy={loadingMore}
+            aria-label={LABEL_LOAD_MORE}
             className="bg-accent text-accent-foreground hover:bg-accent/80"
           >
             {loadingMore ? LABEL_LOADING : LABEL_LOAD_MORE}
@@ -198,9 +206,16 @@ export default function ClientsTable({
 function Th({
   children,
   className,
-}: React.PropsWithChildren<{ className?: string }>) {
+  scope,
+}: React.PropsWithChildren<{ className?: string; scope?: "col" | "row" }>) {
   return (
-    <th className={cn("text-left font-semibold text-foreground/90 px-4 py-3", className)}>
+    <th
+      scope={scope}
+      className={cn(
+        "text-left font-semibold text-foreground/90 px-4 py-3",
+        className
+      )}
+    >
       {children}
     </th>
   );
@@ -217,7 +232,11 @@ function Td({
   onClick?: React.MouseEventHandler<HTMLTableCellElement>;
 }>) {
   return (
-    <td onClick={onClick} colSpan={colSpan} className={cn("px-4 py-3 align-middle", className)}>
+    <td
+      onClick={onClick}
+      colSpan={colSpan}
+      className={cn("px-4 py-3 align-middle", className)}
+    >
       {children}
     </td>
   );

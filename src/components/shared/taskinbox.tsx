@@ -9,7 +9,7 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import TaskList from "@/components/shared/tasklist";
+import TaskList from "@/components/shared/TaskList";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";

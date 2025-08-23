@@ -65,7 +65,7 @@ export async function POST(req: Request) {
             const baseUrl =
               process.env.NODE_ENV === "development"
                 ? process.env.NGROK_URL || "http://localhost:3000"
-                : "https://app.weareklip.com";
+                : "https://app.viralizalo.ai";
 
             const webhookUrl = `${baseUrl}/api/webhook/submagic?uid=${uid}`;
 

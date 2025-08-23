@@ -1,3 +1,4 @@
+// src/app/api/stripe/checkout/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
@@ -36,22 +37,22 @@ async function safeRetrieveCustomer(id: string): Promise<Stripe.Customer | null>
     return c as Stripe.Customer;
   } catch (e: unknown) {
     if (isStripeError(e) && (e.type === "StripeInvalidRequestError" || e.code === "resource_missing")) {
-      return null; // el customer no existe en este entorno
+      return null;
     }
-    throw e; // otros errores reales
+    throw e;
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // 1) Auth (Authorization: Bearer <idToken> o en el body)
+    // 1) Auth (Bearer o body.idToken)
     const authHeader = req.headers.get("authorization");
     const hasBearer = authHeader?.startsWith("Bearer ");
     let body: Body = {};
     try {
       body = await req.json();
     } catch {
-      // sin body -> ok
+      // vacío
     }
 
     const idToken =
@@ -65,10 +66,6 @@ export async function POST(req: NextRequest) {
 
     const decoded = await adminAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
-    const email = decoded.email || decoded.firebase?.identities?.email?.[0];
-    if (!email) {
-      return NextResponse.json({ error: "Email not available" }, { status: 400 });
-    }
 
     // 2) Validar plan
     const plan = body.plan;
@@ -77,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
     const priceId = PRICE_BY_PLAN[plan];
 
-    // 3) Resolver/crear customer robusto
+    // 3) Resolver customerId desde Firestore
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     const savedId = (snap.data()?.stripeCustomerId as string | undefined) ?? undefined;
@@ -89,31 +86,29 @@ export async function POST(req: NextRequest) {
       if (c) customerId = c.id;
     }
 
+    // Si no existe → crear customer nuevo con metadata.uid
     if (!customerId) {
-      const list = await stripe.customers.list({ email, limit: 1 });
-      if (list.data.length > 0) customerId = list.data[0].id;
-    }
-
-    if (!customerId) {
-      const created = await stripe.customers.create({ email, metadata: { uid } });
+      const created = await stripe.customers.create({
+        metadata: { uid },
+      });
       customerId = created.id;
     }
 
-    // guardar/actualizar (sobrescribe IDs inválidos)
+    // Guardar/actualizar en Firestore
     await userRef.set({ stripeCustomerId: customerId }, { merge: true });
 
-    // 4) Checkout Session
-   const session = await stripe.checkout.sessions.create({
-  mode: "subscription",
-  customer: customerId,
-  payment_method_types: ["card"],
-  line_items: [{ price: priceId, quantity: 1 }],
-  metadata: { uid, plan },
-  subscription_data: { metadata: { uid, plan } },
-  success_url: `${APP_URL}/dashboard?success=1`,
-  cancel_url: `${APP_URL}/dashboard/facturacion?cancel=1`,
-  allow_promotion_codes: true,
-});
+    // 4) Crear Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      payment_method_types: ["card"],
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { uid, plan },
+      subscription_data: { metadata: { uid, plan } },
+      success_url: `${APP_URL}/dashboard?success=1`,
+      cancel_url: `${APP_URL}/dashboard?cancel=1`,
+      allow_promotion_codes: true,
+    });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
   } catch (e: unknown) {

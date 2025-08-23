@@ -6,9 +6,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
 
-import UserProfile from "@/components/shared/userprofile";
-import SubscriptionInfo from "@/components/shared/subinfo";
-import ClonacionVideos from "@/components/shared/clonacionvideos";
+import UserProfile from "@/components/shared/UserProfile";
+import SubscriptionInfo from "@/components/shared/Subinfo";
+import ClonacionVideos from "@/components/shared/ClonacionVideos";
 
 interface UserData {
   email: string;

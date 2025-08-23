@@ -1,6 +1,6 @@
 "use client"
 
-import TaskItem from "@/components/shared/taskitem"
+import TaskItem from "@/components/shared/TaskItem"
 
 type Task = {
   id: string

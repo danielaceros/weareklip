@@ -1,3 +1,4 @@
+// src/components/shared/clientdatosform.tsx
 "use client";
 
 import Image from "next/image";
@@ -20,24 +21,32 @@ type Cliente = {
 type Props = {
   cliente: Cliente;
   setCliente: React.Dispatch<React.SetStateAction<Cliente | null>>;
-  uid: string; // compat
+  uid: string;
   onSave: () => Promise<void>;
 };
 
-export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props) {
+export default function ClienteDatosForm({
+  cliente,
+  setCliente,
+  onSave,
+}: Props) {
   const t = useTranslations("clientForm");
   if (!cliente) return null;
 
-  const copiarEmail = () => {
-    navigator.clipboard.writeText(cliente.email);
-    toast.success(t("emailCopied"));
+  const copiarEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(cliente.email);
+      toast.success(t("emailCopied"));
+    } catch {
+      toast.error(t("copyError"));
+    }
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <h2 className="text-xl font-semibold">📝 {t("title")}</h2>
 
-      {/* Email (solo lectura + copiar) */}
+      {/* Email */}
       <div>
         <div className="flex items-center gap-2">
           <Image
@@ -61,33 +70,37 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
             title={t("copyEmail")}
             aria-label={t("copyEmail")}
           >
-            <Copy size={16} />
+            <Copy size={16} aria-hidden="true" />
           </Button>
         </div>
       </div>
 
       {/* Nombre */}
       <div className="flex items-center gap-2">
-        <User size={24} aria-hidden="true" />
+        <User size={20} aria-hidden="true" />
         <Input
           placeholder={t("placeholders.name")}
           aria-label={t("labels.name")}
           value={cliente.name || ""}
           onChange={(e) =>
-            setCliente((prev) => (prev ? { ...prev, name: e.target.value } : prev))
+            setCliente((prev) =>
+              prev ? { ...prev, name: e.target.value } : prev
+            )
           }
         />
       </div>
 
       {/* Teléfono */}
       <div className="flex items-center gap-2">
-        <Phone size={24} aria-hidden="true" />
+        <Phone size={20} aria-hidden="true" />
         <Input
           placeholder={t("placeholders.phone")}
           aria-label={t("labels.phone")}
           value={cliente.phone || ""}
           onChange={(e) =>
-            setCliente((prev) => (prev ? { ...prev, phone: e.target.value } : prev))
+            setCliente((prev) =>
+              prev ? { ...prev, phone: e.target.value } : prev
+            )
           }
         />
       </div>
@@ -97,8 +110,8 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
         <Image
           src="/instagram-icon.svg"
           alt="Instagram logo"
-          width={24}
-          height={24}
+          width={20}
+          height={20}
           className="rounded-full object-cover"
         />
         <Input
@@ -115,7 +128,7 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
 
       {/* Carpeta de trabajo */}
       <div className="flex items-center gap-2">
-        <Folder size={24} aria-hidden="true" />
+        <Folder size={20} aria-hidden="true" />
         <Input
           placeholder={t("placeholders.workFolder")}
           aria-label={t("labels.workFolder")}
@@ -135,11 +148,15 @@ export default function ClienteDatosForm({ cliente, setCliente, onSave }: Props)
         aria-label={t("notesPlaceholder")}
         value={cliente.notas || ""}
         onChange={(e) =>
-          setCliente((prev) => (prev ? { ...prev, notas: e.target.value } : prev))
+          setCliente((prev) =>
+            prev ? { ...prev, notas: e.target.value } : prev
+          )
         }
       />
 
-      <Button onClick={onSave}>{t("save")}</Button>
+      <Button type="button" onClick={onSave} className="w-full">
+        {t("save")}
+      </Button>
     </div>
   );
 }

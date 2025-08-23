@@ -1,26 +1,18 @@
 // src/app/api/elevenlabs/audio/regenerate/route.ts
 import { NextResponse } from "next/server";
-import {
-  adminAuth,
-  adminDB,
-  adminStorage,
-  adminTimestamp,
-} from "@/lib/firebase-admin";
+import { adminAuth, adminStorage } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = {
-  audioId: string;
   text: string;
-  voiceId?: string;
-  // llegan en snake_case desde el cliente:
+  voiceId: string;
   language_code?: string;
   voice_settings?: Record<string, unknown>;
 };
 
-const FREE_REGENS = 2;
 const bucket = adminStorage.bucket(
   process.env.FIREBASE_STORAGE_BUCKET || undefined
 );
@@ -37,56 +29,15 @@ export async function POST(req: Request) {
 
     // 2) Body
     const data = (await req.json()) as Body;
-
-    const audioId = (data.audioId || "").trim();
-    const text = (data.text || "").trim();
-    const bodyVoiceId = (data.voiceId || "").trim();
-
-    // ✅ usamos camelCase internamente y mapeamos a snake_case al enviar
-    const languageCode =
-      typeof data.language_code === "string" && data.language_code.trim()
-        ? data.language_code.trim()
-        : "es";
-
-    const voiceSettings: Record<string, unknown> =
-      data &&
-      typeof data === "object" &&
-      data.voice_settings &&
-      typeof data.voice_settings === "object"
-        ? (data.voice_settings as Record<string, unknown>)
-        : {};
-
-    if (!audioId || !text) {
+    const { text, voiceId, language_code, voice_settings } = data;
+    if (!text || !voiceId) {
       return NextResponse.json(
-        { error: "audioId y text son obligatorios" },
+        { error: "text y voiceId son obligatorios" },
         { status: 400 }
       );
     }
 
-    // 3) Limite de regeneraciones
-    const docRef = adminDB.collection("users").doc(uid).collection("audios").doc(audioId);
-    const snap = await docRef.get();
-    if (!snap.exists) {
-      return NextResponse.json({ error: "Audio no encontrado" }, { status: 404 });
-    }
-    const current = snap.data() || {};
-    const used = Number(current.regenerations ?? 0);
-    if (used >= FREE_REGENS) {
-      return NextResponse.json(
-        {
-          error:
-            "Has alcanzado los 2 reintentos gratis. Vuelve a recargar saldo para intentarlo de nuevo.",
-        },
-        { status: 402 }
-      );
-    }
-
-    const voiceId = bodyVoiceId || String(current.voiceId || "");
-    if (!voiceId) {
-      return NextResponse.json({ error: "voiceId inválido" }, { status: 400 });
-    }
-
-    // 4) ElevenLabs TTS
+    // 3) ElevenLabs TTS
     const xiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
     if (!xiKey) {
       return NextResponse.json(
@@ -106,9 +57,8 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           text,
           model_id: "eleven_multilingual_v2",
-          // 👇 la API espera snake_case; mapeamos desde camelCase
-          language_code: languageCode,
-          voice_settings: voiceSettings,
+          language_code,
+          voice_settings,
         }),
       }
     );
@@ -124,9 +74,9 @@ export async function POST(req: Request) {
 
     const buf = Buffer.from(await r.arrayBuffer());
 
-    // 5) Guardar en Storage (nuevo archivo)
+    // 4) Guardar en Storage (sobrescribir simple)
     const token = uuidv4();
-    const path = `users/${uid}/audios/${audioId}-r${used + 1}.mp3`;
+    const path = `users/${uid}/audios/${Date.now()}-regen.mp3`;
     const file = bucket.file(path);
     await file.save(buf, {
       contentType: "audio/mpeg",
@@ -145,21 +95,7 @@ export async function POST(req: Request) {
       path
     )}?alt=media&token=${token}`;
 
-    // 6) Actualizar Firestore (sumar regeneración)
-    await docRef.update({
-      audioUrl,
-      text,
-      voiceId,
-      regenerations: used + 1,
-      updatedAt: adminTimestamp.now(),
-    });
-
-    return NextResponse.json({
-      audioId,
-      audioUrl,
-      regenerations: used + 1,
-      freeLimit: FREE_REGENS,
-    });
+    return NextResponse.json({ audioUrl });
   } catch (e) {
     console.error("Error /api/elevenlabs/audio/regenerate:", e);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
