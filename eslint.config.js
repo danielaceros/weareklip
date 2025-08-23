@@ -1,4 +1,5 @@
 import eslintPluginReact from "eslint-plugin-react";
+import eslintPluginReactHooks from "eslint-plugin-react-hooks"; // 👈 importa el plugin
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import nextPlugin from "@next/eslint-plugin-next";
@@ -17,13 +18,14 @@ export default [
     plugins: {
       "@typescript-eslint": tseslint,
       react: eslintPluginReact,
+      "react-hooks": eslintPluginReactHooks, // 👈 lo añadimos
       "@next/next": nextPlugin,
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "off", // ✅ desactiva el error de any
-      "@typescript-eslint/no-unused-vars": "off", // desactiva unused vars
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
       "prefer-const": "off",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "warn", // ✅ ya funciona
       "react/prop-types": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
     },
