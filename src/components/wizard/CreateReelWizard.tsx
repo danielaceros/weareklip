@@ -94,6 +94,10 @@ export default function CreateReelWizard({
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
   const [syncLoading, setSyncLoading] = useState(false);
 
+  // 🔹 Contadores regeneración
+  const [scriptRegens, setScriptRegens] = useState(0);
+  const [audioRegens, setAudioRegens] = useState(0);
+
   const { ensureSubscribed } = useSubscriptionGate();
 
   useEffect(() => {
@@ -137,15 +141,10 @@ export default function CreateReelWizard({
         }),
       });
 
-      const parsed = await res
-        .json()
-        .catch(() => ({} as Record<string, unknown>));
-      if (!res.ok)
-        throw new Error(
-          (parsed as { error?: string }).error || "Error generando guion"
-        );
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parsed.error || "Error generando guion");
 
-      setScript(hasString(parsed, "script") ? parsed.script : "");
+      setScript(parsed.script || "");
       setModalType("script");
       toast.success("✅ Guion generado correctamente", { id: loadingId });
     } catch (err) {
@@ -153,6 +152,43 @@ export default function CreateReelWizard({
       toast.error("❌ No se pudo generar el guion.", { id: loadingId });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const regenerateScript = async () => {
+    if (scriptRegens >= 2) {
+      toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+      return;
+    }
+    setScriptRegens((c) => c + 1);
+
+    const loadingId = toast.loading("🔄 Regenerando guion...");
+    try {
+      const res = await fetch("/api/chatgpt/scripts/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description,
+          tone,
+          platform,
+          duration,
+          language,
+          structure,
+          addCTA,
+          ctaText,
+        }),
+      });
+
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
+
+      setScript(parsed.script || "");
+      toast.success("✅ Guion regenerado", { id: loadingId });
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
+    } finally {
+      toast.dismiss(loadingId);
     }
   };
 
@@ -202,15 +238,10 @@ export default function CreateReelWizard({
         }),
       });
 
-      const parsed = await res
-        .json()
-        .catch(() => ({} as Record<string, unknown>));
-      if (!res.ok)
-        throw new Error(
-          (parsed as { error?: string }).error || "Error generando audio"
-        );
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parsed.error || "Error generando audio");
 
-      setAudioUrl(hasString(parsed, "audioUrl") ? parsed.audioUrl : null);
+      setAudioUrl(parsed.audioUrl || null);
       setModalType("audio");
       toast.success("✅ Audio generado correctamente", { id: loadingId });
     } catch (err) {
@@ -221,6 +252,41 @@ export default function CreateReelWizard({
     }
   };
 
+  const regenerateAudio = async () => {
+    if (audioRegens >= 2) {
+      toast.error("⚠️ Ya has regenerado el audio 2 veces.");
+      return;
+    }
+    setAudioRegens((c) => c + 1);
+
+    const loadingId = toast.loading("🔄 Regenerando audio...");
+    try {
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/elevenlabs/audio/regenerate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text: audioForm.text,
+          voiceId: audioForm.voiceId,
+        }),
+      });
+
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
+
+      setAudioUrl(parsed.audioUrl || null);
+      toast.success("✅ Audio regenerado", { id: loadingId });
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ No se pudo regenerar el audio.", { id: loadingId });
+    } finally {
+      toast.dismiss(loadingId);
+    }
+  };
+
   const acceptAudio = () => {
     toast.success("🎧 Audio aceptado. Vamos al paso de vídeo.");
     setModalType("main");
@@ -228,7 +294,7 @@ export default function CreateReelWizard({
     void loadClonacionVideos();
   };
 
-  // --- Paso 3: vídeos de clonación y envío ---
+  // --- Paso 3: vídeos clonación ---
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
@@ -276,7 +342,6 @@ export default function CreateReelWizard({
 
     try {
       const token = await user.getIdToken();
-      // Usa /api/sync/create (ajusta si tu endpoint es otro)
       const res = await fetch("/api/sync/create", {
         method: "POST",
         headers: {
@@ -295,13 +360,8 @@ export default function CreateReelWizard({
         }),
       });
 
-      const parsed = await res
-        .json()
-        .catch(() => ({} as Record<string, unknown>));
-      if (!res.ok)
-        throw new Error(
-          (parsed as { error?: string }).error || "Error al iniciar lipsync"
-        );
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parsed.error || "Error al iniciar lipsync");
 
       toast.success(
         `🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`,
@@ -441,8 +501,12 @@ export default function CreateReelWizard({
               className="min-h-[200px] w-full resize-none"
             />
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateScript}>
-                Regenerar
+              <Button
+                variant="outline"
+                onClick={regenerateScript}
+                disabled={scriptRegens >= 2}
+              >
+                Regenerar ({scriptRegens}/2)
               </Button>
               <Button onClick={acceptScript}>Aceptar y continuar</Button>
             </DialogFooter>
@@ -460,8 +524,12 @@ export default function CreateReelWizard({
               <p>No se ha generado audio.</p>
             )}
             <DialogFooter className="flex justify-between">
-              <Button variant="outline" onClick={generateAudio}>
-                Regenerar
+              <Button
+                variant="outline"
+                onClick={regenerateAudio}
+                disabled={audioRegens >= 2}
+              >
+                Regenerar ({audioRegens}/2)
               </Button>
               <Button onClick={acceptAudio}>Aceptar y continuar</Button>
             </DialogFooter>

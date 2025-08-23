@@ -1,3 +1,4 @@
+// src/app/api/scripts/create/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
@@ -12,17 +13,13 @@ type UsageResp = {
   ok?: boolean;
   message?: string;
   error?: string;
-  chargedCents?: number;
-  creditedCents?: number;
-  currency?: string;
 };
 
 export async function POST(req: NextRequest) {
-  // Usamos una misma key para toda la operación (idempotente)
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
 
   try {
-    // 1) Auth: vamos a reenviar el mismo token a /api/billing/usage
+    // 1) Auth
     const authHeader = req.headers.get("authorization") || "";
     const m = authHeader.match(/^Bearer\s+(.+)$/i);
     if (!m) return NextResponse.json({ error: "No auth" }, { status: 401 });
@@ -32,7 +29,7 @@ export async function POST(req: NextRequest) {
     const uid = decoded?.uid;
     if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
-    // 2) Body (igual que antes)
+    // 2) Body
     const {
       description,
       tone,
@@ -45,10 +42,13 @@ export async function POST(req: NextRequest) {
     } = await req.json();
 
     if (!description || !tone || !platform || !duration || !language || !structure) {
-      return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Faltan campos obligatorios" },
+        { status: 400 }
+      );
     }
 
-    // 3) Prompt (igual que tenías)
+    // 3) Prompt
     const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
@@ -69,11 +69,9 @@ Reglas estrictas:
 5. Optimizar para captar la atención en los primeros 3 segundos.
 6. **Devuelve ÚNICAMENTE el guion, sin explicaciones, sin títulos, sin comillas, sin texto extra.**
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
-
-Tu salida debe ser SOLO el texto final del guion listo para usarse.
 `.trim();
 
-    // 4) Generación con OpenAI (como antes)
+    // 4) OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
@@ -83,38 +81,38 @@ Tu salida debe ser SOLO el texto final del guion listo para usarse.
 
     let script = completion.choices[0]?.message?.content || "";
     script = script
-      .replace(/^["'\s]+|["'\s]+$/g, "") // quita comillas/espacios inicio-fin
-      .replace(/^(Aquí.*?:\s*)/i, "")    // quita "Aquí tienes..." etc
+      .replace(/^["'\s]+|["'\s]+$/g, "")
+      .replace(/^(Aquí.*?:\s*)/i, "")
       .trim();
 
-    // 5) Registrar uso en TU backend (meters, crédito, tope…)
-    const usageUrl = new URL("/api/billing/usage", req.nextUrl.origin).toString();
-    const usageRes = await fetch(usageUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,  // reenviamos el mismo Bearer
-        "X-Idempotency-Key": idem,  // misma clave para reintentos
-      },
-      body: JSON.stringify({ kind: "script", quantity: 1, idem }),
-    });
+    // 5) Cobrar uso → /api/billing/usage
+    const usageRes = await fetch(
+      new URL("/api/billing/usage", req.nextUrl.origin),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+          "X-Idempotency-Key": idem,
+        },
+        body: JSON.stringify({ kind: "script", quantity: 1, idem }),
+      }
+    );
 
     let usage: UsageResp = {};
     try {
       usage = (await usageRes.json()) as UsageResp;
-    } catch {
-      usage = {};
-    }
+    } catch {}
 
     if (!usageRes.ok || usage.ok !== true) {
       const msg = usage.message || usage.error || `usage status ${usageRes.status}`;
       throw new Error(msg);
     }
 
-    // 6) Respuesta (igual que esperaba tu cliente)
+    // 6) Respuesta
     return NextResponse.json({ script });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error interno generando guion";
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error interno generando guion";
     const isAuth = /No auth|No uid/i.test(msg);
     return NextResponse.json({ error: msg }, { status: isAuth ? 401 : 500 });
   }

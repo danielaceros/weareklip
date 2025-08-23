@@ -1,8 +1,13 @@
+// src/components/shared/editarvideo.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import type { Video, ReelEstado } from "@/types/video";
 import { Replace, Trash, Save } from "lucide-react";
@@ -34,15 +39,11 @@ export default function EditarVideoModal({
   const tStatus = useTranslations("status");
   const tVideos = useTranslations("videos");
 
-  const [localEstado, setLocalEstado] = useState<number>(
-    typeof (video?.estado as unknown) === "string"
-      ? Number(video?.estado)
-      : (video?.estado ?? 0)
-  );
+  const [localEstado, setLocalEstado] = useState<number>(video?.estado ?? 0);
   const [localNotas, setLocalNotas] = useState<string>(video?.notas ?? "");
   const [localTitulo, setLocalTitulo] = useState<string>(video?.titulo ?? "");
   const [localReelEstado, setLocalReelEstado] = useState<ReelEstado>(
-    (video?.reelEstado as ReelEstado) || "Recibido"
+    video?.reelEstado || "Recibido"
   );
 
   const [nuevoArchivo, setNuevoArchivo] = useState<File | null>(null);
@@ -51,14 +52,10 @@ export default function EditarVideoModal({
 
   useEffect(() => {
     if (video) {
-      setLocalEstado(
-        typeof (video.estado as unknown) === "string"
-          ? Number(video.estado)
-          : video.estado
-      );
+      setLocalEstado(typeof video.estado === "string" ? Number(video.estado) : video.estado);
       setLocalNotas(video.notas ?? "");
-      setLocalTitulo(video.titulo);
-      setLocalReelEstado((video.reelEstado as ReelEstado) || "Recibido");
+      setLocalTitulo(video.titulo ?? "");
+      setLocalReelEstado(video.reelEstado || "Recibido");
       setNuevoArchivo(null);
       setPreviewUrl(null);
     }
@@ -80,8 +77,7 @@ export default function EditarVideoModal({
     const file = e.target.files?.[0];
     if (file) {
       const maxSizeMB = 100;
-      const maxSizeBytes = maxSizeMB * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
+      if (file.size > maxSizeMB * 1024 * 1024) {
         window.alert(t("errors.fileTooLarge", { max: maxSizeMB }));
         return;
       }
@@ -90,9 +86,10 @@ export default function EditarVideoModal({
     }
   };
 
-  const showCorrecciones = localEstado === 1;
-  const previewTitle = localTitulo?.trim() ? localTitulo : tVideos("untitled");
   if (!video) return null;
+
+  const showCorrecciones = localEstado === 1;
+  const previewTitle = localTitulo?.trim() || tVideos("untitled");
 
   return (
     <Dialog open={!!video} onOpenChange={onClose}>
@@ -100,12 +97,10 @@ export default function EditarVideoModal({
         <DialogTitle>{t("title")}</DialogTitle>
       </VisuallyHidden>
 
-      {/* Modal ancho real y alto fijo */}
-      <DialogContent className="w-[95vw] max-w-[95vw] md:max-w-[95vw] lg:max-w-[95vw] xl:max-w-[1400px] h-[80vh] p-6">
-        {/* Dos columnas: izquierda vídeo, derecha formulario fijo */}
+      <DialogContent className="w-[95vw] max-w-[1400px] h-[80vh] p-6">
         <div className="grid h-full min-h-0 gap-6 grid-cols-[minmax(320px,1fr)_740px]">
-          {/* Vídeo 9:16 visible siempre */}
-          <div className="min-h-0 min-w-0 flex items-center justify-center bg-black rounded-lg overflow-hidden">
+          {/* Vídeo */}
+          <div className="flex items-center justify-center bg-black rounded-lg overflow-hidden">
             <video
               controls
               src={previewUrl || video?.url}
@@ -116,22 +111,28 @@ export default function EditarVideoModal({
           </div>
 
           {/* Panel derecho */}
-          <div className="min-h-0 w-full rounded-lg p-4 flex flex-col justify-between border border-border shadow-sm bg-card text-card-foreground">
+          <div className="rounded-lg p-4 flex flex-col justify-between border border-border shadow-sm bg-card text-card-foreground">
             <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
               <DialogTitle className="text-xl font-semibold mb-2">
                 {t("title")}
               </DialogTitle>
 
-              <div className="rounded-lg border p-3">
-                <p className="text-xs mb-2 text-foreground/60">Progreso del reel</p>
-                {/* Stepper estrecho (sin scroll) */}
+              {/* Progreso reel */}
+              <div className="rounded-lg border p-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("progressLabel")}
+                </p>
                 <ProgressReel estado={localReelEstado} size="narrow" />
-                <div className="mt-3">
-                  <label className="font-semibold block mb-1">Estado de producción</label>
+                <div>
+                  <label className="font-semibold block mb-1">
+                    {t("productionStatus")}
+                  </label>
                   <select
                     className="p-2 border rounded w-full bg-background text-foreground"
                     value={localReelEstado}
-                    onChange={(e) => setLocalReelEstado(e.target.value as ReelEstado)}
+                    onChange={(e) =>
+                      setLocalReelEstado(e.target.value as ReelEstado)
+                    }
                   >
                     {REEL_STEPS.map((s) => (
                       <option key={s} value={s}>
@@ -152,7 +153,9 @@ export default function EditarVideoModal({
               />
 
               <div>
-                <label className="font-semibold block mb-1">{t("statusLabel")}</label>
+                <label className="font-semibold block mb-1">
+                  {t("statusLabel")}
+                </label>
                 <select
                   className="p-2 border rounded w-full bg-background text-foreground"
                   value={localEstado}
@@ -182,6 +185,7 @@ export default function EditarVideoModal({
               )}
             </div>
 
+            {/* Acciones */}
             <div className="flex flex-col gap-4 pt-6">
               <div className="flex items-center gap-2">
                 <Button
@@ -189,7 +193,6 @@ export default function EditarVideoModal({
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                   title={t("actions.replace")}
-                  className="flex-shrink-0"
                 >
                   <Replace className="w-4 h-4" />
                 </Button>
@@ -216,7 +219,11 @@ export default function EditarVideoModal({
                 >
                   <Trash className="w-4 h-4" />
                 </Button>
-                <Button onClick={handleGuardar} title={t("actions.save")} className="flex-1">
+                <Button
+                  onClick={handleGuardar}
+                  title={t("actions.save")}
+                  className="flex-1"
+                >
                   <Save className="w-4 h-4" />
                 </Button>
               </div>

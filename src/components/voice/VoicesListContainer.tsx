@@ -1,12 +1,14 @@
+// src/components/voice/VoicesListContainer.tsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { VoiceCard } from "./VoiceCard";
-import Link from "next/link";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import NewVoiceContainer from "./NewVoiceContainer";
 
 interface VoiceData {
   voiceId: string;
@@ -20,10 +22,19 @@ interface VoiceMeta {
   category?: string;
 }
 
-export default function VoicesListContainer() {
+interface Props {
+  variant?: "default" | "card"; // 👈 aquí añadimos
+  title?: string;               // 👈 y aquí
+}
+
+export default function VoicesListContainer({
+  variant = "default",
+  title = "Voces",
+}: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [voices, setVoices] = useState<(VoiceData & VoiceMeta)[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -42,25 +53,7 @@ export default function VoicesListContainer() {
         ...(doc.data() as Omit<VoiceData, "voiceId">),
       }));
 
-      const voicesWithMeta: (VoiceData & VoiceMeta)[] = await Promise.all(
-        rawVoices.map(async (voice) => {
-          try {
-            const res = await fetch(`/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`);
-            if (!res.ok) throw new Error("No se pudo obtener metadata");
-            const data = await res.json();
-            return {
-              ...voice,
-              preview_url: data.preview_url,
-              description: data.description,
-              category: data.category,
-            };
-          } catch {
-            return voice;
-          }
-        })
-      );
-
-      setVoices(voicesWithMeta);
+      setVoices(rawVoices);
     } catch (err) {
       console.error("Error fetching voices:", err);
     } finally {
@@ -72,25 +65,37 @@ export default function VoicesListContainer() {
     fetchVoices();
   }, [fetchVoices]);
 
-  if (loading) return <p>Cargando voces...</p>;
-
   return (
-    <div className="relative">
-      {/* Botón arriba a la derecha */}
-      <div className="absolute right-0 -top-2 mb-4">
-        <Link href="/dashboard/voice/new">
-          <Button className="bg-blue-500 hover:bg-blue-600 text-white">
-            + Nueva voz
-          </Button>
-        </Link>
+    <section
+      className={`${
+        variant === "card"
+          ? "border border-border rounded-lg p-6 bg-card text-card-foreground shadow-sm"
+          : ""
+      }`}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <Button onClick={() => setOpen(true)}>+ Nueva voz</Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-10">
-        {voices.length === 0 && <p>No tienes voces aún.</p>}
-        {voices.map((voice) => (
-          <VoiceCard key={voice.voiceId} {...voice} />
-        ))}
-      </div>
-    </div>
+      {loading ? (
+        <p className="text-muted-foreground">Cargando voces...</p>
+      ) : voices.length === 0 ? (
+        <p className="text-muted-foreground">No tienes voces aún.</p>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {voices.map((voice) => (
+            <VoiceCard key={voice.voiceId} {...voice} />
+          ))}
+        </div>
+      )}
+
+      {/* Modal Crear Voz */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl">
+          <NewVoiceContainer />
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }

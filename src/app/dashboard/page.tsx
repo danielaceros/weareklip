@@ -1,8 +1,8 @@
-// src/app/(dashboard)/dashboard/page.tsx
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import {
 import { useT } from "@/lib/i18n";
 import { useLocale } from "next-intl";
 
+// -------- Types --------
 type SubscriptionStatus =
   | "loading"
   | "active"
@@ -95,6 +96,7 @@ type VideoDoc = {
   creadoEn?: string;
 };
 
+// -------- Utils --------
 function formatDateToISO(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -102,6 +104,7 @@ function formatDateToISO(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+// -------- Component --------
 export default function DashboardPage() {
   const t = useT();
   const router = useRouter();
@@ -111,7 +114,8 @@ export default function DashboardPage() {
   const displayLocale =
     locale === "fr" ? "fr-FR" : locale === "es" ? "es-ES" : "en-US";
   const langLabel = (locale || "es").toUpperCase();
-
+  const searchParams = useSearchParams(); 
+  const sessionId = searchParams.get("session_id");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Date | undefined>();
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -127,6 +131,7 @@ export default function DashboardPage() {
     videos: 0,
   });
 
+  // --- Fetchers ---
   const fetchEventos = useCallback(async (uid: string) => {
     try {
       const colRef = collection(
@@ -260,7 +265,6 @@ export default function DashboardPage() {
   const fetchData = useCallback(
     async (user: User) => {
       try {
-        // Si tienes API de suscripción, déjalo. Si no, ignora el error y muestra "none".
         const token = await user.getIdToken().catch(() => null);
         if (token) {
           const res = await fetch("/api/stripe/subscription", {
@@ -327,8 +331,8 @@ export default function DashboardPage() {
     ]
   );
 
-  // Redirección si no hay sesión
-  useEffect(() => {
+  // --- Auth listener ---
+    useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
         toast.error(t("dashboard.authError.title"), {
@@ -338,12 +342,23 @@ export default function DashboardPage() {
         setLoading(false);
         return;
       }
+
+      // ✅ chequea el session_id después de login
+      const sessionId = searchParams.get("session_id");
+      if (sessionId) {
+        toast.success("🎉 Prueba iniciada con éxito", {
+          description: "Ya tienes acceso a la plataforma.",
+        });
+        router.replace("/dashboard");
+      }
+
       fetchData(user);
     });
     return () => unsub();
-  }, [router, fetchData, t]);
+  }, [router, fetchData, t, searchParams]);
 
-  // ======== Agregación por días del calendario ========
+
+  // -------- Calendar Aggregation --------
   type DiaInfo = { estado: Estado | null; cantidad: number };
   const eventosPorDia: Record<string, DiaInfo> = {};
   eventos.forEach((ev) => {
@@ -393,6 +408,7 @@ export default function DashboardPage() {
     return <Badge variant="secondary">{t("common.unknown")}</Badge>;
   };
 
+  // -------- Render --------
   if (loading) {
     return (
       <div className="p-6 text-center text-muted-foreground animate-pulse">
@@ -426,28 +442,26 @@ export default function DashboardPage() {
               📅 {t("dashboard.calendar.title")}
             </h2>
             <div className="space-y-3 lg:space-y-4">
-              <div className="w-full overflow-hidden">
-                <DayPicker
-                  mode="single"
-                  selected={selected}
-                  onSelect={setSelected}
-                  modifiers={{
-                    porHacer: fechasPorHacer,
-                    enProceso: fechasEnProceso,
-                    completado: fechasCompletado,
-                  }}
-                  modifiersClassNames={{
-                    porHacer: "event-day-por-hacer",
-                    enProceso: "event-day-en-proceso",
-                    completado: "event-day-completado",
-                  }}
-                  locale={dfnsLocale}
-                  fixedWeeks
-                  pagedNavigation
-                  showOutsideDays
-                  className="text-left text-xs lg:text-sm mx-auto"
-                />
-              </div>
+              <DayPicker
+                mode="single"
+                selected={selected}
+                onSelect={setSelected}
+                modifiers={{
+                  porHacer: fechasPorHacer,
+                  enProceso: fechasEnProceso,
+                  completado: fechasCompletado,
+                }}
+                modifiersClassNames={{
+                  porHacer: "event-day-por-hacer",
+                  enProceso: "event-day-en-proceso",
+                  completado: "event-day-completado",
+                }}
+                locale={dfnsLocale}
+                fixedWeeks
+                pagedNavigation
+                showOutsideDays
+                className="text-left text-xs lg:text-sm mx-auto"
+              />
 
               {selected && (
                 <div>
@@ -472,9 +486,7 @@ export default function DashboardPage() {
                             key={e.id}
                             className={`text-xs p-2 rounded ${color}`}
                           >
-                            <span>
-                              {e.tipo === "guion" ? "📜" : "🎬"} {e.titulo}
-                            </span>
+                            {e.tipo === "guion" ? "📜" : "🎬"} {e.titulo}
                           </div>
                         );
                       })}
@@ -485,15 +497,15 @@ export default function DashboardPage() {
 
               <div className="space-y-1">
                 <div className="flex items-center gap-1 text-xs">
-                  <div className="w-3 h-3 bg-red-200 rounded"></div>
+                  <div className="w-3 h-3 bg-red-200 rounded" />
                   <span>{t("dashboard.calendar.legend.todo")}</span>
                 </div>
                 <div className="flex items-center gap-1 text-xs">
-                  <div className="w-3 h-3 bg-orange-200 rounded"></div>
+                  <div className="w-3 h-3 bg-orange-200 rounded" />
                   <span>{t("dashboard.calendar.legend.inProgress")}</span>
                 </div>
                 <div className="flex items-center gap-1 text-xs">
-                  <div className="w-3 h-3 bg-green-200 rounded"></div>
+                  <div className="w-3 h-3 bg-green-200 rounded" />
                   <span>{t("dashboard.calendar.legend.done")}</span>
                 </div>
               </div>
@@ -529,15 +541,13 @@ export default function DashboardPage() {
                   </Button>
                 </>
               ) : (
-                <>
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500 mb-4">
-                      📄 {t("dashboard.latestScript.emptyTitle")}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {t("dashboard.latestScript.emptySubtitle")}
-                    </p>
-                  </div>
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-gray-500">
+                    📄 {t("dashboard.latestScript.emptyTitle")}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {t("dashboard.latestScript.emptySubtitle")}
+                  </p>
                   <Button
                     onClick={() => router.push("/dashboard/scripts")}
                     className="w-full"
@@ -545,7 +555,7 @@ export default function DashboardPage() {
                   >
                     {t("dashboard.latestScript.view")}
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </Card>
@@ -567,14 +577,12 @@ export default function DashboardPage() {
                     </div>
                     {ultimoVideo.url && (
                       <div className="mb-4">
-                        <div className="video-container vertical">
-                          <video
-                            controls
-                            src={ultimoVideo.url}
-                            preload="metadata"
-                            className="rounded"
-                          />
-                        </div>
+                        <video
+                          controls
+                          src={ultimoVideo.url}
+                          preload="metadata"
+                          className="rounded max-h-64 w-full object-cover"
+                        />
                       </div>
                     )}
                   </div>
@@ -587,15 +595,13 @@ export default function DashboardPage() {
                   </Button>
                 </>
               ) : (
-                <>
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500 mb-4">
-                      🎥 {t("dashboard.latestVideo.emptyTitle")}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {t("dashboard.latestVideo.emptySubtitle")}
-                    </p>
-                  </div>
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-gray-500">
+                    🎥 {t("dashboard.latestVideo.emptyTitle")}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {t("dashboard.latestVideo.emptySubtitle")}
+                  </p>
                   <Button
                     onClick={() => router.push("/dashboard/videos")}
                     className="w-full"
@@ -603,7 +609,7 @@ export default function DashboardPage() {
                   >
                     {t("dashboard.latestVideo.view")}
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </Card>

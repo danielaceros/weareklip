@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       metadata: { uid, plan: "access" },
       allow_promotion_codes: true,
       success_url: `${APP_URL}/dashboard?welcome=1`,
-      cancel_url: `${APP_URL}/dashboard/facturacion?cancel=1`,
+      cancel_url: `${APP_URL}/dashboard/?cancel=1`,
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });

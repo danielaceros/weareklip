@@ -28,7 +28,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "functions/src/**/*.ts"  // Asegúrate de incluir el directorio de funciones
-  ],
+, "eslint.config.js"  ],
   "exclude": [
     "node_modules"
   ]

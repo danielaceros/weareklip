@@ -1,144 +1,199 @@
 // src/app/api/billing/summary/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
+import Stripe from "stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type UsageKind = "script" | "voice" | "lipsync" | "edit";
-type FireTimestamp = { seconds: number; nanoseconds: number };
+type UsageMap = { script: number; voice: number; lipsync: number; edit: number };
 
-interface SubscriptionInfo {
-  status?: string | null;
-  active?: boolean;
-  plan?: string | null;
-  renewal?: FireTimestamp | null;
-  id?: string | null;
-  lastUpdated?: FireTimestamp | null;
-  lastPayment?: FireTimestamp | null;
-}
-interface UserDoc {
-  stripeCustomerId?: string;
-  subscription?: SubscriptionInfo;
-  trialCreditCents?: number;
-  usage?: Partial<Record<UsageKind, number>>;
-  pendingLocalCents?: number;
-  pendingLocalResetAt?: FireTimestamp | null;
-}
-
-function daysLeftFrom(ts?: FireTimestamp | null): number | null {
-  if (!ts?.seconds) return null;
-  const ms = ts.seconds * 1000 - Date.now();
-  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
-}
-function safeNumber(n: unknown, fallback = 0): number {
-  return typeof n === "number" && isFinite(n) ? n : fallback;
-}
-
-/** Wrapper para invoices.retrieveUpcoming con expand de líneas/precio */
-type RetrieveUpcomingFn = (p: { customer: string; expand?: string[] }) => Promise<unknown>;
-function getRetrieveUpcoming(): RetrieveUpcomingFn {
-  const inv = stripe.invoices as unknown as { retrieveUpcoming?: RetrieveUpcomingFn };
-  if (!inv.retrieveUpcoming) {
-    throw new Error("Tu versión de stripe-node no expone invoices.retrieveUpcoming en tipos. Actualiza stripe.");
+function pickBestSubStatus(subs: Stripe.Subscription[]) {
+  const order = [
+    "active",
+    "trialing",
+    "past_due",
+    "incomplete",
+    "incomplete_expired",
+    "paused",
+    "unpaid",
+    "canceled",
+  ];
+  let best: Stripe.Subscription | null = null;
+  let bestRank = 999;
+  for (const s of subs) {
+    const r = order.indexOf(s.status);
+    if (r >= 0 && r < bestRank) {
+      best = s;
+      bestRank = r;
+    }
   }
-  return inv.retrieveUpcoming.bind(stripe.invoices);
+  return best;
 }
-
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "1500");
 
 export async function GET(req: NextRequest) {
   try {
     // 1) Auth
     const authHeader = req.headers.get("authorization");
-    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : undefined;
-    if (!idToken) return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const uid = decoded.uid;
+    const idToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : undefined;
+    if (!idToken)
+      return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
+    const { uid } = await adminAuth.verifyIdToken(idToken);
 
-    // 2) User
+    // 2) User doc en Firestore
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
-    const user: UserDoc = snap.exists ? ((snap.data() as unknown) as UserDoc) : {};
-
-    const sub = user.subscription ?? {};
-    const customerId = user.stripeCustomerId;
-
-    // 3) Info suscripción
-    const renewalAtMs =
-      sub.renewal?.seconds && Number.isFinite(sub.renewal.seconds) ? sub.renewal.seconds * 1000 : null;
-    const trialing = sub.status === "trialing";
-    const daysLeft = trialing ? daysLeftFrom(sub.renewal ?? null) : null;
-
-    // 4) Contadores locales
-    const usage: Record<UsageKind, number> = {
-      script: safeNumber(user.usage?.script),
-      voice: safeNumber(user.usage?.voice),
-      lipsync: safeNumber(user.usage?.lipsync),
-      edit: safeNumber(user.usage?.edit),
-    };
-
-    // 4.1) Inicializar crédito si está en trial
-    let trialCreditCents =
-      typeof user.trialCreditCents === "number" ? user.trialCreditCents : null;
-    if (trialing && (trialCreditCents === null || trialCreditCents === undefined)) {
-      trialCreditCents = DEFAULT_TRIAL_CENTS;
-      await userRef.set({ trialCreditCents, lastUpdated: adminTimestamp.now() }, { merge: true });
+    if (!snap.exists) {
+      return NextResponse.json(
+        { error: "Usuario no encontrado en Firestore" },
+        { status: 404 }
+      );
     }
 
-    // 5) Pendiente en próxima factura (sumar SOLO líneas metered)
-    let pendingCentsStripe = 0;
-    if (customerId) {
-      try {
-        const retrieveUpcoming = getRetrieveUpcoming();
-        const upcoming = await retrieveUpcoming({
-          customer: customerId,
-          expand: ["lines.data.price"],
-        });
+    const user = snap.data();
+    const customerId: string | undefined = user?.stripeCustomerId;
+    if (!customerId) {
+      return NextResponse.json(
+        {
+          subscription: {
+            status: null,
+            active: false,
+            plan: null,
+            renewalAt: null,
+            trialing: false,
+            cancelAtPeriodEnd: false,
+          },
+          usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
+          pendingCents: 0,
+          payment: { hasDefaultPayment: false },
+          debug: { customerId: null, reconciled: false },
+        },
+        { status: 200 }
+      );
+    }
 
-        type Recurring = { usage_type?: unknown } | null | undefined;
-        type Price = { recurring?: Recurring } | null | undefined;
-        type Line = { amount?: unknown; price?: Price } | null | undefined;
-        type UpcomingShape = { lines?: { data?: Line[] } } | null | undefined;
+    // 3) Buscar subs
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 100,
+      expand: ["data.items.data.price"],
+    });
+    const sub = pickBestSubStatus(subs.data);
 
-        const up = (upcoming as UpcomingShape) ?? {};
-        const lines = Array.isArray(up.lines?.data) ? up.lines!.data! : [];
+    // 4) Recuperar customer
+    const customer = (await stripe.customers.retrieve(
+      customerId
+    )) as Stripe.Customer;
 
-        for (const line of lines) {
-          const amt = safeNumber(line?.amount, 0);
-          const usageType = (line?.price?.recurring as { usage_type?: string } | null | undefined)?.usage_type;
-          if (usageType === "metered") pendingCentsStripe += amt;
+    if (!sub) {
+      return NextResponse.json(
+        {
+          subscription: {
+            status: null,
+            active: false,
+            plan: null,
+            renewalAt: null,
+            trialing: false,
+            cancelAtPeriodEnd: false,
+          },
+          usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
+          pendingCents: 0,
+          payment: {
+            hasDefaultPayment:
+              !!customer.invoice_settings?.default_payment_method ||
+              !!customer.default_source,
+          },
+          debug: { customerId, reconciled: true },
+        },
+        { status: 200 }
+      );
+    }
+
+    // 5) Estado y plan
+    const status = sub.status;
+    const trialing = status === "trialing";
+    const cancelAtPeriodEnd = sub.cancel_at_period_end === true;
+    const active =
+      (status === "active" || status === "trialing") && !cancelAtPeriodEnd;
+
+    const planItem = sub.items.data.find(
+      (it) => it.price.recurring?.interval === "month"
+    );
+    const planName = planItem?.price?.nickname || "Access";
+
+    const renewalAt = sub.trial_end
+      ? sub.trial_end * 1000
+      : sub.items.data[0].current_period_end
+      ? sub.items.data[0].current_period_end * 1000
+      : null;
+
+    // 6) Uso
+    const usage: UsageMap = { script: 0, voice: 0, lipsync: 0, edit: 0 };
+    for (const item of sub.items.data) {
+      if (item.price.recurring?.usage_type === "metered") {
+        const summaries =
+          await (stripe.subscriptionItems as any).listUsageRecordSummaries(
+            item.id,
+            { limit: 1 }
+          );
+        const total = summaries.data?.[0]?.total_usage ?? 0;
+        switch (item.price.id) {
+          case process.env.STRIPE_PRICE_USAGE_SCRIPT:
+            usage.script = total;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_VOICE:
+            usage.voice = total;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_LIPSYNC:
+            usage.lipsync = total;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_EDIT:
+            usage.edit = total;
+            break;
         }
-        if (pendingCentsStripe < 0) pendingCentsStripe = 0;
-      } catch {
-        /* sin upcoming, ignoramos */
       }
     }
 
-    // 6) Fallback local si Stripe aún no ha agregado los eventos recientes
-    const pendingCentsLocal = safeNumber(user.pendingLocalCents);
-    const pendingCents = Math.max(pendingCentsStripe, pendingCentsLocal);
+    // 7) Facturación pendiente
+    let pendingCents = 0;
+    try {
+      const upcoming = await (stripe.invoices as any).retrieveUpcoming({
+        customer: customerId!,
+        expand: ["lines.data.price"],
+      });
+      for (const line of upcoming?.lines?.data ?? []) {
+        if (line.price?.recurring?.usage_type === "metered") {
+          pendingCents += line.amount ?? 0;
+        }
+      }
+    } catch {
+      pendingCents = 0;
+    }
 
-    // 7) Respuesta
+    // 8) Info de método de pago
+    const hasDefaultPayment =
+      !!customer.invoice_settings?.default_payment_method ||
+      !!customer.default_source;
+
+    // 9) Respuesta
     return NextResponse.json(
       {
         subscription: {
-          status: sub.status ?? null,
-          active: Boolean(sub.active),
-          plan: sub.plan ?? null,
-          renewalAt: renewalAtMs,
-          daysLeft,
+          status,
+          active,
+          plan: planName,
+          renewalAt,
           trialing,
+          cancelAtPeriodEnd,
         },
-        trialCreditCents: safeNumber(trialCreditCents),
         usage,
-        pendingCents,          // ← la UI puede seguir usando este campo
-        // opcionalmente, te devuelvo también ambos para depurar
-        debug: {
-          pendingCentsStripe,
-          pendingCentsLocal,
-        },
+        pendingCents,
+        payment: { hasDefaultPayment },
+        debug: { customerId, reconciled: true },
       },
       { status: 200 }
     );

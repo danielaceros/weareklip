@@ -9,7 +9,7 @@ import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firesto
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import VideoEditorModal from "@/components/shared/videomodal";
+import VideoEditorModal from "@/components/shared/VideoModal";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import { logAction } from "@/lib/logs";
 import toast from "react-hot-toast";

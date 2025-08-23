@@ -1,8 +1,13 @@
+// src/components/shared/editarguion.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +34,7 @@ type Props = {
   onClose: () => void;
   onChange: (guion: Guion) => void;
   onDelete: (id: string) => void;
-  onSave: () => Promise<void>; // ✅ ajustado a async
+  onSave: () => Promise<void>;
 };
 
 export default function EditarGuionModal({
@@ -59,7 +64,6 @@ export default function EditarGuionModal({
     handleInputChange("estado", nuevoEstado);
   };
 
-  // Función para asignar tareas a Rubén y Hello
   const asignarTareasAdmin = async () => {
     if (!guion) return;
     const res = await fetch("/api/assign-task", {
@@ -78,18 +82,17 @@ export default function EditarGuionModal({
     if (!guion) return;
     setGuardando(true);
     try {
-      // ✅ esperamos a que termine el guardado real
       await onSave();
 
-      // Si pasa a "Cambios" y antes no lo estaba, crear tareas
       if (guion.estado === 1 && estadoAnterior !== 1) {
         await asignarTareasAdmin();
         toast.success(t("taskAssigned"));
       }
 
       setEstadoAnterior(guion.estado);
+      toast.success(t("saveSuccess"));
     } catch (error) {
-      console.error("Error guardando:", error);
+      console.error("Error guardando guion:", error);
       toast.error(t("saveError"));
     } finally {
       setGuardando(false);
@@ -101,12 +104,11 @@ export default function EditarGuionModal({
   return (
     <Dialog
       open={!!guion}
-      // ✅ ajustamos firma de onOpenChange
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <DialogContent>
+      <DialogContent className="space-y-4">
         <VisuallyHidden>
           <DialogTitle>{t("title")}</DialogTitle>
         </VisuallyHidden>
@@ -132,7 +134,7 @@ export default function EditarGuionModal({
           onValueChange={handleEstadoChange}
           disabled={guardando}
         >
-          <SelectTrigger className="mt-2" aria-label={t("a11y.selectStatus")}>
+          <SelectTrigger aria-label={t("a11y.selectStatus")}>
             <SelectValue placeholder={t("placeholders.selectStatus")} />
           </SelectTrigger>
           <SelectContent>
@@ -154,15 +156,20 @@ export default function EditarGuionModal({
           />
         )}
 
-        <div className="flex gap-2 mt-4">
+        <div className="flex gap-2 justify-end pt-2">
           <Button
+            type="button"
             variant="destructive"
             onClick={() => onDelete(guion.firebaseId)}
             disabled={guardando}
           >
             {tScripts("actions.delete")}
           </Button>
-          <Button onClick={handleSave} disabled={guardando}>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={guardando}
+          >
             {guardando ? t("saving") : t("save")}
           </Button>
         </div>

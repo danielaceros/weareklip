@@ -1,0 +1,292 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, getIdToken, type User } from "firebase/auth";
+import {
+  doc,
+  onSnapshot,
+  type FirestoreDataConverter,
+  type DocumentData,
+} from "firebase/firestore";
+import EmbeddedCheckoutModal from "@/components/user/EmbeddedCheckoutModal";
+
+/* ===== Tipos Firestore ===== */
+type FireTimestamp = { seconds: number; nanoseconds: number };
+
+export interface SubscriptionInfo {
+  id?: string | null;                // ID de la suscripción (Stripe sub_xxx)
+  plan?: string | null;              // Nombre del plan (ej: "Access")
+  status?: string;                   // Estado (active, trialing, canceled, etc.)
+  active?: boolean;                  // true si está en curso
+  renewal?: Date | null;             // Fecha de renovación real
+  lastUpdated?: Date | null;
+  lastPayment?: Date | null;
+  trial_start?: Date | null;         // Inicio del trial
+  trial_end?: Date | null;           // Fin del trial
+  // 🔹 Nuevos campos de tu API
+  amount?: number | null;            // Precio (ej: 29.99)
+  currency?: string | null;          // Moneda (ej: "eur")
+  start_date?: Date | null;          // Fecha de inicio de suscripción
+  cancel_at_period_end?: boolean;    // true si está programada la cancelación
+  canceled_at?: Date | null;         // Fecha en la que se canceló (si aplica)
+  customerId?: string | null;        // ID de cliente (cus_xxx en Stripe)
+  // Objeto completo opcional (para debug / mostrar detalles avanzados)
+  raw?: any;
+}
+
+interface UserDoc {
+  stripeCustomerId?: string;
+  subscription?: SubscriptionInfo;
+  usage?: { tokens?: number; euros?: number };
+}
+const userConverter: FirestoreDataConverter<UserDoc> = {
+  toFirestore: (data: UserDoc) => data as DocumentData,
+  fromFirestore: (snap, options) => snap.data(options) as UserDoc,
+};
+
+/* ===== Tipos del summary API ===== */
+type Summary = {
+  subscription: {
+    status: string | null;
+    active: boolean;
+    plan: string | null;
+    renewalAt: number | null;
+    daysLeft: number | null;
+    trialing: boolean;
+  };
+  trialCreditCents: number;
+  usage: { script: number; voice: number; lipsync: number; edit: number };
+  pendingCents: number;
+};
+
+/* ===== Helpers UI ===== */
+function tsToDate(ts?: FireTimestamp | null) {
+  if (!ts?.seconds) return null;
+  return new Date(ts.seconds * 1000);
+}
+function fmtDate(d: Date | null) {
+  return d ? d.toLocaleDateString() : "-";
+}
+const euro = (cents: number | undefined | null) =>
+  (Math.max(0, cents ?? 0) / 100).toFixed(2);
+
+/* ===== Componente ===== */
+export default function BillingSection() {
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [docData, setDocData] = useState<UserDoc | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [stripeData, setStripeData] = useState<any | null>(null);
+  const [loadingStripe, setLoadingStripe] = useState(false);
+  const [openCheckout, setOpenCheckout] = useState(false); // 👈 estado para el modal
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  // Firestore listener
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, "users", user.uid).withConverter(userConverter);
+    return onSnapshot(ref, (snap) => setDocData(snap.data() ?? null));
+  }, [user]);
+
+  // Consulta Stripe por email
+  useEffect(() => {
+  if (!user?.email) return;
+  const fetchStripe = async () => {
+    setLoadingStripe(true);
+    try {
+      const res = await fetch(`/api/stripe/email?email=${encodeURIComponent(user.email!)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        console.warn("Stripe: ", data.error); // 👈 solo logea
+        setStripeData(null);
+        return;
+      }
+      setStripeData(data);
+    } catch (err) {
+      console.error("Stripe fetch error:", err);
+      setStripeData(null);
+    } finally {
+      setLoadingStripe(false);
+    }
+  };
+  fetchStripe();
+}, [user?.email]);
+
+  // Cargar /api/billing/summary (uso y créditos)
+  const loadSummary = async () => {
+    if (!user) return;
+    setLoadingSummary(true);
+    try {
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/billing/summary", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as Summary & { error?: string };
+      if (!res.ok) throw new Error(data.error || "Error summary");
+      setSummary(data);
+    } catch (e) {
+      console.error(e);
+      setSummary(null);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) loadSummary();
+  }, [user]);
+
+  // 🔹 Prioriza Stripe sobre Firestore
+  const sub = stripeData
+  ? {
+      plan: stripeData.plan,
+      status: stripeData.status,
+      active:
+        stripeData.status === "active" || stripeData.status === "trialing",
+      renewal: stripeData.endate ? new Date(stripeData.endate * 1000) : null,
+      trial_start: stripeData.trial_start
+        ? new Date(stripeData.trial_start * 1000)
+        : null,
+      trial_end: stripeData.trial_end
+        ? new Date(stripeData.trial_end * 1000)
+        : null,
+      cancel_at_period_end: stripeData.cancel_at_period_end ?? false, // 👈 añadimos
+    }
+  : docData?.subscription ?? null;
+
+const statusLabel = useMemo(() => {
+  if (!sub?.status) return "Sin suscripción";
+
+  if (sub.status === "trialing") {
+    if (sub.trial_end instanceof Date) {
+      const now = new Date();
+      const msLeft = sub.trial_end.getTime() - now.getTime();
+      const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+      return sub.cancel_at_period_end
+        ? `Prueba cancelada (expira en ${daysLeft} días)`
+        : `Prueba (${daysLeft} días restantes)`;
+    }
+    return "Prueba en curso";
+  }
+
+  if (sub.active) {
+    if (sub.cancel_at_period_end) {
+      return `Cancelada (termina el ${sub.renewal ? fmtDate(sub.renewal) : "-"})`;
+    }
+    return "Activa";
+  }
+
+  return sub.status;
+}, [sub]);
+
+
+  return (
+    <section className="border rounded-lg p-6 bg-card text-card-foreground shadow-sm">
+      <h2 className="text-xl font-semibold mb-4">💳 Facturación / Suscripción</h2>
+
+      {loadingStripe && (
+        <p className="text-sm text-muted-foreground mb-2">
+          Consultando suscripción en Stripe…
+        </p>
+      )}
+
+      <div className="rounded-xl border p-4 mb-6">
+        <p>Estado: {statusLabel}</p>
+        <p>Plan: {sub?.plan ?? "-"}</p>
+        <p>
+          {sub?.status === "trialing"
+            ? `Fin de prueba: ${
+                sub?.trial_end instanceof Date ? fmtDate(sub.trial_end) : "-"
+              }`
+            : `Renovación: ${
+                sub?.renewal instanceof Date ? fmtDate(sub.renewal) : "-"
+              }`}
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-xl border p-4">
+            <div className="text-lg font-medium">Access</div>
+            <div className="text-2xl mt-1">29,99 €/mes</div>
+            <div className="text-sm text-muted-foreground mt-1">
+                Acceso a la plataforma. Prueba de 7 días.
+            </div>
+
+            {sub?.status === "trialing" || sub?.active ? (
+            <>
+                <button
+                disabled
+                className="mt-4 w-full rounded-xl border px-4 py-2 opacity-60"
+                >
+                Suscripción en curso
+                </button>
+
+                <a
+                href={process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 w-full block rounded-xl border px-4 py-2 text-center hover:bg-accent"
+                >
+                Gestionar suscripción
+                </a>
+            </>
+            ) : (
+            <button
+                onClick={() => setOpenCheckout(true)}
+                className="mt-4 w-full rounded-xl border px-4 py-2 hover:bg-accent disabled:opacity-60"
+            >
+                Empezar prueba gratuita
+            </button>
+            )}
+
+            </div>
+
+
+        <div className="rounded-xl border p-4 col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-medium">Consumo</span>
+            <button
+              onClick={loadSummary}
+              disabled={loadingSummary}
+              className="text-sm rounded-lg border px-3 py-1 hover:bg-accent disabled:opacity-60"
+            >
+              {loadingSummary ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Crédito de prueba restante</div>
+              <div className="text-xl mt-1">€ {euro(summary?.trialCreditCents ?? 0)}</div>
+            </div>
+
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Pendiente a liquidar</div>
+              <div className="text-xl mt-1">€ {euro(summary?.pendingCents ?? 0)}</div>
+              <div className="text-xs text-muted-foreground mt-1">(se cobrará al final del periodo)</div>
+            </div>
+
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Operaciones (periodo actual)</div>
+              <div className="mt-1 text-sm">
+                Guiones: {summary?.usage.script ?? 0} · Voz: {summary?.usage.voice ?? 0} · LipSync:{" "}
+                {summary?.usage.lipsync ?? 0} · Edición: {summary?.usage.edit ?? 0}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Stripe Embedded */}
+      {user?.email && (
+        <EmbeddedCheckoutModal
+          open={openCheckout}
+          uid={user.uid} // 👈 pasamos uid del auth
+          onClose={() => setOpenCheckout(false)}
+        />
+      )}
+    </section>
+  );
+}

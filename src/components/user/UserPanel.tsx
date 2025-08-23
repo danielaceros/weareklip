@@ -5,60 +5,73 @@ import { useUserPanel } from "./useUserPanel";
 import UserProfileSection from "./UserProfileSection";
 import SubscriptionSection from "./SubscriptionSection";
 import ClonacionVideosSection from "./ClonacionVideosSection";
+import { Card } from "@/components/ui/card";
 
 export default function UserPanel() {
   const userPanel = useUserPanel();
 
-  // Props para UserProfileSection que no vienen de useUserPanel
+  // Estado local de datos básicos del usuario
   const [name, setName] = useState("");
   const [instagramUser, setInstagramUser] = useState("");
+  const [phone, setPhone] = useState("");
+  const [userData] = useState<{ email?: string } | null>(null);
+
+  // Manejo de foto de perfil
+  const fileInputRef = useRef<HTMLInputElement>(null!);
   const handleInstagramUserChange = (e: ChangeEvent<HTMLInputElement>) =>
     setInstagramUser(e.target.value);
-  const [phone, setPhone] = useState("");
-  const [userData] = useState<{ email?: string } | null>(null); // No usamos setUserData
-  const [uploadingPhoto] = useState(false); // No usamos setUploadingPhoto
-  const fileInputRef = useRef<HTMLInputElement>(null!);
   const handlePhotoClick = () => fileInputRef.current?.click();
-  const handlePhotoChange = () => {}; // No usamos 'e'
-  const [photoURL] = useState<string | null>(null); // No usamos setPhotoURL
-  const saveUserData = () => {};
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold mb-6">{userPanel.t("title")}</h1>
+    <div className="p-6 max-w-6xl mx-auto space-y-10">
+      {/* Encabezado */}
+      <header className="text-center space-y-2">
+        <h1 className="text-3xl font-bold">{userPanel.t("title")}</h1>
+        <p className="text-muted-foreground text-sm">
+          {userPanel.t("subtitle")}
+        </p>
+      </header>
 
-      <UserProfileSection
-        t={userPanel.t}
-        name={name}
-        setName={setName}
-        instagramUser={instagramUser}
-        handleInstagramUserChange={handleInstagramUserChange}
-        phone={phone}
-        setPhone={setPhone}
-        userData={userData}
-        uploadingPhoto={uploadingPhoto}
-        fileInputRef={fileInputRef}
-        handlePhotoClick={handlePhotoClick}
-        handlePhotoChange={handlePhotoChange}
-        photoURL={photoURL}
-        saveUserData={saveUserData}
-      />
+      {/* Perfil */}
+      <section aria-label={userPanel.t("profile.sectionTitle")}>
+        <UserProfileSection
+          t={userPanel.t}
+          name={name}
+          setName={setName}
+          instagramUser={instagramUser}
+          handleInstagramUserChange={handleInstagramUserChange}
+          phone={phone}
+          setPhone={setPhone}
+          userData={userData}
+          uploadingPhoto={false}
+          fileInputRef={fileInputRef}
+          handlePhotoClick={handlePhotoClick}
+          handlePhotoChange={() => {}}
+          photoURL={null}
+          saveUserData={() => {}}
+        />
+      </section>
 
-      <SubscriptionSection
-        t={userPanel.t}
-        loadingSub={userPanel.loadingSub}
-        sub={userPanel.sub}
-        renderStatusLabel={userPanel.renderStatusLabel}
-      />
+      {/* Suscripción */}
+      <section aria-label={userPanel.t("subscription.sectionTitle")}>
+        <SubscriptionSection
+          t={userPanel.t}
+          loadingSub={userPanel.loadingSub}
+          sub={userPanel.sub}
+        />
+      </section>
 
-      <ClonacionVideosSection
-        t={userPanel.t}
-        clonacionVideos={userPanel.clonacionVideos}
-        handleUpload={userPanel.handleUpload}
-        handleDelete={userPanel.handleDelete}
-        uploading={userPanel.uploading}
-        progress={userPanel.progress}
-      />
+      {/* Clonación de videos */}
+      <section aria-label={userPanel.t("clonacion.sectionTitle")}>
+        <ClonacionVideosSection
+          t={userPanel.t}
+          clonacionVideos={userPanel.clonacionVideos}
+          handleUpload={userPanel.handleUpload}
+          handleDelete={userPanel.handleDelete}
+          uploading={userPanel.uploading}
+          progress={userPanel.progress}
+        />
+      </section>
     </div>
   );
 }

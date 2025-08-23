@@ -1,19 +1,71 @@
 {
-  "account": "Mi cuenta",
-  "theme": "Tema",
-  "light": "Claro",
-  "dark": "Oscuro",
-  "system": "Sistema",
-  "color": "Color",
-  "language": "Idioma",
-  "settings": "Ajustes",
-  "logout": "Cerrar sesión",
-  "accents": {
-    "blue": "Azul",
-    "green": "Verde",
-    "orange": "Naranja",
-    "rose": "Rosa"
+  "dropdown": {
+    "account": "Mi cuenta",
+    "theme": "Tema",
+    "settings": "Configuración",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema",
+    "color": "Color",
+    "language": "Idioma",
+    "logout": "Cerrar sesión"
+
   },
+      "accents": {
+      "blue": "Azul",
+      "green": "Verde",
+      "orange": "Naranja",
+      "rose": "Rosa"
+    },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "name": "Nombre",
+    "save": "Guardar",
+    "resetPassword": "Restablecer contraseña",
+    "resetPasswordSent": "Se ha enviado un correo para restablecer tu contraseña",
+    "errorResetPassword": "No se pudo enviar el correo de restablecimiento",
+    "savedProfile": "Perfil actualizado correctamente",
+    "errorProfile": "No se pudo actualizar tu perfil",
+
+    "preferences": "Preferencias",
+    "theme": "Tema",
+    "color": "Color",
+    "language": "Idioma",
+
+    "notifications": "Notificaciones",
+    "emailNotifications": "Notificaciones por correo",
+    "pushNotifications": "Notificaciones push",
+    "whatsappNotifications": "Notificaciones por WhatsApp",
+
+    "privacy": "Privacidad",
+    "shareData": "Compartir datos anónimos para mejorar el servicio",
+    "profileVisibility": "Hacer mi perfil visible públicamente",
+
+    "security": "Seguridad",
+    "twoFactor": "Autenticación en dos pasos (2FA)",
+    "viewSessions": "Ver sesiones activas",
+    "activeSessions": "Gestión de sesiones activa",
+    
+    "integrations": "Integraciones",
+    "connectInstagram": "Conectar Instagram",
+    "connectMetricool": "Conectar Metricool",
+
+    "advanced": "Avanzado",
+    "clearLocal": "Borrar datos locales",
+    "localCleared": "Datos locales eliminados",
+    "exportData": "Exportar mis datos",
+    "dataExported": "Datos exportados correctamente",
+    "deleteAccount": "Eliminar mi cuenta",
+    "confirmDelete": "¿Seguro que quieres eliminar tu cuenta? Esta acción no se puede deshacer.",
+    "accountDeleted": "Tu cuenta ha sido eliminada",
+    "errorDeleteAccount": "No se pudo eliminar la cuenta",
+
+    "subscription": "Suscripción",
+    "subscriptionDesc": "Administra tu plan y pagos desde el portal seguro de Stripe.",
+    "manageSubscription": "Gestionar suscripción"
+  },
+
   "sidebar": {
     "title": "Panel de Cliente",
     "clientTitle": "Panel de Cliente",
@@ -362,114 +414,112 @@
     "footer": "Mostrando {count} de {total} notificaciones • 🟢 Actualización en tiempo real"
   },
   "userPage": {
+  "dialog": {
+    "videoTitle": "Video"
+  },
+  "title": "Mi Panel de Usuario",
+  "subtitle": "Gestiona tu perfil, suscripción y videos de clonación",
+  "common": {
+    "unknown": "Desconocido"
+  },
+
+  "profile": {
+    "sectionTitle": "Datos del Usuario",
+    "labels": {
+      "name": "Nombre completo",
+      "instagramUser": "Usuario de Instagram",
+      "phone": "Teléfono",
+      "emailReadonly": "Correo electrónico"
+    },
+    "placeholders": {
+      "name": "Introduce tu nombre",
+      "instagramUser": "@usuario",
+      "phone": "+34 600 000 000"
+    },
+    "photo": {
+      "changeTooltip": "Haz clic para cambiar la foto",
+      "uploadingTooltip": "Subiendo foto...",
+      "uploadLoading": "Subiendo foto de perfil...",
+      "uploadError": "Error al subir la foto",
+      "saveToDbError": "Error al guardar la foto en la base de datos",
+      "updated": "Foto de perfil actualizada",
+      "onlyImages": "Solo se permiten imágenes",
+      "maxSize": "La imagen debe pesar menos de 5MB"
+    },
+    "actions": {
+      "save": "Guardar cambios",
+      "savingPhoto": "Subiendo foto...",
+      "saved": "Datos actualizados correctamente",
+      "saveError": "Error al guardar los datos",
+      "changePhoto": "Cambia tu foto de perfil"
+    },
+    "authRequired": "Usuario no autenticado"
+  },
+
+  "subscription": {
+    "sectionTitle": "Mi Suscripción",
+    "loading": "Cargando información de la suscripción...",
+    "noActive": "No tienes una suscripción activa.",
+    "labels": {
+      "status": "Estado",
+      "plan": "Plan",
+      "price": "Precio",
+      "renewal": "Renovación",
+      "cancelAtPeriodEnd": "Cancelar al final del periodo"
+    },
+    "status": {
+      "active": "Activa",
+      "trialing": "En prueba",
+      "incomplete": "Incompleta",
+      "canceled": "Cancelada",
+      "no_active": "Sin suscripción"
+    },
+    "yes": "Sí",
+    "no": "No",
+    "openBillingPortal": "Abrir portal de facturación"
+  },
+  "clonacion": {
+    "sectionTitle": "Videos de clonación",
+    "uploadPrompt": "Sube un archivo",
+    "uploading": "Subiendo video...",
+    "noVideos": "Aún no tienes videos de clonación",
+    "upload": {
+      "uploadingFile": "Subiendo {name}...",
+      "onlyVideos": "Solo se permiten archivos de video",
+      "loadingError": "Error cargando videos",
+      "maxSize": "El video debe pesar menos de 100MB",
+      "success": "{name} subido correctamente",
+      "uploadError": "Error al subir {name}",
+      "saveError": "Error al guardar el video en la base de datos",
+      "loadingVideos": "Cargando videos...",
+      "none": "No has subido videos."
+    },
+    "actions": {
+      "delete": "Eliminar",
+      "view": "Ver"
+    },
+    "grid": {
+      "aria": {
+        "deleteVideo": "Eliminar video {title}",
+        "closeVideo": "Cerrar video"
+      }
+    },
+    "deleteModal": {
+      "title": "Confirmar eliminación",
+      "body": "¿Seguro que quieres eliminar el video \"{title}\"?",
+      "cancel": "Cancelar",
+      "delete": "Eliminar"
+    },
+    "delete": {
+      "deleting": "Eliminando video...",
+      "success": "Video eliminado correctamente",
+      "error": "Error al eliminar el video"
+    },
     "dialog": {
       "videoTitle": "Video"
-    },
-    "title": "Mi Panel de Usuario",
-    "common": {
-      "unknown": "Desconocido"
-    },
-    "profile": {
-      "sectionTitle": "Datos del Usuario",
-      "labels": {
-        "name": "Nombre",
-        "instagramUser": "Usuario de Instagram",
-        "phone": "Teléfono",
-        "emailReadonly": "Email (solo lectura)"
-      },
-      "placeholders": {
-        "name": "Tu nombre completo",
-        "instagramUser": "@usuario",
-        "phone": "+34 600 123 456"
-      },
-      "photo": {
-        "changeTooltip": "Haz clic para cambiar la foto",
-        "uploadingTooltip": "Subiendo foto...",
-        "uploadLoading": "Subiendo foto de perfil...",
-        "uploadError": "Error al subir la foto",
-        "saveToDbError": "Error al guardar la foto en la base de datos",
-        "updated": "Foto de perfil actualizada",
-        "onlyImages": "Solo se permiten imágenes",
-        "maxSize": "La imagen debe pesar menos de 5MB"
-      },
-      "actions": {
-        "save": "Guardar cambios",
-        "savingPhoto": "Subiendo foto...",
-        "saved": "Datos actualizados correctamente",
-        "saveError": "Error al guardar los datos"
-      },
-      "authRequired": "Usuario no autenticado"
-    },
-    "subscription": {
-      "sectionTitle": "Mi Suscripción",
-      "loading": "Cargando suscripción...",
-      "noActive": "No tienes una suscripción activa.",
-      "labels": {
-        "status": "Estado",
-        "plan": "Plan",
-        "price": "Precio",
-        "renewal": "Renovación",
-        "cancelAtPeriodEnd": "Cancelar al final del periodo"
-      },
-      "yes": "Sí",
-      "no": "No",
-      "openBillingPortal": "Abrir portal de facturación",
-      "statusMap": {
-        "active": "Activa",
-        "trialing": "En prueba",
-        "past_due": "Vencida",
-        "unpaid": "Impagada",
-        "canceled": "Cancelada"
-      }
-    },
-    "cloning": {
-      "sectionTitle": "Mis Videos de Clonación",
-      "limitBadge": "{count}/{max}",
-      "dropzone": {
-        "aria": {
-          "limitReached": "Límite de videos alcanzado",
-          "dropArea": "Arrastra y suelta videos para subir"
-        },
-        "placeholder": "Arrastra tus videos aquí o haz clic para seleccionar",
-        "limitReachedTitle": "¡Límite de videos alcanzado!",
-        "limitReachedSubtitle": "Has subido el máximo de {max} videos permitidos."
-      },
-      "upload": {
-        "uploadingFile": "Subiendo {name}...",
-        "onlyVideos": "Solo se permiten archivos de video",
-        "loadingError": "Error cargando videos",
-        "maxSize": "El video debe pesar menos de 100MB",
-        "slotsWarning": "Solo puedes subir {count} video(s) más",
-        "success": "{name} subido correctamente",
-        "uploadError": "Error al subir {name}",
-        "saveError": "Error al guardar el video en la base de datos",
-        "createTaskError": "Error al crear la tarea de revisión",
-        "loadingVideos": "Cargando videos...",
-        "none": "No has subido videos."
-      },
-      "grid": {
-        "aria": {
-          "deleteVideo": "Eliminar video {title}",
-          "closeVideo": "Cerrar video"
-        }
-      },
-      "deleteModal": {
-        "title": "Confirmar eliminación",
-        "body": "¿Seguro que quieres eliminar el video \"{title}\"?",
-        "cancel": "Cancelar",
-        "delete": "Eliminar"
-      },
-      "delete": {
-        "deleting": "Eliminando video...",
-        "success": "Video eliminado correctamente",
-        "error": "Error al eliminar el video",
-        "notSelectedOrAuth": "Usuario no autenticado o video no seleccionado"
-      },
-      "dialog": {
-        "videoTitle": "Video"
-      }
     }
-  },
+  }
+},
   "calendarPage": {
     "title": "Calendario de Publicación",
     "description": "Consulta las fechas programadas para tus videos (Reels).\nIntegración con Metricool pronto.",
@@ -1157,6 +1207,8 @@
   },
   "profile": {
     "sectionTitle": "Perfil",
+    
+    "sectionSubtitle": "Esta es la información sobre tu perfil",
     "labels": {
       "name": "Nombre",
       "instagramUser": "Usuario de Instagram",
@@ -1169,7 +1221,8 @@
       "phone": "Teléfono"
     },
     "actions": {
-      "save": "Guardar"
+      "save": "Guardar",
+      "changePhoto": "Cambia tu foto de perfil"
     }
   },
   "subscription": {
@@ -1177,6 +1230,9 @@
     "noActive": "No tienes ninguna suscripción activa"
   },
   "clonacion": {
+    "sectionSubtitle":"Estos son tus vídeos de clonación",
+    "previewTitle": "Así se ve",
+    "uploadPrompt": "Sube un archivo",
     "mustLogin": "Debes iniciar sesión para usar la clonación",
     "uploadError": "Error al subir el vídeo",
     "uploadSuccess": "Vídeo subido correctamente",

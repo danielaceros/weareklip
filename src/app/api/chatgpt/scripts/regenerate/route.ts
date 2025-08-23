@@ -1,56 +1,54 @@
 // src/app/api/scripts/regenerate/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { adminAuth } from "@/lib/firebase-admin";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-const FREE_LIMIT = 2;
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Body = {
+  description: string;
+  tone: string;
+  platform: string;
+  duration: string;
+  language: string;
+  structure: string;
+  addCTA?: boolean;
+  ctaText?: string;
+};
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({} as Record<string, unknown>));
-    const uid = String((body as Record<string, unknown>).uid ?? "");
-    const scriptId = String((body as Record<string, unknown>).scriptId ?? "");
-    const paid =
-      String(req.headers.get("x-paid") || "").trim() === "1" ||
-      (body as Record<string, unknown>).paid === true;
+    // 1) Auth
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const idToken = authHeader.split(" ")[1];
+    await adminAuth.verifyIdToken(idToken); // solo validar
 
-    if (!uid || !scriptId) {
-      return NextResponse.json(
-        { error: "Faltan parámetros (uid, scriptId)" },
-        { status: 400 }
-      );
+    // 2) Body
+    const body = (await req.json()) as Body;
+    const { description, tone, platform, duration, language, structure, addCTA, ctaText } = body;
+
+    if (!description || !tone || !platform || !duration || !language || !structure) {
+      return NextResponse.json({ error: "Faltan parámetros obligatorios" }, { status: 400 });
     }
 
-    const scriptRef = doc(db, "users", uid, "guiones", scriptId);
-    const snap = await getDoc(scriptRef);
-    if (!snap.exists()) {
-      return NextResponse.json({ error: "Guion no encontrado" }, { status: 404 });
-    }
-
-    const data = snap.data() as Record<string, unknown>;
-    const regenCount = Number(data.regenerations ?? 0);
-
-    if (regenCount >= FREE_LIMIT && !paid) {
-      // 402: Payment Required
-      return NextResponse.json(
-        { error: "Has gastado los 2 intentos gratis. Debes pasar por caja para regenerar de nuevo." },
-        { status: 402 }
-      );
-    }
-
+    // 3) Prompt
     const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
 
-- Tema: ${data.description}
-- Tono: ${data.tone}
-- Plataforma: ${data.platform}
-- Duración estimada: ${data.duration} segundos
-- Idioma: ${data.language}
-- Estructura: ${data.structure}
-${data.addCTA ? `- Incluir llamada a la acción: "${data.ctaText || "Invita a seguir la cuenta o interactuar"}"` : ""}
+- Tema: ${description}
+- Tono: ${tone}
+- Plataforma: ${platform}
+- Duración estimada: ${duration} segundos
+- Idioma: ${language}
+- Estructura: ${structure}
+${addCTA ? `- Incluir llamada a la acción: "${ctaText || "Invita a seguir la cuenta o interactuar"}"` : ""}
 
 Reglas estrictas:
 1. No mencionar que eres una IA.
@@ -62,6 +60,7 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 `.trim();
 
+    // 4) Generar con OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
@@ -75,20 +74,10 @@ Reglas estrictas:
       .replace(/^(Aquí.*?:\s*)/i, "")
       .trim();
 
-    const newCount = regenCount + 1;
-    await updateDoc(scriptRef, {
-      script: regeneratedScript,
-      regenerations: newCount,
-      updatedAt: serverTimestamp(),
-    });
-
-    return NextResponse.json({
-      scriptId,
-      regenerations: newCount,
-      script: regeneratedScript,
-    });
+    // 5) Respuesta simple
+    return NextResponse.json({ script: regeneratedScript });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error /scripts/regenerate:", error);
     return NextResponse.json(
       { error: "Error interno regenerando guion" },
       { status: 500 }

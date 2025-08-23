@@ -1,16 +1,18 @@
 // src/app/layout.tsx
-import React from "react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
-import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
-import { cookies } from "next/headers";
+import {
+  NextIntlClientProvider,
+  type AbstractIntlMessages,
+} from "next-intl";
 
 import "./globals.css";
 import { AuthProvider } from "@/context/authContext";
-import { SyncStripe } from "@/components/shared/syncstripe";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/ui/sonner";
 import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
+import { SyncStripe } from "@/components/shared/SyncStripe";
 import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
 
 const geistSans = Geist({
@@ -32,39 +34,44 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // ✅ En tu versión, cookies() es async -> usa await
-  const cookieLocale = (await cookies()).get("NEXT_LOCALE")?.value;
-  const locale =
-    cookieLocale === "en" || cookieLocale === "es" || cookieLocale === "fr"
-      ? cookieLocale
-      : "es";
+  // --- Locale seguro ---
+  const cookieStore = await cookies();
+  const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
+  const supportedLocales = ["es", "en", "fr"] as const;
+  const defaultLocale: (typeof supportedLocales)[number] = "es";
 
-  // 🔠 Carga de mensajes del locale seleccionado
-  const messages: AbstractIntlMessages = (
-    await import(`../locales/${locale}.json`)
-  ).default;
+  const locale = (supportedLocales.includes(
+    cookieLocale as (typeof supportedLocales)[number]
+  )
+    ? cookieLocale
+    : defaultLocale) as (typeof supportedLocales)[number];
+
+  let messages: AbstractIntlMessages = {};
+  try {
+    messages = (await import(`../locales/${locale}.json`)).default;
+  } catch {
+    // fallback si falta el archivo
+    messages = (await import(`../locales/${defaultLocale}.json`)).default;
+  }
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        {/* 💡 Pre-hidratación del acento (usa la MISMA key que en lib/theme.ts) */}
+        {/* Mantener la clase accent-* en <html> */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-(function() {
-  try {
-    var STORAGE_KEY = 'accent';
-    var a = localStorage.getItem(STORAGE_KEY) || 'blue';
-    var root = document.documentElement;
-    var cls = root.className.split(' ').filter(function(c){return c && c.indexOf('accent-') !== 0;});
-    cls.push('accent-' + a);
-    root.className = cls.join(' ').trim();
-  } catch (e) {}
-})();`,
+            __html: `(function(){
+              try {
+                var root = document.documentElement;
+                var a = localStorage.getItem('accent') || 'blue';
+                var cls = root.className.split(' ').filter(function(c){return c && c.indexOf('accent-') !== 0;});
+                cls.push('accent-' + a);
+                root.className = cls.join(' ').trim();
+              } catch (e) {}
+            })();`,
           }}
         />
       </head>
-
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -74,16 +81,13 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {/* Detecta y persiste idioma al cargar en cliente */}
           <LocaleBootstrap />
-
           <NextIntlClientProvider locale={locale} messages={messages}>
             <AuthProvider>
               <SyncStripe />
               {children}
-              <CreateReelGlobalButton />
             </AuthProvider>
-            <Toaster position="top-center" />
+            <Toaster closeButton position="top-center" />
             <div id="recaptcha-container" />
           </NextIntlClientProvider>
         </ThemeProvider>

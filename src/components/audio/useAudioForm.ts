@@ -23,7 +23,6 @@ export function useAudioForm(defaultText: string) {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        toast.info("Cargando voces disponibles...");
         try {
           const voicesRef = collection(db, "users", currentUser.uid, "voices");
           const snapshot = await getDocs(voicesRef);
@@ -37,7 +36,6 @@ export function useAudioForm(defaultText: string) {
           });
           setVoices(loadedVoices);
           if (loadedVoices.length > 0) {
-            toast.success(`${loadedVoices.length} voces encontradas`);
           } else {
             toast.warning("No tienes voces guardadas, primero crea o clona una voz.");
           }

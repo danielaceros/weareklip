@@ -1,6 +1,6 @@
 "use client";
 
-import ClienteCard from "@/components/shared/clientcard";
+import ClienteCard from "@/components/shared/ClientCard";
 import type { Locale } from "@/lib/i18n";
 
 type ClienteActivo = {

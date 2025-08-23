@@ -61,6 +61,9 @@ export async function GET(req: NextRequest) {
       currency: price?.currency ?? "eur",
       cancel_at_period_end: activeSub.cancel_at_period_end,
       customerId: customer.id,
+      trial_start: activeSub.trial_start,
+      trial_end: activeSub.trial_end,
+      raw: activeSub
     })
   } catch (error: unknown) {
     const err = error as Error
