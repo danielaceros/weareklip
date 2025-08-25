@@ -1,7 +1,7 @@
-// src/components/edit/CreateVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { flushSync } from "react-dom"; // 👈 añadido
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Progress } from "@/components/ui/progress";
@@ -76,7 +76,9 @@ export default function CreateVideoPage({
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
 
-  const [submitting, setSubmitting] = useState(false);
+  // estados del botón
+  const [processing, setProcessing] = useState(false); // inmediato
+  const [submitting, setSubmitting] = useState(false); // API real
 
   const { ensureSubscribed } = useSubscriptionGate();
 
@@ -120,16 +122,31 @@ export default function CreateVideoPage({
   }, []);
 
   const handleSubmit = async () => {
+    flushSync(() => setProcessing(true)); // 👈 cambio inmediato
+
     const ok = await ensureSubscribed({ feature: "submagic" });
-    if (!ok) return;
+    if (!ok) {
+      setProcessing(false);
+      return;
+    }
 
     const user = auth.currentUser;
-    if (!user) return toast.error("⚠️ Debes iniciar sesión");
+    if (!user) {
+      toast.error("⚠️ Debes iniciar sesión");
+      setProcessing(false);
+      return;
+    }
 
     if (!videoUrl && !file && preloadedVideos.length === 0) {
-      return toast.error("⚠️ Debes subir o seleccionar un vídeo");
+      toast.error("⚠️ Debes subir o seleccionar un vídeo");
+      setProcessing(false);
+      return;
     }
-    if (!language) return toast.error("⚠️ Debes seleccionar un idioma");
+    if (!language) {
+      toast.error("⚠️ Debes seleccionar un idioma");
+      setProcessing(false);
+      return;
+    }
 
     // Si viene desde wizard → devolvemos datos en vez de llamar API
     if (onComplete) {
@@ -144,11 +161,11 @@ export default function CreateVideoPage({
         magicBrolls,
         magicBrollsPercentage,
       });
+      setProcessing(false);
       return;
     }
 
-    // flujo normal (página independiente)
-    setSubmitting(true);
+    setSubmitting(true); // 👈 ahora ya está en “Generando...”
     setUploadProgress(0);
 
     try {
@@ -218,8 +235,18 @@ export default function CreateVideoPage({
       toast.error("❌ Error subiendo o procesando el vídeo");
     } finally {
       setSubmitting(false);
+      setProcessing(false);
     }
   };
+
+  const isLoading = processing || submitting;
+  const buttonText = processing
+    ? "Procesando..."
+    : submitting
+    ? "Generando..."
+    : onComplete
+    ? "Guardar selección"
+    : "Generar edición de vídeo";
 
   return (
     <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
@@ -413,11 +440,11 @@ export default function CreateVideoPage({
         {/* Botón final */}
         <Button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={isLoading}
           className="w-full"
         >
-          {submitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          {onComplete ? "Guardar selección" : "Generar edición de vídeo"}
+          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+          {buttonText}
         </Button>
       </div>
     </div>

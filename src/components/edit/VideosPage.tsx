@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 
 import VideoCard from "./VideoCard";
 import DeleteVideoDialog from "./DeleteVideoDialog";
-import CreateVideoPage from "./CreateVideoPage"; // 👈 importar el formulario
+import CreateVideoPage from "./CreateVideoPage";
 
 import {
   Pagination,
@@ -38,7 +37,6 @@ export default function VideosPage() {
   const [user, setUser] = useState<User | null>(null);
 
   const [videoToDelete, setVideoToDelete] = useState<VideoData | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   // estado para el modal de creación
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -77,32 +75,6 @@ export default function VideosPage() {
     };
     fetchVideos();
   }, [user]);
-
-  // Borrado de vídeo
-  const handleDelete = async () => {
-    if (!user || !videoToDelete) return;
-    setDeleting(true);
-    try {
-      await deleteDoc(doc(db, "users", user.uid, "videos", videoToDelete.projectId));
-
-      if (videoToDelete.storagePath) {
-        await deleteObject(ref(storage, videoToDelete.storagePath));
-      } else if (videoToDelete.downloadUrl) {
-        const url = new URL(videoToDelete.downloadUrl);
-        const path = decodeURIComponent(url.pathname.split("/o/")[1] || "").split("?")[0];
-        if (path) await deleteObject(ref(storage, path));
-      }
-
-      setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
-      toast.success("Vídeo eliminado correctamente");
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo eliminar el vídeo");
-    } finally {
-      setDeleting(false);
-      setVideoToDelete(null);
-    }
-  };
 
   if (loading) return <p>Cargando vídeos...</p>;
 
@@ -208,8 +180,12 @@ export default function VideosPage() {
       <DeleteVideoDialog
         open={!!videoToDelete}
         onClose={() => setVideoToDelete(null)}
-        onConfirm={handleDelete}
-        deleting={deleting}
+        video={videoToDelete}
+        onDeleted={() =>
+          setVideos((prev) =>
+            prev.filter((v) => v.projectId !== videoToDelete?.projectId)
+          )
+        }
       />
     </div>
   );

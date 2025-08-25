@@ -215,18 +215,29 @@ export async function POST(req: NextRequest) {
     const customerId = user.stripeCustomerId;
     if (!customerId) return bad("No Stripe customer. Debes darte de alta primero.", 400);
 
-    // 4) Validar Access (trialing/active)
+   // 4) Validar Access (trialing/active)
     let accessStatus: string | null = null;
     try {
-      const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
-      const access = subs.data.find((s) => s.metadata?.plan === "access" && s.status !== "canceled");
-      accessStatus = access?.status ?? null;
+      const subs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 100,
+      });
+      const access = subs.data.find(
+        (s) =>
+          s.status !== "canceled" &&
+          s.items.data.some((it) => it.price?.id === process.env.STRIPE_PRICE_ACCESS)
+      );
+
+      accessStatus = access?.status ?? null; // ✅ asignamos a la variable de fuera
     } catch {
       accessStatus = user.subscription?.status ?? null;
     }
+
     if (!(accessStatus === "trialing" || accessStatus === "active")) {
       return bad(`Suscripción no válida (${accessStatus ?? "sin estado"})`, 402);
     }
+
 
     // 5) Garantizar sub de uso y todos los prices
     const usageSub = await getOrCreateUsageSubscription(customerId, uid);
@@ -293,38 +304,40 @@ export async function POST(req: NextRequest) {
       });
     }
 
-// 12) Reportar uso (solo parte de pago) → Meter Events + acumular pendiente local
-let usageEventId: string | null = null;
-if (paidQty > 0) {
-  // Soporte idempotencia: mismo ident si reintentas con la misma key
-  const idemHeader = req.headers.get("x-idempotency-key");
-  const idemBody = typeof body.idem === "string" ? body.idem : undefined;
-  const idem = idemHeader || idemBody || String(Date.now());
-  const ident = `${uid}:${kind}:${idem}`;
+    // 12) Reportar uso (solo parte de pago) → Meter Events + acumular pendiente local
+    let usageEventId: string | null = null;
 
-  const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } })
-    .billing?.meterEvents;
-  if (!meter || typeof meter.create !== "function") {
-    throw new Error("Tu SDK de Stripe no soporta billing.meterEvents.create. Actualiza 'stripe'.");
-  }
+    if (paidQty > 0) {
+      // Soporte idempotencia: mismo ident si reintentas con la misma key
+      const idemHeader = req.headers.get("x-idempotency-key");
+      const idemBody = typeof body.idem === "string" ? body.idem : undefined;
+      const idem = idemHeader || idemBody || String(Date.now());
+      const ident = `${uid}:${kind}:${idem}`;
 
-  const evt = await meter.create(
-    {
-      event_name: meterEventName,
-      payload: { value: paidQty, stripe_customer_id: customerId },
-      identifier: ident,
-    },
-    { idempotencyKey: ident }
-  );
-  usageEventId = evt.id ?? null;
+      const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } })
+        .billing?.meterEvents;
+      if (!meter || typeof meter.create !== "function") {
+        throw new Error("Tu SDK de Stripe no soporta billing.meterEvents.create. Actualiza 'stripe'.");
+      }
 
-  if (chargedCentsThisCall > 0) {
-    await userRef.update({
-      pendingLocalCents: adminFieldValue.increment(chargedCentsThisCall),
-      lastUpdated: adminTimestamp.now(),
-    });
-  }
-}
+      const evt = await meter.create(
+        {
+          event_name: meterEventName,
+          payload: { value: paidQty, stripe_customer_id: customerId },
+          identifier: ident,
+        },
+        { idempotencyKey: ident }
+      );
+      console.log(evt)
+      usageEventId = ident;
+
+      if (chargedCentsThisCall > 0) {
+        await userRef.update({
+          pendingLocalCents: adminFieldValue.increment(chargedCentsThisCall),
+          lastUpdated: adminTimestamp.now(),
+        });
+      }
+    }
 
 
 

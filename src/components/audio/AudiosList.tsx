@@ -24,7 +24,7 @@ export interface AudioData {
 
 interface AudiosListProps {
   audios: AudioData[];
-  onDelete: (audioId: string) => void;
+  onDelete: (audio: AudioData) => void; 
   perPage?: number;
 }
 
@@ -40,15 +40,16 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
     <div className="flex flex-col h-full space-y-6">
       {/* Grid */}
       <div
-          className="
-            grid gap-4 
-            grid-cols-[repeat(auto-fill,minmax(400px,1fr))]
-          "
-        >
-          {paginated.map((audio) => (
-            <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
-          ))}
-        </div>
+        className="
+          grid gap-4 
+          grid-cols-[repeat(auto-fill,minmax(400px,1fr))]
+        "
+      >
+        {paginated.map((audio) => (
+          <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
+        ))}
+      </div>
+
       {/* Paginación */}
       {totalPages > 1 && (
         <div className="mt-auto">
@@ -99,7 +100,7 @@ function AudioCard({
   onDelete,
 }: {
   audio: AudioData;
-  onDelete: (id: string) => void;
+  onDelete: (audio: AudioData) => void; // 👈 recibe el objeto
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
@@ -118,9 +119,18 @@ function AudioCard({
     <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold truncate">{audio.name || "Sin título"}</h3>
+        <div className="flex flex-col">
+          <h3 className="text-sm font-semibold truncate">
+            {audio.name || "Sin título"}
+          </h3>
+          {audio.description && (
+            <p className="text-xs text-muted-foreground truncate">
+              {audio.description}
+            </p>
+          )}
+        </div>
         <button
-          onClick={() => onDelete(audio.audioId)}
+          onClick={() => onDelete(audio)}
           className="p-2 rounded-full hover:bg-muted transition"
         >
           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -133,7 +143,11 @@ function AudioCard({
           onClick={togglePlay}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {isPlaying ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
         </button>
 
         <div className="flex-1">
@@ -163,6 +177,12 @@ function AudioCard({
           setProgress(0);
         }}
       />
+
+      {/* Footer con metadatos */}
+      <div className="mt-3 flex justify-between text-xs text-muted-foreground">
+        {audio.language && <span>🌍 {audio.language}</span>}
+        {audio.duration && <span>⏱ {audio.duration}</span>}
+      </div>
     </Card>
   );
 }

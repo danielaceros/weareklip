@@ -1,6 +1,6 @@
 // src/app/api/elevenlabs/audio/regenerate/route.ts
 import { NextResponse } from "next/server";
-import { adminAuth, adminStorage } from "@/lib/firebase-admin";
+import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
 
 export const runtime = "nodejs";
@@ -9,13 +9,8 @@ export const dynamic = "force-dynamic";
 type Body = {
   text: string;
   voiceId: string;
-  language_code?: string;
   voice_settings?: Record<string, unknown>;
 };
-
-const bucket = adminStorage.bucket(
-  process.env.FIREBASE_STORAGE_BUCKET || undefined
-);
 
 export async function POST(req: Request) {
   try {
@@ -28,8 +23,9 @@ export async function POST(req: Request) {
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
     // 2) Body
-    const data = (await req.json()) as Body;
-    const { text, voiceId, language_code, voice_settings } = data;
+    const { text, voiceId, voice_settings } =
+      (await req.json()) as Body;
+
     if (!text || !voiceId) {
       return NextResponse.json(
         { error: "text y voiceId son obligatorios" },
@@ -47,7 +43,7 @@ export async function POST(req: Request) {
     }
 
     const r = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
       {
         method: "POST",
         headers: {
@@ -57,7 +53,6 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           text,
           model_id: "eleven_multilingual_v2",
-          language_code,
           voice_settings,
         }),
       }
@@ -65,39 +60,67 @@ export async function POST(req: Request) {
 
     if (!r.ok) {
       const errText = await r.text().catch(() => "");
-      console.error("ElevenLabs regenerate error:", errText);
+      console.error("❌ ElevenLabs regenerate error:", errText);
       return NextResponse.json(
-        { error: "Error regenerando audio" },
-        { status: 500 }
+        { error: "Error regenerando audio", details: errText },
+        { status: 502 }
       );
     }
 
     const buf = Buffer.from(await r.arrayBuffer());
 
-    // 4) Guardar en Storage (sobrescribir simple)
+    // 4) Guardar en Storage
     const token = uuidv4();
-    const path = `users/${uid}/audios/${Date.now()}-regen.mp3`;
-    const file = bucket.file(path);
+    const audioId = uuidv4();
+    const path = `users/${uid}/audios/${audioId}-regen.mp3`;
+
+    const file = adminBucket.file(path);
     await file.save(buf, {
       contentType: "audio/mpeg",
-      metadata: { firebaseStorageDownloadTokens: token },
+      resumable: false,
+      metadata: {
+        firebaseStorageDownloadTokens: token,
+      },
     });
 
-    // URL pública
-    const rawBucket =
-      process.env.FIREBASE_STORAGE_BUCKET ||
-      `${process.env.FIREBASE_PROJECT_ID}.appspot.com`;
-    const bucketName = rawBucket.replace(
-      /\.firebasestorage\.app$/i,
-      ".appspot.com"
-    );
-    const audioUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(
-      path
-    )}?alt=media&token=${token}`;
+    const audioUrl = `https://firebasestorage.googleapis.com/v0/b/${
+      adminBucket.name
+    }/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 
-    return NextResponse.json({ audioUrl });
-  } catch (e) {
-    console.error("Error /api/elevenlabs/audio/regenerate:", e);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    // 5) Guardar en Firestore
+    const audioData: Record<string, any> = {
+      audioId,
+      uid,
+      voiceId,
+      text,
+      audioUrl,
+      createdAt: new Date(),
+      regenerated: true,
+    };
+
+    // Solo guarda voice_settings si existe
+    if (voice_settings && Object.keys(voice_settings).length > 0) {
+      audioData.voice_settings = voice_settings;
+    }
+
+    await adminDB
+      .collection("users")
+      .doc(uid)
+      .collection("audios")
+      .doc(audioId)
+      .set(audioData);
+
+    // 6) Respuesta
+    return NextResponse.json({
+      ok: true,
+      audioId,
+      audioUrl,
+    });
+  } catch (e: any) {
+    console.error("❌ Error /api/elevenlabs/audio/regenerate:", e?.message, e);
+    return NextResponse.json(
+      { error: "Error interno", details: e?.message || String(e) },
+      { status: 500 }
+    );
   }
 }

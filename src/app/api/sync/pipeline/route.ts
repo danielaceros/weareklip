@@ -1,21 +1,23 @@
 // src/app/api/pipeline/route.ts
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { initAdmin, db } from "@/lib/firebase-admin";
+import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
 
-initAdmin();
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
     // 1️⃣ Autenticación
     const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const idToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : undefined;
+    if (!idToken)
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const idToken = authHeader.split("Bearer ")[1];
-    const decoded = await getAuth().verifyIdToken(idToken);
 
-    // 2️⃣ Validar y recibir datos
+    const decoded = await adminAuth.verifyIdToken(idToken);
+
+    // 2️⃣ Validar body
     const {
       audioUrl,
       videoUrl,
@@ -34,20 +36,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3️⃣ Detectar URL base para el webhook
+    // 3️⃣ URL base para webhook
     const baseUrl =
       process.env.NODE_ENV === "development"
-        ? process.env.NGROK_URL || "http://localhost:3000"
-        : process.env.NEXT_PUBLIC_BASE_URL;
+        ? (process.env.NGROK_URL || "http://localhost:3000").replace(/\/$/, "")
+        : (process.env.NEXT_PUBLIC_BASE_URL ||
+            process.env.NEXT_PUBLIC_APP_URL ||
+            "").replace(/\/$/, "");
+    if (!baseUrl) throw new Error("No está configurada la URL base");
 
-    if (!baseUrl) {
-      throw new Error("No está configurada la URL base");
-    }
+    const webhookUrl = `${baseUrl}/api/webhook/pipeline?uid=${encodeURIComponent(
+      decoded.uid
+    )}`;
 
-    const webhookUrl = `${baseUrl}/api/webhook/pipeline?uid=${decoded.uid}`;
-
-    // 4️⃣ Petición directa a Sync.so
-    const syncRes = await fetch("https://api.sync.so/v2/generate", {
+    // 4️⃣ Llamada a Sync.so
+    const res = await fetch("https://api.sync.so/v2/generate", {
       method: "POST",
       headers: {
         "x-api-key": process.env.SYNC_API_KEY!,
@@ -64,12 +67,12 @@ export async function POST(req: Request) {
       }),
     });
 
-    const data = await syncRes.json();
-    if (!syncRes.ok) throw new Error(data.error || "Error en Sync.so");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error en Sync.so");
 
-    // 5️⃣ Guardar en Firestore (incluyendo datos para el paso de Submagic)
+    // 5️⃣ Guardar en Firestore
     if (data.id) {
-      await db
+      await adminDB
         .collection("users")
         .doc(decoded.uid)
         .collection("lipsync")
@@ -77,7 +80,8 @@ export async function POST(req: Request) {
         .set({
           title: `Lipsync - ${new Date().toLocaleString()}`,
           status: "processing",
-          createdAt: new Date(),
+          createdAt: adminTimestamp.now(),
+          updatedAt: adminTimestamp.now(),
           audioUrl,
           videoUrl,
           model: data.model || "lipsync-2",
@@ -90,18 +94,16 @@ export async function POST(req: Request) {
             typeof magicBrollsPercentage === "number"
               ? magicBrollsPercentage
               : 50,
-          // 🔹 Guardamos email y uid para el webhook
           email: decoded.email || null,
           uid: decoded.uid,
         });
     }
 
-    // 6️⃣ Responder al cliente
+    // 6️⃣ Respuesta
     return NextResponse.json(data);
-  } catch (err: unknown) {
-    console.error("Error creando vídeo lipsync directo:", err);
-    const message =
-      err instanceof Error ? err.message : "Error desconocido";
+  } catch (err) {
+    console.error("❌ Error creando lipsync:", err);
+    const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

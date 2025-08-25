@@ -1,6 +1,6 @@
 // src/app/api/webhook/submagic/route.ts
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase-admin";
+import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
 
 export async function GET() {
   return NextResponse.json({ status: "Webhook endpoint ready" });
@@ -16,16 +16,27 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("📩 Webhook recibido de Submagic:", JSON.stringify(body, null, 2));
 
-    const { projectId, status, title, downloadUrl, duration, completedAt, timestamp } = body;
+    const {
+      projectId,
+      status,
+      title,
+      downloadUrl,
+      duration,
+      completedAt,
+      timestamp,
+    } = body;
     if (!projectId || !status) {
-      return NextResponse.json({ error: "Missing projectId or status" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing projectId or status" },
+        { status: 400 }
+      );
     }
 
-    const normalizedStatus = status.toLowerCase();
-    const now = new Date().toISOString();
+    const normalizedStatus = String(status).toLowerCase();
+    const now = adminTimestamp.now();
 
     // 🔍 Buscar lipsync por submagicProjectId
-    const lipsyncQuery = await db
+    const lipsyncQuery = await adminDB
       .collection("users")
       .doc(uid)
       .collection("lipsync")
@@ -33,32 +44,36 @@ export async function POST(req: Request) {
       .limit(1)
       .get();
 
-    if (lipsyncQuery.empty) {
-      console.warn(`⚠️ No se encontró lipsync con submagicProjectId=${projectId} para el usuario ${uid}`);
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    let userEmail: string | null = null;
+    if (!lipsyncQuery.empty) {
+      const lipsyncDoc = lipsyncQuery.docs[0];
+      const lipsyncRef = lipsyncDoc.ref;
+      const lipsyncData = lipsyncDoc.data();
+      userEmail = (lipsyncData as any).email;
+
+      console.log(
+        `🔗 Emparejado lipsync docId=${lipsyncDoc.id} para usuario ${uid}`
+      );
+
+      // 📂 Actualizar documento lipsync
+      await lipsyncRef.set(
+        {
+          submagicStatus: normalizedStatus,
+          submagicDownloadUrl: downloadUrl || null,
+          submagicDuration: duration ?? null,
+          submagicCompletedAt: completedAt || lipsyncData.submagicCompletedAt || null,
+          submagicUpdatedAt: now,
+        },
+        { merge: true }
+      );
+    } else {
+      console.warn(
+        `⚠️ No se encontró lipsync con submagicProjectId=${projectId} para el usuario ${uid}`
+      );
     }
 
-    const lipsyncDoc = lipsyncQuery.docs[0];
-    const lipsyncRef = lipsyncDoc.ref;
-    const lipsyncData = lipsyncDoc.data();
-    const userEmail = lipsyncData.email;
-
-    console.log(`🔗 Emparejado lipsync docId=${lipsyncDoc.id} para usuario ${uid}`);
-
-    // 📂 Actualizar documento lipsync
-    await lipsyncRef.set(
-      {
-        submagicStatus: normalizedStatus,
-        submagicDownloadUrl: downloadUrl || null,
-        submagicDuration: duration ?? null,
-        submagicCompletedAt: completedAt || lipsyncData.submagicCompletedAt || null,
-        submagicUpdatedAt: now,
-      },
-      { merge: true }
-    );
-
     // 📂 Guardar también en "videos"
-    await db
+    await adminDB
       .collection("users")
       .doc(uid)
       .collection("videos")
@@ -71,7 +86,7 @@ export async function POST(req: Request) {
           downloadUrl: downloadUrl || null,
           duration: duration ?? null,
           completedAt: completedAt || null,
-          createdAt: timestamp || now,
+          createdAt: timestamp ? adminTimestamp.fromMillis(Date.parse(timestamp)) : now,
           updatedAt: now,
           rawPayload: body,
         },
@@ -104,6 +119,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("❌ Error processing Submagic webhook:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

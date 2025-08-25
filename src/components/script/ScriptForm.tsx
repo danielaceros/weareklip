@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { flushSync } from "react-dom"; // 👈 Import clave
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -25,7 +27,7 @@ interface ScriptFormProps {
   structure: string;
   addCTA: boolean;
   ctaText: string;
-  loading: boolean;
+  loading: boolean; // viene del padre
   setDescription: (val: string) => void;
   setTone: (val: string) => void;
   setPlatform: (val: string) => void;
@@ -34,7 +36,7 @@ interface ScriptFormProps {
   setStructure: (val: string) => void;
   setAddCTA: (val: boolean) => void;
   setCtaText: (val: string) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
 }
 
 export function ScriptForm({
@@ -58,8 +60,12 @@ export function ScriptForm({
   onSubmit,
 }: ScriptFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
+  const [processing, setProcessing] = useState(false);
 
   const handleSubmit = async () => {
+    flushSync(() => {
+      setProcessing(true);
+    });
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
       toast.error("Necesitas una suscripción activa para generar guiones.");
@@ -70,18 +76,26 @@ export function ScriptForm({
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
       return;
     }
-
-    toast.success("✅ Validaciones completadas, generando guión...");
-    onSubmit();
+    
+    try {
+      await onSubmit();
+    } finally {
+      setProcessing(false);
+    }
   };
+
+  const isLoading = processing || loading;
+  const buttonText = processing
+    ? "Procesando..."
+    : loading
+    ? "Generando..."
+    : "Generar guion";
 
   return (
     <div className="w-full space-y-8">
       {/* Título */}
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Generación de guión
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight">Generación de guión</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Completa los campos para crear un nuevo guión automáticamente.
         </p>
@@ -215,13 +229,13 @@ export function ScriptForm({
         <Button
           type="button"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={isLoading}
           className="w-full"
           data-paywall
           data-paywall-feature="script"
         >
-          {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          Generar guion
+          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+          {buttonText}
         </Button>
       </div>
     </div>
