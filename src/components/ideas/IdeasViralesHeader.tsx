@@ -1,6 +1,14 @@
 "use client";
 
 import { FC } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface IdeasViralesHeaderProps {
   country: string;
@@ -8,6 +16,8 @@ interface IdeasViralesHeaderProps {
   range: string;
   setRange: (value: string) => void;
   title: string;
+  favoritesOnly?: boolean;
+  setFavoritesOnly?: (value: boolean) => void;
 }
 
 export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
@@ -16,31 +26,98 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
   range,
   setRange,
   title,
+  favoritesOnly,
+  setFavoritesOnly,
 }) => {
   return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <h1 className="text-3xl font-bold">{title}</h1>
-      <select
-        value={country}
-        onChange={(e) => setCountry(e.target.value)}
-        className="border border-border rounded-lg px-3 py-1 bg-background"
-      >
-        <option value="ES">🇪🇸 España</option>
-        <option value="US">🇺🇸 USA</option>
-        <option value="MX">🇲🇽 México</option>
-        <option value="AR">🇦🇷 Argentina</option>
-        <option value="FR">🇫🇷 Francia</option>
-      </select>
-      <select
-        value={range}
-        onChange={(e) => setRange(e.target.value)}
-        className="border border-border rounded-lg px-3 py-1 bg-background"
-      >
-        <option value="today">📅 Hoy</option>
-        <option value="week">🗓 Última semana</option>
-        <option value="month">📆 Último mes</option>
-        <option value="year">📊 Último año</option>
-      </select>
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <h1 className="text-2xl font-semibold">{title}</h1>
+
+      <div className="flex flex-wrap gap-3">
+        {/* Idioma */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-sm font-medium"
+            >
+              Idioma:{" "}
+              {country === "ES"
+                ? "Español"
+                : country === "US"
+                ? "Inglés"
+                : country}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-40">
+            <DropdownMenuItem onClick={() => setCountry("ES")}>
+              🇪🇸 Español
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCountry("US")}>
+              🇺🇸 Inglés
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCountry("MX")}>
+              🇲🇽 México
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCountry("AR")}>
+              🇦🇷 Argentina
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCountry("FR")}>
+              🇫🇷 Francés
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Tiempo */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-sm font-medium"
+            >
+              Tiempo:{" "}
+              {range === "today"
+                ? "Hoy"
+                : range === "week"
+                ? "Última semana"
+                : range === "month"
+                ? "Último mes"
+                : "Último año"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-44">
+            <DropdownMenuItem onClick={() => setRange("today")}>
+              📅 Hoy
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRange("week")}>
+              🗓 Última semana
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRange("month")}>
+              📆 Último mes
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRange("year")}>
+              📊 Último año
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Favoritos */}
+        {setFavoritesOnly && (
+          <Button
+            variant={favoritesOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFavoritesOnly(!favoritesOnly)}
+            className={cn(
+              "rounded-lg text-sm font-medium",
+              favoritesOnly && "bg-primary text-white"
+            )}
+          >
+            Favoritos
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

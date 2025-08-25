@@ -1,4 +1,3 @@
-// src/components/audio/AudioForm.tsx  (ajusta la ruta si es otra)
 "use client";
 
 import { Label } from "@/components/ui/label";
@@ -13,8 +12,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle } from "lucide-react";
-// ⬇️ importamos el gate de suscripción
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner"; // ⬅️ feedback visual
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 interface Voice {
@@ -44,132 +43,167 @@ interface AudioFormProps {
   loading: boolean;
 }
 
-export function AudioForm(props: AudioFormProps) {
-  const {
-    text,
-    setText,
-    voices,
-    voiceId,
-    setVoiceId,
-    languageCode,
-    setLanguageCode,
-    stability,
-    setStability,
-    similarityBoost,
-    setSimilarityBoost,
-    style,
-    setStyle,
-    speed,
-    setSpeed,
-    speakerBoost,
-    setSpeakerBoost,
-    onGenerate,
-    loading,
-  } = props;
-
-  // ⬇️ obtenemos el verificador de suscripción
+export function AudioForm({
+  text,
+  setText,
+  voices,
+  voiceId,
+  setVoiceId,
+  languageCode,
+  setLanguageCode,
+  stability,
+  setStability,
+  similarityBoost,
+  setSimilarityBoost,
+  style,
+  setStyle,
+  speed,
+  setSpeed,
+  speakerBoost,
+  setSpeakerBoost,
+  onGenerate,
+  loading,
+}: AudioFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
 
-  // ⬇️ envolvemos el click para chequear suscripción antes de generar
   const handleGenerateClick = async () => {
     const ok = await ensureSubscribed({ feature: "audio" });
-    if (!ok) return; // si no tiene plan, redirige y no continúa
-    onGenerate(); // si está OK, ejecuta la lógica original
+    if (!ok) {
+      toast.error("Necesitas una suscripción activa para generar audios.");
+      return;
+    }
+
+    if (!text.trim()) {
+      toast.error("⚠️ Debes escribir un texto para convertirlo en audio.");
+      return;
+    }
+
+    if (!voiceId) {
+      toast.error("⚠️ Selecciona una voz para continuar.");
+      return;
+    }
+
+    if (!languageCode) {
+      toast.error("⚠️ Selecciona un idioma para el audio.");
+      return;
+    }
+
+    toast.success("✅ Validaciones completadas, generando audio...");
+    onGenerate();
   };
 
   return (
-    <div className="w-full space-y-6 py-8">
-      <h1 className="text-2xl font-bold flex items-center gap-2">
-        <AlertCircle className="w-6 h-6 text-primary" /> Generar nuevo audio
-      </h1>
+    <div className="w-full max-w-2xl mx-auto rounded-2xl space-y-6">
+      {/* Título */}
+      <h2 className="text-xl font-semibold">Generación de audio</h2>
 
+      {/* Descripción */}
       <div>
-        <Label>Texto *</Label>
+        <Label className="text-sm font-medium">Texto *</Label>
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Escribe el texto..."
+          className="mt-2"
         />
       </div>
 
-      <div>
-        <Label>Voz *</Label>
-        <Select onValueChange={setVoiceId} value={voiceId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecciona una voz" />
-          </SelectTrigger>
-          <SelectContent>
-            {voices.length > 0 ? (
-              voices.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.name}
+      {/* Voz + Idioma */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium">Voz *</Label>
+          <Select onValueChange={setVoiceId} value={voiceId}>
+            <SelectTrigger className="mt-2">
+              <SelectValue placeholder="Seleccionar una voz" />
+            </SelectTrigger>
+            <SelectContent>
+              {voices.length > 0 ? (
+                voices.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="no-voices" disabled>
+                  No tienes voces guardadas
                 </SelectItem>
-              ))
-            ) : (
-              <SelectItem value="no-voices" disabled>
-                No tienes voces guardadas
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-sm font-medium">Idioma *</Label>
+          <Select onValueChange={setLanguageCode} value={languageCode}>
+            <SelectTrigger className="mt-2">
+              <SelectValue placeholder="Seleccionar un idioma" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="es">Español</SelectItem>
+              <SelectItem value="en">Inglés</SelectItem>
+              <SelectItem value="fr">Francés</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div>
-        <Label>Idioma</Label>
-        <Select onValueChange={setLanguageCode} value={languageCode}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="es">Español</SelectItem>
-            <SelectItem value="en">Inglés</SelectItem>
-            <SelectItem value="fr">Francés</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Sliders */}
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between text-sm font-medium">
+            <Label>Estabilidad</Label>
+            <span>{stability.toFixed(2)} / 1.00</span>
+          </div>
+          <Slider
+            value={[stability]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={(v) => setStability(v[0])}
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-sm font-medium">
+            <Label>Similaridad</Label>
+            <span>{similarityBoost.toFixed(2)} / 1.00</span>
+          </div>
+          <Slider
+            value={[similarityBoost]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={(v) => setSimilarityBoost(v[0])}
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-sm font-medium">
+            <Label>Estilo</Label>
+            <span>{style.toFixed(2)} / 1.00</span>
+          </div>
+          <Slider
+            value={[style]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={(v) => setStyle(v[0])}
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-sm font-medium">
+            <Label>Velocidad</Label>
+            <span>{speed.toFixed(2)} / 2.00</span>
+          </div>
+          <Slider
+            value={[speed]}
+            min={0.5}
+            max={2.0}
+            step={0.01}
+            onValueChange={(v) => setSpeed(v[0])}
+          />
+        </div>
       </div>
 
-      <div>
-        <Label>Estabilidad ({stability.toFixed(2)})</Label>
-        <Slider
-          value={[stability]}
-          min={0}
-          max={1}
-          step={0.01}
-          onValueChange={(v) => setStability(v[0])}
-        />
-      </div>
-      <div>
-        <Label>Similaridad ({similarityBoost.toFixed(2)})</Label>
-        <Slider
-          value={[similarityBoost]}
-          min={0}
-          max={1}
-          step={0.01}
-          onValueChange={(v) => setSimilarityBoost(v[0])}
-        />
-      </div>
-      <div>
-        <Label>Estilo ({style.toFixed(2)})</Label>
-        <Slider
-          value={[style]}
-          min={0}
-          max={1}
-          step={0.01}
-          onValueChange={(v) => setStyle(v[0])}
-        />
-      </div>
-      <div>
-        <Label>Velocidad ({speed.toFixed(2)})</Label>
-        <Slider
-          value={[speed]}
-          min={0.5}
-          max={2.0}
-          step={0.01}
-          onValueChange={(v) => setSpeed(v[0])}
-        />
-      </div>
-
-      <div className="flex items-center space-x-2">
+      {/* Checkbox */}
+      <div className="flex items-center gap-2">
         <Checkbox
           checked={speakerBoost}
           onCheckedChange={(c) => setSpeakerBoost(!!c)}
@@ -177,10 +211,11 @@ export function AudioForm(props: AudioFormProps) {
         <Label>Usar Speaker Boost</Label>
       </div>
 
+      {/* Botón */}
       <Button
         onClick={handleGenerateClick}
         disabled={loading}
-        className="w-full"
+        className="w-full rounded-lg"
       >
         {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
         {loading ? "Generando audio..." : "Generar audio"}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useUserPanel } from "@/components/user/useUserPanel";
-import UserProfileSection from "@/components/user/UserProfileSection";
+import BillingSection from "@/components/user/BillingSection";
 
 export default function UserPage() {
   const {
@@ -15,7 +15,7 @@ export default function UserPage() {
 
   return (
     <div className="space-y-8">
-      <UserProfileSection t={t} />
+      <BillingSection />
     </div>
   );
 }

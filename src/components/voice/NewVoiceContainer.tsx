@@ -1,4 +1,3 @@
-// src/components/voice/NewVoiceContainer.tsx
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -15,9 +14,15 @@ import {
 } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { VoiceSamplesList } from "./VoiceSamplesList";
-import { ProgressBar } from "./ProgressBar";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { v4 as uuidv4 } from "uuid";
+import { Progress } from "@/components/ui/progress";
+import {
+  Mic,
+  UploadCloud,
+  CheckCircle2,
+  VolumeX,
+} from "lucide-react";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
@@ -25,14 +30,10 @@ type VoiceCreateErr = { error?: string; message?: string };
 export default function NewVoiceContainer() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [samples, setSamples] = useState<
-    { name: string; duration: number; url: string }[]
-  >([]);
+  const [samples, setSamples] = useState<{ name: string; duration: number; url: string }[]>([]);
   const [totalDuration, setTotalDuration] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
-    {}
-  );
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const storage = getStorage();
@@ -71,9 +72,7 @@ export default function NewVoiceContainer() {
       setTotalDuration(total);
 
       if (total > 180) {
-        toast.error(
-          "⚠ Has superado el límite de 3 minutos, elimina muestras para continuar."
-        );
+        toast.error("⚠ Has superado el límite de 3 minutos, elimina muestras para continuar.");
       }
     } catch (err) {
       console.error(err);
@@ -91,10 +90,7 @@ export default function NewVoiceContainer() {
       const safeExt = rawExt === "x-m4a" ? "m4a" : rawExt;
       const fileName = `voice-sample-${Date.now()}.${safeExt}`;
 
-      const storageRef = ref(
-        storage,
-        `users/${user.uid}/voice-samples/${fileName}`
-      );
+      const storageRef = ref(storage, `users/${user.uid}/voice-samples/${fileName}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       toast(`📤 Subiendo ${file.name}...`);
@@ -103,9 +99,7 @@ export default function NewVoiceContainer() {
         uploadTask.on(
           "state_changed",
           (snapshot) => {
-            const progress = Math.round(
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            );
+            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
             setUploadProgress((prev) => ({ ...prev, [fileName]: progress }));
           },
           (error) => {
@@ -151,9 +145,9 @@ export default function NewVoiceContainer() {
     [user, uploadToFirebase]
   );
 
-  const { getRootProps, getInputProps } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "audio/*": [] },
+    accept: { "audio/*": [], "video/*": [] },
     multiple: true,
   });
 
@@ -185,10 +179,7 @@ export default function NewVoiceContainer() {
   };
 
   const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
@@ -197,9 +188,7 @@ export default function NewVoiceContainer() {
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
-      await deleteObject(
-        ref(storage, `users/${user.uid}/voice-samples/${sampleName}`)
-      );
+      await deleteObject(ref(storage, `users/${user.uid}/voice-samples/${sampleName}`));
       toast("🗑 Muestra eliminada");
       await fetchSamples();
     } catch {
@@ -224,7 +213,6 @@ export default function NewVoiceContainer() {
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      // Extrae los paths de Storage desde las URLs de descarga
       const paths = samples
         .map((s) => {
           try {
@@ -255,7 +243,6 @@ export default function NewVoiceContainer() {
         }),
       });
 
-      // Parse seguro: JSON o texto
       let data: VoiceCreateOk | VoiceCreateErr;
       try {
         data = (await res.json()) as VoiceCreateOk | VoiceCreateErr;
@@ -271,7 +258,6 @@ export default function NewVoiceContainer() {
           ("error" in data && data.error) ||
           ("message" in data && data.message) ||
           `HTTP ${res.status} al crear voz`;
-        console.error("voice/create error:", res.status, data);
         toast.error(msg);
         return;
       }
@@ -281,17 +267,12 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      const { getFirestore, doc, setDoc, serverTimestamp } = await import(
-        "firebase/firestore"
-      );
+      const { getFirestore, doc, setDoc, serverTimestamp } = await import("firebase/firestore");
       const db = getFirestore();
 
       await setDoc(doc(db, `users/${user.uid}/voices/${data.voice_id}`), {
         voice_id: data.voice_id,
-        requires_verification:
-          "requires_verification" in data
-            ? data.requires_verification
-            : undefined,
+        requires_verification: "requires_verification" in data ? data.requires_verification : undefined,
         name: `Voz-${Date.now()}`,
         paths,
         created_at: serverTimestamp(),
@@ -303,58 +284,97 @@ export default function NewVoiceContainer() {
     } catch (err) {
       console.error(err);
       toast.dismiss();
-      toast.error(
-        (err as Error).message || "Error de conexión al crear la voz"
-      );
+      toast.error((err as Error).message || "Error de conexión al crear la voz");
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">🎤 Crear nueva voz</h1>
+    <div className="max-w-6xl w-full mx-auto py-8"> 
+      <h1 className="text-3xl font-bold mb-6">Clonación de voz</h1>
 
-      {/* Drag & Drop */}
-      <div
-        {...getRootProps()}
-        className="border-2 border-dashed p-6 rounded-lg text-center cursor-pointer hover:border-blue-500"
-      >
-        <input {...getInputProps()} />
-        <p className="text-gray-500">
-          Arrastra y suelta muestras (máx 5 MB, máx 30s) o haz clic aquí
-        </p>
-      </div>
+      {/* Grid principal */}
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
+        {/* Columna izquierda */}
+        <div className="space-y-6">
+          {/* Tips */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            <div>
+              <VolumeX className="mx-auto h-6 w-6 mb-2" />
+              <h3 className="font-semibold">Evita entornos ruidosos</h3>
+              <p className="text-sm text-muted-foreground">
+                Los sonidos de fondo interfieren con la calidad de la grabación.
+              </p>
+            </div>
+            <div>
+              <Mic className="mx-auto h-6 w-6 mb-2" />
+              <h3 className="font-semibold">Usa equipo consistente</h3>
+              <p className="text-sm text-muted-foreground">
+                No cambies el equipo de grabación entre muestras.
+              </p>
+            </div>
+            <div>
+              <CheckCircle2 className="mx-auto h-6 w-6 mb-2" />
+              <h3 className="font-semibold">Comprueba la calidad</h3>
+              <p className="text-sm text-muted-foreground">
+                Escucha y revisa la grabación antes de subirla.
+              </p>
+            </div>
+          </div>
 
-      {/* Botón grabación */}
-      <div className="mt-6 flex gap-4 items-center">
-        <button
-          onClick={recording ? stopRecording : startRecording}
-          className={`px-6 py-3 rounded-full text-white font-semibold transition ${
-            recording
-              ? "bg-red-500 hover:bg-red-600"
-              : "bg-blue-500 hover:bg-blue-600"
-          }`}
-        >
-          {recording ? "⏹ Detener grabación" : "🎙 Grabar muestra"}
-        </button>
-      </div>
+          {/* Dropzone */}
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer transition ${
+              isDragActive ? "border-primary bg-muted/40" : "border-border"
+            }`}
+          >
+            <input {...getInputProps()} />
+            <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
+            <p className="text-xs text-muted-foreground">
+              Archivos de audio o vídeo de hasta 10 MB cada uno
+            </p>
+            <span className="mt-2 text-xs text-muted-foreground">o</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                recording ? stopRecording() : startRecording();
+              }}
+              className="mt-3 px-4 py-2 rounded-lg border hover:bg-muted transition"
+            >
+              {recording ? "⏹ Detener" : "🎙 Grabar audio"}
+            </button>
+          </div>
 
-      <ProgressBar totalDuration={totalDuration} />
-      <VoiceSamplesList
-        samples={samples}
-        uploadProgress={uploadProgress}
-        onRemove={removeSample}
-      />
+          {/* Progreso */}
+          <div className="flex items-center gap-4">
+            <Progress value={(totalDuration / 120) * 100} className="flex-1" />
+            <span className="text-sm font-medium">
+              {Math.round(totalDuration)} / 120
+            </span>
+          </div>
 
-      {/* Botón Crear Voz */}
-      <div className="mt-8 flex justify-end">
-        <button
-          onClick={createVoice}
-          className="px-6 py-3 rounded-full bg-green-500 hover:bg-green-600 text-white font-semibold transition"
-          data-paywall
-          data-paywall-feature="elevenlabs-voice"
-        >
-          🚀 Crear voz en ElevenLabs
-        </button>
+          {/* Botón generar */}
+          <div className="flex justify-end">
+            <button
+              onClick={createVoice}
+              className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+              data-paywall
+              data-paywall-feature="elevenlabs-voice"
+            >
+              Generar audio
+            </button>
+          </div>
+        </div>
+
+        {/* Columna derecha: muestras */}
+        <div>
+          <VoiceSamplesList
+            samples={samples}
+            uploadProgress={uploadProgress}
+            onRemove={removeSample}
+          />
+        </div>
       </div>
     </div>
   );

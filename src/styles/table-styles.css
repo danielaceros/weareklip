@@ -1,0 +1,259 @@
+/* === Tabs === */
+.tab-button {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
+  background-color: #f3f4f6;
+  transition: background-color 0.2s ease;
+}
+.tab-button:hover {
+  background-color: #e5e7eb;
+}
+.tab-button.active {
+  background-color: #000;
+  color: #fff;
+}
+
+/* === Base de tarjetas === */
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.template-card button {
+  background-color: rgb(93, 94, 99);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  text-align: center;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  color: #fff;
+}
+.template-card button:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+.tag {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* === Variables globales (fallbacks) === */
+:root {
+  --font-color: #ffffff;
+  --main-color: #000000;
+  --highlight-color: #00ff00;
+}
+
+/* === Estilos específicos de cada template === */
+
+/* Doug */
+.button-template-doug .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0 2px 5px #000;
+}
+
+/* Carlos */
+.button-template-carlos .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0 0 8px #000, 0 3px 6px #000;
+}
+
+/* Luke */
+.button-template-luke .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0 0 1px black, 0 0 8px white, 0 3px 11px black;
+}
+
+/* Mark */
+.button-template-mark .button-template-name {
+  font-weight: 900;
+  text-shadow: 0 2px 5px #1c1c1c;
+  text-transform: capitalize;
+  position: relative;
+}
+
+/* Kelly */
+.button-template-kelly .button-template-name {
+  font-weight: 900;
+  text-shadow: 0 2px 5px #1c1c1c;
+  text-transform: capitalize;
+  position: relative;
+}
+
+/* Kendrick */
+.button-template-kendrick .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0px 2px 4px #000, 0px 0px 8px #000;
+}
+
+/* Salma */
+.button-template-salma .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0 0 4px #000, 0 0 6px #000;
+}
+
+/* Lewis */
+.button-template-lewis .button-template-name {
+  font-family: Montserrat, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--font-color, #fff);
+  text-shadow: 0px 4px 10px #000;
+}
+
+/* Masi */
+.button-template-masi .button-template-name {
+  font-weight: 700;
+  position: relative;
+  text-transform: capitalize;
+  text-shadow: 0 2px 5px #1c1c1c;
+}
+.button-template-masi .button-template-name:before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -5%;
+  width: 110%;
+  height: 0.8em;
+  background-color: #000;
+  z-index: 1;
+  transform: translateY(-10%);
+}
+
+/* Devin */
+.button-template-devin {
+  font-weight: 900;
+  -webkit-text-stroke: 1px black;
+  text-shadow: 0 0 30px white;
+}
+
+/* Ali */
+.button-template-ali .button-template-name {
+  border-radius: 4px;
+  background-color: #5d5e63; /* corregido: antes #eee */
+  padding: 0.5em 2em;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+/* Mike */
+.button-template-mike {
+  font-weight: 700;
+  text-shadow: 0 10px 30px #000, 0 5px 15px #000;
+  line-height: 1;
+}
+
+/* Hormozi */
+.button-template-hormozi {
+  font-weight: 900;
+  text-shadow: 0 0 20px #000000, 0 0 5px #000000;
+}
+
+/* Enrico */
+.button-template-enrico {
+  text-shadow: 0 0 4px #000000, 0 0 5px #000000,
+    0 0 6px #000000, 0 0 7px #000000,
+    0 0 8px #000000, 0 0 9px #000000;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Laura */
+.button-template-laura {
+  font-weight: 900;
+  text-shadow: 0 2px 5px #1c1c1c;
+  text-transform: uppercase;
+  position: relative;
+}
+
+/* Logan */
+.button-template-logan {
+  text-shadow: 0 5px 10px #000, 0 0 20px white;
+}
+
+/* Clean */
+.button-template-clean .button-template-name {
+  border-radius: 4px;
+  background-color: #5d5e63; /* corregido */
+  padding: 0.3em;
+  font-weight: 700;
+  text-transform: capitalize;
+  display: inline-block;
+}
+
+/* TikTok */
+.button-template-tiktok .button-template-name {
+  border-radius: 4px;
+  background-color: #5d5e63; /* corregido */
+  padding: 0.3em;
+  font-weight: 700;
+  text-transform: capitalize;
+  display: inline-block;
+}
+
+/* Steph */
+.button-template-steph {
+  font-weight: 900;
+  text-shadow: 0 2px 5px #1c1c1c;
+  text-transform: uppercase;
+  position: relative;
+}
+.button-template-steph .button-template-name:before {
+  content: "";
+  position: absolute;
+  top: -5%;
+  left: -5%;
+  width: 120%;
+  height: 110%;
+  background-color: #000;
+  z-index: -1;
+}
+
+/* Classic */
+.button-template-classic .button-template-name {
+  font-family: Times, serif;
+  font-weight: bold;
+  font-style: italic;
+  text-transform: capitalize;
+  color: #fff;
+}
+
+/* Kevin */
+.button-template-kevin .button-template-name {
+  font-family: "Eurostile", sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 4px black;
+}
+
+/* Dan */
+.button-template-dan .button-template-name {
+  font-family: "Circular", sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0,0,0,0.8);
+}

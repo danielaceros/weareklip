@@ -1,6 +1,8 @@
 "use client";
 
 import { FC } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface IdeasViralesSearchProps {
   query: string;
@@ -14,25 +16,21 @@ export const IdeasViralesSearch: FC<IdeasViralesSearchProps> = ({
   onSearch,
 }) => {
   return (
-    <div className="flex gap-2">
-      <input
+    <div className="flex w-full gap-2">
+      <Input
         type="text"
-        placeholder="Buscar por nicho (ej: negocios, fitness...)"
+        placeholder="Busca tu nicho"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="flex-1 border border-border rounded-lg px-4 py-2 bg-background"
+        className="flex-1 rounded-lg bg-muted text-sm focus-visible:ring-1 focus-visible:ring-ring"
       />
-      <button
+      <Button
         onClick={onSearch}
         disabled={!query.trim()}
-        className={`px-4 py-2 rounded-lg ${
-          query.trim()
-            ? "bg-primary text-white hover:bg-primary/80"
-            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-        }`}
+        className="rounded-lg px-6"
       >
         Buscar
-      </button>
+      </Button>
     </div>
   );
 };

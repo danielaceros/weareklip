@@ -1,8 +1,19 @@
 "use client";
 
-import { FC } from "react";
-import { Heart, Youtube } from "lucide-react";
+import { FC, useState } from "react";
+import { Heart } from "lucide-react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 export interface ShortVideo {
   rank: number;
@@ -20,7 +31,6 @@ interface IdeasViralesListProps {
   listRef: React.RefObject<HTMLDivElement | null>;
   loading: boolean;
   filteredVideos: ShortVideo[];
-  displayCount: number;
   favorites: ShortVideo[];
   onToggleFavorite: (video: ShortVideo) => void;
   onReplicate: (video: ShortVideo) => void;
@@ -31,76 +41,171 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
   listRef,
   loading,
   filteredVideos,
-  displayCount,
   favorites,
   onToggleFavorite,
   onReplicate,
   viewOnYoutubeText,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const totalPages = Math.ceil(filteredVideos.length / itemsPerPage);
+  const currentVideos = filteredVideos.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, "…", totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, "…", totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, "…", currentPage - 1, currentPage, currentPage + 1, "…", totalPages);
+      }
+    }
+    return pages;
+  };
+
   return (
-    <div
-      ref={listRef}
-      className="bg-card border border-border rounded-2xl shadow-lg p-6 max-h-[500px] overflow-y-auto"
-    >
+    <div ref={listRef} className="w-full">
       {loading ? (
-        <div className="flex justify-center items-center py-8">
+        <div className="flex justify-center items-center py-10">
           <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
       ) : (
-        <ul className="space-y-4">
-          {filteredVideos.slice(0, displayCount).map((video, idx) => (
-            <li
-              key={video.id}
-              className="flex items-center gap-4 bg-card border border-border rounded-xl p-4"
-            >
-              <span className="text-lg font-bold w-8 text-center">{idx + 1}</span>
-              <Image
-                src={video.thumbnail}
-                alt={video.title}
-                width={112}
-                height={64}
-                className="object-cover rounded-lg"
-              />
-              <div className="flex-1">
-                <h3 className="font-semibold line-clamp-2">{video.title}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {video.channel} • {Number(video.views).toLocaleString()} views
-                </p>
-              </div>
-              <a
-                href={video.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 py-1 flex items-center gap-1"
-              >
-                <Youtube size={16} /> {viewOnYoutubeText}
-              </a>
-              <button
-                onClick={() => onToggleFavorite(video)}
-                className={`ml-2 ${
-                  favorites.some((fav) => fav.id === video.id)
-                    ? "text-red-500"
-                    : "text-gray-400"
-                }`}
-              >
-                <Heart
-                  fill={
-                    favorites.some((fav) => fav.id === video.id)
-                      ? "currentColor"
-                      : "none"
-                  }
-                  size={20}
-                />
-              </button>
-              <button
-                onClick={() => onReplicate(video)}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-1"
-              >
-                Replicar vídeo
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Grid de videos */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentVideos.map((video) => {
+              const isFav = favorites.some((fav) => fav.id === video.id);
+              return (
+                <Card
+                  key={video.id}
+                  className="overflow-hidden border border-border rounded-xl bg-card flex flex-col"
+                >
+                  <div className="relative w-full aspect-video">
+                    <Image
+                      src={video.thumbnail}
+                      alt={video.title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+
+                  <CardContent className="p-4 flex-1">
+                    <h3 className="font-semibold text-sm line-clamp-2">
+                      {video.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {video.channel}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {Number(video.views).toLocaleString()} views
+                    </p>
+                  </CardContent>
+
+                  <CardFooter className="flex items-center justify-between p-4 pt-0">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="rounded-lg"
+                      >
+                        <a
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {viewOnYoutubeText}
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="rounded-lg"
+                        onClick={() => onReplicate(video)}
+                      >
+                        Replicar video
+                      </Button>
+                    </div>
+
+                    <button
+                      onClick={() => onToggleFavorite(video)}
+                      className={`p-2 rounded-full transition ${
+                        isFav
+                          ? "text-red-500 hover:text-red-600"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Heart
+                        size={20}
+                        fill={isFav ? "currentColor" : "none"}
+                      />
+                    </button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-8">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage(currentPage - 1);
+                      }}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+
+                  {getPageNumbers().map((page, idx) =>
+                    typeof page === "number" ? (
+                      <PaginationItem key={idx}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(page);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={idx}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    )
+                  )}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                      }}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

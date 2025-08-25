@@ -1,6 +1,8 @@
 {
   "dropdown": {
     "account": "Mi cuenta",
+    "profile": "Perfil",
+    "subscription": "Subscripción",
     "theme": "Tema",
     "settings": "Configuración",
     "light": "Claro",
@@ -71,12 +73,13 @@
     "clientTitle": "Panel de Cliente",
     "home": "Inicio",
     "adminHome": "Inicio Admin",
-    "scripts": "Mis Guiones",
-    "videos": "Mis Videos",
-    "audio": "Mis Audios",
-    "voice": "Mis Voces",
-    "video": "Mis Clones",
-    "notifications": "Mis Notificaciones",
+    "scripts": "Guiones",
+    "videos": "Videos",
+    "audio": "Audios",
+    "voice": "Voces",
+    "video": "Vídeos",
+    "clones": "Clones",
+    "notifications": "Notificaciones",
     "calendar": "Calendario",
     "brandAI": "IA de Marca",
     "viralIdeas": "Ideas Virales",
@@ -94,7 +97,8 @@
     "adminTitle": "Panel de Admin",
     "clients": "Clientes",
     "tasks": "Tareas",
-    "adminNotifications": "Notificaciones"
+    "adminNotifications": "Notificaciones",
+    "lipsync": "Grabaciones"
   },
   "common": {
     "unknown": "Desconocido"
@@ -543,7 +547,7 @@
     "successMessage": "¡ADN de marca guardado!"
   },
   "viralIdeasPage": {
-    "title": "Ideas Virales para tus videos",
+    "title": "Ideas Virales",
     "viewOnYoutube": "Ver en Youtube",
     "description": "Descubre ideas virales generadas por IA o inspiradas en tendencias de TikTok, Instagram y YouTube.\nMarca tus favoritas y crea un guion en 1 clic.",
     "useIdea": "Usar esta idea",
@@ -1231,7 +1235,7 @@
   },
   "clonacion": {
     "sectionSubtitle":"Estos son tus vídeos de clonación",
-    "previewTitle": "Así se ve",
+    "previewTitle": "Preview",
     "uploadPrompt": "Sube un archivo",
     "mustLogin": "Debes iniciar sesión para usar la clonación",
     "uploadError": "Error al subir el vídeo",

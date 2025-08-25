@@ -1,7 +1,7 @@
 "use client";
+
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface VideoData {
   projectId: string;
@@ -16,67 +16,61 @@ interface LipsyncVideoCardProps {
 }
 
 export function LipsyncVideoCard({ video }: LipsyncVideoCardProps) {
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-500 hover:bg-green-600">Completado</Badge>;
-      case "processing":
-        return <Badge className="bg-yellow-500 hover:bg-yellow-600">Procesando</Badge>;
-      case "error":
-        return <Badge className="bg-red-500 hover:bg-red-600">Error</Badge>;
-      default:
-        return <Badge className="bg-gray-500">Desconocido</Badge>;
-    }
-  };
-
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden rounded-xl border bg-muted text-foreground w-full">
+      {/* Header */}
       <CardHeader className="p-3">
-        <h3 className="text-sm font-bold truncate">{video.title || "Sin título"}</h3>
-        <div>{getStatusBadge(video.status)}</div>
+        <h3 className="text-sm font-semibold truncate">
+          {video.title || "Sin título"}
+        </h3>
       </CardHeader>
 
+      {/* Preview */}
       <CardContent className="p-0">
         {video.downloadUrl && video.status === "completed" ? (
           <video
             controls
             src={video.downloadUrl}
-            className="w-full aspect-[9/16] object-cover"
+            className="w-full aspect-[9/16] object-cover rounded-md"
           />
         ) : (
-          <div className="h-48 flex items-center justify-center text-gray-400 text-xs p-4">
-            En proceso...
+          <div className="w-full aspect-[9/16] flex items-center justify-center text-xs text-muted-foreground bg-black/30 rounded-md">
+            {video.status === "processing"
+              ? "Procesando..."
+              : video.status === "error"
+              ? "Error al generar"
+              : "En espera"}
           </div>
         )}
       </CardContent>
 
-      <CardFooter className="p-3 flex justify-between items-center gap-2">
-        {video.downloadUrl && (
-          <>
-            <Button size="sm" variant="secondary" asChild>
-              <a
-                href={video.downloadUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Descargar
-              </a>
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                window.location.href = `/dashboard/edit/new?videoUrl=${encodeURIComponent(video.downloadUrl!)}`;
-              }}
+      {/* Footer con acciones */}
+      {video.downloadUrl && video.status === "completed" && (
+        <CardFooter className="p-3 flex justify-between items-center gap-2">
+          <Button size="sm" variant="secondary" asChild className="flex-1">
+            <a
+              href={video.downloadUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              Autoeditar
-            </Button>
-          </>
-        )}
-        {video.duration && (
-          <span className="text-xs text-gray-500">⏱ {video.duration}s</span>
-        )}
-      </CardFooter>
+              Descargar
+            </a>
+          </Button>
+          <Button
+            size="sm"
+            variant="default"
+            className="flex-1"
+            onClick={() =>
+              (window.location.href = `/dashboard/edit/new?videoUrl=${encodeURIComponent(
+                video.downloadUrl!
+              )}`)
+            }
+          >
+            Autoeditar
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 }

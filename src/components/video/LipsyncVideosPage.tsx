@@ -1,12 +1,14 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { LipsyncVideoList } from "./LipsyncVideoList";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import LipsyncCreatePage from "./LipsyncCreatePage"; // 👈 importante
 
 interface VideoData {
   projectId: string;
@@ -20,6 +22,7 @@ export default function LipsyncVideosPage() {
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [isNewOpen, setIsNewOpen] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -53,15 +56,27 @@ export default function LipsyncVideosPage() {
 
   return (
     <div className="space-y-4">
+      {/* Botón Crear */}
       <div className="flex justify-end">
-        <Link href="/dashboard/video/new">
-          <Button className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition">
-            <Plus size={18} className="mr-2" />
-            Crear vídeo
-          </Button>
-        </Link>
+        <Button
+          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          onClick={() => setIsNewOpen(true)}
+        >
+          <Plus size={18} className="mr-2" />
+          Crear vídeo
+        </Button>
       </div>
+
+      {/* Lista de vídeos */}
       <LipsyncVideoList videos={videos} />
+
+      {/* Modal */}
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
+        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
+        <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
+          <LipsyncCreatePage />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

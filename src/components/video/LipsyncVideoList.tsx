@@ -1,5 +1,15 @@
 "use client";
+
+import { useState } from "react";
 import { LipsyncVideoCard } from "./LipsyncVideoCard";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface VideoData {
   projectId: string;
@@ -11,18 +21,72 @@ interface VideoData {
 
 interface LipsyncVideoListProps {
   videos: VideoData[];
+  perPage?: number;
 }
 
-export function LipsyncVideoList({ videos }: LipsyncVideoListProps) {
-  if (videos.length === 0) {
-    return <p>No tienes vídeos aún.</p>;
-  }
+export function LipsyncVideoList({ videos, perPage = 5 }: LipsyncVideoListProps) {
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.ceil(videos.length / perPage);
+  const paginated = videos.slice((page - 1) * perPage, page * perPage);
+
+  if (videos.length === 0) return <p>No tienes vídeos aún.</p>;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      {videos.map((video) => (
-        <LipsyncVideoCard key={video.projectId} video={video} />
-      ))}
+    <div className="flex flex-col h-full space-y-6">
+      {/* Grid dinámico */}
+      <div
+        className="
+          grid gap-4
+          grid-cols-[repeat(auto-fill,minmax(300px,1fr))]
+        "
+      >
+        {paginated.map((video) => (
+          <LipsyncVideoCard key={video.projectId} video={video} />
+        ))}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="mt-auto">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }

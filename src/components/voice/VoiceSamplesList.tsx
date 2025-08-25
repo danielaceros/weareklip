@@ -1,5 +1,17 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Trash2, Play, Pause } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
 interface Sample {
   name: string;
   duration: number;
@@ -10,40 +22,174 @@ interface VoiceSamplesListProps {
   samples: Sample[];
   uploadProgress: { [key: string]: number };
   onRemove: (name: string) => void;
+  perPage?: number;
 }
 
-export function VoiceSamplesList({ samples, uploadProgress, onRemove }: VoiceSamplesListProps) {
+export function VoiceSamplesList({
+  samples,
+  uploadProgress,
+  onRemove,
+  perPage = 2,
+}: VoiceSamplesListProps) {
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
+
   if (samples.length === 0) return null;
 
+  const totalPages = Math.ceil(samples.length / perPage);
+  const paginated = samples.slice((page - 1) * perPage, page * perPage);
+
+  const togglePlay = (name: string) => {
+    const current = audioRefs.current[name];
+    if (!current) return;
+
+    if (playing === name) {
+      current.pause();
+      setPlaying(null);
+    } else {
+      Object.values(audioRefs.current).forEach((a) => a?.pause());
+      current.play();
+      setPlaying(name);
+    }
+  };
+
   return (
-    <div className="mt-6 space-y-3">
-      <h2 className="font-semibold">Muestras:</h2>
-      {samples.map(({ name, duration, url }) => (
-        <div key={name} className="flex flex-col gap-2 p-3 bg-gray-100 rounded-lg">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="font-medium break-all">{name}</p>
-              <p className="text-xs text-gray-500">{Math.round(duration)} segundos</p>
+    <div className="space-y-6">
+      {/* Grid de samples */}
+      <div
+        className="
+          grid gap-4
+          grid-cols-[repeat(auto-fill,minmax(200px,1fr))]
+        "
+      >
+        {paginated.map(({ name, duration, url }) => (
+          <Card
+            key={name}
+            className="p-4 bg-card border border-border rounded-xl shadow-sm flex flex-col"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold truncate">
+                {name || "Muestra sin nombre"}
+              </h3>
+              <button
+                onClick={() => onRemove(name)}
+                className="p-2 rounded-full hover:bg-muted transition"
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+              </button>
             </div>
-            <button
-              onClick={() => onRemove(name)}
-              className="text-red-500 hover:text-red-700 text-sm"
-            >
-              ❌ Eliminar
-            </button>
-          </div>
-          {uploadProgress[name] !== undefined ? (
-            <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-blue-500 h-2 transition-all duration-200"
-                style={{ width: `${uploadProgress[name]}%` }}
-              />
-            </div>
-          ) : (
-            <audio controls src={url} className="w-full" />
-          )}
+
+            {/* Upload progress o reproductor */}
+            {uploadProgress[name] !== undefined ? (
+              <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-primary h-2 transition-all duration-200"
+                  style={{ width: `${uploadProgress[name]}%` }}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                {/* Play / Pause */}
+                <button
+                  onClick={() => togglePlay(name)}
+                  className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+                >
+                  {playing === name ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </button>
+
+                {/* Slider manual */}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={
+                    audioRefs.current[name]?.currentTime &&
+                    audioRefs.current[name]?.duration
+                      ? (audioRefs.current[name]!.currentTime /
+                          audioRefs.current[name]!.duration) *
+                        100
+                      : 0
+                  }
+                  onChange={(e) => {
+                    const current = audioRefs.current[name];
+                    if (current) {
+                      current.currentTime =
+                        (parseFloat(e.target.value) / 100) *
+                        current.duration;
+                    }
+                  }}
+                  className="flex-1 accent-primary"
+                />
+
+                {/* Hidden audio */}
+                <audio
+                  ref={(el) => {
+                    audioRefs.current[name] = el;
+                  }}
+                  src={url}
+                  onEnded={() => setPlaying(null)}
+                  onPause={() =>
+                    setPlaying((prev) => (prev === name ? null : prev))
+                  }
+                />
+              </div>
+            )}
+
+            {/* Duración */}
+            <span className="mt-2 text-xs text-muted-foreground">
+              {Math.round(duration)} segundos
+            </span>
+          </Card>
+        ))}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
-      ))}
+      )}
     </div>
   );
 }

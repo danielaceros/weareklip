@@ -4,14 +4,20 @@ import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AudiosList, AudioData } from "./AudiosList";
+import {
+  Dialog,
+  DialogContent,
+  DialogOverlay,
+} from "@/components/ui/dialog";
+import AudioCreatorContainer from "./AudioCreatorContainer"; // 👈 importante
 
 export default function AudiosContainer() {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [isNewOpen, setIsNewOpen] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -59,18 +65,28 @@ export default function AudiosContainer() {
   if (loading) return <p>Cargando audios...</p>;
 
   return (
-    <div className="relative">
-      <div className="absolute right-0 -top-2 mb-4">
-        <Link href="/dashboard/audio/new">
-          <Button className="bg-blue-500 hover:bg-blue-600 text-white">
-            + Nuevo audio
-          </Button>
-        </Link>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Mis audios</h1>
+        <Button
+          onClick={() => setIsNewOpen(true)}
+          className="rounded-lg"
+        >
+          + Nuevo audio
+        </Button>
       </div>
 
-      <h1 className="text-2xl font-bold mb-6 mt-10">Mis audios</h1>
-
+      {/* Lista de audios */}
       <AudiosList audios={audios} onDelete={handleDelete} />
+
+      {/* Modal de crear audio */}
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
+        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
+        <DialogContent className="max-w-3xl w-full rounded-xl">
+          <AudioCreatorContainer /> {/* 👈 aquí metemos el form real */}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

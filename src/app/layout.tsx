@@ -13,7 +13,6 @@ import { AuthProvider } from "@/context/authContext";
 import { Toaster } from "@/components/ui/sonner";
 import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
 import { SyncStripe } from "@/components/shared/SyncStripe";
-import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

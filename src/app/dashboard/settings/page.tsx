@@ -17,7 +17,6 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { ACCENTS, type AccentId, setAccent, initAccent } from "@/lib/theme";
 import {
   LOCALES,
   type Locale,
@@ -33,7 +32,6 @@ export default function SettingsPage() {
 
   const [user, setUser] = useState<any>(null);
   const [displayName, setDisplayName] = useState("");
-  const [accent, setAccentState] = useState<AccentId>("blue");
   const [locale, setLocaleState] = useState<Locale>("es");
 
   const [notifEmail, setNotifEmail] = useState(true);
@@ -54,7 +52,6 @@ export default function SettingsPage() {
         setDisplayName(u.displayName ?? "");
       }
     });
-    setAccentState(initAccent());
     setLocaleState(getStoredLocale());
     return () => unsub();
   }, [router]);
@@ -94,11 +91,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleChangeAccent = (value: AccentId) => {
-    setAccentState(value);
-    setAccent(value);
-  };
-
   const handleChangeLocale = (loc: Locale) => {
     setLocaleState(loc);
     changeLocale(loc);
@@ -110,10 +102,9 @@ export default function SettingsPage() {
   };
 
   const handleExportData = () => {
-    // Simulación: exportar datos como JSON
     const data = {
       user: user?.email,
-      prefs: { theme, accent, locale },
+      prefs: { theme, locale },
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -180,24 +171,6 @@ export default function SettingsPage() {
             >
               🖥 {t("system")}
             </Button>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-3">
-          <Label>{t("color")}</Label>
-          <div className="flex gap-2 flex-wrap">
-            {ACCENTS.map((a) => (
-              <button
-                key={a.id}
-                className={`w-8 h-8 rounded-full border-2 ${
-                  accent === a.id ? "border-foreground" : "border-transparent"
-                }`}
-                style={{ backgroundColor: a.palette[500] }}
-                onClick={() => handleChangeAccent(a.id)}
-              />
-            ))}
           </div>
         </div>
 
