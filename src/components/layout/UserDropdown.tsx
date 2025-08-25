@@ -1,11 +1,13 @@
-'use client';
+// src/components/layout/UserDropdown.tsx
+"use client";
 
-import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { useTheme } from 'next-themes';
-import { auth } from '@/lib/firebase';
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { useTheme } from "next-themes";
+import { auth } from "@/lib/firebase";
+import { useT, LOCALES, type Locale, changeLocale, getStoredLocale } from "@/lib/i18n";
 
 import {
   DropdownMenu,
@@ -13,35 +15,35 @@ import {
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
-
-import { ACCENTS, type AccentId, setAccent, initAccent } from '@/lib/theme';
-import {
-  LOCALES,
-  type Locale,
-  useT,
-  changeLocale,
-  getStoredLocale,
-} from '@/lib/i18n';
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
 
 import {
   LogOut,
   Settings,
-  Palette,
-  Languages,
   Sun,
   Moon,
   Monitor,
-} from 'lucide-react';
+  Languages,
+  User as UserIcon,
+  CreditCard,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
 
 interface Props {
   user: {
     email: string;
     photoURL?: string;
     plan?: string;
+    status?: string;
+    trialEnd?: number | null;
+    cancelAtPeriodEnd?: boolean;
   };
 }
 
@@ -50,19 +52,11 @@ export default function UserDropdown({ user }: Props) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
 
-  const [accent, setAccentState] = useState<AccentId>('blue');
-  const [locale, setLocaleState] = useState<Locale>('es');
+  const [locale, setLocaleState] = useState<Locale>("es");
 
   useEffect(() => {
-    setAccentState(initAccent());
     setLocaleState(getStoredLocale());
   }, []);
-
-  const handleChangeAccent = (value: string) => {
-    const id = value as AccentId;
-    setAccentState(id);
-    setAccent(id);
-  };
 
   const handleChangeLocale = async (value: string) => {
     const loc = value as Locale;
@@ -71,10 +65,10 @@ export default function UserDropdown({ user }: Props) {
       const u = auth.currentUser;
       if (u) {
         const token = await u.getIdToken();
-        fetch('/api/users/settings', {
-          method: 'POST',
+        fetch("/api/users/settings", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ lang: loc }),
@@ -88,127 +82,154 @@ export default function UserDropdown({ user }: Props) {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      router.push('/login');
+      router.push("/login");
     } catch (err) {
-      console.error('signOut error', err);
+      console.error("signOut error", err);
     }
   };
 
+  // calcular días restantes de trial
+  const trialDaysLeft = (() => {
+    if (!user?.trialEnd) return null;
+    const end = new Date(user.trialEnd * 1000);
+    const diff = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  })();
+
   return (
     <DropdownMenu>
+      {/* Trigger: avatar redondo */}
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={t('dropdown.account')}
-          className="
-            flex items-center gap-3 w-full p-2 rounded-md transition
-            bg-transparent text-sm
-            hover:bg-accent hover:text-accent-foreground
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-          "
+          aria-label={t("dropdown.account")}
+          className="h-9 w-9 rounded-full overflow-hidden ring-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {user.photoURL ? (
             <Image
               src={user.photoURL}
-              alt="Foto de perfil"
+              alt="Avatar"
               width={36}
               height={36}
-              className="rounded-full border border-border object-cover"
+              className="h-9 w-9 rounded-full object-cover"
               unoptimized
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-bold border border-border">
-              {user.email.charAt(0).toUpperCase()}
+            <div className="h-9 w-9 rounded-full bg-neutral-700 text-white grid place-items-center">
+              <span className="text-sm font-medium">
+                {user.email?.[0]?.toUpperCase() ?? "U"}
+              </span>
             </div>
           )}
-          <div className="flex flex-col text-left min-w-0">
-            <p className="truncate font-medium text-sm">{user.email}</p>
-            <span className="text-xs text-muted-foreground truncate">
-              {t('sidebar.planLabel')}:{' '}
-              <span className="font-medium text-foreground">
-                {user.plan ?? t('sidebar.noPlan')}
-              </span>
-            </span>
-          </div>
         </button>
       </DropdownMenuTrigger>
 
+      {/* Menú */}
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="w-60 bg-popover text-popover-foreground border border-border shadow-lg rounded-md"
+        className="w-72 rounded-2xl border border-border bg-popover p-2 shadow-lg"
       >
-        <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-          {t('dropdown.account')}
+        <DropdownMenuLabel className="px-2 py-1.5 text-base font-semibold">
+          {t("dropdown.account") /* "Mi cuenta" */}
         </DropdownMenuLabel>
+
+        {/* Badges debajo de "Mi cuenta" */}
+        <div className="flex flex-wrap gap-2 px-2 pb-2">
+          {user.plan && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-accent text-accent-foreground">
+              {user.plan}
+            </span>
+          )}
+          {user.status === "trialing" && trialDaysLeft !== null && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-500 text-white">
+              {trialDaysLeft} días de prueba
+            </span>
+          )}
+          {user.cancelAtPeriodEnd && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
+              Cancelada (fin periodo)
+            </span>
+          )}
+        </div>
+
         <DropdownMenuSeparator />
 
-        {/* Tema */}
-        <DropdownMenuLabel className="flex items-center gap-2 text-sm font-medium">
-          <Sun className="h-4 w-4" /> {t('dropdown.theme')}
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={theme ?? 'system'}
-          onValueChange={(value) => setTheme(value)}
+        {/* Submenú: Tema */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="justify-between">
+            <span className="flex items-center gap-2">
+              <Sun className="h-4 w-4 opacity-80" />
+              {t("dropdown.theme")}
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-56">
+            <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+              <DropdownMenuRadioItem value="light">
+                <Sun className="mr-2 h-4 w-4" /> {t("dropdown.light")}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <Moon className="mr-2 h-4 w-4" /> {t("dropdown.dark")}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <Monitor className="mr-2 h-4 w-4" /> {t("dropdown.system")}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        {/* Submenú: Idioma */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="justify-between">
+            <span className="flex items-center gap-2">
+              <Languages className="h-4 w-4 opacity-80" />
+              {t("dropdown.language")}
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-56">
+            <DropdownMenuRadioGroup value={locale} onValueChange={handleChangeLocale}>
+              {Object.entries(LOCALES).map(([code, label]) => (
+                <DropdownMenuRadioItem key={code} value={code}>
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        {/* Items simples */}
+        <DropdownMenuItem
+          onClick={() => router.push("/dashboard/user")}
+          className="cursor-pointer"
         >
-          <DropdownMenuRadioItem value="light">
-            <Sun className="mr-2 h-4 w-4" /> {t('dropdown.light')}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <Moon className="mr-2 h-4 w-4" /> {t('dropdown.dark')}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <Monitor className="mr-2 h-4 w-4" /> {t('dropdown.system')}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
+          <UserIcon className="mr-2 h-4 w-4 opacity-80" />
+          {t("dropdown.profile") ?? "Mi perfil"}
+        </DropdownMenuItem>
 
-        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => router.push("/dashboard/billing")}
+          className="cursor-pointer"
+        >
+          <CreditCard className="mr-2 h-4 w-4 opacity-80" />
+          {t("dropdown.subscription") ?? "Suscripción"}
+        </DropdownMenuItem>
 
-        {/* Color */}
-        <DropdownMenuLabel className="flex items-center gap-2 text-sm font-medium">
-          <Palette className="h-4 w-4" /> {t('dropdown.color')}
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={accent} onValueChange={handleChangeAccent}>
-          {ACCENTS.map((a) => (
-            <DropdownMenuRadioItem key={a.id} value={a.id}>
-              <span
-                className="inline-block w-3 h-3 rounded-full mr-2 border"
-                style={{ backgroundColor: a.palette[500] }}
-              />
-              {t(`accents.${a.id}`)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-
-        <DropdownMenuSeparator />
-
-        {/* Idioma */}
-        <DropdownMenuLabel className="flex items-center gap-2 text-sm font-medium">
-          <Languages className="h-4 w-4" /> {t('dropdown.language')}
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={locale} onValueChange={handleChangeLocale}>
-          {Object.entries(LOCALES).map(([code, label]) => (
-            <DropdownMenuRadioItem key={code} value={code}>
-              {label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-
-        <DropdownMenuSeparator />
-
-        {/* Ajustes */}
-        <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
-          <Settings className="mr-2 h-4 w-4" /> {t('dropdown.settings')}
+        <DropdownMenuItem
+          onClick={() => router.push("/dashboard/settings")}
+          className="cursor-pointer"
+        >
+          <Settings className="mr-2 h-4 w-4 opacity-80" />
+          {t("dropdown.settings")}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
-        {/* Logout */}
         <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
           onClick={handleSignOut}
+          className="cursor-pointer text-destructive focus:text-destructive"
         >
-          <LogOut className="mr-2 h-4 w-4" /> {t('dropdown.logout')}
+          <LogOut className="mr-2 h-4 w-4" />
+          {t("dropdown.logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

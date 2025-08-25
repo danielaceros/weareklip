@@ -20,38 +20,53 @@ interface Props {
   onDelete: () => void;
 }
 
-export default function VideoCard({ video, onDelete }: Props) {
+export default function VideoCard({ video }: Props) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="p-3 flex justify-between items-start">
-        <div>
-          <h3 className="text-sm font-bold truncate">{video.title || "Sin título"}</h3>
-          <div>{getStatusBadge(video.status)}</div>
-        </div>
-        <Button size="icon" variant="ghost" onClick={onDelete}>
-          <Trash2 size={16} className="text-red-500" />
-        </Button>
+    <Card className="overflow-hidden rounded-xl bg-card/90 border border-border shadow-sm">
+      {/* Header */}
+      <CardHeader className="p-3">
+        <h3 className="text-base font-semibold truncate">
+          {video.title || "Sin título"}
+        </h3>
       </CardHeader>
 
+      {/* Content */}
       <CardContent className="p-0">
         {video.downloadUrl && video.status === "completed" ? (
-          <video controls src={video.downloadUrl} className="w-full aspect-[9/16] object-cover" />
+          <video
+            controls
+            src={video.downloadUrl}
+            className="w-full aspect-[9/16] object-cover"
+          />
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-400 text-xs p-4">
+          <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
             En proceso...
           </div>
         )}
       </CardContent>
 
-      <CardFooter className="p-3 flex justify-between items-center">
+      {/* Footer */}
+      <CardFooter className="p-3 flex flex-col gap-2">
         {video.downloadUrl && (
-          <Button size="sm" variant="secondary" asChild>
-            <a href={video.downloadUrl} target="_blank" rel="noopener noreferrer">
+          <Button
+            size="lg"
+            className="w-full rounded-lg"
+            asChild
+          >
+            <a
+              href={video.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Descargar
             </a>
           </Button>
         )}
-        {video.duration && <span className="text-xs text-gray-500">⏱ {video.duration}s</span>}
+        {video.duration && (
+          <span className="text-xs text-muted-foreground text-center">
+            ⏱ {video.duration}s
+          </span>
+        )}
       </CardFooter>
     </Card>
   );

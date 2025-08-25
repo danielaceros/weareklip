@@ -7,9 +7,18 @@ import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import Link from "next/link";
 import { ScriptCard } from "./ScriptCard";
 import { ScriptModal } from "./ScriptModal";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import ScriptCreatorContainer from "./ScriptCreatorContainer";
 
 interface ScriptData {
   scriptId: string;
@@ -40,6 +49,10 @@ export default function ScriptsContainer() {
   const [user, setUser] = useState<User | null>(null);
   const [selectedScript, setSelectedScript] = useState<ScriptData | null>(null);
   const [sortOption, setSortOption] = useState("date-desc");
+  const [page, setPage] = useState(1);
+  const [isNewOpen, setIsNewOpen] = useState(false);
+
+  const perPage = 8; // 2 filas × 2 columnas
 
   useEffect(() => {
     const auth = getAuth();
@@ -92,47 +105,107 @@ export default function ScriptsContainer() {
     return 0;
   });
 
-  if (loading) return <p>Cargando guiones...</p>;
+  // Paginación
+  const totalPages = Math.ceil(sortedScripts.length / perPage);
+  const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
+
+  if (loading) return <p className="text-muted-foreground">Cargando guiones...</p>;
 
   return (
-    <>
-      <div className="flex justify-between mb-4">
-        <Select value={sortOption} onValueChange={setSortOption}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Ordenar por" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="date-desc">Fecha ↓</SelectItem>
-            <SelectItem value="date-asc">Fecha ↑</SelectItem>
-            <SelectItem value="rating-desc">Rating ↓</SelectItem>
-            <SelectItem value="rating-asc">Rating ↑</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Link href="/dashboard/script/new">
-          <Button>
+    <div className="flex flex-col space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Guiones</h1>
+        <div className="flex items-center gap-4">
+          <Select value={sortOption} onValueChange={setSortOption}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date-desc">Fecha ↓</SelectItem>
+              <SelectItem value="date-asc">Fecha ↑</SelectItem>
+              <SelectItem value="rating-desc">Rating ↓</SelectItem>
+              <SelectItem value="rating-asc">Rating ↑</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button className="rounded-lg" onClick={() => setIsNewOpen(true)}>
             <Plus size={18} className="mr-2" /> Crear guion
           </Button>
-        </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {sortedScripts.length === 0 && <p>No tienes guiones aún.</p>}
-        {sortedScripts.map((script) => (
-          <ScriptCard
-            key={script.scriptId}
-            script={script}
-            onView={() => setSelectedScript(script)}
-            onDelete={() => handleDelete(script.scriptId)}
-          />
-        ))}
-      </div>
+      {/* Grid dinámico */}
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">
+          {paginated.length === 0 && (
+            <p className="col-span-full text-muted-foreground text-sm text-center">
+              No tienes guiones aún.
+            </p>
+          )}
+          {paginated.map((script) => (
+            <ScriptCard
+              key={script.scriptId}
+              script={script}
+              onView={() => setSelectedScript(script)}
+              onDelete={() => handleDelete(script.scriptId)}
+            />
+          ))}
+        </div>
 
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="pt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+
+      {/* Modales */}
       <ScriptModal
         script={selectedScript}
         onClose={() => setSelectedScript(null)}
         onRating={handleRating}
       />
-    </>
+
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
+        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
+        <DialogContent className="max-w-2xl w-full rounded-xl">
+          <ScriptCreatorContainer />
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

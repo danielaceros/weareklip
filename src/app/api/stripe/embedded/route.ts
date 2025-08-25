@@ -25,9 +25,8 @@ export async function POST(req: NextRequest) {
     let customerId: string | undefined = data.stripeCustomerId;
 
     if (!customerId) {
-      // ⚠️ En teoría nunca debería pasar, porque lo creas al registrar
       const customer = await stripe.customers.create({
-        metadata: { uid }, // 👈 solo el uid como identificador
+        metadata: { uid },
       });
       customerId = customer.id;
       await userRef.set({ stripeCustomerId: customerId }, { merge: true });
@@ -41,7 +40,13 @@ export async function POST(req: NextRequest) {
       await userRef.set({ trialUsed: true }, { merge: true });
     }
 
-    // 3) Crear sesión embebida
+    // 3) Crear payload de suscripción dinámico
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
+    if (trialDays > 0) {
+      subscriptionData.trial_period_days = trialDays;
+    }
+
+    // 4) Crear sesión embebida
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       customer: customerId,
@@ -52,9 +57,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: "subscription",
-      subscription_data: {
-        trial_period_days: trialDays,
-      },
+      subscription_data: subscriptionData,
       payment_method_collection: "always",
       payment_method_types: ["card"],
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,

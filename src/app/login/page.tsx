@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const [loadingReset, setLoadingReset] = useState(false);
   const router = useRouter();
 
   const validate = (): boolean => {
@@ -104,22 +106,41 @@ export default function LoginPage() {
     }
   };
 
+  const onResetPassword = async () => {
+    if (!email) {
+      toast.warning("Introduce tu correo para restablecer la contraseña");
+      return;
+    }
+    setLoadingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success("Te hemos enviado un correo para restablecer tu contraseña");
+    } catch (err) {
+      toast.error("No se pudo enviar el correo de recuperación");
+    } finally {
+      setLoadingReset(false);
+    }
+  };
+
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-center">
-            {mode === "login" ? "Entrar a KLIP" : "Crea tu cuenta"}
+    <main className="flex min-h-dvh items-center justify-center bg-black p-4">
+      <Card className="w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-lg font-semibold">
+            {mode === "login" ? "Inicia sesión en tu cuenta" : "Crea tu cuenta"}
           </CardTitle>
+          <p className="text-sm text-neutral-400">
+            Introduce tu correo electrónico para acceder a tu cuenta
+          </p>
         </CardHeader>
         <CardContent>
           <form
-            className="grid gap-3"
+            className="grid gap-4"
             onSubmit={onSubmit}
             aria-label="Formulario de acceso"
           >
-            <label className="grid gap-1">
-              <span className="sr-only">Email</span>
+            <div className="grid gap-1">
+              <label className="text-sm font-medium">Correo electrónico</label>
               <Input
                 type="email"
                 name="email"
@@ -127,12 +148,25 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                aria-label="Email"
                 required
+                className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
-            </label>
-            <label className="grid gap-1">
-              <span className="sr-only">Contraseña</span>
+            </div>
+
+            <div className="grid gap-1">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Contraseña</label>
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    onClick={onResetPassword}
+                    disabled={loadingReset}
+                    className="text-sm text-neutral-400 hover:text-white"
+                  >
+                    {loadingReset ? "Enviando..." : "¿Has olvidado tu contraseña?"}
+                  </button>
+                )}
+              </div>
               <Input
                 type="password"
                 name="password"
@@ -140,41 +174,45 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                aria-label="Contraseña"
                 required
                 minLength={6}
+                className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
-            </label>
+            </div>
 
-            <Button type="submit" className="mt-2" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="mt-2 bg-neutral-200 text-black hover:bg-neutral-300"
+            >
               {loading
                 ? "Cargando..."
                 : mode === "login"
-                ? "Entrar"
+                ? "Iniciar sesión"
                 : "Crear cuenta"}
             </Button>
 
             <Button
               type="button"
-              variant="outline"
               onClick={onGoogle}
               disabled={loadingGoogle}
+              className="bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
             >
-              {loadingGoogle ? "Conectando..." : "Continuar con Google"}
+              {loadingGoogle ? "Conectando..." : "Iniciar sesión con Google"}
             </Button>
 
             <button
               type="button"
               className={cn(
-                "mt-2 text-sm text-muted-foreground underline underline-offset-4"
+                "mt-2 text-sm text-neutral-400 hover:text-white"
               )}
               onClick={() =>
                 setMode((m) => (m === "login" ? "register" : "login"))
               }
             >
               {mode === "login"
-                ? "¿No tienes cuenta? Regístrate"
-                : "¿Ya tienes cuenta? Inicia sesión"}
+                ? "¿No tienes una cuenta? Regístrate"
+                : "¿Ya tienes una cuenta? Inicia sesión"}
             </button>
           </form>
         </CardContent>

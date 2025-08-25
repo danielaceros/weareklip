@@ -1,12 +1,20 @@
-// src/components/voice/VoicesListContainer.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { VoiceCard } from "./VoiceCard";
+import { Card } from "@/components/ui/card";
+import { Trash2, Play, Pause } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 
@@ -14,33 +22,29 @@ interface VoiceData {
   voiceId: string;
   name: string;
   createdAt?: { seconds: number; nanoseconds: number };
-}
-
-interface VoiceMeta {
   preview_url?: string;
-  description?: string;
-  category?: string;
 }
 
 interface Props {
-  variant?: "default" | "card"; // 👈 aquí añadimos
-  title?: string;               // 👈 y aquí
+  variant?: "default" | "card";
+  title?: string;
 }
 
 export default function VoicesListContainer({
   variant = "default",
-  title = "Voces",
+  title = "Audios para la clonación",
 }: Props) {
   const [user, setUser] = useState<User | null>(null);
-  const [voices, setVoices] = useState<(VoiceData & VoiceMeta)[]>([]);
+  const [voices, setVoices] = useState<VoiceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const perPage = 8;
+
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
   }, []);
 
   const fetchVoices = useCallback(async () => {
@@ -65,6 +69,19 @@ export default function VoicesListContainer({
     fetchVoices();
   }, [fetchVoices]);
 
+  const handleDelete = async (voiceId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "voices", voiceId));
+      setVoices((prev) => prev.filter((v) => v.voiceId !== voiceId));
+    } catch (err) {
+      console.error("Error eliminando voz:", err);
+    }
+  };
+
+  const totalPages = Math.ceil(voices.length / perPage);
+  const paginated = voices.slice((page - 1) * perPage, page * perPage);
+
   return (
     <section
       className={`${
@@ -83,19 +100,151 @@ export default function VoicesListContainer({
       ) : voices.length === 0 ? (
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {voices.map((voice) => (
-            <VoiceCard key={voice.voiceId} {...voice} />
-          ))}
+        <div className="flex flex-col h-full space-y-6">
+          {/* Grid */}
+          <div
+            className="
+              grid gap-4 
+              grid-cols-[repeat(auto-fill,minmax(320px,1fr))]
+            "
+          >
+            {paginated.map((voice) => (
+              <VoiceCard
+                key={voice.voiceId}
+                voice={voice}
+                onDelete={() => handleDelete(voice.voiceId)}
+              />
+            ))}
+          </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="mt-auto">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page > 1) setPage(page - 1);
+                      }}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink
+                        href="#"
+                        isActive={page === i + 1}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setPage(i + 1);
+                        }}
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page < totalPages) setPage(page + 1);
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       )}
 
       {/* Modal Crear Voz */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-6xl w-full">
           <NewVoiceContainer />
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+/* ---------- Voice Card estilo figma ---------- */
+function VoiceCard({
+  voice,
+  onDelete,
+}: {
+  voice: VoiceData;
+  onDelete: () => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  return (
+    <Card className="p-4 flex flex-col rounded-2xl bg-card border border-border shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold truncate">
+          {voice.name || "Sin nombre"}
+        </h3>
+        <button
+          onClick={onDelete}
+          className="p-2 rounded-full hover:bg-muted transition"
+        >
+          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+        </button>
+      </div>
+
+      {/* Player */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={togglePlay}
+          className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+
+        <div className="flex-1">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={progress}
+            onChange={() => {}}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* Hidden audio element */}
+      {voice.preview_url && (
+        <audio
+          ref={audioRef}
+          src={voice.preview_url}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            setProgress((el.currentTime / el.duration) * 100 || 0);
+          }}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => {
+            setIsPlaying(false);
+            setProgress(0);
+          }}
+        />
+      )}
+    </Card>
   );
 }

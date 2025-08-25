@@ -1,4 +1,3 @@
-// src/components/video/LipsyncCreatePage.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,11 +6,15 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-
-import { AudioSelect } from "./AudioSelect";
-import { VideoSelect } from "./VideoSelect";
-import { GenerateButton } from "./GenerateButton";
-
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 type AudioItem = { id: string; audioUrl: string; name?: string };
@@ -49,15 +52,14 @@ export default function LipsyncCreatePage() {
         };
       });
 
-      const videosSnap = await getDocs(
-        collection(db, "users", uid, "clonacion")
-      );
+      const videosSnap = await getDocs(collection(db, "users", uid, "clonacion"));
       const v: VideoItem[] = videosSnap.docs.map((doc) => {
-        const data = doc.data() as Partial<VideoItem> & {
-          url?: string;
-          titulo?: string;
+        const data = doc.data() as Partial<VideoItem> & { url?: string; titulo?: string };
+        return {
+          id: doc.id,
+          url: data.url ?? "",
+          name: data.titulo || doc.id,
         };
-        return { id: doc.id, url: data.url ?? "", name: data.titulo || doc.id };
       });
 
       setAudios(a);
@@ -69,28 +71,38 @@ export default function LipsyncCreatePage() {
   }
 
   async function handleGenerate() {
-    // Paywall: si no tiene método de pago, el hook redirige a facturación.
     const ok = await ensureSubscribed({ feature: "lipsync" });
     if (!ok) return;
 
-    if (!user) return toast.error("Debes iniciar sesión");
+    if (!user) {
+      toast.error("Debes iniciar sesión.");
+      return;
+    }
+    if (!selectedAudioId) {
+      toast.error("Debes seleccionar un audio.");
+      return;
+    }
+    if (!selectedVideoId) {
+      toast.error("Debes seleccionar un vídeo.");
+      return;
+    }
 
     const audio = audios.find((a) => a.id === selectedAudioId);
     const video = videos.find((v) => v.id === selectedVideoId);
     if (!audio?.audioUrl || !video?.url) {
-      return toast.error("Selecciona un audio y un vídeo válidos");
+      toast.error("Selecciona un audio y un vídeo válidos.");
+      return;
     }
 
+    setLoading(true);
+    toast.info("Generando vídeo, por favor espera...");
+
     try {
-      setLoading(true);
       const token = await user.getIdToken();
 
       const res = await fetch("/api/sync/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ audioUrl: audio.audioUrl, videoUrl: video.url }),
       });
 
@@ -98,23 +110,74 @@ export default function LipsyncCreatePage() {
       if (!res.ok) throw new Error(data.error || "Error creando vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-      router.push("/dashboard/video"); // <-- ahora sí usamos router
+      router.push("/dashboard/video");
     } catch (err) {
       console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "No se pudo crear el lipsync"
-      );
+      toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="max-w-xl mx-auto py-8 space-y-6">
-      <h1 className="text-2xl font-bold">Nuevo vídeo con lipsync</h1>
-      <AudioSelect audios={audios} onChange={setSelectedAudioId} />
-      <VideoSelect videos={videos} onChange={setSelectedVideoId} />
-      <GenerateButton loading={loading} onClick={handleGenerate} />
+    <div className="w-full max-w-xl mx-auto rounded-2xl space-y-8 p-6">
+      {/* Título */}
+      <h2 className="text-2xl font-bold">Generación de video</h2>
+
+      {/* Selects */}
+      <div className="space-y-6">
+        {/* Audio */}
+        <div>
+          <p className="text-sm font-medium mb-2">Audio</p>
+          <Select onValueChange={setSelectedAudioId}>
+            <SelectTrigger className="truncate">
+              <SelectValue placeholder="Seleccionar audio de clonación" />
+            </SelectTrigger>
+            <SelectContent>
+              {audios.length > 0 ? (
+                audios.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name || `Audio ${a.id.slice(0, 6)}`}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="none" disabled>
+                  No tienes audios disponibles
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Video */}
+        <div>
+          <p className="text-sm font-medium mb-2">Video</p>
+          <Select onValueChange={setSelectedVideoId}>
+            <SelectTrigger className="truncate">
+              <SelectValue placeholder="Seleccionar video de clonación" />
+            </SelectTrigger>
+            <SelectContent>
+              {videos.length > 0 ? (
+                videos.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name || `Video ${v.id.slice(0, 6)}`}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="none" disabled>
+                  No tienes vídeos de clonación
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Botón */}
+      <Button onClick={handleGenerate} disabled={loading} className="w-full">
+        {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        Generar video
+      </Button>
     </div>
   );
 }

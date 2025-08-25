@@ -17,17 +17,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { LanguageSelect } from "@/components/edit/LanguageSelect";
-import { TemplateSelect } from "@/components/edit/TemplateSelect";
-import { DictionaryInput } from "@/components/edit/DictionaryInput";
-import { MagicOptions } from "@/components/edit/MagicOptions";
 import { collection, getDocs, getFirestore } from "firebase/firestore";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
+// ✅ Nuevo: usamos el integrado
+import CreateVideoPage from "@/components/edit/CreateVideoPage";
+
 type ReelData = {
   script: string;
-  audioUrl?: string;
+  audioUrl?: string | null;
   selectedVideo?: string;
   subLang?: string;
   template?: string;
@@ -43,14 +41,6 @@ type CreateReelWizardProps = {
   onComplete: (data: ReelData) => void;
 };
 
-// helpers sin any
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-function hasString(v: unknown, key: string): v is Record<string, string> {
-  return isRecord(v) && typeof v[key] === "string";
-}
-
 export default function CreateReelWizard({
   open,
   onClose,
@@ -58,11 +48,9 @@ export default function CreateReelWizard({
 }: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
 
-  // flujo de pasos
+  // flujo
   const [step, setStep] = useState(1);
-  const [modalType, setModalType] = useState<"main" | "script" | "audio">(
-    "main"
-  );
+  const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
 
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
@@ -80,21 +68,11 @@ export default function CreateReelWizard({
   const audioForm = useAudioForm("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  // Paso 3 - Submagic
-  const [videos, setVideos] = useState<
-    { id: string; name: string; url: string }[]
-  >([]);
+  // Paso 3 - Vídeos de clonación
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState("");
-  const [subLang, setSubLang] = useState("");
-  const [template, setTemplate] = useState("");
-  const [dictionary, setDictionary] = useState("");
-  const [magicZooms, setMagicZooms] = useState(false);
-  const [magicBrolls, setMagicBrolls] = useState(false);
-  const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
-  const [syncLoading, setSyncLoading] = useState(false);
 
-  // 🔹 Contadores regeneración
+  // Regeneraciones
   const [scriptRegens, setScriptRegens] = useState(0);
   const [audioRegens, setAudioRegens] = useState(0);
 
@@ -102,9 +80,7 @@ export default function CreateReelWizard({
 
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (currentUser) =>
-      setUser(currentUser)
-    );
+    const unsub = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
     return () => unsub();
   }, []);
 
@@ -304,12 +280,6 @@ export default function CreateReelWizard({
       const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
       const snap = await getDocs(clonacionRef);
 
-      if (snap.empty) {
-        setVideos([]);
-        toast("ℹ️ No tienes vídeos de clonación todavía.");
-        return;
-      }
-
       const list = snap.docs.map((doc) => {
         const d = doc.data() as { titulo?: string; url?: string } | undefined;
         return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
@@ -324,74 +294,9 @@ export default function CreateReelWizard({
     }
   };
 
-  const finishWizard = async () => {
-    const ok = await ensureSubscribed({ feature: "reel" });
-    if (!ok) return;
-
-    if (!audioUrl || !selectedVideo) {
-      toast.error("Falta el audio o el vídeo para continuar.");
-      return;
-    }
-    if (!user) {
-      toast.error("Debes iniciar sesión.");
-      return;
-    }
-
-    const loadingId = toast.loading("🚀 Enviando vídeo para editar...");
-    setSyncLoading(true);
-
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/sync/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          audioUrl,
-          videoUrl: selectedVideo,
-          subLang,
-          template,
-          dictionary,
-          magicZooms,
-          magicBrolls,
-          magicBrollsPercentage,
-        }),
-      });
-
-      const parsed = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(parsed.error || "Error al iniciar lipsync");
-
-      toast.success(
-        `🎬 Enviado correctamente, recibirás el vídeo en unos minutos a ${user.email}`,
-        { id: loadingId }
-      );
-
-      onComplete({
-        script,
-        audioUrl,
-        selectedVideo,
-        subLang,
-        template,
-        dictionary,
-        magicZooms,
-        magicBrolls,
-        magicBrollsPercentage,
-      });
-
-      onClose();
-    } catch (err) {
-      console.error(err);
-      toast.error("❌ No se pudo iniciar el lipsync.", { id: loadingId });
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         {modalType === "main" && (
           <>
             <DialogHeader>
@@ -401,6 +306,7 @@ export default function CreateReelWizard({
               </DialogDescription>
             </DialogHeader>
 
+            {/* Paso 1 */}
             {step === 1 && (
               <ScriptForm
                 description={description}
@@ -424,68 +330,30 @@ export default function CreateReelWizard({
               />
             )}
 
+            {/* Paso 2 */}
             {step === 2 && (
               <AudioForm {...audioForm} onGenerate={generateAudio} />
             )}
 
+            {/* Paso 3 */}
             {step === 3 && (
-              <div className="space-y-4">
-                <Label>Selecciona un vídeo de clonación</Label>
-
+              <>
                 {loadingVideos ? (
                   <p>Cargando vídeos...</p>
-                ) : videos.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {videos.map((v) => (
-                      <div
-                        key={v.id}
-                        onClick={() => setSelectedVideo(v.url)}
-                        className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
-                          selectedVideo === v.url ? "ring-2 ring-blue-500" : ""
-                        }`}
-                      >
-                        <video
-                          src={v.url}
-                          className="w-full h-40 object-cover"
-                          controls={false}
-                          muted
-                          loop
-                          playsInline
-                          onMouseEnter={(e) => e.currentTarget.play()}
-                          onMouseLeave={(e) => e.currentTarget.pause()}
-                        />
-                        <div className="p-2 text-sm font-medium truncate">
-                          {v.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 ) : (
-                  <p className="text-muted-foreground">
-                    No hay vídeos en clonación.
-                  </p>
+                  <CreateVideoPage
+                    preloadedVideos={videos}
+                    onComplete={(data) => {
+                      onComplete({
+                        script,
+                        audioUrl,
+                        ...data,
+                      });
+                      onClose();
+                    }}
+                  />
                 )}
-
-                <LanguageSelect value={subLang} onChange={setSubLang} />
-                <TemplateSelect value={template} onChange={setTemplate} />
-                <DictionaryInput value={dictionary} onChange={setDictionary} />
-                <MagicOptions
-                  magicZooms={magicZooms}
-                  setMagicZooms={setMagicZooms}
-                  magicBrolls={magicBrolls}
-                  setMagicBrolls={setMagicBrolls}
-                  magicBrollsPercentage={magicBrollsPercentage}
-                  setMagicBrollsPercentage={setMagicBrollsPercentage}
-                />
-
-                <Button
-                  disabled={!selectedVideo || syncLoading}
-                  onClick={finishWizard}
-                  className="w-full"
-                >
-                  {syncLoading ? "Procesando..." : "Guardar y salir"}
-                </Button>
-              </div>
+              </>
             )}
           </>
         )}

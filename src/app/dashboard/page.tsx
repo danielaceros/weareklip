@@ -23,6 +23,7 @@ import {
 } from "firebase/firestore";
 import { useT } from "@/lib/i18n";
 import { useLocale } from "next-intl";
+import TablePreview from "@/components/shared/TablePreview";
 
 // -------- Types --------
 type SubscriptionStatus =
@@ -612,6 +613,12 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </Card>
+          <Card className="p-3 lg:p-4 col-span-1 lg:col-span-3">
+            <h2 className="font-semibold text-base lg:text-lg mb-3">
+              🎨 Plantillas disponibles
+            </h2>
+            <TablePreview />
           </Card>
         </div>
       </div>

@@ -182,7 +182,6 @@ export default function IdeasViralesPage() {
         listRef={listRef}
         loading={loading}
         filteredVideos={filteredVideos}
-        displayCount={displayCount}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
         onReplicate={replicateVideo}

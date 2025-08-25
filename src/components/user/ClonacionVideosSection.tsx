@@ -13,6 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface ClonacionVideo {
   id: string;
@@ -27,6 +35,7 @@ interface ClonacionVideosSectionProps {
   handleDelete: (id: string) => void;
   uploading: boolean;
   progress: number;
+  perPage?: number;
 }
 
 export default function ClonacionVideosSection({
@@ -36,11 +45,17 @@ export default function ClonacionVideosSection({
   handleDelete,
   uploading,
   progress,
+  perPage = 6,
 }: ClonacionVideosSectionProps) {
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.ceil(clonacionVideos.length / perPage);
+  const paginated = clonacionVideos.slice((page - 1) * perPage, page * perPage);
 
   return (
     <Card className="p-6 shadow-sm bg-card text-card-foreground">
+      {/* Header */}
       <div>
         <h2 className="text-xl font-semibold">{t("clonacion.sectionTitle")}</h2>
         <p className="text-sm text-muted-foreground">
@@ -50,90 +65,141 @@ export default function ClonacionVideosSection({
 
       <Separator className="my-4" />
 
-      {/* Input estilizado */}
-      <div className="mb-6">
-        <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/40 transition">
-          <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
-          <span className="text-sm font-medium">{t("clonacion.uploadPrompt")}</span>
-          <input
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                handleUpload(e.target.files[0]);
-              }
-            }}
-            disabled={uploading}
-          />
-        </label>
+      <div className="flex gap-6 items-start">
+        {/* IZQUIERDA: Dropbox */}
+        <div className="flex flex-col items-center gap-4">
+          <label className="flex flex-col items-center justify-center w-57 border-2 border-dashed border-border rounded-lg p-4 aspect-[9/16] cursor-pointer hover:bg-muted/40 transition">
+            <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
+            <span className="text-sm font-medium">
+              {t("clonacion.uploadPrompt")}
+            </span>
+            <input
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleUpload(e.target.files[0]);
+                }
+              }}
+              disabled={uploading}
+            />
+          </label>
+
+          {uploading && (
+            <div className="w-full">
+              <Progress value={progress} className="w-full" />
+              <p className="text-xs mt-1 text-muted-foreground text-center">
+                {progress}% {t("clonacion.uploading")}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* DERECHA: Grid variable */}
+        <div className="flex-1 flex flex-col gap-6">
+          {clonacionVideos.length === 0 ? (
+            <p className="text-muted-foreground italic">
+              {t("clonacion.noVideos")}
+            </p>
+          ) : (
+            <>
+              <div
+                className="
+                  grid gap-4
+                  grid-cols-[repeat(auto-fill,minmax(200px,1fr))]
+                "
+              >
+                {paginated.map((video, idx) => (
+                  <div
+                    key={video.id ?? video.url ?? idx}
+                    className="relative group rounded-lg overflow-hidden border border-border aspect-[9/16]"
+                  >
+                    {/* Miniatura */}
+                    {video.thumbnail ? (
+                      <Image
+                        src={video.thumbnail}
+                        alt="thumbnail"
+                        width={200}
+                        height={356}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={video.url}
+                        className="w-full h-full object-cover"
+                        muted
+                      />
+                    )}
+
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        onClick={() => setSelectedVideo(video.url)}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={() => handleDelete(video.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (page > 1) setPage(page - 1);
+                        }}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === i + 1}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setPage(i + 1);
+                          }}
+                        >
+                          {i + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (page < totalPages) setPage(page + 1);
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Barra de progreso */}
-      {uploading && (
-        <div className="mb-6">
-          <Progress value={progress} className="w-full" />
-          <p className="text-sm mt-1 text-muted-foreground">
-            {progress}% {t("clonacion.uploading")}
-          </p>
-        </div>
-      )}
-
-      {/* Lista de videos */}
-      {clonacionVideos.length === 0 ? (
-        <p className="text-muted-foreground italic">{t("clonacion.noVideos")}</p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {clonacionVideos.map((video, idx) => (
-            <div
-              key={video.id ?? video.url ?? idx} // 👈 asegura un key único
-              className="relative group rounded-lg overflow-hidden border border-border"
-            >
-              {/* Miniatura */}
-              {video.thumbnail ? (
-                <Image
-                  src={video.thumbnail}
-                  alt="thumbnail"
-                  width={200}
-                  height={200}
-                  className="w-full h-32 object-cover"
-                />
-              ) : (
-                <video
-                  src={video.url}
-                  className="w-full h-32 object-cover"
-                  muted
-                />
-              )}
-
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={() => setSelectedVideo(video.url)}
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="destructive"
-                  onClick={() => handleDelete(video.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal de vista previa */}
-      <Dialog
-        open={!!selectedVideo}
-        onOpenChange={() => setSelectedVideo(null)}
-      >
-        <DialogContent className="max-w-3xl">
+      {/* Modal de preview */}
+      <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("clonacion.previewTitle")}</DialogTitle>
           </DialogHeader>

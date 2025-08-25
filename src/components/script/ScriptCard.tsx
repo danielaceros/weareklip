@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
@@ -22,10 +22,11 @@ interface ScriptData {
   tone?: string;
   duration?: string;
   language?: string;
-  description?: string;
-  script?: string;
+  description?: string;   // título/desc (AI)
+  script?: string;        // transcripción
   rating?: number;
   createdAt?: { seconds: number; nanoseconds: number };
+  // si replica de vídeo:
   fuente?: string;
   videoTitle?: string;
   videoDescription?: string;
@@ -36,58 +37,84 @@ interface ScriptData {
 }
 
 export function ScriptCard({ script, onView, onDelete }: ScriptCardProps) {
+  const title = script.isAI
+    ? script.description || "Sin título"
+    : script.videoTitle || "Vídeo replicado";
+
+  const chips = [
+    script.platform,
+    script.duration,
+    script.structure || (script.isAI ? "Storytelling" : undefined),
+  ].filter(Boolean) as string[];
+
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="p-3 flex justify-between items-center">
-        <div>
+    <Card className="rounded-xl border border-border bg-card/95 shadow-sm ring-1 ring-black/5 dark:ring-white/5">
+      <div className="flex flex-col h-full p-3 space-y-2">
+        {/* 1) Título */}
+        <h3 className="text-sm font-semibold leading-5 line-clamp-1">
+          {title}
+        </h3>
+
+        {/* 2) Contenido */}
+        <div className="text-xs text-muted-foreground leading-relaxed">
           {script.isAI ? (
-            <>
-              <h3 className="text-sm font-bold truncate">{script.description || "Sin título"}</h3>
-              <div className="flex gap-1 mt-1">
-                <Badge variant="outline">{script.platform}</Badge>
-                <Badge variant="outline">{script.duration}</Badge>
-                <Badge variant="outline">{script.structure}</Badge>
-              </div>
-            </>
+            <p className="line-clamp-4">
+              {script.script || "Sin contenido"}
+            </p>
           ) : (
             <>
-              <h3 className="text-sm font-bold truncate">{script.videoTitle || "Video replicado"}</h3>
-              <p className="text-xs text-gray-500 truncate">
-                {script.videoChannel} • {script.videoViews?.toLocaleString()} views
+              {script.videoThumbnail && (
+                <div className="relative mb-2 w-full overflow-hidden rounded-md border border-border/60 bg-muted/30 aspect-video">
+                  <Image
+                    src={script.videoThumbnail}
+                    alt={script.videoTitle || ""}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              )}
+              <p className="line-clamp-3">
+                {script.videoDescription || script.script || "Sin contenido"}
               </p>
             </>
           )}
         </div>
-        {script.isAI && <Badge>⭐ {script.rating || 0}</Badge>}
-      </CardHeader>
 
-      <CardContent className="p-3">
-        {script.isAI ? (
-          <p className="text-xs text-gray-600 line-clamp-5">{script.script || "Sin contenido"}</p>
-        ) : (
-          <>
-            {script.videoThumbnail && (
-              <Image
-                src={script.videoThumbnail}
-                alt={script.videoTitle || ""}
-                width={400}
-                height={225}
-                className="rounded mb-2"
-              />
-            )}
-            <p className="text-xs text-gray-600 line-clamp-5">{script.script || "Sin contenido"}</p>
-          </>
+        {/* 3) Chips */}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {chips.map((c) => (
+              <Badge
+                key={c}
+                variant="secondary"
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-foreground"
+              >
+                {c}
+              </Badge>
+            ))}
+          </div>
         )}
-      </CardContent>
 
-      <CardFooter className="p-3 flex justify-between items-center">
-        <Button size="sm" variant="secondary" onClick={onView}>
-          Ver
-        </Button>
-        <Button size="sm" variant="destructive" onClick={onDelete}>
-          <Trash2 size={14} />
-        </Button>
-      </CardFooter>
+        {/* 4) Acciones */}
+        <div className="mt-auto flex items-center gap-2 pt-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 flex-1 rounded-md bg-muted text-foreground hover:bg-muted/90 text-sm"
+            onClick={onView}
+          >
+            Ver
+          </Button>
+
+          <button
+            aria-label="Eliminar"
+            onClick={onDelete}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-destructive transition"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
     </Card>
   );
 }

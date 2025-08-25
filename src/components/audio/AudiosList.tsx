@@ -1,9 +1,16 @@
 "use client";
 
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Trash2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Trash2, Play, Pause } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export interface AudioData {
   audioId: string;
@@ -18,39 +25,144 @@ export interface AudioData {
 interface AudiosListProps {
   audios: AudioData[];
   onDelete: (audioId: string) => void;
+  perPage?: number;
 }
 
-export function AudiosList({ audios, onDelete }: AudiosListProps) {
+export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) {
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.ceil(audios.length / perPage);
+  const paginated = audios.slice((page - 1) * perPage, page * perPage);
+
   if (audios.length === 0) return <p>No tienes audios aún.</p>;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {audios.map((audio) => (
-        <Card key={audio.audioId} className="overflow-hidden">
-          <CardHeader className="p-3 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold truncate">{audio.name || "Sin título"}</h3>
-              <div className="flex gap-1 mt-1">
-                {audio.language && <Badge variant="outline">{audio.language}</Badge>}
-                {audio.duration && <Badge variant="outline">{audio.duration}</Badge>}
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-3">
-            {audio.description && (
-              <p className="text-xs text-gray-600 mb-2 line-clamp-3">{audio.description}</p>
-            )}
-            <audio controls src={audio.url} className="w-full" />
-          </CardContent>
-
-          <CardFooter className="p-3 flex justify-between items-center">
-            <Button size="sm" variant="destructive" onClick={() => onDelete(audio.audioId)}>
-              <Trash2 size={14} />
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
+    <div className="flex flex-col h-full space-y-6">
+      {/* Grid */}
+      <div
+          className="
+            grid gap-4 
+            grid-cols-[repeat(auto-fill,minmax(400px,1fr))]
+          "
+        >
+          {paginated.map((audio) => (
+            <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
+          ))}
+        </div>
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="mt-auto">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
+  );
+}
+
+function AudioCard({
+  audio,
+  onDelete,
+}: {
+  audio: AudioData;
+  onDelete: (id: string) => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  return (
+    <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold truncate">{audio.name || "Sin título"}</h3>
+        <button
+          onClick={() => onDelete(audio.audioId)}
+          className="p-2 rounded-full hover:bg-muted transition"
+        >
+          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+        </button>
+      </div>
+
+      {/* Player */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={togglePlay}
+          className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+
+        <div className="flex-1">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={progress}
+            onChange={() => {}}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* Hidden audio element */}
+      <audio
+        ref={audioRef}
+        src={audio.url}
+        onTimeUpdate={(e) => {
+          const el = e.currentTarget;
+          setProgress((el.currentTime / el.duration) * 100 || 0);
+        }}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setProgress(0);
+        }}
+      />
+    </Card>
   );
 }

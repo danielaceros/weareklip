@@ -20,30 +20,22 @@ export default function NotificationFloating() {
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | null = null;
-
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      // 🔒 Cierra la subscripción anterior si había
       if (unsubscribeLogs) {
         unsubscribeLogs();
         unsubscribeLogs = null;
       }
-
       if (!user) {
         setIsAdmin(false);
         setLogs([]);
         return;
       }
-
       const admin = await checkIsAdmin(user.uid);
       setIsAdmin(admin);
-
-      // 🟢 Abre una única subscripción de logs para el usuario actual
       unsubscribeLogs = subscribeToUnreadLogs(user.uid, admin, (data) => {
         setLogs(data);
       });
     });
-
-    // 🧹 Cleanup REAL del efecto (auth + logs)
     return () => {
       if (unsubscribeLogs) unsubscribeLogs();
       unsubscribeAuth();
@@ -63,21 +55,21 @@ export default function NotificationFloating() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-6 right-6 z-50">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative bg-white shadow-md rounded-full p-3 hover:scale-105 transition"
+        className="relative bg-neutral-900 text-white rounded-full p-3 shadow hover:bg-neutral-800 transition"
       >
-        <Bell className="text-gray-700" />
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full px-1.5">
             {unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute bottom-14 right-0 w-80 max-h-96 bg-white rounded-xl shadow-xl flex flex-col">
+        <div className="absolute bottom-14 right-0 w-80 max-h-96 bg-card border border-border rounded-xl shadow-xl flex flex-col">
           <div className="p-4 border-b flex justify-between items-center">
             <h4 className="font-semibold text-sm">Notificaciones</h4>
             {logs.length > 0 && (
@@ -92,16 +84,18 @@ export default function NotificationFloating() {
 
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {logs.length === 0 ? (
-              <p className="text-sm text-gray-500">Sin alertas nuevas</p>
+              <p className="text-sm text-muted-foreground">Sin alertas nuevas</p>
             ) : (
               logs.map((log) => (
                 <div
                   key={log.id}
-                  className="bg-gray-100 p-2 rounded-md text-sm hover:bg-gray-200 transition flex justify-between items-start gap-2"
+                  className="bg-muted p-2 rounded-md text-sm hover:bg-accent/20 transition flex justify-between items-start gap-2"
                 >
                   <div>
                     <strong>{log.action}</strong>
-                    <p className="text-xs text-gray-600">{log.message}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {log.message}
+                    </p>
                   </div>
                   <button
                     onClick={() => handleMarkSingle(log)}
@@ -114,7 +108,7 @@ export default function NotificationFloating() {
             )}
           </div>
 
-          <div className="border-t px-4 py-2 bg-white text-right">
+          <div className="border-t px-4 py-2 bg-muted/30 text-right">
             <Link
               href={isAdmin ? "/admin/notifications" : "/dashboard/mynotifications"}
               className="text-xs text-blue-500 hover:underline"
