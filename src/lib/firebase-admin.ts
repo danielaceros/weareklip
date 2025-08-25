@@ -20,11 +20,10 @@ export function initAdmin() {
     throw new Error("Missing Firebase Admin environment variables");
   }
 
-  // Normaliza bucket y fuerza .appspot.com
-  let storageBucket =
+  // 👇 Usa directamente el bucket configurado (firebasestorage.app)
+  const storageBucket =
     (process.env.FIREBASE_STORAGE_BUCKET || "").trim() ||
-    `${process.env.FIREBASE_PROJECT_ID}.appspot.com`;
-  storageBucket = storageBucket.replace(/\.firebasestorage\.app$/i, ".appspot.com");
+    `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`;
 
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -37,27 +36,24 @@ export function initAdmin() {
   });
 
   if (process.env.NODE_ENV !== "production") {
-    console.log("Firebase Admin initialized successfully");
-    console.log("Bucket:", storageBucket);
+    console.log("🔥 Firebase Admin initialized");
+    console.log("🎯 Bucket configurado:", storageBucket);
   }
 }
 initAdmin();
 
 // Firestore
-export const db = admin.firestore();
-export const adminDB = db;
+export const adminDB = admin.firestore();
 
 // Auth
-export const auth = admin.auth();
-export const adminAuth = auth;
+export const adminAuth = admin.auth();
 
-// Storage (Bucket por defecto)
-export const storage = admin.storage().bucket();
-export const adminStorage = admin.storage();
+// ✅ Bucket ya configurado
+export const adminBucket = admin.storage().bucket();
 
-// ✅ Re-exporta helpers que usa tu código
+// Helpers
 export const adminFieldValue = FieldValue;
 export const adminTimestamp = Timestamp;
 
-// Por si necesitas el objeto completo
+// Export admin completo
 export { admin };

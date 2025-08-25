@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { flushSync } from "react-dom"; // 👈 clave
 import {
   Select,
   SelectTrigger,
@@ -26,7 +27,9 @@ export default function LipsyncCreatePage() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [selectedAudioId, setSelectedAudioId] = useState("");
   const [selectedVideoId, setSelectedVideoId] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  const [loading, setLoading] = useState(false); // cuando el backend está procesando
+  const [processing, setProcessing] = useState(false); // apenas clic
 
   const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
@@ -71,19 +74,30 @@ export default function LipsyncCreatePage() {
   }
 
   async function handleGenerate() {
+    flushSync(() => {
+      setProcessing(true);
+    });
+
     const ok = await ensureSubscribed({ feature: "lipsync" });
-    if (!ok) return;
+    if (!ok) {
+      toast.error("Necesitas suscripción para generar Lipsync.");
+      setProcessing(false);
+      return;
+    }
 
     if (!user) {
       toast.error("Debes iniciar sesión.");
+      setProcessing(false);
       return;
     }
     if (!selectedAudioId) {
       toast.error("Debes seleccionar un audio.");
+      setProcessing(false);
       return;
     }
     if (!selectedVideoId) {
       toast.error("Debes seleccionar un vídeo.");
+      setProcessing(false);
       return;
     }
 
@@ -91,6 +105,7 @@ export default function LipsyncCreatePage() {
     const video = videos.find((v) => v.id === selectedVideoId);
     if (!audio?.audioUrl || !video?.url) {
       toast.error("Selecciona un audio y un vídeo válidos.");
+      setProcessing(false);
       return;
     }
 
@@ -116,12 +131,19 @@ export default function LipsyncCreatePage() {
       toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");
     } finally {
       setLoading(false);
+      setProcessing(false);
     }
   }
 
+  const isLoading = processing || loading;
+  const buttonText = processing
+    ? "Procesando..."
+    : loading
+    ? "Generando..."
+    : "Generar video";
+
   return (
     <div className="w-full max-w-xl mx-auto rounded-2xl space-y-8 p-6">
-      {/* Título */}
       <h2 className="text-2xl font-bold">Generación de video</h2>
 
       {/* Selects */}
@@ -174,9 +196,9 @@ export default function LipsyncCreatePage() {
       </div>
 
       {/* Botón */}
-      <Button onClick={handleGenerate} disabled={loading} className="w-full">
-        {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-        Generar video
+      <Button onClick={handleGenerate} disabled={isLoading} className="w-full">
+        {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        {buttonText}
       </Button>
     </div>
   );

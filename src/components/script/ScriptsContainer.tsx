@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
+import DeleteScriptDialog from "./DeleteScriptDialog"; // 👈 nuevo modal
+import { toast } from "sonner";
 
 interface ScriptData {
   scriptId: string;
@@ -48,11 +50,13 @@ export default function ScriptsContainer() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [selectedScript, setSelectedScript] = useState<ScriptData | null>(null);
+  const [scriptToDelete, setScriptToDelete] = useState<ScriptData | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [sortOption, setSortOption] = useState("date-desc");
   const [page, setPage] = useState(1);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  const perPage = 8; // 2 filas × 2 columnas
+  const perPage = 8;
 
   useEffect(() => {
     const auth = getAuth();
@@ -80,11 +84,20 @@ export default function ScriptsContainer() {
     fetchScripts();
   }, [fetchScripts]);
 
-  const handleDelete = async (scriptId: string) => {
-    if (!user) return;
-    if (!confirm("¿Eliminar este guion?")) return;
-    await deleteDoc(doc(db, "users", user.uid, "guiones", scriptId));
-    setScripts((prev) => prev.filter((s) => s.scriptId !== scriptId));
+  const handleConfirmDelete = async () => {
+    if (!user || !scriptToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "guiones", scriptToDelete.scriptId));
+      setScripts((prev) => prev.filter((s) => s.scriptId !== scriptToDelete.scriptId));
+      toast.success("Guion eliminado correctamente");
+    } catch (err) {
+      console.error("Error eliminando guion:", err);
+      toast.error("No se pudo eliminar el guion");
+    } finally {
+      setDeleting(false);
+      setScriptToDelete(null);
+    }
   };
 
   const handleRating = async (scriptId: string, newRating: number) => {
@@ -105,7 +118,6 @@ export default function ScriptsContainer() {
     return 0;
   });
 
-  // Paginación
   const totalPages = Math.ceil(sortedScripts.length / perPage);
   const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
 
@@ -134,22 +146,22 @@ export default function ScriptsContainer() {
         </div>
       </div>
 
-      {/* Grid dinámico */}
+      {/* Grid */}
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">
-          {paginated.length === 0 && (
-            <p className="col-span-full text-muted-foreground text-sm text-center">
-              No tienes guiones aún.
-            </p>
-          )}
-          {paginated.map((script) => (
-            <ScriptCard
-              key={script.scriptId}
-              script={script}
-              onView={() => setSelectedScript(script)}
-              onDelete={() => handleDelete(script.scriptId)}
-            />
-          ))}
-        </div>
+        {paginated.length === 0 && (
+          <p className="col-span-full text-muted-foreground text-sm text-center">
+            No tienes guiones aún.
+          </p>
+        )}
+        {paginated.map((script) => (
+          <ScriptCard
+            key={script.scriptId}
+            script={script}
+            onView={() => setSelectedScript(script)}
+            onDelete={() => setScriptToDelete(script)} // 👈 abre modal
+          />
+        ))}
+      </div>
 
       {/* Paginación */}
       {totalPages > 1 && (
@@ -206,6 +218,14 @@ export default function ScriptsContainer() {
           <ScriptCreatorContainer />
         </DialogContent>
       </Dialog>
+
+      <DeleteScriptDialog
+        open={!!scriptToDelete}
+        onClose={() => setScriptToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        deleting={deleting}
+        script={scriptToDelete}
+      />
     </div>
   );
 }

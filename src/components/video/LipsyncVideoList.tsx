@@ -22,9 +22,10 @@ interface VideoData {
 interface LipsyncVideoListProps {
   videos: VideoData[];
   perPage?: number;
+  onDelete?: (id: string, url?: string) => void;
 }
 
-export function LipsyncVideoList({ videos, perPage = 5 }: LipsyncVideoListProps) {
+export function LipsyncVideoList({ videos, perPage = 5, onDelete }: LipsyncVideoListProps) {
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(videos.length / perPage);
@@ -35,14 +36,13 @@ export function LipsyncVideoList({ videos, perPage = 5 }: LipsyncVideoListProps)
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Grid dinámico */}
-      <div
-        className="
-          grid gap-4
-          grid-cols-[repeat(auto-fill,minmax(300px,1fr))]
-        "
-      >
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
         {paginated.map((video) => (
-          <LipsyncVideoCard key={video.projectId} video={video} />
+          <LipsyncVideoCard
+            key={video.projectId}
+            video={video}
+            onDelete={onDelete}
+          />
         ))}
       </div>
 

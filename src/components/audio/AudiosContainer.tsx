@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { getStorage, ref, deleteObject } from "firebase/storage";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AudiosList, AudioData } from "./AudiosList";
@@ -11,13 +12,19 @@ import {
   DialogContent,
   DialogOverlay,
 } from "@/components/ui/dialog";
-import AudioCreatorContainer from "./AudioCreatorContainer"; // 👈 importante
+import AudioCreatorContainer from "./AudioCreatorContainer";
+import DeleteAudioDialog from "./DeleteAudioDialog";
+import { toast } from "sonner";
 
 export default function AudiosContainer() {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
+
+  // estado para modal eliminar
+  const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -55,11 +62,39 @@ export default function AudiosContainer() {
     fetchAudios();
   }, [fetchAudios]);
 
-  const handleDelete = async (audioId: string) => {
-    if (!user) return;
-    if (!confirm("¿Eliminar este audio?")) return;
-    await deleteDoc(doc(db, "users", user.uid, "audios", audioId));
-    setAudios((prev) => prev.filter((a) => a.audioId !== audioId));
+  const handleConfirmDelete = async () => {
+    if (!user || !audioToDelete) return;
+    setDeleting(true);
+    try {
+      // 1) Firestore
+      await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
+
+      // 2) Storage
+      if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
+        try {
+          const storage = getStorage();
+          const path = decodeURIComponent(
+            new URL(audioToDelete.url).pathname.split("/o/")[1].split("?")[0]
+          );
+          await deleteObject(ref(storage, path));
+          toast.success("Audio y archivo eliminados correctamente");
+        } catch (err) {
+          console.warn("No se pudo eliminar archivo en Storage:", err);
+          toast.success("Audio eliminado (archivo no encontrado en Storage)");
+        }
+      } else {
+        toast.success("Audio eliminado correctamente");
+      }
+
+      // actualizar estado
+      setAudios((prev) => prev.filter((a) => a.audioId !== audioToDelete.audioId));
+    } catch (err) {
+      console.error("Error eliminando audio:", err);
+      toast.error("No se pudo eliminar el audio");
+    } finally {
+      setDeleting(false);
+      setAudioToDelete(null);
+    }
   };
 
   if (loading) return <p>Cargando audios...</p>;
@@ -78,15 +113,26 @@ export default function AudiosContainer() {
       </div>
 
       {/* Lista de audios */}
-      <AudiosList audios={audios} onDelete={handleDelete} />
+      <AudiosList
+        audios={audios}
+        onDelete={(audio) => setAudioToDelete(audio)}
+      />
 
-      {/* Modal de crear audio */}
+      {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
-          <AudioCreatorContainer /> {/* 👈 aquí metemos el form real */}
+          <AudioCreatorContainer />
         </DialogContent>
       </Dialog>
+
+      {/* Modal eliminar */}
+      <DeleteAudioDialog
+        open={!!audioToDelete}
+        onClose={() => setAudioToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        deleting={deleting}
+      />
     </div>
   );
 }

@@ -65,55 +65,75 @@ export async function POST(req: Request) {
       );
     }
 
+    // --- Normalizar diccionario ---
+    let finalDictionary: string[] = [];
+    if (typeof dictionary === "string" && dictionary.trim().length > 0) {
+      finalDictionary = dictionary
+        .split(",")
+        .map((w) => w.trim())
+        .filter(Boolean);
+    }
+
     // 3) Webhook
     const base = appBaseUrl();
     const webhookUrl = `${base}/api/webhook/submagic?uid=${encodeURIComponent(
       uid
     )}&email=${encodeURIComponent(email)}`;
 
-    // 4) Llamada a Submagic
-    const subRes = await fetch("https://api.submagic.co/v1/projects", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.SUBMAGIC_API_KEY ?? "",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        language,
-        videoUrl,
-        templateName,
-        webhookUrl,
-        dictionary: dictionary ?? null,
-        magicZooms,
-        magicBrolls,
-        magicBrollsPercentage,
-      }),
-    });
+    // 4) SIMULACIÓN vs REAL
+    const simulate = process.env.SIMULATE === "true";
+    let projectId: string;
+    let responseData: Record<string, unknown>;
 
-    const raw = await subRes.text();
-    let data: { id?: string; [k: string]: unknown };
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { error: "Invalid JSON response from Submagic", raw };
+    if (simulate) {
+      // 🔁 Rama simulada
+      projectId = crypto.randomUUID();
+      responseData = { id: projectId, simulated: true };
+      console.log("⚡ Simulación Submagic activada, projectId:", projectId);
+    } else {
+      // 🔁 Rama real → llamada a Submagic
+      const subRes = await fetch("https://api.submagic.co/v1/projects", {
+        method: "POST",
+        headers: {
+          "x-api-key": process.env.SUBMAGIC_API_KEY ?? "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          language,
+          videoUrl,
+          templateName,
+          webhookUrl,
+          dictionary: finalDictionary, // 👈 siempre array
+          magicZooms,
+          magicBrolls,
+          magicBrollsPercentage,
+        }),
+      });
+
+      const raw = await subRes.text();
+      try {
+        responseData = JSON.parse(raw);
+      } catch {
+        responseData = { error: "Invalid JSON response from Submagic", raw };
+      }
+
+      if (!subRes.ok) {
+        return NextResponse.json(
+          { error: (responseData as { error?: string }).error || "Error en Submagic", details: responseData },
+          { status: subRes.status || 500 }
+        );
+      }
+
+      projectId = String((responseData as { id?: string }).id ?? "");
     }
-
-    if (!subRes.ok) {
-      return NextResponse.json(
-        { error: (data as { error?: string }).error || "Error en Submagic", details: data },
-        { status: subRes.status || 500 }
-      );
-    }
-
-    const projectId = String(data.id ?? "");
 
     // 5) Guardar en Firestore (estado inicial)
     if (projectId) {
       await adminDB
         .collection("users")
         .doc(uid)
-        .collection("edits")
+        .collection("videos")   // 👈 ahora coincide con frontend
         .doc(projectId)
         .set({
           provider: "submagic",
@@ -124,6 +144,7 @@ export async function POST(req: Request) {
           status: "processing",
           createdAt: adminTimestamp.now(),
           updatedAt: adminTimestamp.now(),
+          simulated: simulate,
         });
     }
 
@@ -135,15 +156,15 @@ export async function POST(req: Request) {
         headers: {
           "Content-Type": "application/json",
           "X-Idempotency-Key": idem,
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({ kind: "edit" }),
       });
     } catch (e) {
-      // No rompe el flujo si falla la métrica
       console.warn("[submagic/create] usage meter falló:", e);
     }
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(responseData, { status: 200 });
   } catch (e) {
     console.error("Error /api/submagic/create:", e);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });

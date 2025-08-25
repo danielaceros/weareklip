@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { flushSync } from "react-dom"; // 👈 clave
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -13,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner"; // ⬅️ feedback visual
+import { toast } from "sonner";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
 interface Voice {
@@ -39,8 +41,8 @@ interface AudioFormProps {
   setSpeed: (val: number) => void;
   speakerBoost: boolean;
   setSpeakerBoost: (val: boolean) => void;
-  onGenerate: () => void;
-  loading: boolean;
+  onGenerate: () => void | Promise<void>;
+  loading: boolean; // viene del padre
 }
 
 export function AudioForm({
@@ -65,32 +67,53 @@ export function AudioForm({
   loading,
 }: AudioFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
+  const [processing, setProcessing] = useState(false);
 
   const handleGenerateClick = async () => {
+    // 👇 fuerza rerender inmediato a "Procesando..."
+    flushSync(() => {
+      setProcessing(true);
+    });
+
     const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
       toast.error("Necesitas una suscripción activa para generar audios.");
+      setProcessing(false);
       return;
     }
 
     if (!text.trim()) {
       toast.error("⚠️ Debes escribir un texto para convertirlo en audio.");
+      setProcessing(false);
       return;
     }
 
     if (!voiceId) {
       toast.error("⚠️ Selecciona una voz para continuar.");
+      setProcessing(false);
       return;
     }
 
     if (!languageCode) {
       toast.error("⚠️ Selecciona un idioma para el audio.");
+      setProcessing(false);
       return;
     }
 
-    toast.success("✅ Validaciones completadas, generando audio...");
-    onGenerate();
+    try {
+      await onGenerate();
+    } finally {
+      // 👇 el padre marcará `loading`, así que aquí liberamos el flag local
+      setProcessing(false);
+    }
   };
+
+  const isLoading = processing || loading;
+  const buttonText = processing
+    ? "Procesando..."
+    : loading
+    ? "Generando audio..."
+    : "Generar audio";
 
   return (
     <div className="w-full max-w-2xl mx-auto rounded-2xl space-y-6">
@@ -148,6 +171,7 @@ export function AudioForm({
 
       {/* Sliders */}
       <div className="space-y-4">
+        {/* Estabilidad */}
         <div>
           <div className="flex justify-between text-sm font-medium">
             <Label>Estabilidad</Label>
@@ -161,6 +185,8 @@ export function AudioForm({
             onValueChange={(v) => setStability(v[0])}
           />
         </div>
+
+        {/* Similaridad */}
         <div>
           <div className="flex justify-between text-sm font-medium">
             <Label>Similaridad</Label>
@@ -174,6 +200,8 @@ export function AudioForm({
             onValueChange={(v) => setSimilarityBoost(v[0])}
           />
         </div>
+
+        {/* Estilo */}
         <div>
           <div className="flex justify-between text-sm font-medium">
             <Label>Estilo</Label>
@@ -187,6 +215,8 @@ export function AudioForm({
             onValueChange={(v) => setStyle(v[0])}
           />
         </div>
+
+        {/* Velocidad */}
         <div>
           <div className="flex justify-between text-sm font-medium">
             <Label>Velocidad</Label>
@@ -214,11 +244,11 @@ export function AudioForm({
       {/* Botón */}
       <Button
         onClick={handleGenerateClick}
-        disabled={loading}
+        disabled={isLoading}
         className="w-full rounded-lg"
       >
-        {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-        {loading ? "Generando audio..." : "Generar audio"}
+        {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        {buttonText}
       </Button>
     </div>
   );

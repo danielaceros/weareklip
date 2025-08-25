@@ -2,6 +2,7 @@
 
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Trash } from "lucide-react";
 
 interface VideoData {
   projectId: string;
@@ -13,13 +14,26 @@ interface VideoData {
 
 interface LipsyncVideoCardProps {
   video: VideoData;
+  onDelete?: (id: string, url?: string) => void;
 }
 
-export function LipsyncVideoCard({ video }: LipsyncVideoCardProps) {
+export function LipsyncVideoCard({ video, onDelete }: LipsyncVideoCardProps) {
   return (
-    <Card className="overflow-hidden rounded-xl border bg-muted text-foreground w-full">
+    <Card className="overflow-hidden rounded-xl border bg-muted text-foreground w-full relative">
+      {/* Botón de eliminar */}
+      {onDelete && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="absolute top-2 right-2 h-8 w-8 z-10 text-destructive hover:bg-destructive/10"
+          onClick={() => onDelete(video.projectId, video.downloadUrl)}
+        >
+          <Trash className="h-4 w-4" />
+        </Button>
+      )}
+
       {/* Header */}
-      <CardHeader className="p-3">
+      <CardHeader className="p-3 pr-10">
         <h3 className="text-sm font-semibold truncate">
           {video.title || "Sin título"}
         </h3>

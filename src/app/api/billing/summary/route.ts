@@ -55,6 +55,8 @@ export async function GET(req: NextRequest) {
 
     const user = snap.data();
     const customerId: string | undefined = user?.stripeCustomerId;
+    const trialCreditCents: number = user?.trialCreditCents ?? 0; // 👈 añadimos
+
     if (!customerId) {
       return NextResponse.json(
         {
@@ -68,6 +70,7 @@ export async function GET(req: NextRequest) {
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
           pendingCents: 0,
+          trialCreditCents, // 👈 devolvemos
           payment: { hasDefaultPayment: false },
           debug: { customerId: null, reconciled: false },
         },
@@ -102,6 +105,7 @@ export async function GET(req: NextRequest) {
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
           pendingCents: 0,
+          trialCreditCents, // 👈 devolvemos aunque no tenga sub
           payment: {
             hasDefaultPayment:
               !!customer.invoice_settings?.default_payment_method ||
@@ -131,46 +135,56 @@ export async function GET(req: NextRequest) {
       ? sub.items.data[0].current_period_end * 1000
       : null;
 
-    // 6) Uso
+    // 6) Uso (desde invoice preview)
     const usage: UsageMap = { script: 0, voice: 0, lipsync: 0, edit: 0 };
-    for (const item of sub.items.data) {
-      if (item.price.recurring?.usage_type === "metered") {
-        const summaries =
-          await (stripe.subscriptionItems as any).listUsageRecordSummaries(
-            item.id,
-            { limit: 1 }
-          );
-        const total = summaries.data?.[0]?.total_usage ?? 0;
-        switch (item.price.id) {
-          case process.env.STRIPE_PRICE_USAGE_SCRIPT:
-            usage.script = total;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_VOICE:
-            usage.voice = total;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_LIPSYNC:
-            usage.lipsync = total;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_EDIT:
-            usage.edit = total;
-            break;
-        }
-      }
-    }
-
-    // 7) Facturación pendiente
-    let pendingCents = 0;
     try {
-      const upcoming = await (stripe.invoices as any).retrieveUpcoming({
+      const preview = await stripe.invoices.createPreview({
         customer: customerId!,
+        subscription: sub.id,
         expand: ["lines.data.price"],
       });
-      for (const line of upcoming?.lines?.data ?? []) {
-        if (line.price?.recurring?.usage_type === "metered") {
-          pendingCents += line.amount ?? 0;
+
+      for (const line of preview?.lines?.data ?? []) {
+        const priceId = line.pricing?.price_details?.price;
+        const unitCents = line.pricing?.unit_amount_decimal
+          ? Math.round(parseFloat(line.pricing.unit_amount_decimal))
+          : 0;
+        const amount = line.amount ?? 0;
+        const qty =
+          unitCents > 0
+            ? Math.round(amount / unitCents)
+            : line.quantity ?? 0;
+
+        switch (priceId) {
+          case process.env.STRIPE_PRICE_USAGE_SCRIPT:
+            usage.script = qty;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_VOICE:
+            usage.voice = qty;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_LIPSYNC:
+            usage.lipsync = qty;
+            break;
+          case process.env.STRIPE_PRICE_USAGE_EDIT:
+            usage.edit = qty;
+            break;
         }
       }
-    } catch {
+    } catch (err) {
+      console.warn("No se pudo calcular usage desde preview invoice:", err);
+    }
+
+    // 7) Facturación pendiente (desde preview)
+    let pendingCents = 0;
+    try {
+      const upcoming = await stripe.invoices.createPreview({
+        customer: customerId!,
+        subscription: sub.id,
+        expand: ["lines.data.price"],
+      });
+      pendingCents = upcoming.amount_due ?? 0;
+    } catch (err) {
+      console.warn("No se pudo calcular pendingCents:", err);
       pendingCents = 0;
     }
 
@@ -192,6 +206,7 @@ export async function GET(req: NextRequest) {
         },
         usage,
         pendingCents,
+        trialCreditCents, // 👈 ahora sí en todas las respuestas
         payment: { hasDefaultPayment },
         debug: { customerId, reconciled: true },
       },
