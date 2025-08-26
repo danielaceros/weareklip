@@ -1,3 +1,4 @@
+// src/app/api/youtube/shorts/route.ts
 import { NextResponse } from "next/server";
 
 const API_KEY = process.env.YOUTUBE_API_KEY as string;
@@ -34,11 +35,31 @@ const langMap: Record<string, string> = {
 };
 
 export async function GET(request: Request) {
+  const simulate = process.env.SIMULATE === "true";
   const { searchParams } = new URL(request.url);
   const country = searchParams.get("country") || "ES";
   const range = searchParams.get("range") || "week";
   const query = searchParams.get("query") || "";
 
+  // 🔁 SIMULACIÓN
+  if (simulate) {
+    console.log("🟢 Simulación YouTube Shorts activa");
+    const fakeShorts = Array.from({ length: 5 }).map((_, i) => ({
+      rank: i + 1,
+      id: `fake_id_${i + 1}`,
+      title: `Short de prueba ${i + 1}`,
+      channel: `Canal Demo ${i + 1}`,
+      views: `${(1000 * (i + 1)).toLocaleString()}`,
+      url: `https://www.youtube.com/watch?v=fake_id_${i + 1}`,
+      thumbnail: "https://via.placeholder.com/480x360.png?text=Thumbnail",
+      description: `Descripción simulada del short ${i + 1}`,
+      publishedAt: new Date().toISOString(),
+      simulated: true,
+    }));
+    return NextResponse.json(fakeShorts);
+  }
+
+  // 🔁 REAL
   if (!API_KEY) {
     return NextResponse.json(
       { error: "Missing YOUTUBE_API_KEY" },

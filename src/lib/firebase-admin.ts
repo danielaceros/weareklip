@@ -34,6 +34,7 @@ export function initAdmin() {
     storageBucket,
     databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
   });
+  admin.firestore().settings({ ignoreUndefinedProperties: true });
 
   if (process.env.NODE_ENV !== "production") {
     console.log("🔥 Firebase Admin initialized");
@@ -44,7 +45,6 @@ initAdmin();
 
 // Firestore
 export const adminDB = admin.firestore();
-
 // Auth
 export const adminAuth = admin.auth();
 

@@ -7,12 +7,67 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const simulate = process.env.SIMULATE === "true";
+
   try {
     const { uid } = Object.fromEntries(new URL(req.url).searchParams);
     if (!uid) {
       return NextResponse.json({ error: "UID is required" }, { status: 400 });
     }
 
+    if (simulate) {
+      // Usa el mismo projectId que viene en el query o genera uno si falta
+      const fakeId = `submagic_${Date.now()}`;
+      const now = adminTimestamp.now();
+
+      // 1) Actualiza lipsync
+      await adminDB
+        .collection("users")
+        .doc(uid)
+        .collection("lipsync")
+        .doc(fakeId)
+        .set(
+          {
+            submagicProjectId: fakeId,
+            submagicStatus: "completed",
+            submagicDownloadUrl: "https://fake.local/video-submagic.mp4",
+            submagicDuration: 30,
+            submagicCompletedAt: now,
+            submagicUpdatedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            simulated: true,
+          },
+          { merge: true }
+        );
+
+      // 2) Guarda también en videos (👈 lo que faltaba que se vea en mock)
+      await adminDB
+        .collection("users")
+        .doc(uid)
+        .collection("videos")
+        .doc(fakeId)
+        .set(
+          {
+            projectId: fakeId,
+            title: "Simulated Submagic Video",
+            status: "completed",
+            downloadUrl: "https://fake.local/video-submagic.mp4",
+            duration: 30,
+            completedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            simulated: true,
+          },
+          { merge: true }
+        );
+
+      console.log("🟢 Webhook Submagic simulado guardado en lipsync y videos:", fakeId);
+      return NextResponse.json({ ok: true, simulated: true });
+    }
+
+
+    // 🔁 Rama real
     const body = await req.json();
     console.log("📩 Webhook recibido de Submagic:", JSON.stringify(body, null, 2));
 
@@ -25,6 +80,7 @@ export async function POST(req: Request) {
       completedAt,
       timestamp,
     } = body;
+
     if (!projectId || !status) {
       return NextResponse.json(
         { error: "Missing projectId or status" },
@@ -61,7 +117,8 @@ export async function POST(req: Request) {
           submagicStatus: normalizedStatus,
           submagicDownloadUrl: downloadUrl || null,
           submagicDuration: duration ?? null,
-          submagicCompletedAt: completedAt || lipsyncData.submagicCompletedAt || null,
+          submagicCompletedAt:
+            completedAt || lipsyncData.submagicCompletedAt || null,
           submagicUpdatedAt: now,
         },
         { merge: true }
@@ -86,7 +143,9 @@ export async function POST(req: Request) {
           downloadUrl: downloadUrl || null,
           duration: duration ?? null,
           completedAt: completedAt || null,
-          createdAt: timestamp ? adminTimestamp.fromMillis(Date.parse(timestamp)) : now,
+          createdAt: timestamp
+            ? adminTimestamp.fromMillis(Date.parse(timestamp))
+            : now,
           updatedAt: now,
           rawPayload: body,
         },

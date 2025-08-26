@@ -1,4 +1,5 @@
 "use client";
+
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Trash2 } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 
 export default function AudioCreatorContainer() {
   const searchParams = useSearchParams();
@@ -23,7 +24,7 @@ export default function AudioCreatorContainer() {
   const form = useAudioForm(defaultText);
 
   const [audioUrl, setAudioUrl] = useState<string>("");
-  const [audioId, setAudioId] = useState<string>("");
+  const [audioId, setAudioId] = useState<string>(""); // padre
   const [regenCount, setRegenCount] = useState<number>(0);
   const [showModal, setShowModal] = useState<boolean>(false);
 
@@ -53,16 +54,13 @@ export default function AudioCreatorContainer() {
     setProgress(0);
   };
 
-  // 👉 helper para enviar siempre valores válidos
-  const buildBody = () => ({
-    text: form.text,
-    voiceId: form.voiceId,
-    language_code: form.languageCode || "es",
-    stability: form.stability ?? 0.5,
-    similarity_boost: form.similarityBoost ?? 0.75,
-    style: form.style ?? 0,
-    speed: form.speed ?? 1,
-    use_speaker_boost: form.speakerBoost ?? true,
+  // 👉 helper para enviar el body correcto
+  const buildVoiceSettings = () => ({
+    stability: form.stability ?? null,
+    similarity_boost: form.similarityBoost ?? null,
+    style: form.style ?? null,
+    speed: form.speed ?? null,
+    use_speaker_boost: form.speakerBoost ?? null,
   });
 
   // 👉 Generar audio inicial
@@ -92,14 +90,18 @@ export default function AudioCreatorContainer() {
           Authorization: `Bearer ${token}`,
           "X-Idempotency-Key": uuidv4(),
         },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify({
+          text: form.text,
+          voiceId: form.voiceId,
+          voice_settings: buildVoiceSettings(),
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando audio");
 
       setAudioUrl(data.audioUrl);
-      setAudioId(data.audioId);
+      setAudioId(data.audioId); // guardamos padre
       setShowModal(true);
       setRegenCount(0);
 
@@ -114,6 +116,10 @@ export default function AudioCreatorContainer() {
 
   // 👉 Regenerar audio
   const handleRegenerate = async () => {
+    if (!audioId) {
+      toast.error("No hay audio base para regenerar.");
+      return;
+    }
     if (regenCount >= 2) {
       toast.error("⚠️ Máximo 2 regeneraciones permitidas.");
       return;
@@ -130,14 +136,18 @@ export default function AudioCreatorContainer() {
           Authorization: `Bearer ${token}`,
           "X-Idempotency-Key": uuidv4(),
         },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify({
+          parentAudioId: audioId, // ✅ referencia al padre
+          text: form.text,
+          voiceId: form.voiceId,
+          voice_settings: buildVoiceSettings(),
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
       setAudioUrl(data.audioUrl);
-      setAudioId(data.audioId);
 
       toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
@@ -172,11 +182,7 @@ export default function AudioCreatorContainer() {
                     onClick={togglePlay}
                     className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white"
                   >
-                    {isPlaying ? (
-                      <Pause size={20} />
-                    ) : (
-                      <Play size={20} />
-                    )}
+                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                   </button>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { flushSync } from "react-dom"; // 👈 añadido
-import { useRouter, useSearchParams } from "next/navigation";
+import { flushSync } from "react-dom";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -37,28 +37,20 @@ type VideoOption = { id: string; name: string; url: string };
 
 interface Props {
   preloadedVideos?: VideoOption[];
-  onComplete?: (data: {
-    selectedVideo: string;
-    subLang: string;
-    template: string;
-    dictionary: string;
-    magicZooms: boolean;
-    magicBrolls: boolean;
-    magicBrollsPercentage: number;
-  }) => void;
+  audioUrl: string; // 👈 obligatorio para el pipeline
+  onComplete?: () => void; // callback opcional
 }
 
-export default function CreateVideoPage({
+export default function CreatePipelineVideoPage({
   preloadedVideos = [],
+  audioUrl,
   onComplete,
 }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const preloadedVideoUrl = searchParams.get("videoUrl");
 
   // estado de archivo y video
   const [file, setFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(preloadedVideoUrl);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // parámetros de edición
@@ -69,30 +61,25 @@ export default function CreateVideoPage({
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
 
-  const [languages, setLanguages] = useState<{ name: string; code: string }[]>(
-    []
-  );
+  const [languages, setLanguages] = useState<{ name: string; code: string }[]>([]);
   const [templates, setTemplates] = useState<string[]>([]);
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
 
   // estados del botón
-  const [processing, setProcessing] = useState(false); // inmediato
-  const [submitting, setSubmitting] = useState(false); // API real
+  const [processing, setProcessing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const { ensureSubscribed } = useSubscriptionGate();
 
   /* ---- Dropzone ---- */
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles[0]) {
-        setFile(acceptedFiles[0]);
-        setVideoUrl(null);
-        toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
-      }
-    },
-    [setFile, setVideoUrl]
-  );
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles[0]) {
+      setFile(acceptedFiles[0]);
+      setVideoUrl(null);
+      toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
+    }
+  }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
@@ -104,27 +91,21 @@ export default function CreateVideoPage({
   useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
-      .then((data) => {
-        setLanguages(data.languages || []);
-        toast.success("🌍 Idiomas cargados");
-      })
+      .then((data) => setLanguages(data.languages || []))
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
 
     fetch("/api/submagic/templates")
       .then((res) => res.json())
-      .then((data) => {
-        setTemplates(data.templates || []);
-        toast.success("📑 Templates cargados");
-      })
+      .then((data) => setTemplates(data.templates || []))
       .catch(() => toast.error("❌ Error cargando templates"))
       .finally(() => setLoadingTpl(false));
   }, []);
 
   const handleSubmit = async () => {
-    flushSync(() => setProcessing(true)); // 👈 cambio inmediato
+    flushSync(() => setProcessing(true));
 
-    const ok = await ensureSubscribed({ feature: "submagic" });
+    const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
       setProcessing(false);
       return;
@@ -148,44 +129,23 @@ export default function CreateVideoPage({
       return;
     }
 
-    // Si viene desde wizard → devolvemos datos en vez de llamar API
-    if (onComplete) {
-      const selectedVideo = videoUrl || preloadedVideos[0]?.url || "";
-      toast.success("✅ Selección guardada correctamente");
-      onComplete({
-        selectedVideo,
-        subLang: language,
-        template,
-        dictionary,
-        magicZooms,
-        magicBrolls,
-        magicBrollsPercentage,
-      });
-      setProcessing(false);
-      return;
-    }
-
-    setSubmitting(true); // 👈 ahora ya está en “Generando...”
+    setSubmitting(true);
     setUploadProgress(0);
 
     try {
       let finalVideoUrl = videoUrl;
       if (!finalVideoUrl && file) {
         toast("☁️ Subiendo vídeo a la nube...");
-        const { downloadURL } = await uploadVideo(
-          file,
-          user.uid,
-          setUploadProgress
-        );
+        const { downloadURL } = await uploadVideo(file, user.uid, setUploadProgress);
         finalVideoUrl = downloadURL;
       }
       if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
 
-      toast("⚙️ Procesando tu vídeo...");
+      toast("⚙️ Procesando tu reel...");
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      const res = await fetch("/api/submagic/create", {
+      const res = await fetch("/api/sync/pipeline", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,10 +153,10 @@ export default function CreateVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: file?.name || "video-preloaded",
-          language,
+          audioUrl,
           videoUrl: finalVideoUrl,
-          templateName: template || undefined,
+          subLang: language,
+          template: template || undefined,
           dictionary: dictionary || undefined,
           magicZooms,
           magicBrolls,
@@ -221,18 +181,12 @@ export default function CreateVideoPage({
         return;
       }
 
-      const projectId = hasString(parsed, "id") ? parsed.id : undefined;
-      toast.success(
-        `🎬 Vídeo creado correctamente${
-          projectId ? ` (ID: ${projectId})` : ""
-        }`
-      );
-      setFile(null);
-      setUploadProgress(0);
+      toast.success("🎬 Reel enviado al pipeline correctamente");
+      if (onComplete) onComplete();
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
-      toast.error("❌ Error subiendo o procesando el vídeo");
+      toast.error("❌ Error en el pipeline");
     } finally {
       setSubmitting(false);
       setProcessing(false);
@@ -240,25 +194,19 @@ export default function CreateVideoPage({
   };
 
   const isLoading = processing || submitting;
-  const buttonText = processing
-    ? "Procesando..."
-    : submitting
-    ? "Generando..."
-    : onComplete
-    ? "Crear vídeo"
-    : "Generar edición de vídeo";
+  const buttonText = isLoading ? "Generando..." : "Crear Reel";
 
   return (
     <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
       {/* Título */}
       <div className="lg:col-span-2 mb-4">
-        <h2 className="text-2xl font-bold">🎥 Edición de Vídeo IA</h2>
+        <h2 className="text-2xl font-bold">🎬 Crear Reel con Pipeline</h2>
         <p className="text-muted-foreground text-sm">
-          Sube o selecciona un vídeo y aplica plantillas automáticas con IA.
+          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al pipeline.
         </p>
       </div>
 
-      {/* IZQUIERDA: Upload / preview o lista preloaded */}
+      {/* IZQUIERDA */}
       <div className="flex flex-col gap-4 items-center">
         {preloadedVideos.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 w-full">
@@ -273,32 +221,20 @@ export default function CreateVideoPage({
                   videoUrl === v.url ? "ring-2 ring-blue-500" : ""
                 }`}
               >
-                <video
-                  src={v.url}
-                  className="w-full h-40 object-cover"
-                  muted
-                  loop
-                  playsInline
-                />
+                <video src={v.url} className="w-full h-40 object-cover" muted loop playsInline />
                 <div className="p-2 text-sm font-medium truncate">{v.name}</div>
               </div>
             ))}
           </div>
         ) : videoUrl ? (
           <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
-            <video
-              src={videoUrl}
-              controls
-              className="w-full h-full object-cover"
-            />
+            <video src={videoUrl} controls className="w-full h-full object-cover" />
           </div>
         ) : (
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer w-full max-w-sm aspect-[9/16] transition ${
-              isDragActive
-                ? "border-primary bg-muted"
-                : "border-muted-foreground/50"
+              isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
             }`}
           >
             <input {...getInputProps()} />
@@ -311,20 +247,16 @@ export default function CreateVideoPage({
               <>
                 <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground text-center">
-                  {isDragActive
-                    ? "Suelta el vídeo aquí..."
-                    : "Arrastra un vídeo o haz click"}
+                  {isDragActive ? "Suelta el vídeo aquí..." : "Arrastra un vídeo o haz click"}
                 </p>
               </>
             )}
           </div>
         )}
-        {uploadProgress > 0 && (
-          <Progress value={uploadProgress} className="w-full max-w-sm" />
-        )}
+        {uploadProgress > 0 && <Progress value={uploadProgress} className="w-full max-w-sm" />}
       </div>
 
-      {/* DERECHA: Opciones */}
+      {/* DERECHA: opciones */}
       <div className="space-y-6">
         {/* Templates */}
         <div>
@@ -394,11 +326,7 @@ export default function CreateVideoPage({
                 checked={magicZooms}
                 onCheckedChange={(c) => {
                   setMagicZooms(!!c);
-                  toast(
-                    !!c
-                      ? "🔍 Magic Zooms activado"
-                      : "Magic Zooms desactivado"
-                  );
+                  toast(!!c ? "🔍 Magic Zooms activado" : "Magic Zooms desactivado");
                 }}
               />
               <Label>Magic Zooms</Label>
@@ -408,11 +336,7 @@ export default function CreateVideoPage({
                 checked={magicBrolls}
                 onCheckedChange={(c) => {
                   setMagicBrolls(!!c);
-                  toast(
-                    !!c
-                      ? "🎞 Magic B-rolls activado"
-                      : "Magic B-rolls desactivado"
-                  );
+                  toast(!!c ? "🎞 Magic B-rolls activado" : "Magic B-rolls desactivado");
                 }}
               />
               <Label>Magic B-rolls</Label>
@@ -438,11 +362,7 @@ export default function CreateVideoPage({
         </div>
 
         {/* Botón final */}
-        <Button
-          onClick={handleSubmit}
-          disabled={isLoading}
-          className="w-full"
-        >
+        <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           {buttonText}
         </Button>
