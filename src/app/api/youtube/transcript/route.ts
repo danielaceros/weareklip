@@ -1,9 +1,11 @@
+// src/app/api/transcribe/route.ts
 import { NextResponse } from "next/server";
 import ytdl from "@distube/ytdl-core";
 import { FormData } from "formdata-node";
 import { Blob } from "buffer";
 
 export async function GET(request: Request) {
+  const simulate = process.env.SIMULATE === "true";
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
@@ -11,8 +13,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ transcript: "" });
   }
 
+  // 🔁 SIMULACIÓN
+  if (simulate) {
+    console.log("🟢 Transcript simulado para id:", id);
+    return NextResponse.json({
+      transcript: `Este es un transcript simulado del vídeo ${id}.`,
+      simulated: true,
+    });
+  }
+
+  // 🔁 REAL
   try {
-    const audioStream = ytdl(id, { quality: "lowestaudio", filter: "audioonly" });
+    const audioStream = ytdl(id, {
+      quality: "lowestaudio",
+      filter: "audioonly",
+    });
+
     const chunks: Buffer[] = [];
     for await (const chunk of audioStream) {
       chunks.push(chunk as Buffer);
@@ -31,7 +47,7 @@ export async function GET(request: Request) {
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ""}`,
       },
-      body: form as unknown as BodyInit, // ✅ conversión segura
+      body: form as unknown as BodyInit,
     });
 
     if (!res.ok) {
@@ -42,6 +58,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ transcript: data.text || "" });
   } catch (err: unknown) {
     console.error("Transcript error:", err);
-    return NextResponse.json({ transcript: "" });
+    return NextResponse.json({ transcript: "" }, { status: 500 });
   }
 }

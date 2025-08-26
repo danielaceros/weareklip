@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Roboto_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import {
   NextIntlClientProvider,
@@ -14,13 +14,15 @@ import { Toaster } from "@/components/ui/sonner";
 import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
 import { SyncStripe } from "@/components/shared/SyncStripe";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// ✅ Fuentes desde Google Fonts
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+
+const robotoMono = Roboto_Mono({
   subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -49,7 +51,6 @@ export default async function RootLayout({
   try {
     messages = (await import(`../locales/${locale}.json`)).default;
   } catch {
-    // fallback si falta el archivo
     messages = (await import(`../locales/${defaultLocale}.json`)).default;
   }
 
@@ -71,9 +72,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

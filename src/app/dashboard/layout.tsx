@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/shared/Sidebar";
 import PaywallClickGuard from "@/components/billing/PaywallClickGuard";
 import { ReactNode } from "react";
 import { Topbar } from "@/components/shared/Topbar";
-import FloatingActions from "@/components/wizard/CreateReelGlobalButton";
+import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Botones flotantes (crear reel + notificaciones) */}
-      <FloatingActions />
+      <CreateReelGlobalButton />
     </div>
   );
 }

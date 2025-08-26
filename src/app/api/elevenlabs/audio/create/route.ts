@@ -11,15 +11,25 @@ type Body = {
   text: string;
   modelId?: string;
   format?: string;
-  stability?: number;
-  similarity_boost?: number;
-  style?: number;
-  speed?: number;
-  use_speaker_boost?: boolean;
+  voice_settings?: {
+    stability?: number;
+    similarity_boost?: number;
+    style?: number;
+    speed?: number;
+    use_speaker_boost?: boolean;
+  };
 };
+
+function cleanVoiceSettings(vs?: Body["voice_settings"]) {
+  if (!vs) return {};
+  return Object.fromEntries(
+    Object.entries(vs).filter(([, v]) => v !== undefined && v !== null)
+  );
+}
 
 export async function POST(req: Request) {
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
+  const simulate = process.env.SIMULATE === "true";
 
   try {
     // 1) Auth
@@ -31,17 +41,8 @@ export async function POST(req: Request) {
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
     // 2) Body
-    const {
-      voiceId,
-      text,
-      modelId,
-      format,
-      stability,
-      similarity_boost,
-      style,
-      speed,
-      use_speaker_boost,
-    } = (await req.json()) as Body;
+    const { voiceId, text, modelId, format, voice_settings } =
+      (await req.json()) as Body;
 
     if (!voiceId || !text) {
       return NextResponse.json(
@@ -50,6 +51,59 @@ export async function POST(req: Request) {
       );
     }
 
+    const safeVoiceSettings = cleanVoiceSettings(voice_settings);
+
+    // 🔁 SIMULACIÓN
+    if (simulate) {
+      console.log("🟢 Simulación ElevenLabs activa");
+      const audioId = randomUUID();
+      const fakeUrl = `https://fake.elevenlabs.local/${uid}/audios/${audioId}.mp3`;
+
+      await adminDB
+        .collection("users")
+        .doc(uid)
+        .collection("audios")
+        .doc(audioId)
+        .set({
+          audioId,
+          uid,
+          voiceId,
+          text,
+          voice_settings: safeVoiceSettings,
+          audioUrl: fakeUrl,
+          createdAt: new Date(),
+          simulated: true,
+        });
+
+      // ⚡ Registrar uso aunque sea simulado
+      const usageUrl = new URL("/api/billing/usage", req.url).toString();
+      const usageRes = await fetch(usageUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+          "X-Idempotency-Key": idem,
+        },
+        body: JSON.stringify({ kind: "voice", quantity: 1, idem }),
+      });
+
+      let usage: any = {};
+      try {
+        usage = await usageRes.json();
+      } catch {}
+      if (!usageRes.ok || usage.ok !== true) {
+        console.error("❌ Error registrando uso voice (simulado):", usage);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        audioId,
+        audioUrl: fakeUrl,
+        usage,
+      });
+    }
+
+    // 🔁 REAL
     const XI_KEY = process.env.ELEVENLABS_API_KEY?.trim();
     if (!XI_KEY) {
       return NextResponse.json(
@@ -58,7 +112,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) ElevenLabs TTS
     const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${
       format || "mp3_44100_128"
     }`;
@@ -72,13 +125,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         text,
         model_id: modelId || "eleven_multilingual_v2",
-        voice_settings: {
-          stability,
-          similarity_boost,
-          style,
-          speed,
-          use_speaker_boost,
-        },
+        voice_settings: safeVoiceSettings,
       }),
     });
 
@@ -103,7 +150,7 @@ export async function POST(req: Request) {
       contentType: "audio/mpeg",
       resumable: false,
       metadata: {
-        firebaseStorageDownloadTokens: audioId, // token de descarga pública
+        firebaseStorageDownloadTokens: audioId,
       },
     });
 
@@ -122,11 +169,7 @@ export async function POST(req: Request) {
         uid,
         voiceId,
         text,
-        stability,
-        similarity_boost,
-        style,
-        speed,
-        use_speaker_boost,
+        voice_settings: safeVoiceSettings,
         audioUrl,
         createdAt: new Date(),
       });
@@ -151,7 +194,6 @@ export async function POST(req: Request) {
       console.error("❌ Error registrando uso voice:", usage);
     }
 
-    // 7) Respuesta
     return NextResponse.json({
       ok: true,
       audioId,

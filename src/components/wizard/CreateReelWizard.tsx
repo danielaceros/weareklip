@@ -1,27 +1,17 @@
-// src/components/wizard/CreateReelWizard.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { ScriptForm } from "@/components/script/ScriptForm";
 import { AudioForm } from "@/components/audio/AudioForm";
 import { useAudioForm } from "@/components/audio/useAudioForm";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { collection, getDocs, getFirestore } from "firebase/firestore";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
-
-// ✅ Nuevo: usamos el integrado
-import CreateVideoPage from "@/components/edit/CreateVideoPage";
+import { useRouter } from "next/navigation";
+import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
 
 type ReelData = {
   script: string;
@@ -36,19 +26,13 @@ type ReelData = {
 };
 
 type CreateReelWizardProps = {
-  open: boolean;
-  onClose: () => void;
   onComplete: (data: ReelData) => void;
 };
 
-export default function CreateReelWizard({
-  open,
-  onClose,
-  onComplete,
-}: CreateReelWizardProps) {
+export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
 
-  // flujo
   const [step, setStep] = useState(1);
   const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
 
@@ -67,12 +51,12 @@ export default function CreateReelWizard({
   // Paso 2 - Audio
   const audioForm = useAudioForm("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioId, setAudioId] = useState<string | null>(null);
 
   // Paso 3 - Vídeos de clonación
   const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
 
-  // Regeneraciones
   const [scriptRegens, setScriptRegens] = useState(0);
   const [audioRegens, setAudioRegens] = useState(0);
 
@@ -88,7 +72,6 @@ export default function CreateReelWizard({
   const generateScript = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
-
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
       return;
@@ -97,29 +80,17 @@ export default function CreateReelWizard({
       toast.error("Debes iniciar sesión para continuar.");
       return;
     }
-
     const loadingId = toast.loading("✍️ Generando guion...");
     setLoading(true);
-
     try {
+      const token = await user.getIdToken();
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description,
-          tone,
-          platform,
-          duration,
-          language,
-          structure,
-          addCTA,
-          ctaText,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
       });
-
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error generando guion");
-
       setScript(parsed.script || "");
       setModalType("script");
       toast.success("✅ Guion generado correctamente", { id: loadingId });
@@ -137,27 +108,16 @@ export default function CreateReelWizard({
       return;
     }
     setScriptRegens((c) => c + 1);
-
     const loadingId = toast.loading("🔄 Regenerando guion...");
     try {
+      const token = await user?.getIdToken();
       const res = await fetch("/api/chatgpt/scripts/regenerate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description,
-          tone,
-          platform,
-          duration,
-          language,
-          structure,
-          addCTA,
-          ctaText,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
       });
-
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
-
       setScript(parsed.script || "");
       toast.success("✅ Guion regenerado", { id: loadingId });
     } catch (err) {
@@ -170,7 +130,7 @@ export default function CreateReelWizard({
 
   const acceptScript = () => {
     audioForm.setText(script);
-    toast.success("📜 Guion aceptado. Pasamos al audio.");
+    toast.success("📜 Guion aceptado. Vamos al audio.");
     setModalType("main");
     setStep(2);
   };
@@ -179,7 +139,6 @@ export default function CreateReelWizard({
   const generateAudio = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) return;
-
     if (!audioForm.voiceId) {
       toast.error("Selecciona una voz antes de continuar.");
       return;
@@ -188,18 +147,13 @@ export default function CreateReelWizard({
       toast.error("Debes iniciar sesión.");
       return;
     }
-
     const loadingId = toast.loading("🎙 Generando audio...");
     audioForm.setLoading(true);
-
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           text: audioForm.text,
           voiceId: audioForm.voiceId,
@@ -213,11 +167,10 @@ export default function CreateReelWizard({
           },
         }),
       });
-
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error generando audio");
-
       setAudioUrl(parsed.audioUrl || null);
+      setAudioId(parsed.audioId || null);
       setModalType("audio");
       toast.success("✅ Audio generado correctamente", { id: loadingId });
     } catch (err) {
@@ -229,30 +182,36 @@ export default function CreateReelWizard({
   };
 
   const regenerateAudio = async () => {
+    if (!audioId) {
+      toast.error("No hay audio base para regenerar.");
+      return;
+    }
     if (audioRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el audio 2 veces.");
       return;
     }
     setAudioRegens((c) => c + 1);
-
     const loadingId = toast.loading("🔄 Regenerando audio...");
     try {
       const token = await user?.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/regenerate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
+          parentAudioId: audioId,
           text: audioForm.text,
           voiceId: audioForm.voiceId,
+          voice_settings: {
+            stability: audioForm.stability,
+            similarity_boost: audioForm.similarityBoost,
+            style: audioForm.style,
+            speed: audioForm.speed,
+            use_speaker_boost: audioForm.speakerBoost,
+          },
         }),
       });
-
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
-
       setAudioUrl(parsed.audioUrl || null);
       toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
@@ -274,17 +233,14 @@ export default function CreateReelWizard({
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
-
     try {
       const db = getFirestore();
       const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
       const snap = await getDocs(clonacionRef);
-
       const list = snap.docs.map((doc) => {
         const d = doc.data() as { titulo?: string; url?: string } | undefined;
         return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
       });
-
       setVideos(list);
     } catch (err) {
       console.error(err);
@@ -294,116 +250,153 @@ export default function CreateReelWizard({
     }
   };
 
+  // --- Breadcrumb / Stepper ---
+  const steps = ["Guion", "Audio", "Video"];
+
   return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-4xl">
-        {modalType === "main" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Crear Reel IA</DialogTitle>
-              <DialogDescription>
-                Completa los pasos para generar tu reel
-              </DialogDescription>
-            </DialogHeader>
-
-            {/* Paso 1 */}
-            {step === 1 && (
-              <ScriptForm
-                description={description}
-                tone={tone}
-                platform={platform}
-                duration={duration}
-                language={language}
-                structure={structure}
-                addCTA={addCTA}
-                ctaText={ctaText}
-                loading={loading}
-                setDescription={setDescription}
-                setTone={setTone}
-                setPlatform={setPlatform}
-                setDuration={setDuration}
-                setLanguage={setLanguage}
-                setStructure={setStructure}
-                setAddCTA={setAddCTA}
-                setCtaText={setCtaText}
-                onSubmit={generateScript}
-              />
-            )}
-
-            {/* Paso 2 */}
-            {step === 2 && (
-              <AudioForm {...audioForm} onGenerate={generateAudio} />
-            )}
-
-            {/* Paso 3 */}
-            {step === 3 && (
-              <>
-                {loadingVideos ? (
-                  <p>Cargando vídeos...</p>
-                ) : (
-                  <CreateVideoPage
-                    preloadedVideos={videos}
-                    onComplete={(data) => {
-                      onComplete({
-                        script,
-                        audioUrl,
-                        ...data,
-                      });
-                      onClose();
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </>
-        )}
-
-        {modalType === "script" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Guion generado</DialogTitle>
-            </DialogHeader>
-            <Textarea
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              className="min-h-[200px] w-full resize-none"
-            />
-            <DialogFooter className="flex justify-between">
-              <Button
-                variant="outline"
-                onClick={regenerateScript}
-                disabled={scriptRegens >= 2}
+    <div className="max-w-4xl mx-auto rounded-xl shadow p-6 bg-white dark:bg-neutral-900 transition-colors">
+      {/* Breadcrumb */}
+      <div className="flex items-center justify-between mb-8">
+        {steps.map((label, i) => {
+          const current = i + 1 === step;
+          const completed = i + 1 < step;
+          return (
+            <div key={label} className="flex items-center w-full">
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
+                ${
+                  completed || current
+                    ? "bg-primary text-white"
+                    : "bg-gray-300 dark:bg-neutral-700 text-gray-600 dark:text-gray-300"
+                }`}
               >
+                {i + 1}
+              </div>
+              <span
+                className={`ml-2 text-sm ${
+                  current
+                    ? "font-semibold text-gray-900 dark:text-white"
+                    : "text-gray-500 dark:text-gray-400"
+                }`}
+              >
+                {label}
+              </span>
+              {i < steps.length - 1 && (
+                <div className="flex-1 h-0.5 mx-4 bg-gray-300 dark:bg-neutral-700" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* --- Contenido del Wizard --- */}
+      {/* Paso 1 */}
+      {modalType === "main" && step === 1 && (
+        <>
+          <ScriptForm
+            description={description}
+            tone={tone}
+            platform={platform}
+            duration={duration}
+            language={language}
+            structure={structure}
+            addCTA={addCTA}
+            ctaText={ctaText}
+            loading={loading}
+            setDescription={setDescription}
+            setTone={setTone}
+            setPlatform={setPlatform}
+            setDuration={setDuration}
+            setLanguage={setLanguage}
+            setStructure={setStructure}
+            setAddCTA={setAddCTA}
+            setCtaText={setCtaText}
+            onSubmit={generateScript}
+          />
+          <div className="flex justify-start mt-6">
+            <Button variant="outline" disabled>
+              Atrás
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Paso 2 */}
+      {modalType === "main" && step === 2 && (
+        <>
+          <AudioForm {...audioForm} onGenerate={generateAudio} />
+          <div className="flex justify-start mt-6">
+            <Button variant="outline" onClick={() => setStep(1)}>
+              Atrás
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Paso 3 */}
+      {modalType === "main" && step === 3 && (
+        <>
+          {loadingVideos ? (
+            <p className="text-gray-600 dark:text-gray-300">Cargando vídeos...</p>
+          ) : (
+            <CreatePipelineVideoPage
+              preloadedVideos={videos}
+              audioUrl={audioUrl!} // 👈 el audio generado
+              onComplete={() => {
+                toast.success("🎬 Reel enviado al pipeline");
+                router.push("/dashboard/edit");
+              }}
+            />
+          )}
+          <div className="flex justify-start mt-6">
+            <Button variant="outline" onClick={() => setStep(2)}>
+              Atrás
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Guion generado */}
+      {modalType === "script" && (
+        <div>
+          <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Guion generado</h2>
+          <Textarea
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            className="min-h-[200px] w-full resize-none"
+          />
+          <div className="flex justify-between mt-4">
+            <Button variant="outline" onClick={() => setModalType("main")}>Atrás</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={regenerateScript} disabled={scriptRegens >= 2}>
                 Regenerar ({scriptRegens}/2)
               </Button>
-              <Button onClick={acceptScript}>Aceptar y continuar</Button>
-            </DialogFooter>
-          </>
-        )}
+              <Button onClick={acceptScript}>Aceptar guion</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {modalType === "audio" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Audio generado</DialogTitle>
-            </DialogHeader>
-            {audioUrl ? (
-              <audio controls src={audioUrl} className="w-full my-4" />
-            ) : (
-              <p>No se ha generado audio.</p>
-            )}
-            <DialogFooter className="flex justify-between">
-              <Button
-                variant="outline"
-                onClick={regenerateAudio}
-                disabled={audioRegens >= 2}
-              >
+      {/* Audio generado */}
+      {modalType === "audio" && (
+        <div>
+          <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Audio generado</h2>
+          {audioUrl ? (
+            <audio controls src={audioUrl} className="w-full my-4" />
+          ) : (
+            <p className="text-gray-600 dark:text-gray-300">No se ha generado audio.</p>
+          )}
+          <div className="flex justify-between mt-4">
+            <Button variant="outline" onClick={() => setModalType("main")}>Atrás</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={regenerateAudio} disabled={audioRegens >= 2}>
                 Regenerar ({audioRegens}/2)
               </Button>
-              <Button onClick={acceptAudio}>Aceptar y continuar</Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+              <Button onClick={acceptAudio}>Aceptar audio</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

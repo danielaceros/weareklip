@@ -17,6 +17,7 @@ type UsageResp = {
 
 export async function POST(req: NextRequest) {
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
+  const simulate = process.env.SIMULATE === "true";
 
   try {
     // 1) Auth
@@ -48,8 +49,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3) Prompt
-    const prompt = `
+    let script = "";
+
+    // 🔁 RAMA A: SIMULACIÓN
+    if (simulate) {
+      script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}` : ""}.`;
+    }
+
+    // 🔁 RAMA B: REAL
+    else {
+      // 3) Prompt
+      const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
 
@@ -71,19 +81,20 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 `.trim();
 
-    // 4) OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.9,
-      max_tokens: 500,
-    });
+      // 4) OpenAI
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.9,
+        max_tokens: 500,
+      });
 
-    let script = completion.choices[0]?.message?.content || "";
-    script = script
-      .replace(/^["'\s]+|["'\s]+$/g, "")
-      .replace(/^(Aquí.*?:\s*)/i, "")
-      .trim();
+      script =
+        completion.choices[0]?.message?.content
+          ?.replace(/^["'\s]+|["'\s]+$/g, "")
+          .replace(/^(Aquí.*?:\s*)/i, "")
+          .trim() || "";
+    }
 
     // 5) Cobrar uso → /api/billing/usage
     const usageRes = await fetch(
@@ -110,7 +121,7 @@ Reglas estrictas:
     }
 
     // 6) Respuesta
-    return NextResponse.json({ script });
+    return NextResponse.json({ script, simulated: simulate });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error interno generando guion";
     const isAuth = /No auth|No uid/i.test(msg);

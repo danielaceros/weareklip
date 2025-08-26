@@ -20,6 +20,8 @@ type Body = {
 };
 
 export async function POST(req: Request) {
+  const simulate = process.env.SIMULATE === "true";
+
   try {
     // 1) Auth
     const authHeader = req.headers.get("Authorization");
@@ -37,8 +39,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan parámetros obligatorios" }, { status: 400 });
     }
 
-    // 3) Prompt
-    const prompt = `
+    let regeneratedScript = "";
+
+    // 🔁 RAMA A: SIMULACIÓN
+    if (simulate) {
+      regeneratedScript = `Este es un guion simulado (regenerado) para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}"` : ""}.`;
+    }
+
+    // 🔁 RAMA B: REAL
+    else {
+      // 3) Prompt
+      const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
 
@@ -60,22 +71,23 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 `.trim();
 
-    // 4) Generar con OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.9,
-      max_tokens: 500,
-    });
+      // 4) Generar con OpenAI
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.9,
+        max_tokens: 500,
+      });
 
-    let regeneratedScript = completion.choices[0]?.message?.content || "";
-    regeneratedScript = regeneratedScript
-      .replace(/^["'\s]+|["'\s]+$/g, "")
-      .replace(/^(Aquí.*?:\s*)/i, "")
-      .trim();
+      regeneratedScript =
+        completion.choices[0]?.message?.content
+          ?.replace(/^["'\s]+|["'\s]+$/g, "")
+          .replace(/^(Aquí.*?:\s*)/i, "")
+          .trim() || "";
+    }
 
     // 5) Respuesta simple
-    return NextResponse.json({ script: regeneratedScript });
+    return NextResponse.json({ script: regeneratedScript, simulated: simulate });
   } catch (error) {
     console.error("❌ Error /scripts/regenerate:", error);
     return NextResponse.json(
