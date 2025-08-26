@@ -13,6 +13,7 @@ import { AuthProvider } from "@/context/authContext";
 import { Toaster } from "@/components/ui/sonner";
 import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
 import { SyncStripe } from "@/components/shared/SyncStripe";
+import { ClientLayout } from "@/components/layout/ClientLayout"; // 👈 añadido
 
 // ✅ Fuentes desde Google Fonts
 const inter = Inter({
@@ -57,7 +58,6 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        {/* Mantener la clase accent-* en <html> */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
@@ -83,7 +83,8 @@ export default async function RootLayout({
           <NextIntlClientProvider locale={locale} messages={messages}>
             <AuthProvider>
               <SyncStripe />
-              {children}
+              {/* 👇 Aquí enganchamos el tracking */}
+              <ClientLayout>{children}</ClientLayout>
             </AuthProvider>
             <Toaster closeButton position="top-center" />
             <div id="recaptcha-container" />

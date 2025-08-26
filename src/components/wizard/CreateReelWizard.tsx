@@ -13,6 +13,9 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { useRouter } from "next/navigation";
 import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
 
+// 👇 Importa nuestro helper
+import { track } from "@/lib/analytics-events";
+
 type ReelData = {
   script: string;
   audioUrl?: string | null;
@@ -94,6 +97,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       setScript(parsed.script || "");
       setModalType("script");
       toast.success("✅ Guion generado correctamente", { id: loadingId });
+
+      // 📊 Evento GA
+      track("script_generated", { platform, tone, language });
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudo generar el guion.", { id: loadingId });
@@ -120,6 +126,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
       setScript(parsed.script || "");
       toast.success("✅ Guion regenerado", { id: loadingId });
+
+      // 📊 Evento GA
+      track("script_regenerated", { count: scriptRegens + 1 });
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
@@ -133,6 +142,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     toast.success("📜 Guion aceptado. Vamos al audio.");
     setModalType("main");
     setStep(2);
+
+    // 📊 Evento GA
+    track("script_accepted");
   };
 
   // --- Paso 2: audio ---
@@ -173,6 +185,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       setAudioId(parsed.audioId || null);
       setModalType("audio");
       toast.success("✅ Audio generado correctamente", { id: loadingId });
+
+      // 📊 Evento GA
+      track("audio_generated", { voiceId: audioForm.voiceId });
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudo generar el audio.", { id: loadingId });
@@ -214,6 +229,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
       setAudioUrl(parsed.audioUrl || null);
       toast.success("✅ Audio regenerado", { id: loadingId });
+
+      // 📊 Evento GA
+      track("audio_regenerated", { count: audioRegens + 1 });
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudo regenerar el audio.", { id: loadingId });
@@ -227,6 +245,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     setModalType("main");
     setStep(3);
     void loadClonacionVideos();
+
+    // 📊 Evento GA
+    track("audio_accepted");
   };
 
   // --- Paso 3: vídeos clonación ---
@@ -242,6 +263,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
         return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
       });
       setVideos(list);
+
+      // 📊 Evento GA
+      track("clonacion_videos_loaded", { count: list.length });
     } catch (err) {
       console.error(err);
       toast.error("❌ No se pudieron cargar los vídeos de clonación.");

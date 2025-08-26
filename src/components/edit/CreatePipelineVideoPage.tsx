@@ -24,6 +24,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 
+// 👇 Importar el helper de Analytics
+import { track } from "@/lib/analytics-events";
+
 /* ---------- utilidades ---------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -78,6 +81,7 @@ export default function CreatePipelineVideoPage({
       setFile(acceptedFiles[0]);
       setVideoUrl(null);
       toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
+      track("video_uploaded", { fileName: acceptedFiles[0].name });
     }
   }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -138,6 +142,7 @@ export default function CreatePipelineVideoPage({
         toast("☁️ Subiendo vídeo a la nube...");
         const { downloadURL } = await uploadVideo(file, user.uid, setUploadProgress);
         finalVideoUrl = downloadURL;
+        track("video_uploaded_cloud", { url: downloadURL });
       }
       if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
 
@@ -178,15 +183,27 @@ export default function CreatePipelineVideoPage({
           (hasString(parsed, "message") && parsed.message) ||
           `HTTP ${res.status}`;
         toast.error(msg);
+        track("pipeline_failed", { error: msg });
         return;
       }
 
       toast.success("🎬 Reel enviado al pipeline correctamente");
+
+      // 📊 Evento GA: reel enviado
+      track("pipeline_reel_submitted", {
+        language,
+        template,
+        magicZooms,
+        magicBrolls,
+        magicBrollsPercentage,
+      });
+
       if (onComplete) onComplete();
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
       toast.error("❌ Error en el pipeline");
+      track("pipeline_error", { error: String(error) });
     } finally {
       setSubmitting(false);
       setProcessing(false);
@@ -216,6 +233,7 @@ export default function CreatePipelineVideoPage({
                 onClick={() => {
                   setVideoUrl(v.url);
                   toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                  track("video_selected", { name: v.name });
                 }}
                 className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
                   videoUrl === v.url ? "ring-2 ring-blue-500" : ""
@@ -276,6 +294,7 @@ export default function CreatePipelineVideoPage({
                   onClick={() => {
                     setTemplate(t);
                     toast.success(`📑 Template "${t}" seleccionado`);
+                    track("template_selected", { template: t });
                   }}
                 >
                   {t}
@@ -293,7 +312,13 @@ export default function CreatePipelineVideoPage({
               <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
             </div>
           ) : (
-            <Select value={language} onValueChange={setLanguage}>
+            <Select
+              value={language}
+              onValueChange={(val) => {
+                setLanguage(val);
+                track("language_selected", { language: val });
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar un idioma" />
               </SelectTrigger>
@@ -313,7 +338,10 @@ export default function CreatePipelineVideoPage({
           <Label className="mb-2 block">Descripción breve</Label>
           <Input
             value={dictionary}
-            onChange={(e) => setDictionary(e.target.value)}
+            onChange={(e) => {
+              setDictionary(e.target.value);
+              track("dictionary_updated");
+            }}
             placeholder="Escribe una breve descripción..."
           />
         </div>
@@ -326,6 +354,7 @@ export default function CreatePipelineVideoPage({
                 checked={magicZooms}
                 onCheckedChange={(c) => {
                   setMagicZooms(!!c);
+                  track("magic_zooms_toggled", { enabled: !!c });
                   toast(!!c ? "🔍 Magic Zooms activado" : "Magic Zooms desactivado");
                 }}
               />
@@ -336,6 +365,7 @@ export default function CreatePipelineVideoPage({
                 checked={magicBrolls}
                 onCheckedChange={(c) => {
                   setMagicBrolls(!!c);
+                  track("magic_brolls_toggled", { enabled: !!c });
                   toast(!!c ? "🎞 Magic B-rolls activado" : "Magic B-rolls desactivado");
                 }}
               />
@@ -354,6 +384,7 @@ export default function CreatePipelineVideoPage({
                 step={1}
                 onValueChange={(v) => {
                   setMagicBrollsPercentage(v[0]);
+                  track("magic_brolls_percentage", { value: v[0] });
                   toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
                 }}
               />
