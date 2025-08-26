@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { usePathname, useRouter } from "next/navigation";
+import { identify, track } from "@/lib/analytics-events"; // 👈 GA4 helper
 
 type AuthContextValue = {
   user: User | null;
@@ -25,6 +26,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+
+      // 🔎 GA4: identifica usuario + evento de auth
+      if (u) {
+        identify(u.uid);
+        track("login", { method: "firebase_auth" });
+      } else {
+        track("logout");
+      }
 
       // Navegación automática básica
       const onLoginPage = pathname === "/login";
