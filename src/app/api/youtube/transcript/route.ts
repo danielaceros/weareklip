@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import ytdl from "@distube/ytdl-core";
 import { FormData } from "formdata-node";
 import { Blob } from "buffer";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export async function GET(request: Request) {
   const simulate = process.env.SIMULATE === "true";
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   // 🔁 SIMULACIÓN
   if (simulate) {
     console.log("🟢 Transcript simulado para id:", id);
+    await gaServerEvent("transcribe_simulated", { id }); // 👈 evento
     return NextResponse.json({
       transcript: `Este es un transcript simulado del vídeo ${id}.`,
       simulated: true,
@@ -55,9 +57,11 @@ export async function GET(request: Request) {
     }
 
     const data: { text?: string } = await res.json();
+    await gaServerEvent("transcribe_success", { id, textLength: data.text?.length ?? 0 }); // 👈 evento
     return NextResponse.json({ transcript: data.text || "" });
   } catch (err: unknown) {
     console.error("Transcript error:", err);
+    await gaServerEvent("transcribe_failed", { id, error: err instanceof Error ? err.message : String(err) }); // 👈 evento
     return NextResponse.json({ transcript: "" }, { status: 500 });
   }
 }

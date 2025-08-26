@@ -2,12 +2,13 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = {
-  parentAudioId: string; // 🔑 id del doc padre
+  parentAudioId: string;
   text: string;
   voiceId: string;
   voice_settings?: {
@@ -51,6 +52,13 @@ export async function POST(req: Request) {
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
 
+    // 🔔 Evento: inicio regeneración
+    await gaServerEvent(
+      "voice_regeneration_started",
+      { parentAudioId, voiceId, text_length: text.length, simulate },
+      { userId: uid }
+    );
+
     // 🔁 SIMULACIÓN
     if (simulate) {
       console.log("🟢 Simulación activa en /elevenlabs/audio/regenerate");
@@ -74,6 +82,13 @@ export async function POST(req: Request) {
           regenerated: true,
           simulated: true,
         });
+
+      // 🔔 Evento: regeneración completada (simulada)
+      await gaServerEvent(
+        "voice_regeneration_completed",
+        { parentAudioId, regenId, voiceId, simulate: true },
+        { userId: uid }
+      );
 
       return NextResponse.json({
         ok: true,
@@ -111,6 +126,13 @@ export async function POST(req: Request) {
     if (!r.ok) {
       const errText = await r.text().catch(() => "");
       console.error("❌ ElevenLabs regenerate error:", errText);
+
+      await gaServerEvent(
+        "voice_regeneration_failed",
+        { parentAudioId, error: errText, voiceId },
+        { userId: uid }
+      );
+
       return NextResponse.json(
         { error: "Error regenerando audio", details: errText },
         { status: 502 }
@@ -153,6 +175,13 @@ export async function POST(req: Request) {
         regenerated: true,
       });
 
+    // 🔔 Evento: regeneración completada (real)
+    await gaServerEvent(
+      "voice_regeneration_completed",
+      { parentAudioId, regenId, voiceId, simulate: false },
+      { userId: uid }
+    );
+
     return NextResponse.json({
       ok: true,
       regenId,
@@ -160,6 +189,22 @@ export async function POST(req: Request) {
     });
   } catch (e: any) {
     console.error("❌ Error /api/elevenlabs/audio/regenerate:", e?.message, e);
+
+    // Evento de fallo
+    const authHeader = req.headers.get("Authorization");
+    let uid: string | undefined;
+    if (authHeader?.startsWith("Bearer ")) {
+      const idToken = authHeader.slice("Bearer ".length);
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+
+    await gaServerEvent(
+      "voice_regeneration_failed",
+      { error: e?.message || String(e) },
+      uid ? { userId: uid } : undefined
+    );
+
     return NextResponse.json(
       { error: "Error interno", details: e?.message || String(e) },
       { status: 500 }

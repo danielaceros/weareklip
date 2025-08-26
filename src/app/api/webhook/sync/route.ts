@@ -1,6 +1,7 @@
 // src/app/api/webhook/pipeline/route.ts
 import { NextResponse } from "next/server";
 import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 interface WebhookBody {
   id?: string;
@@ -53,12 +54,14 @@ export async function POST(req: Request) {
       await lipsyncRef.set(fakeData, { merge: true });
 
       console.log("🟢 Webhook pipeline simulado guardado:", fakeId);
+      await gaServerEvent("pipeline_webhook_simulated", { uid, projectId: fakeId }); // 👈 evento
       return NextResponse.json({ ok: true, simulated: true, id: fakeId });
     }
 
     // 🔁 REAL
     const body = (await req.json()) as WebhookBody;
     console.log("🎤 Webhook lipsync recibido:", body);
+    await gaServerEvent("pipeline_webhook_received", { uid, body }); // 👈 evento
 
     const projectId = body.id || body.projectId;
     if (!projectId) {
@@ -84,14 +87,23 @@ export async function POST(req: Request) {
       updateData.duration = body.outputDuration ?? null;
       updateData.model = body.model ?? null;
       updateData.completedAt = adminTimestamp.now();
+
+      await gaServerEvent("pipeline_webhook_completed", {
+        uid,
+        projectId,
+        url: body.outputUrl,
+        duration: body.outputDuration,
+      }); // 👈 evento
     }
 
     await lipsyncRef.set(updateData, { merge: true });
+    await gaServerEvent("pipeline_webhook_saved", { uid, projectId, status: updateData.status }); // 👈 evento
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error("❌ Error en webhook lipsync:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
+    await gaServerEvent("pipeline_webhook_failed", { error: message }); // 👈 evento
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

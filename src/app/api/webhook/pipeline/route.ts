@@ -1,6 +1,7 @@
 // src/app/api/webhook/pipeline/route.ts
 import { NextResponse } from "next/server";
 import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 interface WebhookBody {
   id?: string;
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "UID requerido" }, { status: 400 });
     }
 
-    const authHeader = req.headers.get("authorization") || ""; // ⬅️ recupera el token si viene del pipeline/create
+    const authHeader = req.headers.get("authorization") || ""; 
     const body = (await req.json()) as WebhookBody;
     console.log("🎤 Webhook lipsync recibido:", body);
 
@@ -61,6 +62,14 @@ export async function POST(req: Request) {
     const baseUrl = getBaseUrl();
     const usageUrl = `${baseUrl}/api/billing/usage`;
 
+    // 📊 evento genérico de recepción
+    await gaServerEvent("pipeline_webhook_received", {
+      uid,
+      projectId,
+      status: body.status ?? "unknown",
+      simulated: simulate,
+    });
+
     // 🔁 RAMA A: SIMULACIÓN
     if (simulate) {
       const fakeData: UpdateData = {
@@ -75,13 +84,20 @@ export async function POST(req: Request) {
       await lipsyncRef.set(fakeData, { merge: true });
       console.log("🟢 Webhook simulado guardado:", fakeData);
 
+      await gaServerEvent("pipeline_completed", {
+        uid,
+        projectId,
+        simulated: true,
+        duration: 42,
+      });
+
       // ⚡ Cobrar uso de edición (simulación)
       try {
         const usageRes = await fetch(usageUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: authHeader, // ⬅️ pasa el idToken si lo tienes
+            Authorization: authHeader,
             "X-Idempotency-Key": idem,
           },
           body: JSON.stringify({ kind: "edit", quantity: 1, idem }),
@@ -89,9 +105,13 @@ export async function POST(req: Request) {
         const usage = await usageRes.json().catch(() => ({}));
         if (!usageRes.ok || usage.ok !== true) {
           console.error("❌ Error registrando uso edit (simulado):", usage);
+          await gaServerEvent("billing_edit_failed", { uid, simulated: true, usage });
+        } else {
+          await gaServerEvent("billing_edit_success", { uid, simulated: true });
         }
       } catch (err) {
         console.error("⚠️ Error llamando a /api/billing/usage (sim):", err);
+        await gaServerEvent("billing_edit_failed", { uid, simulated: true, reason: String(err) });
       }
 
       // 👉 Encadenar simulación de Submagic
@@ -112,9 +132,12 @@ export async function POST(req: Request) {
           Authorization: authHeader,
         },
         body: JSON.stringify(submagicPayload),
-      }).catch((err) =>
-        console.error("❌ Error disparando webhook submagic simulado:", err)
-      );
+      }).catch((err) => {
+        console.error("❌ Error disparando webhook submagic simulado:", err);
+        gaServerEvent("submagic_error_from_pipeline", { uid, simulated: true, reason: String(err) });
+      });
+
+      await gaServerEvent("submagic_triggered_from_pipeline", { uid, simulated: true });
 
       return NextResponse.json({ ok: true, simulated: true });
     }
@@ -130,6 +153,13 @@ export async function POST(req: Request) {
       updateData.duration = body.outputDuration ?? null;
       updateData.model = body.model ?? null;
       updateData.completedAt = adminTimestamp.now();
+
+      await gaServerEvent("pipeline_completed", {
+        uid,
+        projectId,
+        simulated: false,
+        duration: updateData.duration,
+      });
 
       const snap = await lipsyncRef.get();
       if (snap.exists) {
@@ -173,13 +203,19 @@ export async function POST(req: Request) {
                 { merge: true }
               );
 
+              await gaServerEvent("submagic_triggered_from_pipeline", {
+                uid,
+                projectId,
+                submagicProjectId: submagicData.id,
+              });
+
               // ⚡ Cobrar uso de edición (real)
               try {
                 const usageRes = await fetch(usageUrl, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    Authorization: authHeader, // ⬅️ pasa idToken también aquí
+                    Authorization: authHeader,
                     "X-Idempotency-Key": idem,
                   },
                   body: JSON.stringify({ kind: "edit", quantity: 1, idem }),
@@ -187,15 +223,21 @@ export async function POST(req: Request) {
                 const usage = await usageRes.json().catch(() => ({}));
                 if (!usageRes.ok || usage.ok !== true) {
                   console.error("❌ Error registrando uso edit:", usage);
+                  await gaServerEvent("billing_edit_failed", { uid, simulated: false, usage });
+                } else {
+                  await gaServerEvent("billing_edit_success", { uid, simulated: false });
                 }
               } catch (err) {
                 console.error("⚠️ Error llamando a /api/billing/usage (real):", err);
+                await gaServerEvent("billing_edit_failed", { uid, simulated: false, reason: String(err) });
               }
             } else {
               console.error("❌ Error en Submagic:", submagicData);
+              await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, response: submagicData });
             }
           } catch (err) {
             console.error("⚠️ Error interno llamando a Submagic:", err);
+            await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, reason: String(err) });
           }
         }
       }
@@ -206,6 +248,7 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error("💥 Error en webhook lipsync:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
+    await gaServerEvent("pipeline_webhook_failed", { reason: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

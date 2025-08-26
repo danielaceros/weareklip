@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { adminAuth } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,9 @@ export async function POST(req: NextRequest) {
 
     let script = "";
 
+    // 🔔 Evento: inicio de generación
+    await gaServerEvent("script_generate_started", { simulate, description, tone, platform, duration, language }, { userId: uid });
+
     // 🔁 RAMA A: SIMULACIÓN
     if (simulate) {
       script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}` : ""}.`;
@@ -58,7 +62,6 @@ export async function POST(req: NextRequest) {
 
     // 🔁 RAMA B: REAL
     else {
-      // 3) Prompt
       const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
@@ -81,7 +84,6 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 `.trim();
 
-      // 4) OpenAI
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
@@ -120,10 +122,22 @@ Reglas estrictas:
       throw new Error(msg);
     }
 
-    // 6) Respuesta
+    // 🔔 Evento: completado
+    await gaServerEvent("script_generate_completed", { length: script.length, simulated: simulate }, { userId: uid });
+
     return NextResponse.json({ script, simulated: simulate });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error interno generando guion";
+
+    // 🔔 Evento: error
+    const idToken = req.headers.get("authorization")?.replace(/^Bearer\s+/, "");
+    let uid: string | undefined;
+    if (idToken) {
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+    await gaServerEvent("script_generate_failed", { error: msg }, uid ? { userId: uid } : undefined);
+
     const isAuth = /No auth|No uid/i.test(msg);
     return NextResponse.json({ error: msg }, { status: isAuth ? 401 : 500 });
   }

@@ -1,6 +1,7 @@
 // src/app/api/webhook/submagic/route.ts
 import { NextResponse } from "next/server";
 import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export async function GET() {
   return NextResponse.json({ status: "Webhook endpoint ready" });
@@ -63,13 +64,14 @@ export async function POST(req: Request) {
         );
 
       console.log("🟢 Webhook Submagic simulado guardado en lipsync y videos:", fakeId);
+      await gaServerEvent("submagic_webhook_simulated", { uid, projectId: fakeId }); // 👈 evento
       return NextResponse.json({ ok: true, simulated: true });
     }
-
 
     // 🔁 Rama real
     const body = await req.json();
     console.log("📩 Webhook recibido de Submagic:", JSON.stringify(body, null, 2));
+    await gaServerEvent("submagic_webhook_received", { uid, body }); // 👈 evento
 
     const {
       projectId,
@@ -123,10 +125,13 @@ export async function POST(req: Request) {
         },
         { merge: true }
       );
+
+      await gaServerEvent("submagic_lipsync_updated", { uid, projectId, status: normalizedStatus }); // 👈 evento
     } else {
       console.warn(
         `⚠️ No se encontró lipsync con submagicProjectId=${projectId} para el usuario ${uid}`
       );
+      await gaServerEvent("submagic_lipsync_missing", { uid, projectId }); // 👈 evento
     }
 
     // 📂 Guardar también en "videos"
@@ -152,6 +157,8 @@ export async function POST(req: Request) {
         { merge: true }
       );
 
+    await gaServerEvent("submagic_video_saved", { uid, projectId, status: normalizedStatus }); // 👈 evento
+
     // 📧 Enviar email si está completado
     if (normalizedStatus === "completed" && downloadUrl && userEmail) {
       console.log(`📧 Enviando email a ${userEmail} con enlace ${downloadUrl}`);
@@ -173,11 +180,14 @@ export async function POST(req: Request) {
             Gracias por usar KLIP`,
         }),
       });
+
+      await gaServerEvent("submagic_email_sent", { uid, projectId, to: userEmail }); // 👈 evento
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("❌ Error processing Submagic webhook:", error);
+    await gaServerEvent("submagic_webhook_failed", { error: String(error) }); // 👈 evento
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

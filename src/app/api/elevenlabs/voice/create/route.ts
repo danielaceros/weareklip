@@ -1,12 +1,22 @@
 // app/api/voices/create/route.ts
 import { getStorage } from "firebase-admin/storage";
-import { initAdmin } from "@/lib/firebase-admin";
+import { initAdmin, adminAuth } from "@/lib/firebase-admin";
 import { FormData, File } from "formdata-node";
+import { gaServerEvent } from "@/lib/ga-server";
 
 initAdmin();
 
 export async function POST(req: Request) {
   try {
+    // 🔑 Autenticación mínima (opcional, si quieres que solo usuarios logueados puedan crear voces)
+    const authHeader = req.headers.get("Authorization") || "";
+    let uid: string | null = null;
+    if (authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const decoded = await adminAuth.verifyIdToken(token).catch(() => null);
+      uid = decoded?.uid || null;
+    }
+
     const { paths, voiceName } = await req.json();
     if (!paths?.length) {
       return Response.json({ error: "No se han enviado rutas de muestras" }, { status: 400 });
@@ -33,9 +43,42 @@ export async function POST(req: Request) {
     });
 
     const data = await elevenResp.json();
+
+    if (elevenResp.ok) {
+      // 🔔 GA4: evento de éxito
+      await gaServerEvent(
+        "voice_created",
+        {
+          voiceName,
+          pathsCount: paths.length,
+          provider: "elevenlabs",
+          voiceId: data?.voice_id || null,
+        },
+        uid ? { userId: uid } : undefined
+      );
+    } else {
+      // 🔔 GA4: fallo en ElevenLabs
+      await gaServerEvent(
+        "voice_failed",
+        {
+          voiceName,
+          error: data?.error || "Unknown error",
+          status: elevenResp.status,
+        },
+        uid ? { userId: uid } : undefined
+      );
+    }
+
     return Response.json(data, { status: elevenResp.status });
-  } catch (err) {
-    console.error(err);
+  } catch (err: any) {
+    console.error("❌ Error creando voz:", err);
+
+    // 🔔 GA4: error interno
+    await gaServerEvent("voice_failed", {
+      error: err?.message || String(err),
+      stage: "internal",
+    });
+
     return Response.json({ error: "Error creando voz en ElevenLabs" }, { status: 500 });
   }
 }

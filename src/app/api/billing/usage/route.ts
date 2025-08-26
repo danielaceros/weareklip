@@ -7,6 +7,7 @@ import {
   adminTimestamp,
   adminFieldValue,
 } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -173,18 +174,19 @@ async function maybeResetAfterPaidInvoice(args: {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1) Auth
+    const body = await safeBody(req);
     const authHeader = req.headers.get("authorization");
     const bearer = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : undefined;
-    const body = await safeBody(req);
     const idToken = bearer ?? (typeof body.idToken === "string" ? body.idToken : undefined);
-    if (!idToken) return bad("Missing ID token", 401);
+    if (!idToken) {
+      await gaServerEvent("usage_failed", { reason: "missing_id_token" });
+      return bad("Missing ID token", 401);
+    }
     const decoded = await adminAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    // 2) Params
     const allowed: UsageKind[] = ["script", "voice", "lipsync", "edit"];
     const kind =
       typeof body.kind === "string" && (allowed as string[]).includes(body.kind)
@@ -194,72 +196,59 @@ export async function POST(req: NextRequest) {
       typeof body.quantity === "number" && body.quantity > 0
         ? Math.floor(body.quantity)
         : 1;
-    if (!kind) return bad("Invalid kind");
-    const priceId = PRICE_BY_KIND[kind];
-    if (!priceId) return bad(`Missing price for kind '${kind}' on env`);
-    const meterEventName = METER_EVENT_BY_KIND[kind];
-    if (!meterEventName) return bad(`Missing meter event name for kind '${kind}' on env`);
+    if (!kind) {
+      await gaServerEvent("usage_failed", { uid, reason: "invalid_kind" });
+      return bad("Invalid kind");
+    }
 
-    // 3) User doc
+    await gaServerEvent("usage_attempt", { uid, kind, quantity });
+
+    const priceId = PRICE_BY_KIND[kind];
+    const meterEventName = METER_EVENT_BY_KIND[kind];
+
     const userRef = adminDB.collection("users").doc(uid);
     let snap = await userRef.get();
-    if (!snap.exists) return bad("User doc not found", 404);
-    let user = snap.data() as {
-      stripeCustomerId?: string;
-      subscription?: { status?: string | null };
-      trialCreditCents?: number;
-      usage?: Partial<Record<UsageKind, number>>;
-      pendingLocalCents?: number;
-      pendingLocalResetAt?: FirebaseFirestore.Timestamp;
-    };
+    if (!snap.exists) {
+      await gaServerEvent("usage_failed", { uid, kind, reason: "user_doc_not_found" });
+      return bad("User doc not found", 404);
+    }
+    let user = snap.data() as any;
     const customerId = user.stripeCustomerId;
-    if (!customerId) return bad("No Stripe customer. Debes darte de alta primero.", 400);
+    if (!customerId) {
+      await gaServerEvent("usage_failed", { uid, kind, reason: "no_stripe_customer" });
+      return bad("No Stripe customer. Debes darte de alta primero.", 400);
+    }
 
-   // 4) Validar Access (trialing/active)
+    // Access validation
     let accessStatus: string | null = null;
     try {
-      const subs = await stripe.subscriptions.list({
-        customer: customerId,
-        status: "all",
-        limit: 100,
-      });
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
       const access = subs.data.find(
-        (s) =>
-          s.status !== "canceled" &&
+        (s) => s.status !== "canceled" &&
           s.items.data.some((it) => it.price?.id === process.env.STRIPE_PRICE_ACCESS)
       );
-
-      accessStatus = access?.status ?? null; // ✅ asignamos a la variable de fuera
+      accessStatus = access?.status ?? null;
     } catch {
       accessStatus = user.subscription?.status ?? null;
     }
 
     if (!(accessStatus === "trialing" || accessStatus === "active")) {
+      await gaServerEvent("usage_failed", { uid, kind, reason: "invalid_subscription", accessStatus });
       return bad(`Suscripción no válida (${accessStatus ?? "sin estado"})`, 402);
     }
 
-
-    // 5) Garantizar sub de uso y todos los prices
+    // Stripe sub for usage
     const usageSub = await getOrCreateUsageSubscription(customerId, uid);
     await ensureSubscriptionHasAllPrices(usageSub.id);
+    await maybeResetAfterPaidInvoice({ userRef, user, customerId, usageSubId: usageSub.id });
 
-    // 6) Si detectamos que ya hay una invoice "paid", reseteamos acumulado local
-    await maybeResetAfterPaidInvoice({
-      userRef,
-      user,
-      customerId,
-      usageSubId: usageSub.id,
-    });
-    // refrescamos datos del usuario por si hemos reseteado
     snap = await userRef.get();
-    user = snap.data() as typeof user;
+    user = snap.data();
 
-    // 7) Precio/moneda (para crédito)
     const unitCents = await getUnitAmountCents(priceId);
     const price = await stripe.prices.retrieve(priceId);
     const currency = price.currency!;
 
-    // 8) Crédito trial (sembrar si hace falta)
     let credit =
       typeof user.trialCreditCents === "number" ? Math.max(0, user.trialCreditCents) : undefined;
     if (accessStatus === "trialing" && credit == null) {
@@ -268,59 +257,52 @@ export async function POST(req: NextRequest) {
     }
     const creditNow = typeof credit === "number" ? credit : 0;
 
-    // 9) Cálculo de “gratis/pago” para esta operación
     const freeQty = creditNow > 0 ? Math.min(quantity, Math.floor(creditNow / unitCents)) : 0;
     const paidQty = quantity - freeQty;
     const chargedCentsThisCall = paidQty * unitCents;
 
-    // 10) Tope duro: si ya llegó o se pasaría del tope, bloqueamos
     const pendingLocal = typeof user.pendingLocalCents === "number" ? user.pendingLocalCents : 0;
     const willBe = pendingLocal + chargedCentsThisCall;
 
     if (pendingLocal >= DAILY_CAP_CENTS || willBe > DAILY_CAP_CENTS) {
       const portalUrl = await createBillingPortalUrl(customerId);
-      const remaining = Math.max(0, DAILY_CAP_CENTS - pendingLocal);
-
+      await gaServerEvent("usage_cap_reached", {
+        uid,
+        kind,
+        pendingLocal,
+        cap: DAILY_CAP_CENTS,
+      });
       return NextResponse.json(
         {
           ok: false,
           code: "CAP_REACHED",
-          message:
-            "Has alcanzado el límite de consumo. Paga la factura pendiente o espera a que se liquide para continuar.",
+          message: "Has alcanzado el límite de consumo.",
           capCents: DAILY_CAP_CENTS,
           pendingLocalCents: pendingLocal,
-          remainingCents: remaining,
+          remainingCents: Math.max(0, DAILY_CAP_CENTS - pendingLocal),
           portalUrl,
         },
         { status: 402 }
       );
     }
 
-    // 11) Descontar crédito trial si aplica
     if (freeQty > 0) {
       await userRef.update({
         trialCreditCents: adminFieldValue.increment(-freeQty * unitCents),
         lastUpdated: adminTimestamp.now(),
       });
+      await gaServerEvent("usage_trial_consumed", { uid, kind, freeQty, unitCents });
     }
 
-    // 12) Reportar uso (solo parte de pago) → Meter Events + acumular pendiente local
     let usageEventId: string | null = null;
-
     if (paidQty > 0) {
-      // Soporte idempotencia: mismo ident si reintentas con la misma key
       const idemHeader = req.headers.get("x-idempotency-key");
       const idemBody = typeof body.idem === "string" ? body.idem : undefined;
       const idem = idemHeader || idemBody || String(Date.now());
       const ident = `${uid}:${kind}:${idem}`;
 
-      const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } })
-        .billing?.meterEvents;
-      if (!meter || typeof meter.create !== "function") {
-        throw new Error("Tu SDK de Stripe no soporta billing.meterEvents.create. Actualiza 'stripe'.");
-      }
-
-      const evt = await meter.create(
+      const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } }).billing?.meterEvents;
+      const evt = await meter!.create(
         {
           event_name: meterEventName,
           payload: { value: paidQty, stripe_customer_id: customerId },
@@ -328,8 +310,7 @@ export async function POST(req: NextRequest) {
         },
         { idempotencyKey: ident }
       );
-      console.log(evt)
-      usageEventId = ident;
+      usageEventId = evt.id;
 
       if (chargedCentsThisCall > 0) {
         await userRef.update({
@@ -337,17 +318,31 @@ export async function POST(req: NextRequest) {
           lastUpdated: adminTimestamp.now(),
         });
       }
+      await gaServerEvent("usage_paid_recorded", {
+        uid,
+        kind,
+        paidQty,
+        chargedCents: chargedCentsThisCall,
+        usageEventId,
+      });
     }
 
-
-
-    // 13) Contadores locales (estadísticos)
     await userRef.update({
       [`usage.${kind}`]: adminFieldValue.increment(quantity),
       lastUpdated: adminTimestamp.now(),
     });
 
     const creditedCents = freeQty * unitCents;
+
+    await gaServerEvent("usage_success", {
+      uid,
+      kind,
+      quantity,
+      freeQty,
+      paidQty,
+      creditedCents,
+      chargedCents: chargedCentsThisCall,
+    });
 
     return NextResponse.json(
       {
@@ -368,6 +363,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Usage error";
     console.error("❌ /api/billing/usage:", msg, e);
+    await gaServerEvent("usage_failed", { reason: msg });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
