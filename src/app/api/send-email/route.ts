@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { gaServerEvent } from "@/lib/ga-server";
 
 function renderEmailHTML(title: string, content: string): string {
   return `
@@ -9,30 +10,11 @@ function renderEmailHTML(title: string, content: string): string {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <style>
-          body {
-            margin: 0;
-            padding: 2rem;
-            font-family: 'Inter', sans-serif;
-            background-color: #ffffff;
-            color: #000000;
-          }
-          .container {
-            max-width: 600px;
-            margin: auto;
-            border: 1px solid #ddd;
-            padding: 2rem;
-            border-radius: 8px;
-          }
+          body { margin: 0; padding: 2rem; font-family: 'Inter', sans-serif; background-color: #fff; color: #000; }
+          .container { max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 2rem; border-radius: 8px; }
           h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; }
           p { font-size: 1rem; line-height: 1.5; }
-          .footer {
-            margin-top: 2rem;
-            font-size: 0.875rem;
-            color: #666;
-            border-top: 1px solid #eee;
-            padding-top: 1rem;
-            text-align: center;
-          }
+          .footer { margin-top: 2rem; font-size: 0.875rem; color: #666; border-top: 1px solid #eee; padding-top: 1rem; text-align: center; }
         </style>
       </head>
       <body>
@@ -53,11 +35,14 @@ export async function POST(req: Request) {
     const { to, subject, content } = await req.json();
 
     if (!to || !subject || !content) {
+      await gaServerEvent("email_send_failed", { reason: "missing_fields" });
       return NextResponse.json({ error: "Faltan campos obligatorios." }, { status: 400 });
     }
 
+    await gaServerEvent("email_send_attempt", { to, subject });
+
     const transporter = nodemailer.createTransport({
-      host: "email-smtp.eu-north-1.amazonaws.com", // Reemplaza si tu región es otra
+      host: "email-smtp.eu-north-1.amazonaws.com",
       port: 465,
       secure: true,
       auth: {
@@ -69,15 +54,24 @@ export async function POST(req: Request) {
     const html = renderEmailHTML(subject, content);
 
     const info = await transporter.sendMail({
-      from: '"KLIP Notificaciones" <notifications@weareklip.com>', // ✅ Verifica que este dominio esté verificado en SES
+      from: '"KLIP Notificaciones" <notifications@weareklip.com>',
       to,
       subject,
       html,
     });
 
+    await gaServerEvent("email_send_success", {
+      to,
+      subject,
+      messageId: info.messageId,
+    });
+
     return NextResponse.json({ success: true, messageId: info.messageId });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al enviar correo:", error);
+    await gaServerEvent("email_send_failed", {
+      error: error?.message || String(error),
+    });
     return NextResponse.json({ error: "Error al enviar el correo." }, { status: 500 });
   }
 }

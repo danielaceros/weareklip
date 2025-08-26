@@ -1,7 +1,9 @@
 // src/app/api/scripts/regenerate/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
 import { adminAuth } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -21,6 +23,7 @@ type Body = {
 
 export async function POST(req: Request) {
   const simulate = process.env.SIMULATE === "true";
+  const idem = randomUUID();
 
   try {
     // 1) Auth
@@ -29,7 +32,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
     const idToken = authHeader.split(" ")[1];
-    await adminAuth.verifyIdToken(idToken); // solo validar
+    const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+    const uid = decoded?.uid;
+    if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
     // 2) Body
     const body = (await req.json()) as Body;
@@ -41,6 +46,13 @@ export async function POST(req: Request) {
 
     let regeneratedScript = "";
 
+    // 🔔 Evento: inicio de regeneración
+    await gaServerEvent(
+      "script_regenerate_started",
+      { simulate, description, tone, platform, duration, language },
+      { userId: uid }
+    );
+
     // 🔁 RAMA A: SIMULACIÓN
     if (simulate) {
       regeneratedScript = `Este es un guion simulado (regenerado) para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}"` : ""}.`;
@@ -48,7 +60,6 @@ export async function POST(req: Request) {
 
     // 🔁 RAMA B: REAL
     else {
-      // 3) Prompt
       const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
@@ -71,7 +82,6 @@ Reglas estrictas:
 7. No incluyas frases como "Aquí tienes tu guion" o similares.
 `.trim();
 
-      // 4) Generar con OpenAI
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
@@ -86,13 +96,27 @@ Reglas estrictas:
           .trim() || "";
     }
 
-    // 5) Respuesta simple
+    // 🔔 Evento: regeneración completada
+    await gaServerEvent(
+      "script_regenerate_completed",
+      { length: regeneratedScript.length, simulated: simulate },
+      { userId: uid }
+    );
+
     return NextResponse.json({ script: regeneratedScript, simulated: simulate });
   } catch (error) {
     console.error("❌ Error /scripts/regenerate:", error);
-    return NextResponse.json(
-      { error: "Error interno regenerando guion" },
-      { status: 500 }
-    );
+    const msg = error instanceof Error ? error.message : "Error interno regenerando guion";
+
+    // 🔔 Evento: error en regeneración
+    const idToken = req.headers.get("authorization")?.replace(/^Bearer\s+/, "");
+    let uid: string | undefined;
+    if (idToken) {
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+    await gaServerEvent("script_regenerate_failed", { error: msg }, uid ? { userId: uid } : undefined);
+
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

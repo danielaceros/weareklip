@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +54,13 @@ export async function POST(req: Request) {
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
 
+    // 🔔 Evento: inicio generación audio
+    await gaServerEvent(
+      "voice_generation_started",
+      { simulate, voiceId, text_length: text.length },
+      { userId: uid }
+    );
+
     // 🔁 SIMULACIÓN
     if (simulate) {
       console.log("🟢 Simulación ElevenLabs activa");
@@ -95,6 +103,13 @@ export async function POST(req: Request) {
         console.error("❌ Error registrando uso voice (simulado):", usage);
       }
 
+      // 🔔 Evento: audio generado (simulado)
+      await gaServerEvent(
+        "voice_generation_completed",
+        { simulate: true, audioId, voiceId, text_length: text.length },
+        { userId: uid }
+      );
+
       return NextResponse.json({
         ok: true,
         audioId,
@@ -132,6 +147,13 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const err = await res.text();
       console.error("❌ ElevenLabs TTS error:", err);
+
+      await gaServerEvent(
+        "voice_generation_failed",
+        { error: err, voiceId },
+        { userId: uid }
+      );
+
       return NextResponse.json(
         { error: "Error en ElevenLabs", details: err },
         { status: 502 }
@@ -194,6 +216,13 @@ export async function POST(req: Request) {
       console.error("❌ Error registrando uso voice:", usage);
     }
 
+    // 🔔 Evento: audio generado (real)
+    await gaServerEvent(
+      "voice_generation_completed",
+      { simulate: false, audioId, voiceId, text_length: text.length },
+      { userId: uid }
+    );
+
     return NextResponse.json({
       ok: true,
       audioId,
@@ -202,6 +231,22 @@ export async function POST(req: Request) {
     });
   } catch (e: any) {
     console.error("❌ Error en /api/elevenlabs/audio/create:", e?.message, e);
+
+    // Evento de error
+    const authHeader = req.headers.get("Authorization");
+    let uid: string | undefined;
+    if (authHeader?.startsWith("Bearer ")) {
+      const idToken = authHeader.split(" ")[1];
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+
+    await gaServerEvent(
+      "voice_generation_failed",
+      { error: e?.message || String(e) },
+      uid ? { userId: uid } : undefined
+    );
+
     return NextResponse.json(
       { error: "Error interno", details: e?.message || String(e) },
       { status: 500 }

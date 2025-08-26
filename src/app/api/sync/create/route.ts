@@ -1,6 +1,7 @@
 // src/app/api/sync/create/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 🔔 Evento GA4 → inicio
+    await gaServerEvent(
+      "lipsync_started",
+      { audioUrl, videoUrl, options, simulate, idem },
+      { userId: uid }
+    );
 
     // 3) Idempotencia
     const col = adminDB.collection("users").doc(uid).collection("lipsync");
@@ -168,6 +176,13 @@ export async function POST(req: NextRequest) {
     const usageData = await usageRes.json();
     console.log("📊 Billing usage response:", usageRes.status, usageData);
 
+    // 🔔 Evento GA4 → completado (aunque esté en "processing")
+    await gaServerEvent(
+      "lipsync_completed",
+      { jobId, model, simulate, idem },
+      { userId: uid }
+    );
+
     return NextResponse.json({
       ok: true,
       id: jobId,
@@ -175,8 +190,25 @@ export async function POST(req: NextRequest) {
       model,
       simulated: simulate,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("❌ Error creando lipsync:", err);
+
+    // Intentar capturar UID si hay token
+    let uid: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const idToken = authHeader.split(" ")[1];
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+
+    // 🔔 Evento GA4 → fallo
+    await gaServerEvent(
+      "lipsync_failed",
+      { error: err?.message || String(err) },
+      uid ? { userId: uid } : undefined
+    );
+
     const msg = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

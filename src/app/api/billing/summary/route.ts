@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
 import Stripe from "stripe";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,14 +40,18 @@ export async function GET(req: NextRequest) {
     const idToken = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : undefined;
-    if (!idToken)
+    if (!idToken) {
+      await gaServerEvent("billing_summary_failed", { reason: "missing_id_token" });
       return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
-    const { uid } = await adminAuth.verifyIdToken(idToken);
+    }
+
+    const { uid, email } = await adminAuth.verifyIdToken(idToken);
 
     // 2) User doc en Firestore
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     if (!snap.exists) {
+      await gaServerEvent("billing_summary_missing_user", { uid, email });
       return NextResponse.json(
         { error: "Usuario no encontrado en Firestore" },
         { status: 404 }
@@ -55,9 +60,10 @@ export async function GET(req: NextRequest) {
 
     const user = snap.data();
     const customerId: string | undefined = user?.stripeCustomerId;
-    const trialCreditCents: number = user?.trialCreditCents ?? 0; // 👈 añadimos
+    const trialCreditCents: number = user?.trialCreditCents ?? 0;
 
     if (!customerId) {
+      await gaServerEvent("billing_summary_no_subscription", { uid, email, trialCreditCents });
       return NextResponse.json(
         {
           subscription: {
@@ -70,7 +76,7 @@ export async function GET(req: NextRequest) {
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
           pendingCents: 0,
-          trialCreditCents, // 👈 devolvemos
+          trialCreditCents,
           payment: { hasDefaultPayment: false },
           debug: { customerId: null, reconciled: false },
         },
@@ -93,6 +99,7 @@ export async function GET(req: NextRequest) {
     )) as Stripe.Customer;
 
     if (!sub) {
+      await gaServerEvent("billing_summary_no_subscription", { uid, email, customerId, trialCreditCents });
       return NextResponse.json(
         {
           subscription: {
@@ -105,7 +112,7 @@ export async function GET(req: NextRequest) {
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
           pendingCents: 0,
-          trialCreditCents, // 👈 devolvemos aunque no tenga sub
+          trialCreditCents,
           payment: {
             hasDefaultPayment:
               !!customer.invoice_settings?.default_payment_method ||
@@ -188,10 +195,26 @@ export async function GET(req: NextRequest) {
       pendingCents = 0;
     }
 
-    // 8) Info de método de pago
     const hasDefaultPayment =
       !!customer.invoice_settings?.default_payment_method ||
       !!customer.default_source;
+
+    // 8) Tracking GA
+    await gaServerEvent("billing_summary_requested", {
+      uid,
+      email,
+      customerId,
+      subscription_status: status,
+      active,
+      trialing,
+      cancelAtPeriodEnd,
+      planName,
+      renewalAt,
+      trialCreditCents,
+      usage,
+      pendingCents,
+      hasDefaultPayment,
+    });
 
     // 9) Respuesta
     return NextResponse.json(
@@ -206,15 +229,20 @@ export async function GET(req: NextRequest) {
         },
         usage,
         pendingCents,
-        trialCreditCents, // 👈 ahora sí en todas las respuestas
+        trialCreditCents,
         payment: { hasDefaultPayment },
         debug: { customerId, reconciled: true },
       },
       { status: 200 }
     );
-  } catch (e) {
+  } catch (e: any) {
     const msg = e instanceof Error ? e.message : "summary error";
     console.error("❌ /api/billing/summary:", msg, e);
+
+    await gaServerEvent("billing_summary_failed", {
+      error: msg,
+    });
+
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

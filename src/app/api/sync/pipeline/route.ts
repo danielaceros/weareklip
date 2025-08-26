@@ -1,6 +1,7 @@
 // src/app/api/sync/pipeline/route.ts
 import { NextResponse } from "next/server";
 import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,23 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // 🔔 Evento GA4 → inicio del pipeline
+    await gaServerEvent(
+      "pipeline_started",
+      {
+        audioUrl,
+        videoUrl,
+        subLang,
+        template,
+        magicZooms,
+        magicBrolls,
+        magicBrollsPercentage,
+        simulate,
+        idem,
+      },
+      { userId: decoded.uid }
+    );
 
     // 3️⃣ URL base
     const baseUrl =
@@ -87,7 +105,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: authHeader!, // ⬅️ pasa token
+          Authorization: authHeader!,
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({ kind: "lipsync", quantity: 1, idem }),
@@ -105,7 +123,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: authHeader!, // ⬅️ reenviar el token aquí
+          Authorization: authHeader!,
         },
         body: JSON.stringify({
           id: jobId,
@@ -116,6 +134,13 @@ export async function POST(req: Request) {
         }),
       }).catch((err) =>
         console.error("❌ Error simulando webhook pipeline:", err)
+      );
+
+      // 🔔 Evento GA4 → completado (simulado)
+      await gaServerEvent(
+        "pipeline_completed",
+        { jobId, model, simulate: true, idem },
+        { userId: decoded.uid }
       );
 
       return NextResponse.json({
@@ -188,7 +213,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: authHeader!, // ⬅️ token también aquí
+        Authorization: authHeader!,
         "X-Idempotency-Key": idem,
       },
       body: JSON.stringify({ kind: "lipsync", quantity: 1, idem }),
@@ -201,6 +226,13 @@ export async function POST(req: Request) {
       console.error("❌ Error registrando uso lipsync:", usage);
     }
 
+    // 🔔 Evento GA4 → completado (real)
+    await gaServerEvent(
+      "pipeline_completed",
+      { jobId, model, simulate: false, idem },
+      { userId: decoded.uid }
+    );
+
     // 6️⃣ Respuesta
     return NextResponse.json({
       ok: true,
@@ -209,8 +241,25 @@ export async function POST(req: Request) {
       model,
       simulated: false,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("❌ Error creando lipsync:", err);
+
+    // Intentar recuperar UID para GA
+    let uid: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const idToken = authHeader.split(" ")[1];
+      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+      uid = decoded?.uid;
+    }
+
+    // 🔔 Evento GA4 → fallo
+    await gaServerEvent(
+      "pipeline_failed",
+      { error: err?.message || String(err) },
+      uid ? { userId: uid } : undefined
+    );
+
     const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }

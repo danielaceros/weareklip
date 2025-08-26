@@ -3,15 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { adminDB, adminTimestamp, adminFieldValue } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 /* ================== config ================== */
 
 type PlanId = "starter" | "mid" | "creator" | "business" | "usage" | "access";
 
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500"); // p.ej. 5,00 €
-const USAGE_THRESHOLD_CENTS = Number(process.env.USAGE_THRESHOLD_CENTS || "0"); // p.ej. 10000 (=100€)
+const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500");
+const USAGE_THRESHOLD_CENTS = Number(process.env.USAGE_THRESHOLD_CENTS || "0");
 
-// (opcional) precios de uso para crear la sub "usage" tras el checkout
 const PRICE_USAGE: string[] = [
   process.env.STRIPE_PRICE_USAGE_SCRIPT!,
   process.env.STRIPE_PRICE_USAGE_VOICE!,
@@ -129,8 +129,8 @@ async function upsertUser({
   subscriptionId?: string;
   plan?: PlanId;
   status?: Stripe.Subscription.Status;
-  renewal?: number; // epoch seconds
-  lastPayment?: number; // epoch seconds
+  renewal?: number;
+  lastPayment?: number;
 }): Promise<FirebaseFirestore.DocumentReference | undefined> {
   const userRef = await findUserRef({ uid, email, customerId });
 
@@ -139,10 +139,7 @@ async function upsertUser({
     return;
   }
 
-  const update: Record<string, unknown> = {
-    lastUpdated: adminTimestamp.now(),
-  };
-
+  const update: Record<string, unknown> = { lastUpdated: adminTimestamp.now() };
   if (typeof email === "string") update["email"] = email;
   if (customerId) update["stripeCustomerId"] = customerId;
 
@@ -184,7 +181,6 @@ async function ensureTrialCreditOnce(
 
   const snap = await userRef.get();
   const data = snap.exists ? (snap.data() as FirebaseFirestore.DocumentData) : undefined;
-
   if (data?.trialCreditEverGranted === true) return;
 
   await userRef.set(
@@ -198,48 +194,33 @@ async function ensureTrialCreditOnce(
     { merge: true }
   );
 
+  await gaServerEvent("trial_credit_granted", { uid: userRef.id, customerId });
+
   try {
     await stripe.customers.update(customerId, { metadata: { trial_credit_granted: "1" } });
-  } catch {
-    /* noop */
-  }
+  } catch {}
 }
 
 /** Crea (si no existe) la sub de uso con los prices, PM por defecto y umbral */
 async function ensureUsageSubscription(customerId: string, uid?: string) {
   if (!PRICE_USAGE.length) return;
 
-  const subs = await stripe.subscriptions.list({
-    customer: customerId,
-    status: "all",
-    limit: 100,
-  });
-
+  const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
   const existing = subs.data.find((s) => s.metadata?.plan === "usage" && s.status !== "canceled");
   if (existing) return;
 
-  // 1) PM por defecto del Customer
   let defaultPm: string | undefined;
   try {
     const c = await stripe.customers.retrieve(customerId);
     if (!("deleted" in c)) {
-      const pm =
-        c.invoice_settings?.default_payment_method as
-          | string
-          | Stripe.PaymentMethod
-          | null
-          | undefined;
+      const pm = c.invoice_settings?.default_payment_method as string | Stripe.PaymentMethod | null;
       defaultPm = typeof pm === "string" ? pm : pm?.id;
     }
-  } catch {
-    /* noop */
-  }
+  } catch {}
 
-  // 2) Fallback: PM de Access (si existe)
   if (!defaultPm) {
     const access = subs.data.find((s) => s.metadata?.plan === "access" && s.status !== "canceled");
-    const pm =
-      access?.default_payment_method as string | Stripe.PaymentMethod | null | undefined;
+    const pm = access?.default_payment_method as string | Stripe.PaymentMethod | null | undefined;
     defaultPm = typeof pm === "string" ? pm : pm?.id;
   }
 
@@ -251,13 +232,15 @@ async function ensureUsageSubscription(customerId: string, uid?: string) {
   await stripe.subscriptions.create({
     customer: customerId,
     collection_method: "charge_automatically",
-    default_payment_method: defaultPm, // ← que pueda cobrar solo
+    default_payment_method: defaultPm,
     payment_settings: { save_default_payment_method: "on_subscription" },
     ...(threshold ? { billing_thresholds: threshold } : {}),
     items: PRICE_USAGE.map((p) => ({ price: p })),
     proration_behavior: "none",
     metadata: uid ? { plan: "usage", uid } : { plan: "usage" },
   });
+
+  await gaServerEvent("usage_subscription_created", { uid, customerId });
 }
 
 /* ================== handler ================== */
@@ -275,32 +258,29 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    const secret = process.env.STRIPE_WEBHOOK_SECRET!;
-    event = stripe.webhooks.constructEvent(buf, sig, secret);
+    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
     const msg = isStripeError(err) ? err.message : "Invalid signature";
     console.error("❌ Webhook signature error:", msg);
+    await gaServerEvent("stripe_webhook_signature_error", { msg });
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   try {
     switch (event.type) {
-      /* ------- customer.* → guardamos stripeCustomerId / email ------- */
       case "customer.created":
       case "customer.updated": {
         const c = event.data.object as Stripe.Customer;
-        const email = c.email ?? undefined;
-        const uid = (c.metadata?.uid as string | undefined) ?? undefined;
-
-        await upsertUser({ uid, email, customerId: c.id });
-        if (uid) await upsertCustomerMapping(uid, c.id, email);
+        await upsertUser({ uid: c.metadata?.uid, email: c.email ?? undefined, customerId: c.id });
+        if (c.metadata?.uid) await upsertCustomerMapping(c.metadata.uid, c.id, c.email ?? undefined);
+        await gaServerEvent("stripe_customer_upserted", { customerId: c.id });
         break;
       }
 
       /* ------------------- checkout.session.completed ------------------- */
       case "checkout.session.completed": {
         const s = event.data.object as Stripe.Checkout.Session;
-
+        await gaServerEvent("checkout_completed", { uid: s.metadata?.uid, plan: s.metadata?.plan });
         const uid = (s.metadata?.uid as string | undefined) ?? undefined;
         const plan = (s.metadata?.plan as PlanId | undefined) ?? undefined;
         const customerId = (s.customer as string | undefined) ?? undefined;
@@ -382,6 +362,11 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
+        await gaServerEvent("subscription_updated", {
+          uid: sub.metadata?.uid,
+          plan: sub.metadata?.plan,
+          status: sub.status,
+        });
         const uid = (sub.metadata?.uid as string | undefined) ?? undefined;
         const plan = planFromSubscription(sub);
         const customerId = (sub.customer as string | undefined) ?? undefined;
@@ -453,6 +438,7 @@ export async function POST(req: NextRequest) {
       /* ---------------- customer.subscription.deleted ---------------- */
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
+        await gaServerEvent("subscription_deleted", { uid: sub.metadata?.uid, plan: sub.metadata?.plan });
         const uid = (sub.metadata?.uid as string | undefined) ?? undefined;
         const customerId = (sub.customer as string | undefined) ?? undefined;
 
@@ -479,6 +465,7 @@ export async function POST(req: NextRequest) {
       /* ---------------------------- invoice.paid ---------------------------- */
       case "invoice.paid": {
         const inv = event.data.object as Stripe.Invoice;
+        await gaServerEvent("invoice_paid", { uid: uidFromInvoice(inv), amount: inv.amount_paid });
         const paidAt = inv.status_transitions?.paid_at ?? inv.created;
         const email = emailFromInvoice(inv);
         const uid = uidFromInvoice(inv);
@@ -537,6 +524,10 @@ export async function POST(req: NextRequest) {
       /* ------------------------ invoice.payment_failed ------------------------ */
       case "invoice.payment_failed": {
         const inv = event.data.object as Stripe.Invoice;
+        await gaServerEvent("invoice_payment_failed", {
+          uid: uidFromInvoice(inv),
+          amount: inv.amount_due,
+        });
         const email = emailFromInvoice(inv);
         const uid = uidFromInvoice(inv);
         const customerId = (inv.customer as string | undefined) ?? undefined;
@@ -568,6 +559,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = isStripeError(err) && err.message ? err.message : "Webhook handler error";
     console.error("❌ Webhook handler error:", msg, err);
+    await gaServerEvent("stripe_webhook_failed", { reason: msg });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 // src/app/api/youtube/shorts/route.ts
 import { NextResponse } from "next/server";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 const API_KEY = process.env.YOUTUBE_API_KEY as string;
 const MAX_RESULTS = 50;
@@ -56,6 +57,7 @@ export async function GET(request: Request) {
       publishedAt: new Date().toISOString(),
       simulated: true,
     }));
+    await gaServerEvent("youtube_shorts_simulated", { country, range, query, count: fakeShorts.length }); // 👈 evento
     return NextResponse.json(fakeShorts);
   }
 
@@ -132,9 +134,11 @@ export async function GET(request: Request) {
       publishedAt: video.snippet.publishedAt,
     }));
 
+    await gaServerEvent("youtube_shorts_fetched", { country, range, query, count: formatted.length }); // 👈 evento
     return NextResponse.json(formatted);
   } catch (error: unknown) {
     console.error(error);
+    await gaServerEvent("youtube_shorts_failed", { country, range, query, error: error instanceof Error ? error.message : String(error) }); // 👈 evento
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
