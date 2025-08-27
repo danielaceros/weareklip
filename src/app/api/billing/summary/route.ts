@@ -75,9 +75,11 @@ export async function GET(req: NextRequest) {
             cancelAtPeriodEnd: false,
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
-          pendingCents: 0,
+          pendingUsageCents: 0,   // 👈 corregido
           trialCreditCents,
           payment: { hasDefaultPayment: false },
+          hasOverdue: false,      // 👈 añadido
+          overdueCents: 0,        // 👈 añadido
           debug: { customerId: null, reconciled: false },
         },
         { status: 200 }
@@ -111,13 +113,15 @@ export async function GET(req: NextRequest) {
             cancelAtPeriodEnd: false,
           },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
-          pendingCents: 0,
+          pendingUsageCents: 0,   // 👈 corregido
           trialCreditCents,
           payment: {
             hasDefaultPayment:
               !!customer.invoice_settings?.default_payment_method ||
               !!customer.default_source,
           },
+          hasOverdue: false,      // 👈 añadido
+          overdueCents: 0,        // 👈 añadido
           debug: { customerId, reconciled: true },
         },
         { status: 200 }
@@ -137,13 +141,15 @@ export async function GET(req: NextRequest) {
     const planName = planItem?.price?.nickname || "Access";
 
     const renewalAt = sub.trial_end
-      ? sub.trial_end * 1000
+      ? sub.trial_end
       : sub.items.data[0].current_period_end
-      ? sub.items.data[0].current_period_end * 1000
+      ? sub.items.data[0].current_period_end
       : null;
 
-    // 6) Uso (desde invoice preview)
+    // 6) Uso y consumo variable
     const usage: UsageMap = { script: 0, voice: 0, lipsync: 0, edit: 0 };
+    let pendingUsageCents = 0;
+
     try {
       const preview = await stripe.invoices.createPreview({
         customer: customerId!,
@@ -152,47 +158,55 @@ export async function GET(req: NextRequest) {
       });
 
       for (const line of preview?.lines?.data ?? []) {
-        const priceId = line.pricing?.price_details?.price;
-        const unitCents = line.pricing?.unit_amount_decimal
-          ? Math.round(parseFloat(line.pricing.unit_amount_decimal))
-          : 0;
+        const priceId = line.id;
         const amount = line.amount ?? 0;
-        const qty =
-          unitCents > 0
-            ? Math.round(amount / unitCents)
-            : line.quantity ?? 0;
 
-        switch (priceId) {
-          case process.env.STRIPE_PRICE_USAGE_SCRIPT:
-            usage.script = qty;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_VOICE:
-            usage.voice = qty;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_LIPSYNC:
-            usage.lipsync = qty;
-            break;
-          case process.env.STRIPE_PRICE_USAGE_EDIT:
-            usage.edit = qty;
-            break;
+        if (
+          priceId === process.env.STRIPE_PRICE_USAGE_SCRIPT ||
+          priceId === process.env.STRIPE_PRICE_USAGE_VOICE ||
+          priceId === process.env.STRIPE_PRICE_USAGE_LIPSYNC ||
+          priceId === process.env.STRIPE_PRICE_USAGE_EDIT
+        ) {
+          pendingUsageCents += amount;
+
+          const qty = line.quantity ?? 0;
+          switch (priceId) {
+            case process.env.STRIPE_PRICE_USAGE_SCRIPT:
+              usage.script = qty;
+              break;
+            case process.env.STRIPE_PRICE_USAGE_VOICE:
+              usage.voice = qty;
+              break;
+            case process.env.STRIPE_PRICE_USAGE_LIPSYNC:
+              usage.lipsync = qty;
+              break;
+            case process.env.STRIPE_PRICE_USAGE_EDIT:
+              usage.edit = qty;
+              break;
+          }
         }
       }
     } catch (err) {
-      console.warn("No se pudo calcular usage desde preview invoice:", err);
+      console.warn("No se pudo calcular usage:", err);
     }
 
-    // 7) Facturación pendiente (desde preview)
-    let pendingCents = 0;
+    // 7) Facturas vencidas
+    let hasOverdue = false;
+    let overdueCents = 0;
+
     try {
-      const upcoming = await stripe.invoices.createPreview({
+      const invoices = await stripe.invoices.list({
         customer: customerId!,
-        subscription: sub.id,
-        expand: ["lines.data.price"],
+        status: "open", // incluye past_due
+        limit: 50,
       });
-      pendingCents = upcoming.amount_due ?? 0;
+      overdueCents = invoices.data.reduce(
+        (acc, inv) => acc + (inv.amount_remaining ?? 0),
+        0
+      );
+      if (overdueCents > 0) hasOverdue = true;
     } catch (err) {
-      console.warn("No se pudo calcular pendingCents:", err);
-      pendingCents = 0;
+      console.warn("No se pudo calcular overdueCents:", err);
     }
 
     const hasDefaultPayment =
@@ -212,7 +226,8 @@ export async function GET(req: NextRequest) {
       renewalAt,
       trialCreditCents,
       usage,
-      pendingCents,
+      pendingUsageCents,
+      overdueCents,
       hasDefaultPayment,
     });
 
@@ -228,9 +243,11 @@ export async function GET(req: NextRequest) {
           cancelAtPeriodEnd,
         },
         usage,
-        pendingCents,
+        pendingUsageCents,
         trialCreditCents,
         payment: { hasDefaultPayment },
+        hasOverdue,
+        overdueCents,
         debug: { customerId, reconciled: true },
       },
       { status: 200 }

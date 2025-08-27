@@ -1,4 +1,3 @@
-// src/components/shared/Topbar.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,7 +16,9 @@ type Summary = {
   subscription: { status: string | null; active: boolean; plan: string | null };
   trialCreditCents: number;
   usage: { script: number; voice: number; lipsync: number; edit: number };
-  pendingCents: number;
+  pendingUsageCents: number;
+  overdueCents?: number;
+  hasOverdue?: boolean;
 };
 
 const euro = (cents: number | undefined | null) =>
@@ -58,56 +59,95 @@ export function Topbar() {
   }, [user]);
 
   return (
-    <header className="flex h-14 w-full items-center justify-between border-b border-border bg-card px-6">
-      {/* Izquierda: placeholder título */}
-      <div className="text-sm font-medium text-muted-foreground"></div>
+    <>
+      {/* 🔴 Banner fijo arriba si hay deuda */}
+      {summary?.hasOverdue && (
+        <div className="w-full bg-red-100 text-red-800 text-sm py-2 px-4 flex justify-between items-center font-medium">
+          <span>
+            ⚠️ Tienes una deuda pendiente de{" "}
+            <b> {euro(summary.overdueCents ?? 0)}€ </b>
+            Por favor regulariza tu pago para seguir usando la plataforma.
+          </span>
+          <a
+            href={process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-4 rounded-md bg-red-600 text-white px-3 py-1 text-sm hover:bg-red-700 transition"
+          >
+            Pagar ahora
+          </a>
+        </div>
+      )}
 
-      {/* Derecha: consumo + user */}
-      <div className="flex items-center gap-4">
-        {loading ? (
-          <Skeleton className="h-6 w-28 rounded-md" />
-        ) : summary ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Badge
-                id="consumo-badge"
-                variant="secondary"
-                className="cursor-pointer bg-neutral-800 text-white px-3 py-1 rounded-md"
+      {/* Topbar normal */}
+      <header className="flex h-14 w-full items-center justify-between border-b border-border bg-card px-6">
+        {/* Izquierda: placeholder título */}
+        <div className="text-sm font-medium text-muted-foreground"></div>
+
+        {/* Derecha: consumo + user */}
+        <div className="flex items-center gap-4">
+          {loading ? (
+            <Skeleton className="h-6 w-28 rounded-md" />
+          ) : summary ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Badge
+                  id="consumo-badge"
+                  variant={summary.hasOverdue ? "destructive" : "secondary"}
+                  className={`cursor-pointer px-3 py-1 rounded-md ${
+                    summary.hasOverdue
+                      ? "bg-red-600 text-white"
+                      : "bg-neutral-800 text-white"
+                  }`}
+                >
+                  {summary.hasOverdue
+                    ? `Deuda: € ${euro(summary.overdueCents)}`
+                    : `Consumo: € ${euro(summary.pendingUsageCents ?? 0)}`}
+                </Badge>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-80 rounded-xl border bg-popover p-4 shadow-lg"
               >
-                Consumo: € {euro(summary.pendingCents ?? 0)}
-              </Badge>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-80 rounded-xl border bg-popover p-4 shadow-lg"
-            >
-              <h4 className="font-medium mb-3">Detalle de consumo</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Crédito de prueba</span>
-                  <span>€ {euro(summary.trialCreditCents)}</span>
+                <h4 className="font-medium mb-3">Detalle de consumo</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Crédito de prueba</span>
+                    <span>€ {euro(summary.trialCreditCents)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pendiente a liquidar</span>
+                    <span>€ {euro(summary.pendingUsageCents)}</span>
+                  </div>
+                  {summary.hasOverdue && (
+                    <div className="flex justify-between text-red-600 font-medium">
+                      <span>Deuda vencida</span>
+                      <span>€ {euro(summary.overdueCents)}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1 mt-2">
+                    <span className="text-muted-foreground">
+                      Operaciones (periodo actual):
+                    </span>
+                    <span>
+                      Guiones: {summary.usage.script ?? 0} · Voz:{" "}
+                      {summary.usage.voice ?? 0} · LipSync:{" "}
+                      {summary.usage.lipsync ?? 0} · Edición:{" "}
+                      {summary.usage.edit ?? 0}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pendiente a liquidar</span>
-                  <span>€ {euro(summary.pendingCents)}</span>
-                </div>
-                <div className="flex flex-col gap-1 mt-2">
-                  <span className="text-muted-foreground">Operaciones (periodo actual):</span>
-                  <span>
-                    Guiones: {summary.usage.script ?? 0} · Voz: {summary.usage.voice ?? 0} · LipSync:{" "}
-                    {summary.usage.lipsync ?? 0} · Edición: {summary.usage.edit ?? 0}
-                  </span>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        ) : null}
+              </PopoverContent>
+            </Popover>
+          ) : null}
 
-        {user && 
-        <div id="user-dropdown">
-        <UserDropdown user={{ email: user.email ?? "—" }} />
-        </div>}
-      </div>
-    </header>
+          {user && (
+            <div id="user-dropdown">
+              <UserDropdown user={{ email: user.email ?? "—" }} />
+            </div>
+          )}
+        </div>
+      </header>
+    </>
   );
 }

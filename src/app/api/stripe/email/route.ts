@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-07-30.basil",
+})
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,58 +14,71 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Falta el parámetro 'email'" }, { status: 400 })
     }
 
-    // Buscar cliente en Stripe
+    // Buscar cliente
     const customers = await stripe.customers.list({ email, limit: 1 })
-
     if (!customers.data.length) {
       return NextResponse.json({ error: "Cliente no encontrado en Stripe" }, { status: 404 })
     }
-
     const customer = customers.data[0]
 
-    // Obtener suscripciones del cliente
+    // Obtener suscripciones
     const subs = await stripe.subscriptions.list({
       customer: customer.id,
       status: "all",
-      limit: 5,
+      limit: 10,
+      expand: ["data.items.data.price"],
     })
 
-    const activeSub = subs.data.find((s) =>
-      ["active", "trialing", "past_due", "unpaid"].includes(s.status)
+    // 🔹 Buscar la suscripción que tenga un plan mensual
+    const monthlySub = subs.data.find((s) =>
+      s.items.data.some(
+        (it) => it.price.type === "recurring" && it.price.recurring?.interval === "month"
+      )
     )
 
-    if (!activeSub) {
-      return NextResponse.json({ error: "Sin suscripción activa" }, { status: 404 })
+    if (!monthlySub) {
+      return NextResponse.json(
+        { error: "No se encontró un plan mensual (solo metered)", status: "none" },
+        { status: 404 }
+      )
     }
 
-    const item = activeSub.items.data[0]
-    const price = item?.price
-    const productId = price?.product as string
+    // 🔹 Encontrar el item mensual dentro de esa suscripción
+    const monthlyItem = monthlySub.items.data.find(
+      (it) => it.price.type === "recurring" && it.price.recurring?.interval === "month"
+    )
 
-    let productName = "Sin nombre"
-    if (productId) {
-      try {
-        const product = await stripe.products.retrieve(productId)
-        productName = product.name
-      } catch {
-        console.warn("Producto no encontrado:", productId)
-        productName = "Desconocido"
-      }
+    if (!monthlyItem) {
+      return NextResponse.json(
+        { error: "La suscripción no tiene un item mensual", status: monthlySub.status },
+        { status: 404 }
+      )
     }
 
+    // 🔹 Recuperar nombre del producto
+    let productName = "Desconocido"
+    if (typeof monthlyItem.price.product === "string") {
+      const product = await stripe.products.retrieve(monthlyItem.price.product)
+      productName = product.name
+    } else {
+      productName = (monthlyItem.price.product as any)?.name ?? "Desconocido"
+    }
     return NextResponse.json({
       plan: productName,
-      status: activeSub.status,
-      start_date: activeSub.items.data[0].current_period_start ?? null, // 👈 corregido
-      end_date: activeSub.items.data[0].current_period_end ?? null,     // 👈 corregido y renombrado
-      amount: price?.unit_amount ? price.unit_amount / 100 : null,
-      currency: price?.currency ?? "eur",
-      cancel_at_period_end: activeSub.cancel_at_period_end,
+      status: monthlySub.status,
+      start_date: monthlySub.start_date ? monthlySub.start_date * 1000 : null,
+      end_date: monthlySub.items.data[0].current_period_end
+        ? monthlySub.items.data[0].current_period_end
+        : null,
+      amount: monthlyItem.price.unit_amount ? monthlyItem.price.unit_amount / 100 : null,
+      currency: monthlyItem.price.currency ?? "eur",
+      cancel_at_period_end: monthlySub.cancel_at_period_end,
       customerId: customer.id,
-      trial_start: activeSub.trial_start,
-      trial_end: activeSub.trial_end,
-      raw: activeSub,
+      trial_start: monthlySub.trial_start ? monthlySub.trial_start: null,
+      trial_end: monthlySub.trial_end ? monthlySub.trial_end : null,
+      raw: monthlySub,
     })
+
   } catch (error: unknown) {
     const err = error as Error
     console.error("Error en /api/stripe/email:", err)
