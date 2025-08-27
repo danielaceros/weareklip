@@ -1,11 +1,17 @@
-// Import the functions you need from the SDKs you need
+// lib/firebase.ts
+// Importar SDKs necesarios
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
+import {
+  getAnalytics,
+  isSupported as isAnalyticsSupported,
+  type Analytics,
+} from "firebase/analytics";
+import { getPerformance } from "firebase/performance";
 
-// Your web app's Firebase configuration
+// Configuración de tu proyecto Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyC0s5D34lqrLYVDxC_5LrW3yifcP4sBbbI",
   authDomain: "klip-6e9a8.firebaseapp.com",
@@ -13,26 +19,36 @@ const firebaseConfig = {
   storageBucket: "klip-6e9a8.firebasestorage.app",
   messagingSenderId: "32174180381",
   appId: "1:32174180381:web:d48749842fad36b4941ef4",
-  measurementId: "G-8ELNB10WNP", // 👈 necesario para Analytics
+  measurementId: "G-8ELNB10WNP", // 👈 Necesario para Analytics
 };
 
-// Initialize Firebase
+// Inicializar Firebase (evitamos inicializar dos veces)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Configurar Auth
+// Servicios básicos
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Configurar Analytics (solo si está soportado y en navegador)
+// Analytics (solo navegador y si está soportado)
 let analytics: Analytics | null = null;
 if (typeof window !== "undefined") {
-  isSupported().then((yes) => {
+  isAnalyticsSupported().then((yes) => {
     if (yes) {
       analytics = getAnalytics(app);
     }
   });
 }
 
-export { analytics };
-export default app; // export the app instance for later use
+// Performance Monitoring (solo navegador)
+let perf: ReturnType<typeof getPerformance> | null = null;
+if (typeof window !== "undefined") {
+  try {
+    perf = getPerformance(app);
+  } catch (err) {
+    console.warn("Performance Monitoring no disponible:", err);
+  }
+}
+
+export { analytics, perf };
+export default app;
