@@ -10,6 +10,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -64,14 +65,15 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
 
     const sessionId = "default";
     const messagesRef = collection(
-      db,
-      `users/${user.uid}/chatSessions/${sessionId}/messages`
+        db,
+        `users/${user.uid}/chatSessions/${sessionId}/messages`
     );
 
+    // Guardamos el mensaje del usuario
     await addDoc(messagesRef, {
-      role: "user",
-      content: input,
-      createdAt: serverTimestamp(),
+        role: "user",
+        content: input,
+        createdAt: serverTimestamp(),
     });
 
     const newMessages = [...messages, { role: "user", content: input }];
@@ -79,32 +81,55 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     setLoading(true);
 
     try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/chatgpt/chatbot", {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/chatgpt/chatbot", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ messages: newMessages }),
-      });
+        });
 
-      const data = await res.json();
-      await addDoc(messagesRef, {
-        role: "assistant",
-        content: data.reply,
-        createdAt: serverTimestamp(),
-      });
-    } catch {
-      await addDoc(messagesRef, {
+        if (!res.body) throw new Error("No response body");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let assistantMsg = "";
+
+        // 🔹 Creamos doc vacío para ir actualizando en Firestore
+        const docRef = await addDoc(messagesRef, {
+            role: "assistant",
+            content: "",
+            createdAt: serverTimestamp(),
+            });
+
+            while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            assistantMsg += decoder.decode(value, { stream: true });
+
+            // 🔹 Actualizamos SIEMPRE el mismo doc
+            await updateDoc(docRef, {
+                content: assistantMsg,
+            });
+            }
+
+        // Mensaje completo en Firestore
+        // (si prefieres update en lugar de múltiples add, cambia esto a updateDoc(docRef, { content: assistantMsg }))
+    } catch (err) {
+        console.error(err);
+        await addDoc(messagesRef, {
         role: "assistant",
         content: "⚠️ Error al contactar al asistente.",
         createdAt: serverTimestamp(),
-      });
+        });
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
+
 
   return (
     <div className="fixed bottom-20 right-6 w-80 h-96 bg-background text-foreground shadow-xl rounded-2xl flex flex-col border overflow-hidden">
@@ -122,18 +147,26 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
       {/* Área scrollable */}
       <ScrollArea className="flex-1 h-full overflow-y-auto">
         <div className="px-3 py-2 space-y-2 text-sm">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`p-2 rounded-lg max-w-[80%] ${
-                m.role === "user"
-                  ? "bg-primary text-primary-foreground ml-auto"
-                  : "bg-muted text-foreground/80 mr-auto"
-              }`}
-            >
-              {m.content}
-            </div>
-          ))}
+          {messages.map((m, i) => {
+            const isLastAssistant =
+                i === messages.length - 1 && m.role === "assistant";
+
+            return (
+                <div
+                key={i}
+                className={`p-2 rounded-lg max-w-[80%] ${
+                    m.role === "user"
+                    ? "bg-primary text-primary-foreground ml-auto"
+                    : "bg-muted text-foreground/80 mr-auto"
+                }`}
+                >
+                {m.content}
+                {isLastAssistant && loading && (
+                    <span className="ml-1 animate-pulse">▋</span>
+                )}
+                </div>
+            );
+            })}
           {loading && (
             <p className="text-xs text-muted-foreground italic">Escribiendo...</p>
           )}
