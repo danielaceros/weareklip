@@ -3,32 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { adminAuth } from "@/lib/firebase-admin";
-import { gaServerEvent } from "@/lib/ga-server";
-
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getPerformance } from "firebase/performance";
-import { trace } from "firebase/performance";
-
-// ⚠️ Importa el SDK de Performance para Node
-import { getPerformance as getNodePerformance } from "firebase/performance/node";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID!,
-};
-
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-// Instancia de performance en el **backend**
-const perf = getNodePerformance(app);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 type UsageResp = {
   ok?: boolean;
@@ -40,35 +19,18 @@ export async function POST(req: NextRequest) {
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
   const simulate = process.env.SIMULATE === "true";
 
-  // 👉 Creamos una traza personalizada
-  const traceSpan = perf.trace("api_scripts_create");
-
   try {
-    traceSpan.start(); // ⏱️ Start
-
     // 1) Auth
     const authHeader = req.headers.get("authorization") || "";
     const m = authHeader.match(/^Bearer\s+(.+)$/i);
-    if (!m) {
-      traceSpan.recordException({ message: "No auth" });
-      traceSpan.stop();
-      return NextResponse.json({ error: "No auth" }, { status: 401 });
-    }
+    if (!m) return NextResponse.json({ error: "No auth" }, { status: 401 });
     const idToken = m[1];
 
     const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
     const uid = decoded?.uid;
-    if (!uid) {
-      traceSpan.recordException({ message: "No uid" });
-      traceSpan.stop();
-      return NextResponse.json({ error: "No uid" }, { status: 401 });
-    }
+    if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
     // 2) Body
-    const body = await req.json();
-    traceSpan.putAttribute("platform", body.platform || "unknown");
-    traceSpan.putAttribute("language", body.language || "unknown");
-
     const {
       description,
       tone,
@@ -78,11 +40,9 @@ export async function POST(req: NextRequest) {
       structure,
       addCTA,
       ctaText,
-    } = body;
+    } = await req.json();
 
     if (!description || !tone || !platform || !duration || !language || !structure) {
-      traceSpan.recordException({ message: "Missing fields" });
-      traceSpan.stop();
       return NextResponse.json(
         { error: "Faltan campos obligatorios" },
         { status: 400 }
@@ -91,17 +51,37 @@ export async function POST(req: NextRequest) {
 
     let script = "";
 
-    // 🔔 Evento: inicio de generación
-    await gaServerEvent(
-      "script_generate_started",
-      { simulate, description, tone, platform, duration, language },
-      { userId: uid }
-    );
-
+    // 🔁 RAMA A: SIMULACIÓN
     if (simulate) {
-      script = `Este es un guion simulado para el tema "${description}" ...`;
-    } else {
-      const prompt = `...`;
+      script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}` : ""}.`;
+    }
+
+    // 🔁 RAMA B: REAL
+    else {
+      // 3) Prompt
+      const prompt = `
+Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
+Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
+
+- Tema: ${description}
+- Tono: ${tone}
+- Plataforma: ${platform}
+- Duración estimada: ${duration} segundos
+- Idioma: ${language}
+- Estructura: ${structure}
+${addCTA ? `- Incluir llamada a la acción: "${ctaText || "Invita a seguir la cuenta o interactuar"}"` : ""}
+
+Reglas estrictas:
+1. No mencionar que eres una IA.
+2. Mantener un estilo humano y natural.
+3. Usar frases cortas y claras.
+4. Separar el guion en frases o líneas pensadas para ser leídas en voz alta.
+5. Optimizar para captar la atención en los primeros 3 segundos.
+6. **Devuelve ÚNICAMENTE el guion, sin explicaciones, sin títulos, sin comillas, sin texto extra.**
+7. No incluyas frases como "Aquí tienes tu guion" o similares.
+`.trim();
+
+      // 4) OpenAI
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
@@ -116,7 +96,7 @@ export async function POST(req: NextRequest) {
           .trim() || "";
     }
 
-    // 5) Cobrar uso
+    // 5) Cobrar uso → /api/billing/usage
     const usageRes = await fetch(
       new URL("/api/billing/usage", req.nextUrl.origin),
       {
@@ -140,33 +120,10 @@ export async function POST(req: NextRequest) {
       throw new Error(msg);
     }
 
-    // 🔔 Evento: completado
-    await gaServerEvent(
-      "script_generate_completed",
-      { length: script.length, simulated: simulate },
-      { userId: uid }
-    );
-
-    traceSpan.stop(); // ✅ End trace
+    // 6) Respuesta
     return NextResponse.json({ script, simulated: simulate });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error interno generando guion";
-
-    traceSpan.recordException({ message: msg });
-    traceSpan.stop(); // ❌ cerrar siempre el trace
-
-    const idToken = req.headers.get("authorization")?.replace(/^Bearer\s+/, "");
-    let uid: string | undefined;
-    if (idToken) {
-      const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
-      uid = decoded?.uid;
-    }
-    await gaServerEvent(
-      "script_generate_failed",
-      { error: msg },
-      uid ? { userId: uid } : undefined
-    );
-
     const isAuth = /No auth|No uid/i.test(msg);
     return NextResponse.json({ error: msg }, { status: isAuth ? 401 : 500 });
   }
