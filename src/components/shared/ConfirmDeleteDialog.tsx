@@ -15,17 +15,9 @@ interface ConfirmDeleteDialogProps {
   onClose: () => void;
   onConfirm: () => void;
   deleting: boolean;
-
-  /** Título del modal */
   title?: string;
-
-  /** Mensaje de confirmación */
   description?: string;
-
-  /** Texto del botón cancelar */
   cancelText?: string;
-
-  /** Texto del botón eliminar */
   confirmText?: string;
 }
 
@@ -40,8 +32,13 @@ export default function ConfirmDeleteDialog({
   confirmText = "Eliminar",
 }: ConfirmDeleteDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-md"> {/* 👈 ancho visible */}
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

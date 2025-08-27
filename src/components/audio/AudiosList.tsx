@@ -105,15 +105,18 @@ function AudioCard({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-
+  console.log(audio)
   const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
-  };
+  if (!audioRef.current) return;
+
+  if (isPlaying) {
+    audioRef.current.pause();
+  } else {
+    audioRef.current.play().catch((err) => {
+      console.warn("No se pudo reproducir:", err);
+    });
+  }
+};
 
   return (
     <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm">
