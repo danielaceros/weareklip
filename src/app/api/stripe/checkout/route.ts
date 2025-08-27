@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import Stripe from "stripe";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 type Plan = "starter" | "mid" | "creator" | "business";
 
@@ -83,7 +84,10 @@ export async function POST(req: NextRequest) {
 
     if (savedId) {
       const c = await safeRetrieveCustomer(savedId);
-      if (c) customerId = c.id;
+      if (c) {
+        customerId = c.id;
+        await gaServerEvent("checkout_existing_customer", { uid, customerId, plan }); // 👈 evento
+      }
     }
 
     // Si no existe → crear customer nuevo con metadata.uid
@@ -92,6 +96,7 @@ export async function POST(req: NextRequest) {
         metadata: { uid },
       });
       customerId = created.id;
+      await gaServerEvent("checkout_new_customer", { uid, customerId, plan }); // 👈 evento
     }
 
     // Guardar/actualizar en Firestore
@@ -110,6 +115,8 @@ export async function POST(req: NextRequest) {
       allow_promotion_codes: true,
     });
 
+    await gaServerEvent("checkout_session_created", { uid, customerId, plan, sessionId: session.id }); // 👈 evento
+
     return NextResponse.json({ url: session.url }, { status: 200 });
   } catch (e: unknown) {
     const msg =
@@ -117,6 +124,8 @@ export async function POST(req: NextRequest) {
         ? e.message
         : "Internal error creating checkout session";
     console.error("❌ /api/stripe/checkout error:", msg, e);
+
+    await gaServerEvent("checkout_failed", { error: msg }); // 👈 evento
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

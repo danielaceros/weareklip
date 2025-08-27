@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import type { DecodedIdToken } from "firebase-admin/auth";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,12 +59,18 @@ export async function POST(req: NextRequest) {
         if (typeof body?.idToken === "string") idToken = body.idToken;
       } catch {}
     }
-    if (!idToken) return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
+    if (!idToken) {
+      await gaServerEvent("onboard_missing_token", {});
+      return NextResponse.json({ error: "Missing ID token" }, { status: 401 });
+    }
 
     const decoded = await adminAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
     const email = emailFromDecoded(decoded);
-    if (!email) return NextResponse.json({ error: "Email not available" }, { status: 400 });
+    if (!email) {
+      await gaServerEvent("onboard_missing_email", { uid });
+      return NextResponse.json({ error: "Email not available" }, { status: 400 });
+    }
 
     // 2) Buscar/crear Customer y guardar mapping
     const userRef = adminDB.collection("users").doc(uid);
@@ -78,7 +85,9 @@ export async function POST(req: NextRequest) {
     }
     if (!customerId) {
       const list = await stripe.customers.list({ email, limit: 1 });
-      if (list.data.length > 0) customerId = list.data[0].id;
+      if (list.data.length > 0) {
+        customerId = list.data[0].id;
+      }
     }
     if (!customerId) {
       const created = await stripe.customers.create({
@@ -86,6 +95,7 @@ export async function POST(req: NextRequest) {
         metadata: { uid },
       });
       customerId = created.id;
+      await gaServerEvent("stripe_customer_created", { uid, customerId, email });
     }
     await userRef.set({ stripeCustomerId: customerId }, { merge: true });
 
@@ -104,7 +114,7 @@ export async function POST(req: NextRequest) {
       payment_method_collection: "always",
       line_items: [{ price: ACCESS_PRICE, quantity: 1 }],
       subscription_data: {
-        trial_period_days: FALLBACK_TRIAL_DAYS,    // ← trial 7d lo gestiona Stripe
+        trial_period_days: FALLBACK_TRIAL_DAYS,
         metadata: { uid, plan: "access" },
       },
       metadata: { uid, plan: "access" },
@@ -113,10 +123,17 @@ export async function POST(req: NextRequest) {
       cancel_url: `${APP_URL}/dashboard/?cancel=1`,
     });
 
+    if (!session.url) {
+      throw new Error("Stripe no devolvió la URL de checkout");
+    }
+
+    await gaServerEvent("onboard_checkout_created", { uid, customerId, email, plan: "access" });
+
     return NextResponse.json({ url: session.url }, { status: 200 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Onboard error";
     console.error("❌ /api/billing/onboard:", msg, e);
+    await gaServerEvent("onboard_failed", { error: msg });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

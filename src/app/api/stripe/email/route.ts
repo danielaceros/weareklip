@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {})
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,15 +54,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       plan: productName,
       status: activeSub.status,
-      start_date: activeSub.items.data[0].current_period_start ?? null,
-      endate: activeSub.items.data[0].current_period_end ?? null,
+      start_date: activeSub.items.data[0].current_period_start ?? null, // 👈 corregido
+      end_date: activeSub.items.data[0].current_period_end ?? null,     // 👈 corregido y renombrado
       amount: price?.unit_amount ? price.unit_amount / 100 : null,
       currency: price?.currency ?? "eur",
       cancel_at_period_end: activeSub.cancel_at_period_end,
       customerId: customer.id,
       trial_start: activeSub.trial_start,
       trial_end: activeSub.trial_end,
-      raw: activeSub
+      raw: activeSub,
     })
   } catch (error: unknown) {
     const err = error as Error

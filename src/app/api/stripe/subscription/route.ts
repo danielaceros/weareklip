@@ -3,6 +3,7 @@ import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { NextResponse } from "next/server";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ type FirestoreUsersCache = {
   map: Record<string, { uid: string; name?: string; createdAt?: number | null }>;
 };
 
-// 🧠 cachés en memoria (útiles en dev y en server persistente)
+// 🧠 cachés en memoria
 declare global {
   // eslint-disable-next-line no-var
   var __stripeCustomersCache:
@@ -91,6 +92,7 @@ export async function GET(req: Request) {
   // 🔸 cache de respuesta final 60s
   const cached = respCache.get(cacheKey);
   if (cached && now - cached.ts < CACHE_TTL_MS) {
+    await gaServerEvent("customers_cache_hit", { cacheKey });
     return NextResponse.json(cached.payload);
   }
 
@@ -120,7 +122,6 @@ export async function GET(req: Request) {
       ...(starting_after && { starting_after }),
     });
 
-    // 🔕 cap de advertencias "No match"
     const unmatchedEmails: string[] = [];
 
     const enrichedPromises = customers.data.map(async (customer) => {
@@ -134,7 +135,6 @@ export async function GET(req: Request) {
         return null;
       }
 
-      // Pide SOLO suscripción ACTIVA
       const subs = await stripe.subscriptions.list({
         customer: customer.id,
         status: "active",
@@ -147,7 +147,6 @@ export async function GET(req: Request) {
       const firstItem = active.items.data[0];
       const price = firstItem?.price ?? null;
 
-      // Nombre del plan: usamos nickname si existe; si no, resolvemos el productId
       let planName: string | null = null;
       if (price) {
         planName =
@@ -175,7 +174,6 @@ export async function GET(req: Request) {
     );
     const lastCustomer = customers.data[customers.data.length - 1];
 
-    // 🧯 imprime como mucho 8 "No match" y agrupa el resto
     if (unmatchedEmails.length) {
       unmatchedEmails.slice(0, WARN_CAP).forEach((e) => {
         console.warn(`⚠️ No match Firebase para email Stripe: ${e}`);
@@ -184,6 +182,10 @@ export async function GET(req: Request) {
       if (extra > 0) {
         console.warn(`(… y +${extra} más silenciados)`);
       }
+      await gaServerEvent("customers_unmatched_emails", {
+        count: unmatchedEmails.length,
+        sample: unmatchedEmails.slice(0, WARN_CAP),
+      });
     }
 
     const payload: CustomersPayload = {
@@ -193,9 +195,11 @@ export async function GET(req: Request) {
     };
 
     respCache.set(cacheKey, { ts: now, payload });
+    await gaServerEvent("customers_loaded", { count: enriched.length });
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Error en /api/stripe/customers:", error);
+    await gaServerEvent("customers_failed", { error: (error as Error).message });
     return NextResponse.json({ error: "Error cargando customers" }, { status: 500 });
   }
 }

@@ -1,9 +1,10 @@
-// src/app/api/stripe/customers/route.ts
+// /app/api/stripe/customers/route.ts
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +85,8 @@ function getProductIdFromPrice(price: Stripe.Price | null | undefined): string |
 
 async function getPlanNameFromPrice(price: Stripe.Price | null | undefined): Promise<string | null> {
   if (!price) return null;
-  if (price.nickname) return price.nickname; // 1) usa nickname si lo tienes definido
-  const productId = getProductIdFromPrice(price); // 2) si no, resuelve productId y usa caché
+  if (price.nickname) return price.nickname;
+  const productId = getProductIdFromPrice(price);
   if (!productId) return null;
   return await getProductName(productId);
 }
@@ -104,7 +105,9 @@ export async function GET(req: Request) {
       { ts: number; payload: CustomersPayload }
     >());
 
-  // 🔸 cache de respuesta final 60s
+  // 🔸 evento + cache de respuesta final 60s
+  await gaServerEvent("customers_list_requested", { starting_after, emailQuery });
+
   const cached = respCache.get(cacheKey);
   if (cached && now - cached.ts < CACHE_TTL_MS) {
     return NextResponse.json(cached.payload);
@@ -145,15 +148,14 @@ export async function GET(req: Request) {
 
       const match = usersCache!.map[normalize(email)];
       if (!match) {
-        // loggea cada email "sin match" solo una vez por proceso
         if (!warned.has(email)) {
           warned.add(email);
           console.warn(`⚠️ No match Firebase para email Stripe: ${email}`);
+          await gaServerEvent("customers_no_match", { email });
         }
         return null;
       }
 
-      // 🔻 solo suscripción ACTIVA y expande SOLO el price (no el product)
       const subs = await stripe.subscriptions.list({
         customer: customer.id,
         status: "active",
@@ -192,9 +194,16 @@ export async function GET(req: Request) {
     };
 
     respCache.set(cacheKey, { ts: now, payload });
+
+    await gaServerEvent("customers_list_success", {
+      count: enriched.length,
+      hasMore: customers.has_more,
+    });
+
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Error en /api/stripe/customers:", error);
+    await gaServerEvent("customers_list_failed", { error: String(error) });
     return NextResponse.json({ error: "Error cargando customers" }, { status: 500 });
   }
 }
