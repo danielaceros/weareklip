@@ -6,7 +6,7 @@ import { getIdToken } from "firebase/auth";
 import EmbeddedCheckoutModal from "@/components/user/EmbeddedCheckoutModal";
 import RenewModal from "@/components/billing/RenewModal";
 
-type Verdict = "active" | "trialing" | "none" | "unknown" | "canceled";
+type Verdict = "active" | "trialing" | "none" | "unknown" | "canceled" | "unpaid";
 
 type SummaryResponse = {
   subscription?: {
@@ -18,6 +18,7 @@ type SummaryResponse = {
   payment?: {
     hasDefaultPayment: boolean;
   };
+  overdueCents?: number;  // 👈 nuevo
 };
 
 export default function useSubscriptionGate() {
@@ -49,7 +50,10 @@ export default function useSubscriptionGate() {
 
       let verdict: Verdict = "none";
 
-      if (!data?.subscription?.status) {
+      // 🚨 Bloqueamos si hay deuda
+      if ((data.overdueCents ?? 0) > 0) {
+        verdict = "unpaid";
+      } else if (!data?.subscription?.status) {
         verdict = "none";
       } else if (data.subscription.cancelAtPeriodEnd === true) {
         verdict = "canceled";
@@ -81,14 +85,15 @@ export default function useSubscriptionGate() {
       if (opts?.feature) setBlockedFeature(opts.feature);
 
       if (verdict === "none") {
-        setShowEmbed(true); // nunca tuvo sub → checkout
+        setShowEmbed(true);
       } else if (verdict === "canceled") {
-        if (hasPayment) {
-          setShowRenew(true); // tiene método de pago → renovar
-        } else {
-          setShowEmbed(true); // no tiene método → pedir tarjeta
-        }
+        if (hasPayment) setShowRenew(true);
+        else setShowEmbed(true);
+      } else if (verdict === "unpaid") {
+        // 👈 deuda → forzamos renovación/pago
+        setShowRenew(true);
       }
+
       return false;
     },
     [readVerdict]
@@ -107,12 +112,12 @@ export default function useSubscriptionGate() {
         <EmbeddedCheckoutModal
           open={showEmbed}
           onClose={() => setShowEmbed(false)}
-          uid={user.uid}   // 👈 ya no pasamos email
+          uid={user.uid}
         />
         <RenewModal
           open={showRenew}
           onClose={() => setShowRenew(false)}
-          uid={user.uid}   // 👈 idem
+          uid={user.uid}
         />
       </>
     );

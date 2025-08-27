@@ -1,3 +1,4 @@
+// src/app/api/billing/usage/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
@@ -224,7 +225,8 @@ export async function POST(req: NextRequest) {
     try {
       const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
       const access = subs.data.find(
-        (s) => s.status !== "canceled" &&
+        (s) =>
+          s.status !== "canceled" &&
           s.items.data.some((it) => it.price?.id === process.env.STRIPE_PRICE_ACCESS)
       );
       accessStatus = access?.status ?? null;
@@ -235,6 +237,38 @@ export async function POST(req: NextRequest) {
     if (!(accessStatus === "trialing" || accessStatus === "active")) {
       await gaServerEvent("usage_failed", { uid, kind, reason: "invalid_subscription", accessStatus });
       return bad(`Suscripción no válida (${accessStatus ?? "sin estado"})`, 402);
+    }
+
+    // 🔒 Bloqueo por facturas vencidas antes de permitir consumo
+    try {
+      const invoices = await stripe.invoices.list({ customer: customerId, limit: 5 });
+      const overdue = invoices.data.find(
+        (i) =>
+          (i.status === "open" || i.status === "uncollectible") &&
+          (i.amount_remaining ?? 0) > 0
+      );
+      if (overdue) {
+        const portalUrl = await createBillingPortalUrl(customerId);
+        await gaServerEvent("usage_blocked_overdue", {
+          uid,
+          kind,
+          invoice: overdue.id,
+          amountRemaining: overdue.amount_remaining,
+        });
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "OVERDUE",
+            message:
+              "Tienes facturas pendientes de pago. Debes ponerte al día antes de seguir consumiendo.",
+            amountRemaining: overdue.amount_remaining,
+            portalUrl,
+          },
+          { status: 402 }
+        );
+      }
+    } catch (err) {
+      console.warn("No se pudo verificar facturas vencidas:", err);
     }
 
     // Stripe sub for usage
@@ -294,7 +328,7 @@ export async function POST(req: NextRequest) {
       await gaServerEvent("usage_trial_consumed", { uid, kind, freeQty, unitCents });
     }
 
-    let usageEventId: string | null = null;
+    let usageEventId: null | string = null;
     if (paidQty > 0) {
       const idemHeader = req.headers.get("x-idempotency-key");
       const idemBody = typeof body.idem === "string" ? body.idem : undefined;
