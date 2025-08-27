@@ -248,44 +248,44 @@ function VoiceCard({
         </button>
       </div>
 
-      {/* Player */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={togglePlay}
-          disabled={!previewUrl}
-          className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
-        >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </button>
+      {/* Player o placeholder */}
+      {previewUrl ? (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={togglePlay}
+            className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+          >
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
 
-        <div className="flex-1">
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={progress}
-            readOnly
-            className="w-full accent-primary"
+          <div className="flex-1">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={progress}
+              readOnly
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <audio
+            ref={audioRef}
+            src={previewUrl}
+            onTimeUpdate={(e) => {
+              const el = e.currentTarget;
+              setProgress((el.currentTime / el.duration) * 100 || 0);
+            }}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => {
+              setIsPlaying(false);
+              setProgress(0);
+            }}
           />
         </div>
-      </div>
-
-      {/* Hidden audio element */}
-      {previewUrl && (
-        <audio
-          ref={audioRef}
-          src={previewUrl}
-          onTimeUpdate={(e) => {
-            const el = e.currentTarget;
-            setProgress((el.currentTime / el.duration) * 100 || 0);
-          }}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => {
-            setIsPlaying(false);
-            setProgress(0);
-          }}
-        />
+      ) : (
+        <p className="text-sm text-muted-foreground">🎧 Preview no disponible</p>
       )}
     </Card>
   );
