@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDB } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-07-30.basil",
@@ -11,6 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const { uid } = await req.json();
     if (!uid) {
+      await gaServerEvent("renew_missing_uid", {});
       return NextResponse.json({ error: "Falta uid" }, { status: 400 });
     }
 
@@ -18,6 +20,7 @@ export async function POST(req: NextRequest) {
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     if (!snap.exists) {
+      await gaServerEvent("renew_user_not_found", { uid });
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
@@ -26,6 +29,7 @@ export async function POST(req: NextRequest) {
     const trialUsed = Boolean(data?.trialUsed);
 
     if (!customerId) {
+      await gaServerEvent("renew_no_customerId", { uid });
       return NextResponse.json({ error: "Usuario sin Stripe customerId" }, { status: 400 });
     }
 
@@ -39,7 +43,6 @@ export async function POST(req: NextRequest) {
 
     // 3) Caso A: activa pero marcada para cancelación → reactivar
     if (subscription?.cancel_at_period_end) {
-      // si estaba en trial y ya había usado el trial → forzar nueva sub sin trial
       if (subscription.status === "trialing" && trialUsed) {
         await stripe.subscriptions.cancel(subscription.id);
         const newSub = await stripe.subscriptions.create({
@@ -47,12 +50,14 @@ export async function POST(req: NextRequest) {
           items: [{ price: process.env.STRIPE_PRICE_ACCESS! }],
           trial_period_days: 0,
         });
+        await gaServerEvent("renew_created_no_trial", { uid, customerId });
         return NextResponse.json({ subscription: newSub, action: "created_no_trial" });
       }
 
       const updated = await stripe.subscriptions.update(subscription.id, {
         cancel_at_period_end: false,
       });
+      await gaServerEvent("renew_reactivated", { uid, customerId, subscriptionId: subscription.id });
       return NextResponse.json({ subscription: updated, action: "reactivated" });
     }
 
@@ -73,6 +78,11 @@ export async function POST(req: NextRequest) {
         trial_period_days: allowTrial ? 7 : 0,
       });
 
+      await gaServerEvent(
+        allowTrial ? "renew_created_with_trial" : "renew_created_no_trial",
+        { uid, customerId, subscriptionId: newSub.id }
+      );
+
       return NextResponse.json({
         subscription: newSub,
         action: allowTrial ? "created_with_trial" : "created_no_trial",
@@ -87,16 +97,19 @@ export async function POST(req: NextRequest) {
         items: [{ price: process.env.STRIPE_PRICE_ACCESS! }],
         trial_period_days: 0,
       });
+      await gaServerEvent("renew_created_no_trial", { uid, customerId, subscriptionId: newSub.id });
       return NextResponse.json({ subscription: newSub, action: "created_no_trial" });
     }
 
     // 6) Ya activa → nada que hacer
+    await gaServerEvent("renew_already_active", { uid, customerId, subscriptionId: subscription?.id });
     return NextResponse.json(
       { error: "La suscripción ya está activa, no es necesario renovarla." },
       { status: 400 }
     );
   } catch (err: any) {
     console.error("Error renewing subscription:", err);
+    await gaServerEvent("renew_failed", { error: err.message });
     return NextResponse.json(
       { error: err.message ?? "Error interno" },
       { status: 500 }

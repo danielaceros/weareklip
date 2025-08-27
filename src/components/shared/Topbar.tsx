@@ -70,6 +70,7 @@ export function Topbar() {
           <Popover>
             <PopoverTrigger asChild>
               <Badge
+                id="consumo-badge"
                 variant="secondary"
                 className="cursor-pointer bg-neutral-800 text-white px-3 py-1 rounded-md"
               >
@@ -102,7 +103,10 @@ export function Topbar() {
           </Popover>
         ) : null}
 
-        {user && <UserDropdown user={{ email: user.email ?? "—" }} />}
+        {user && 
+        <div id="user-dropdown">
+        <UserDropdown user={{ email: user.email ?? "—" }} />
+        </div>}
       </div>
     </header>
   );

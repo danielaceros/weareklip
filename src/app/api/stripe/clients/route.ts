@@ -1,6 +1,7 @@
 // /app/api/stripe/clients/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-07-30.basil",
@@ -45,6 +46,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const startingAfter = searchParams.get("starting_after") || undefined;
 
+  await gaServerEvent("clients_list_requested", { startingAfter }); // 👈 evento
+
   try {
     const customers = await stripe.customers.list({
       limit: 50,
@@ -53,7 +56,6 @@ export async function GET(req: Request) {
 
     const rows = await Promise.all(
       customers.data.map(async (customer) => {
-        // Traemos suscripciones y expandimos price para sacar plan
         const subs = await stripe.subscriptions.list({
           customer: customer.id,
           status: "all",
@@ -69,7 +71,6 @@ export async function GET(req: Request) {
         const firstItem = active.items.data[0];
         const price = firstItem?.price as Stripe.Price | undefined;
 
-        // Nombre del plan: nickname del price o nombre del producto
         let planName: string | null = null;
         if (price?.nickname) {
           planName = price.nickname;
@@ -93,10 +94,8 @@ export async function GET(req: Request) {
           role: customer.metadata?.role ?? "",
           subStatus: active.status,
           planName,
-          // createdAt del customer para mantener el dato que ya mostrabas antes
           createdAt:
             typeof customer.created === "number" ? customer.created * 1000 : null,
-          // periodo de la suscripción actual
           subStart,
           subEnd,
         };
@@ -107,6 +106,11 @@ export async function GET(req: Request) {
       (r): r is NonNullable<(typeof rows)[number]> => Boolean(r)
     );
 
+    await gaServerEvent("clients_list_success", {
+      count: data.length,
+      hasMore: customers.has_more,
+    }); // 👈 evento
+
     return NextResponse.json({
       data,
       lastId: customers.data.at(-1)?.id ?? null,
@@ -114,6 +118,7 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     console.error("Error Stripe API:", err);
+    await gaServerEvent("clients_list_failed", { error: String(err) }); // 👈 evento
     return NextResponse.json(
       { data: [], error: "Internal server error" },
       { status: 500 }

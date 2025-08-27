@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
     );
     const starting_after = body.cursor ?? undefined;
 
+    await gaServerEvent("stripe_sync_started", { uid, limit, cursor: starting_after });
+
     // ── 4) Página de clientes Stripe ──────────────────────────────────────────
     const customers = await stripe.customers.list({
       limit,
@@ -60,10 +63,9 @@ export async function POST(req: NextRequest) {
       const rawEmail = customer.email?.trim() ?? null;
       const lowerEmail = rawEmail ? rawEmail.toLowerCase() : null;
 
-      // pido solo 1 suscripción; si no hay “activa-like”, salto
       const subs = await stripe.subscriptions.list({
         customer: customer.id,
-        status: "all", // opcional: usa "active" para ser más estricto
+        status: "all",
         limit: 1,
       });
 
@@ -73,14 +75,12 @@ export async function POST(req: NextRequest) {
       let mappedUid: string | undefined;
 
       if (lowerEmail) {
-        // 1) intenta por emailLower (case-insensitive)
         let matched = await adminDB
           .collection("users")
           .where("emailLower", "==", lowerEmail)
           .limit(1)
           .get();
 
-        // 2) fallback por email exacto (por si aún no tienes emailLower poblado)
         if (matched.empty && rawEmail) {
           matched = await adminDB
             .collection("users")
@@ -93,19 +93,16 @@ export async function POST(req: NextRequest) {
           const userDoc = matched.docs[0];
           mappedUid = userDoc.id;
 
-          // guarda la relación stripe<->usuario y normaliza emailLower para futuras búsquedas
           await userDoc.ref.set(
             {
               stripeCustomerId: customer.id,
               emailLower: lowerEmail,
-              // opcional: sincronizar nombre si faltase
               name: userDoc.data().name ?? customer.name ?? "",
               updatedAt: Date.now(),
             },
             { merge: true }
           );
         } else {
-          // guarda mapping para reconciliar después (no toques users/)
           await adminDB
             .collection("stripeCustomers")
             .doc(customer.id)
@@ -121,7 +118,6 @@ export async function POST(req: NextRequest) {
             );
         }
       } else {
-        // sin email: registra mapping mínimo
         await adminDB
           .collection("stripeCustomers")
           .doc(customer.id)
@@ -148,6 +144,13 @@ export async function POST(req: NextRequest) {
 
     const last = customers.data.at(-1);
 
+    await gaServerEvent("stripe_sync_completed", {
+      uid,
+      processed,
+      pageSize: customers.data.length,
+      hasMore: customers.has_more,
+    });
+
     return NextResponse.json({
       ok: true,
       processed,
@@ -158,6 +161,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("❌ Error en /api/stripe/sync:", error);
+    await gaServerEvent("stripe_sync_failed", { error: (error as Error).message });
     return NextResponse.json({ error: "Error sincronizando clientes" }, { status: 500 });
   }
 }

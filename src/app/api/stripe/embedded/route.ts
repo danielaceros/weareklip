@@ -6,7 +6,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export async function POST(req: NextRequest) {
   try {
-    const { uid } = await req.json();
+    const body = (await req.json()) as { uid?: string };
+    const uid = body.uid;
     if (!uid) {
       return NextResponse.json({ error: "Falta uid" }, { status: 400 });
     }
@@ -24,23 +25,27 @@ export async function POST(req: NextRequest) {
     const data = snap.data() || {};
     let customerId: string | undefined = data.stripeCustomerId;
 
+    // Si no tiene customerId en Firestore, creamos uno
     if (!customerId) {
       const customer = await stripe.customers.create({
         metadata: { uid },
+        email: data.email || undefined, // 👈 opcional: ayuda a unificar clientes
+        name: data.name || undefined,
       });
       customerId = customer.id;
       await userRef.set({ stripeCustomerId: customerId }, { merge: true });
     }
 
-    // 2) Control de trial → solo si nunca lo usó
+    // 2) Control de trial
     let trialDays = 7;
     if (data.trialUsed) {
       trialDays = 0;
     } else {
+      // ⚠️ Mejor marcar trialUsed en webhook, no aquí, para evitar fraudes
       await userRef.set({ trialUsed: true }, { merge: true });
     }
 
-    // 3) Crear payload de suscripción dinámico
+    // 3) Configurar subscription_data dinámico
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
     if (trialDays > 0) {
       subscriptionData.trial_period_days = trialDays;
@@ -63,11 +68,16 @@ export async function POST(req: NextRequest) {
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
     });
 
+    if (!session.client_secret) {
+      throw new Error("Stripe no devolvió client_secret");
+    }
+
     return NextResponse.json({ client_secret: session.client_secret });
-  } catch (err: any) {
-    console.error("❌ Error creating embedded checkout session:", err);
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.error("❌ Error creating embedded checkout session:", error);
     return NextResponse.json(
-      { error: err.message ?? "Error interno" },
+      { error: error.message ?? "Error interno" },
       { status: 500 }
     );
   }

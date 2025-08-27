@@ -67,11 +67,12 @@ export function Sidebar() {
 
           return (
             <Link
-              key={href}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className="group flex flex-col items-center gap-1 text-xs"
-            >
+                key={href}
+                href={href}
+                id={`sidebar-${key.replace("sidebar.", "")}`} // 👈 IDs válidos
+                aria-current={active ? "page" : undefined}
+                className="group flex flex-col items-center gap-1 text-xs"
+              >
               <div
                 className={clsx(
                   'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
