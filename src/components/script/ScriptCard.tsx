@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, Star } from "lucide-react";
 import Image from "next/image";
 
 interface ScriptCardProps {
@@ -55,7 +55,23 @@ export function ScriptCard({ script, onView, onDelete }: ScriptCardProps) {
           {title}
         </h3>
 
-        {/* 2) Contenido */}
+        {/* 2) Rating */}
+        {script.rating !== undefined && (
+          <div className="flex gap-0.5">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className={`h-3.5 w-3.5 ${
+                  script.rating && script.rating >= star
+                    ? "text-yellow-400 fill-yellow-400"
+                    : "text-gray-300"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 3) Contenido */}
         <div className="text-xs text-muted-foreground leading-relaxed">
           {script.isAI ? (
             <p className="line-clamp-4">
@@ -80,7 +96,7 @@ export function ScriptCard({ script, onView, onDelete }: ScriptCardProps) {
           )}
         </div>
 
-        {/* 3) Chips */}
+        {/* 4) Chips */}
         {chips.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {chips.map((c) => (
@@ -95,7 +111,7 @@ export function ScriptCard({ script, onView, onDelete }: ScriptCardProps) {
           </div>
         )}
 
-        {/* 4) Acciones */}
+        {/* 5) Acciones */}
         <div className="mt-auto flex items-center gap-2 pt-2">
           <Button
             size="sm"

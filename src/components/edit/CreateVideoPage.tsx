@@ -23,6 +23,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 /* ---------- utilidades ---------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -386,37 +392,52 @@ export default function CreateVideoPage({
           />
         </div>
 
-        {/* Opciones mágicas */}
+        {/* Opciones mágicas con tooltips */}
         <div className="space-y-4">
           <div className="flex items-center gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={magicZooms}
-                onCheckedChange={(c) => {
-                  setMagicZooms(!!c);
-                  toast(
-                    !!c
-                      ? "🔍 Magic Zooms activado"
-                      : "Magic Zooms desactivado"
-                  );
-                }}
-              />
-              <Label>Magic Zooms</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={magicBrolls}
-                onCheckedChange={(c) => {
-                  setMagicBrolls(!!c);
-                  toast(
-                    !!c
-                      ? "🎞 Magic B-rolls activado"
-                      : "Magic B-rolls desactivado"
-                  );
-                }}
-              />
-              <Label>Magic B-rolls</Label>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={magicZooms}
+                    onCheckedChange={(c) => {
+                      setMagicZooms(!!c);
+                      toast(
+                        !!c
+                          ? "🔍 Magic Zooms activado"
+                          : "Magic Zooms desactivado"
+                      );
+                    }}
+                  />
+                  <Label>Magic Zooms</Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Agrega acercamientos automáticos para más dinamismo.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={magicBrolls}
+                    onCheckedChange={(c) => {
+                      setMagicBrolls(!!c);
+                      toast(
+                        !!c
+                          ? "🎞 Magic B-rolls activado"
+                          : "Magic B-rolls desactivado"
+                      );
+                    }}
+                  />
+                  <Label>Magic B-rolls</Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {magicBrolls && (
@@ -436,6 +457,7 @@ export default function CreateVideoPage({
             </div>
           )}
         </div>
+
 
         {/* Botón final */}
         <Button

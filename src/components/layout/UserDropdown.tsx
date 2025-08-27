@@ -32,9 +32,11 @@ import {
   Languages,
   User as UserIcon,
   CreditCard,
+  PlayCircle, // 👈 añade este
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
+
 
 interface Props {
   user: {
@@ -212,6 +214,20 @@ export default function UserDropdown({ user }: Props) {
         >
           <CreditCard className="mr-2 h-4 w-4 opacity-80" />
           {t("dropdown.subscription") ?? "Suscripción"}
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => {
+            router.push("/dashboard");
+            setTimeout(() => {
+              localStorage.removeItem("dashboardTourSeen");
+              window.location.reload();
+            }, 300); // 👈 espera a que termine la navegación
+          }}
+          className="cursor-pointer"
+        >
+          <PlayCircle className="mr-2 h-4 w-4 opacity-80" />
+          ¿Cómo utilizar Viralizalo.AI?
         </DropdownMenuItem>
 
         <DropdownMenuItem

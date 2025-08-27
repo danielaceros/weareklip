@@ -153,7 +153,7 @@ export default function ScriptsContainer() {
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
-      <h1 className="text-2xl font-bold">Mis Ediciones</h1>
+      <h1 className="text-2xl font-bold">Mis Guiones</h1>
       <div className="flex justify-between">
           <Button
             variant="destructive"
