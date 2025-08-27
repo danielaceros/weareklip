@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { adminAuth } from "@/lib/firebase-admin";
+import { sendEventPush } from "@/lib/sendEventPush"; // 👈 añadido
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest) {
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
   const simulate = process.env.SIMULATE === "true";
 
+  // 👇 lo declaramos fuera para poder usarlo en el catch
+  let uid: string | undefined;
+
   try {
     // 1) Auth
     const authHeader = req.headers.get("authorization") || "";
@@ -27,7 +31,7 @@ export async function POST(req: NextRequest) {
     const idToken = m[1];
 
     const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
-    const uid = decoded?.uid;
+    uid = decoded?.uid;
     if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
     // 2) Body
@@ -103,7 +107,7 @@ Reglas estrictas:
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: authHeader,
+          Authorization: req.headers.get("authorization") || "",
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({ kind: "script", quantity: 1, idem }),
@@ -120,11 +124,32 @@ Reglas estrictas:
       throw new Error(msg);
     }
 
-    // 6) Respuesta
+    // 6) Notificación de éxito (solo si todo lo anterior fue bien)
+    try {
+      if (uid) {
+        await sendEventPush(uid, "script_generated", {
+          length: String(script.length),
+        });
+      }
+    } catch (e) {
+      console.warn("[push] script_generated error", e);
+    }
+
+    // 7) Respuesta
     return NextResponse.json({ script, simulated: simulate });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error interno generando guion";
     const isAuth = /No auth|No uid/i.test(msg);
+
+    // Notificación de error (evitar si es auth)
+    try {
+      if (uid && !isAuth) {
+        await sendEventPush(uid, "script_error", { reason: String(msg) });
+      }
+    } catch (err) {
+      console.warn("[push] script_error error", err);
+    }
+
     return NextResponse.json({ error: msg }, { status: isAuth ? 401 : 500 });
   }
 }

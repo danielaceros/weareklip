@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { adminDB, adminTimestamp, adminFieldValue } from "@/lib/firebase-admin";
-import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
+import { gaServerEvent } from "@/lib/ga-server";
+import { sendEventPush } from "@/lib/sendEventPush";
 
 /* ================== config ================== */
 
@@ -110,6 +111,15 @@ async function findUserRef({
   }
 
   return undefined;
+}
+
+/** Resuelve uid por customerId o email (útil para pushes si no viene en metadata). */
+async function resolveUidByCustomerOrEmail(
+  customerId?: string,
+  email?: string
+): Promise<string | undefined> {
+  const ref = await findUserRef({ uid: undefined, email, customerId });
+  return ref?.id;
 }
 
 /** Upsert principal en /users/{uid} — devuelve userRef */
@@ -362,18 +372,20 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
+
         await gaServerEvent("subscription_updated", {
           uid: sub.metadata?.uid,
           plan: sub.metadata?.plan,
           status: sub.status,
         });
-        const uid = (sub.metadata?.uid as string | undefined) ?? undefined;
+
+        const uidMeta = (sub.metadata?.uid as string | undefined) ?? undefined;
         const plan = planFromSubscription(sub);
         const customerId = (sub.customer as string | undefined) ?? undefined;
         const renewal = safeCurrentPeriodEnd(sub);
 
         let email: string | undefined;
-        if (!uid && customerId) {
+        if (!uidMeta && customerId) {
           try {
             const c = await stripe.customers.retrieve(customerId);
             if (!("deleted" in c) && c.email) email = c.email;
@@ -383,7 +395,7 @@ export async function POST(req: NextRequest) {
         }
 
         const userRef = await upsertUser({
-          uid,
+          uid: uidMeta,
           email,
           customerId,
           subscriptionId: sub.id,
@@ -392,14 +404,14 @@ export async function POST(req: NextRequest) {
           renewal,
         });
 
-        if (uid && customerId) await upsertCustomerMapping(uid, customerId, email);
+        if (uidMeta && customerId) await upsertCustomerMapping(uidMeta, customerId, email);
         if (userRef && customerId) await ensureTrialCreditOnce(userRef, customerId, sub.status);
 
         // Marcar bloqueo si el estado es malo
         const bad = ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(
           sub.status
         );
-        const ref = userRef ?? (await findUserRef({ uid, email, customerId }));
+        const ref = userRef ?? (await findUserRef({ uid: uidMeta, email, customerId }));
         if (ref) {
           await ref.set(
             bad
@@ -417,19 +429,44 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Si Access cambia PM, propagar al Customer
-        if (plan === "access" && customerId) {
-          const pm = sub.default_payment_method as
-            | string
-            | Stripe.PaymentMethod
-            | null
-            | undefined;
-          const pmId = typeof pm === "string" ? pm : pm?.id;
-          if (pmId) {
-            await stripe.customers.update(customerId, {
-              invoice_settings: { default_payment_method: pmId },
+        // ▶️ Notificaciones: trial/active con deduplicación
+        try {
+          const prev = (event.data as any).previous_attributes as { status?: string } | undefined;
+          const uidForPush =
+            uidMeta ?? (await resolveUidByCustomerOrEmail(customerId, email));
+
+          // “reciente” = creado hace menos de 2 minutos
+          const justCreated =
+            typeof sub.created === "number" && (Date.now() / 1000 - sub.created) < 120;
+
+          if (!uidForPush) {
+            console.warn("[push] sub.created/updated sin uid resoluble", {
+              customerId,
+              email,
+              status: sub.status,
             });
+          } else {
+            if (event.type === "customer.subscription.created") {
+              if (sub.status === "trialing") {
+                await sendEventPush(uidForPush, "trial_started", {
+                  plan: String(plan ?? ""),
+                });
+              } else if (sub.status === "active") {
+                await sendEventPush(uidForPush, "subscription_active", {
+                  plan: String(plan ?? ""),
+                });
+              }
+            } else if (event.type === "customer.subscription.updated") {
+              // Solo cuando pasa de trialing → active y NO justo tras crearse
+              if (prev?.status === "trialing" && sub.status === "active" && !justCreated) {
+                await sendEventPush(uidForPush, "subscription_active", {
+                  plan: String(plan ?? ""),
+                });
+              }
+            }
           }
+        } catch (e) {
+          console.warn("[push] subscription created/updated error", e);
         }
 
         break;
@@ -438,7 +475,10 @@ export async function POST(req: NextRequest) {
       /* ---------------- customer.subscription.deleted ---------------- */
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        await gaServerEvent("subscription_deleted", { uid: sub.metadata?.uid, plan: sub.metadata?.plan });
+        await gaServerEvent("subscription_deleted", {
+          uid: sub.metadata?.uid,
+          plan: sub.metadata?.plan,
+        });
         const uid = (sub.metadata?.uid as string | undefined) ?? undefined;
         const customerId = (sub.customer as string | undefined) ?? undefined;
 
@@ -466,6 +506,7 @@ export async function POST(req: NextRequest) {
       case "invoice.paid": {
         const inv = event.data.object as Stripe.Invoice;
         await gaServerEvent("invoice_paid", { uid: uidFromInvoice(inv), amount: inv.amount_paid });
+
         const paidAt = inv.status_transitions?.paid_at ?? inv.created;
         const email = emailFromInvoice(inv);
         const uid = uidFromInvoice(inv);
@@ -517,6 +558,24 @@ export async function POST(req: NextRequest) {
           }
 
           await ref.set(baseUpdate, { merge: true });
+
+          // ▶️ Notificación de “renovada” SOLO en ciclos reales (no en la 1ª factura)
+          try {
+            const reason = inv.billing_reason as Stripe.Invoice.BillingReason | undefined;
+            const isRenewal = reason === "subscription_cycle"; // <- clave
+            const uidPaid =
+              uidFromInvoice(inv) ??
+              (await resolveUidByCustomerOrEmail(inv.customer as string | undefined, email));
+
+            if (uidPaid && !isUsage && isRenewal) {
+              await sendEventPush(uidPaid, "subscription_renewed", {
+                invoiceId: inv.id,
+                amountPaid: String(inv.amount_paid ?? 0),
+              });
+            }
+          } catch (e) {
+            console.warn("[push] invoice.paid error", e);
+          }
         }
         break;
       }
@@ -547,6 +606,22 @@ export async function POST(req: NextRequest) {
             { merge: true }
           );
         }
+
+        // ▶️ Notificación push (pago fallido)
+        try {
+          const uidFail =
+            uidFromInvoice(inv) ??
+            (await resolveUidByCustomerOrEmail(inv.customer as string | undefined, email));
+          if (uidFail) {
+            await sendEventPush(uidFail, "payment_failed", {
+              invoiceId: inv.id,
+              amountDue: String(inv.amount_due ?? inv.amount_remaining ?? 0),
+            });
+          }
+        } catch (e) {
+          console.warn("[push] payment_failed error", e);
+        }
+
         break;
       }
 

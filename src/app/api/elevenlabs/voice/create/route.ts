@@ -1,14 +1,15 @@
-// app/api/voices/create/route.ts
+// src/app/api/voices/create/route.ts
 import { getStorage } from "firebase-admin/storage";
 import { initAdmin, adminAuth } from "@/lib/firebase-admin";
 import { FormData, File } from "formdata-node";
 import { gaServerEvent } from "@/lib/ga-server";
+import { sendEventPush } from "@/lib/sendEventPush";
 
 initAdmin();
 
 export async function POST(req: Request) {
   try {
-    // 🔑 Autenticación mínima (opcional, si quieres que solo usuarios logueados puedan crear voces)
+    // 🔑 Auth opcional (si hay token, lo usamos para notis)
     const authHeader = req.headers.get("Authorization") || "";
     let uid: string | null = null;
     if (authHeader.startsWith("Bearer ")) {
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     const data = await elevenResp.json();
 
     if (elevenResp.ok) {
-      // 🔔 GA4: evento de éxito
+      // 🔔 GA4
       await gaServerEvent(
         "voice_created",
         {
@@ -56,6 +57,16 @@ export async function POST(req: Request) {
         },
         uid ? { userId: uid } : undefined
       );
+
+      // ✅ Notificación in-app: nueva voz creada
+      if (uid) {
+        try {
+          await sendEventPush(uid, "voice_created", {
+            voiceId: data?.voice_id ?? undefined,
+            voiceName,
+          });
+        } catch {}
+      }
     } else {
       // 🔔 GA4: fallo en ElevenLabs
       await gaServerEvent(
@@ -67,17 +78,40 @@ export async function POST(req: Request) {
         },
         uid ? { userId: uid } : undefined
       );
+
+      // ❗ Notificación de error
+      if (uid) {
+        try {
+          await sendEventPush(uid, "voice_error", {
+            voiceName,
+            status: elevenResp.status,
+            error: data?.error || "Unknown error",
+          });
+        } catch {}
+      }
     }
 
     return Response.json(data, { status: elevenResp.status });
   } catch (err: any) {
     console.error("❌ Error creando voz:", err);
 
-    // 🔔 GA4: error interno
     await gaServerEvent("voice_failed", {
       error: err?.message || String(err),
       stage: "internal",
     });
+
+    // ❗ Notificación de error (si hay uid)
+    try {
+      const authHeader = req.headers.get("Authorization") || "";
+      if (authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        const decoded = await adminAuth.verifyIdToken(token).catch(() => null);
+        const uid = decoded?.uid;
+        if (uid) {
+          await sendEventPush(uid, "voice_error", { error: err?.message || String(err) });
+        }
+      }
+    } catch {}
 
     return Response.json({ error: "Error creando voz en ElevenLabs" }, { status: 500 });
   }

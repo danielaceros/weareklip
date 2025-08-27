@@ -1,3 +1,4 @@
+// src/app/api/submagic/create/route.ts
 import { NextResponse } from "next/server";
 import {
   adminAuth,
@@ -5,6 +6,7 @@ import {
   adminTimestamp,
 } from "@/lib/firebase-admin";
 import { gaServerEvent } from "@/lib/ga-server";
+import { sendEventPush } from "@/lib/sendEventPush";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
     const uid = decoded.uid;
     const email = decoded.email || "";
 
-    // 2) Cuerpo
+    // 2) Body
     const {
       title,
       language,
@@ -154,7 +156,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5) Guardar en Firestore (estado inicial)
+    // 5) Guardar en Firestore (estado inicial) + notificaciones
     if (projectId) {
       await adminDB
         .collection("users")
@@ -172,6 +174,12 @@ export async function POST(req: Request) {
           updatedAt: adminTimestamp.now(),
           simulated: simulate,
         });
+
+      // 🔔 In-app + Push
+      await Promise.all([
+        sendEventPush(uid, "video_uploaded",   { title }),
+        sendEventPush(uid, "video_processing", { title }),
+      ]);
     }
 
     // 6) Métrica de uso
