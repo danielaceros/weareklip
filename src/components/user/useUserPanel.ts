@@ -24,7 +24,7 @@ import { useT } from "@/lib/i18n";
 interface Subscription {
   status: string;
   plan: string;
-  [key: string]: unknown; // Usamos 'unknown' en vez de 'any'
+  [key: string]: unknown;
 }
 
 interface ClonacionVideo {
@@ -42,7 +42,7 @@ export function useUserPanel() {
 
   // Props extra para evitar errores de TS en SubscriptionSection
   const loadingSub = false;
-  const sub: Subscription | undefined = undefined; // Cambiado null por undefined
+  const sub: Subscription | undefined = undefined;
   const getStatusChipStyle = () => "";
   const renderStatusLabel = (status: string) => status;
 
@@ -62,7 +62,10 @@ export function useUserPanel() {
   // Cargar vídeos de clonación
   const fetchClonacionVideos = async (uid: string) => {
     const snap = await getDocs(collection(db, `users/${uid}/clonacion`));
-    const vids = snap.docs.map((doc) => doc.data() as ClonacionVideo);
+        const vids = snap.docs.map((doc) => ({
+      id: doc.id, // 👈 aquí cogemos el ID de Firestore
+      ...doc.data(),
+    })) as ClonacionVideo[];
     setClonacionVideos(vids);
   };
 
@@ -110,10 +113,9 @@ export function useUserPanel() {
     );
   };
 
-  // Eliminar vídeo
+  // Eliminar vídeo (sin confirm nativo, solo tu modal)
   const handleDelete = async (videoId: string) => {
     if (!user) return;
-    if (!confirm(t("clonacion.confirmDelete"))) return;
 
     try {
       await deleteDoc(doc(db, `users/${user.uid}/clonacion/${videoId}`));

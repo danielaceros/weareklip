@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 
 interface VoiceData {
   voiceId: string;
@@ -38,6 +39,10 @@ export default function VoicesListContainer({
   const [voices, setVoices] = useState<VoiceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+
+  // estado para borrar
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [page, setPage] = useState(1);
   const perPage = 8;
@@ -69,13 +74,17 @@ export default function VoicesListContainer({
     fetchVoices();
   }, [fetchVoices]);
 
-  const handleDelete = async (voiceId: string) => {
-    if (!user) return;
+  const handleDelete = async () => {
+    if (!user || !deleteTarget) return;
+    setDeleting(true);
     try {
-      await deleteDoc(doc(db, "users", user.uid, "voices", voiceId));
-      setVoices((prev) => prev.filter((v) => v.voiceId !== voiceId));
+      await deleteDoc(doc(db, "users", user.uid, "voices", deleteTarget));
+      setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
+      setDeleteTarget(null);
     } catch (err) {
       console.error("Error eliminando voz:", err);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -112,7 +121,7 @@ export default function VoicesListContainer({
               <VoiceCard
                 key={voice.voiceId}
                 voice={voice}
-                onDelete={() => handleDelete(voice.voiceId)}
+                onDelete={() => setDeleteTarget(voice.voiceId)}
               />
             ))}
           </div>
@@ -167,11 +176,21 @@ export default function VoicesListContainer({
           <NewVoiceContainer />
         </DialogContent>
       </Dialog>
+
+      {/* Modal Confirmación de borrado */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        deleting={deleting}
+        title="Eliminar voz"
+        description="¿Seguro que quieres eliminar esta voz? Esta acción no se puede deshacer."
+      />
     </section>
   );
 }
 
-/* ---------- Voice Card estilo figma ---------- */
+/* ---------- Voice Card ---------- */
 function VoiceCard({
   voice,
   onDelete,
@@ -182,13 +201,35 @@ function VoiceCard({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    voice.preview_url ?? null
+  );
+
+  useEffect(() => {
+    if (!previewUrl && voice.voiceId) {
+      const fetchPreview = async () => {
+        try {
+          const res = await fetch(`/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`);
+          const data = await res.json();
+          if (res.ok && data.preview_url) {
+            setPreviewUrl(data.preview_url);
+          }
+        } catch (err) {
+          console.error("❌ Error cargando preview de ElevenLabs:", err);
+        }
+      };
+      fetchPreview();
+    }
+  }, [previewUrl, voice.voiceId]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch((err) => {
+        console.warn("No se pudo reproducir:", err);
+      });
     }
   };
 
@@ -211,6 +252,7 @@ function VoiceCard({
       <div className="flex items-center gap-3">
         <button
           onClick={togglePlay}
+          disabled={!previewUrl}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -222,17 +264,17 @@ function VoiceCard({
             min={0}
             max={100}
             value={progress}
-            onChange={() => {}}
+            readOnly
             className="w-full accent-primary"
           />
         </div>
       </div>
 
       {/* Hidden audio element */}
-      {voice.preview_url && (
+      {previewUrl && (
         <audio
           ref={audioRef}
-          src={voice.preview_url}
+          src={previewUrl}
           onTimeUpdate={(e) => {
             const el = e.currentTarget;
             setProgress((el.currentTime / el.duration) * 100 || 0);

@@ -34,13 +34,17 @@ export default function AudioCreatorContainer() {
   const [progress, setProgress] = useState(0);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
-  };
+  if (!audioRef.current) return;
+
+  if (isPlaying) {
+    audioRef.current.pause();
+  } else {
+    audioRef.current.play().catch((err) => {
+      console.warn("No se pudo reproducir:", err);
+    });
+  }
+};
+
 
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;

@@ -21,6 +21,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 
 interface ClonacionVideo {
   id: string;
@@ -32,7 +33,7 @@ interface ClonacionVideosSectionProps {
   t: (key: string) => string;
   clonacionVideos: ClonacionVideo[];
   handleUpload: (file: File) => void;
-  handleDelete: (id: string) => void;
+  handleDelete: (id: string) => Promise<void> | void;
   uploading: boolean;
   progress: number;
   perPage?: number;
@@ -50,9 +51,24 @@ export default function ClonacionVideosSection({
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
+  // Estado para confirmación
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const totalPages = Math.ceil(clonacionVideos.length / perPage);
   const paginated = clonacionVideos.slice((page - 1) * perPage, page * perPage);
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await handleDelete(deleteTarget);
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+  
   return (
     <Card className="p-6 shadow-sm bg-card text-card-foreground">
       {/* Header */}
@@ -66,7 +82,7 @@ export default function ClonacionVideosSection({
       <Separator className="my-4" />
 
       <div className="flex gap-6 items-start">
-        {/* IZQUIERDA: Dropbox */}
+        {/* IZQUIERDA: Upload */}
         <div className="flex flex-col items-center gap-4">
           <label className="flex flex-col items-center justify-center w-57 border-2 border-dashed border-border rounded-lg p-4 aspect-[9/16] cursor-pointer hover:bg-muted/40 transition">
             <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
@@ -96,7 +112,7 @@ export default function ClonacionVideosSection({
           )}
         </div>
 
-        {/* DERECHA: Grid variable */}
+        {/* DERECHA: Grid */}
         <div className="flex-1 flex flex-col gap-6">
           {clonacionVideos.length === 0 ? (
             <p className="text-muted-foreground italic">
@@ -144,7 +160,7 @@ export default function ClonacionVideosSection({
                       <Button
                         size="icon"
                         variant="destructive"
-                        onClick={() => handleDelete(video.id)}
+                        onClick={() => setDeleteTarget(video.id)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -213,6 +229,18 @@ export default function ClonacionVideosSection({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de confirmación de borrado */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        deleting={deleting}
+        title="Eliminar vídeo"
+        description="¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
+        cancelText="Cancelar"
+        confirmText="Eliminar"
+      />
     </Card>
   );
 }
