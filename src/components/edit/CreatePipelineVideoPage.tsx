@@ -23,6 +23,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 // 👇 Importar el helper de Analytics
 import { track } from "@/lib/analytics-events";
@@ -346,51 +352,67 @@ export default function CreatePipelineVideoPage({
           />
         </div>
 
-        {/* Opciones mágicas */}
+        {/* Opciones mágicas con tooltips */}
         <div className="space-y-4">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={magicZooms}
-                onCheckedChange={(c) => {
-                  setMagicZooms(!!c);
-                  track("magic_zooms_toggled", { enabled: !!c });
-                  toast(!!c ? "🔍 Magic Zooms activado" : "Magic Zooms desactivado");
-                }}
-              />
-              <Label>Magic Zooms</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={magicBrolls}
-                onCheckedChange={(c) => {
-                  setMagicBrolls(!!c);
-                  track("magic_brolls_toggled", { enabled: !!c });
-                  toast(!!c ? "🎞 Magic B-rolls activado" : "Magic B-rolls desactivado");
-                }}
-              />
-              <Label>Magic B-rolls</Label>
-            </div>
-          </div>
+        <div className="flex items-center gap-6">
+            <Tooltip>
+            <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                <Checkbox
+                    checked={magicZooms}
+                    onCheckedChange={(c) => {
+                    setMagicZooms(!!c);
+                    track("magic_zooms_toggled", { enabled: !!c });
+                    toast(!!c ? "🔍 Magic Zooms activado" : "Magic Zooms desactivado");
+                    }}
+                />
+                <Label>Magic Zooms</Label>
+                </div>
+            </TooltipTrigger>
+            <TooltipContent>
+                <p>Agrega acercamientos automáticos para más dinamismo.</p>
+            </TooltipContent>
+            </Tooltip>
 
-          {magicBrolls && (
+            <Tooltip>
+            <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                <Checkbox
+                    checked={magicBrolls}
+                    onCheckedChange={(c) => {
+                    setMagicBrolls(!!c);
+                    track("magic_brolls_toggled", { enabled: !!c });
+                    toast(!!c ? "🎞 Magic B-rolls activado" : "Magic B-rolls desactivado");
+                    }}
+                />
+                <Label>Magic B-rolls</Label>
+                </div>
+            </TooltipTrigger>
+            <TooltipContent>
+                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+            </TooltipContent>
+            </Tooltip>
+        </div>
+
+        {magicBrolls && (
             <div>
-              <Label className="mb-1 block">
+            <Label className="mb-1 block">
                 Porcentaje de B-rolls: {magicBrollsPercentage}%
-              </Label>
-              <Slider
+            </Label>
+            <Slider
                 defaultValue={[magicBrollsPercentage]}
                 max={100}
                 step={1}
                 onValueChange={(v) => {
-                  setMagicBrollsPercentage(v[0]);
-                  track("magic_brolls_percentage", { value: v[0] });
-                  toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
+                setMagicBrollsPercentage(v[0]);
+                track("magic_brolls_percentage", { value: v[0] });
+                toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
                 }}
-              />
+            />
             </div>
-          )}
+        )}
         </div>
+
 
         {/* Botón final */}
         <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
