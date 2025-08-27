@@ -5,13 +5,13 @@ import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { LipsyncVideoList } from "./LipsyncVideoList";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import LipsyncCreatePage from "./LipsyncCreatePage";
 import { toast } from "sonner";
 import { getStorage, ref, deleteObject } from "firebase/storage";
-import DeleteLipsyncDialog from "./DeleteLipsyncDialog";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 
 interface VideoData {
   projectId: string;
@@ -29,6 +29,7 @@ export default function LipsyncVideosPage() {
 
   // Estado para eliminar
   const [videoToDelete, setVideoToDelete] = useState<VideoData | null>(null);
+  const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -60,38 +61,53 @@ export default function LipsyncVideosPage() {
   }, [user]);
 
   async function handleConfirmDelete() {
-    if (!user || !videoToDelete) return;
+    if (!user) return;
     setDeleting(true);
-    try {
-      // 1) Eliminar documento Firestore
-      await deleteDoc(doc(db, "users", user.uid, "lipsync", videoToDelete.projectId));
 
-      // 2) Eliminar archivo en Storage si es nuestro bucket
-      if (videoToDelete.downloadUrl && videoToDelete.downloadUrl.includes("firebasestorage")) {
-        const storage = getStorage();
-        try {
-          const path = decodeURIComponent(
-            new URL(videoToDelete.downloadUrl).pathname.split("/o/")[1].split("?")[0]
-          );
-          await deleteObject(ref(storage, path));
-          toast.success("Vídeo y archivo eliminados correctamente");
-        } catch (err) {
-          console.warn("No se pudo eliminar de Storage:", err);
-          toast.success("Vídeo eliminado (archivo no encontrado en Storage)");
+    try {
+      if (deleteAll) {
+        // Borrar todos
+        await Promise.all(
+          videos.map(async (video) => {
+            await deleteDoc(doc(db, "users", user.uid, "lipsync", video.projectId));
+            if (video.downloadUrl && video.downloadUrl.includes("firebasestorage")) {
+              try {
+                const storage = getStorage();
+                const path = decodeURIComponent(
+                  new URL(video.downloadUrl).pathname.split("/o/")[1].split("?")[0]
+                );
+                await deleteObject(ref(storage, path));
+              } catch {}
+            }
+          })
+        );
+        setVideos([]);
+        toast.success("Todos los vídeos han sido eliminados");
+      } else if (videoToDelete) {
+        // Borrar uno
+        await deleteDoc(doc(db, "users", user.uid, "lipsync", videoToDelete.projectId));
+        if (
+          videoToDelete.downloadUrl &&
+          videoToDelete.downloadUrl.includes("firebasestorage")
+        ) {
+          try {
+            const storage = getStorage();
+            const path = decodeURIComponent(
+              new URL(videoToDelete.downloadUrl).pathname.split("/o/")[1].split("?")[0]
+            );
+            await deleteObject(ref(storage, path));
+          } catch {}
         }
-      } else {
+        setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
         toast.success("Vídeo eliminado correctamente");
       }
-
-      setVideos((prev) =>
-        prev.filter((v) => v.projectId !== videoToDelete.projectId)
-      );
     } catch (err) {
-      console.error("Error eliminando vídeo:", err);
-      toast.error("No se pudo eliminar el vídeo");
+      console.error("Error eliminando vídeos:", err);
+      toast.error("No se pudieron eliminar los vídeos");
     } finally {
       setDeleting(false);
       setVideoToDelete(null);
+      setDeleteAll(false);
     }
   }
 
@@ -99,8 +115,19 @@ export default function LipsyncVideosPage() {
 
   return (
     <div className="space-y-4">
-      {/* Botón Crear */}
-      <div className="flex justify-end">
+      {/* Botones superiores */}
+      <h1 className="text-2xl font-bold">Mis Grabaciones</h1>
+      <div className="flex justify-between">
+        <Button
+          variant="destructive"
+          className="rounded-lg"
+          onClick={() => setDeleteAll(true)}
+          disabled={videos.length === 0}
+        >
+          <Trash2 size={18} className="mr-2" />
+          Borrar todos
+        </Button>
+
         <Button
           className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
           onClick={() => setIsNewOpen(true)}
@@ -114,7 +141,12 @@ export default function LipsyncVideosPage() {
       <LipsyncVideoList
         videos={videos}
         onDelete={(id, url) =>
-          setVideoToDelete({ projectId: id, title: "", status: "processing", downloadUrl: url })
+          setVideoToDelete({
+            projectId: id,
+            title: "",
+            status: "processing",
+            downloadUrl: url,
+          })
         }
       />
 
@@ -122,16 +154,26 @@ export default function LipsyncVideosPage() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
-          <LipsyncCreatePage />
+          <LipsyncCreatePage onClose={() => setIsNewOpen(false)} />
         </DialogContent>
       </Dialog>
 
-      {/* Modal eliminar */}
-      <DeleteLipsyncDialog
-        open={!!videoToDelete}
-        onClose={() => setVideoToDelete(null)}
+      {/* Modal eliminar (reusable) */}
+      <ConfirmDeleteDialog
+        open={!!videoToDelete || deleteAll}
+        onClose={() => {
+          setVideoToDelete(null);
+          setDeleteAll(false);
+        }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
+        title={deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo Lipsync"}
+        description={
+          deleteAll
+            ? "¿Seguro que quieres eliminar TODOS los vídeos? Esta acción no se puede deshacer."
+            : "¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
+        }
+        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
       />
     </div>
   );

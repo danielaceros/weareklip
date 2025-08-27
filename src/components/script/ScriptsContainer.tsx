@@ -4,9 +4,15 @@ import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { ScriptCard } from "./ScriptCard";
 import { ScriptModal } from "./ScriptModal";
 import {
@@ -19,7 +25,7 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
-import DeleteScriptDialog from "./DeleteScriptDialog"; // 👈 nuevo modal
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog"; // 👈 reusado
 import { toast } from "sonner";
 
 interface ScriptData {
@@ -50,8 +56,12 @@ export default function ScriptsContainer() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [selectedScript, setSelectedScript] = useState<ScriptData | null>(null);
+
+  // Estados de borrado
   const [scriptToDelete, setScriptToDelete] = useState<ScriptData | null>(null);
+  const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
   const [sortOption, setSortOption] = useState("date-desc");
   const [page, setPage] = useState(1);
   const [isNewOpen, setIsNewOpen] = useState(false);
@@ -85,26 +95,43 @@ export default function ScriptsContainer() {
   }, [fetchScripts]);
 
   const handleConfirmDelete = async () => {
-    if (!user || !scriptToDelete) return;
+    if (!user) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "users", user.uid, "guiones", scriptToDelete.scriptId));
-      setScripts((prev) => prev.filter((s) => s.scriptId !== scriptToDelete.scriptId));
-      toast.success("Guion eliminado correctamente");
+      if (deleteAll) {
+        await Promise.all(
+          scripts.map((script) =>
+            deleteDoc(doc(db, "users", user.uid, "guiones", script.scriptId))
+          )
+        );
+        setScripts([]);
+        toast.success("Todos los guiones han sido eliminados");
+      } else if (scriptToDelete) {
+        await deleteDoc(doc(db, "users", user.uid, "guiones", scriptToDelete.scriptId));
+        setScripts((prev) =>
+          prev.filter((s) => s.scriptId !== scriptToDelete.scriptId)
+        );
+        toast.success("Guion eliminado correctamente");
+      }
     } catch (err) {
-      console.error("Error eliminando guion:", err);
-      toast.error("No se pudo eliminar el guion");
+      console.error("Error eliminando guiones:", err);
+      toast.error("No se pudieron eliminar los guiones");
     } finally {
       setDeleting(false);
       setScriptToDelete(null);
+      setDeleteAll(false);
     }
   };
 
   const handleRating = async (scriptId: string, newRating: number) => {
     if (!user) return;
-    await updateDoc(doc(db, "users", user.uid, "guiones", scriptId), { rating: newRating });
+    await updateDoc(doc(db, "users", user.uid, "guiones", scriptId), {
+      rating: newRating,
+    });
     setScripts((prev) =>
-      prev.map((s) => (s.scriptId === scriptId ? { ...s, rating: newRating } : s))
+      prev.map((s) =>
+        s.scriptId === scriptId ? { ...s, rating: newRating } : s
+      )
     );
   };
 
@@ -124,11 +151,21 @@ export default function ScriptsContainer() {
   if (loading) return <p className="text-muted-foreground">Cargando guiones...</p>;
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex flex-col h-full space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Guiones</h1>
-        <div className="flex items-center gap-4">
+      <h1 className="text-2xl font-bold">Mis Ediciones</h1>
+      <div className="flex justify-between">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={scripts.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
+          </div>
+          <div className="flex justify-end gap-5">
           <Select value={sortOption} onValueChange={setSortOption}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Ordenar por" />
@@ -143,8 +180,7 @@ export default function ScriptsContainer() {
           <Button className="rounded-lg" onClick={() => setIsNewOpen(true)}>
             <Plus size={18} className="mr-2" /> Crear guion
           </Button>
-        </div>
-      </div>
+          </div>
 
       {/* Grid */}
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">
@@ -158,7 +194,7 @@ export default function ScriptsContainer() {
             key={script.scriptId}
             script={script}
             onView={() => setSelectedScript(script)}
-            onDelete={() => setScriptToDelete(script)} // 👈 abre modal
+            onDelete={() => setScriptToDelete(script)}
           />
         ))}
       </div>
@@ -219,12 +255,22 @@ export default function ScriptsContainer() {
         </DialogContent>
       </Dialog>
 
-      <DeleteScriptDialog
-        open={!!scriptToDelete}
-        onClose={() => setScriptToDelete(null)}
+      {/* Confirmación eliminar */}
+      <ConfirmDeleteDialog
+        open={!!scriptToDelete || deleteAll}
+        onClose={() => {
+          setScriptToDelete(null);
+          setDeleteAll(false);
+        }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
-        script={scriptToDelete}
+        title={deleteAll ? "Eliminar todos los guiones" : "Eliminar guion"}
+        description={
+          deleteAll
+            ? "¿Seguro que quieres eliminar TODOS los guiones? Esta acción no se puede deshacer."
+            : "¿Seguro que quieres eliminar este guion? Esta acción no se puede deshacer."
+        }
+        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
       />
     </div>
   );

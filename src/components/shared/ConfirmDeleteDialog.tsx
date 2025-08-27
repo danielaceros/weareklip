@@ -10,39 +10,52 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-interface Props {
+interface ConfirmDeleteDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
   deleting: boolean;
+
+  /** Título del modal */
+  title?: string;
+
+  /** Mensaje de confirmación */
+  description?: string;
+
+  /** Texto del botón cancelar */
+  cancelText?: string;
+
+  /** Texto del botón eliminar */
+  confirmText?: string;
 }
 
-export default function DeleteLipsyncDialog({
+export default function ConfirmDeleteDialog({
   open,
   onClose,
   onConfirm,
   deleting,
-}: Props) {
+  title = "Eliminar elemento",
+  description = "¿Seguro que quieres eliminar este elemento? Esta acción no se puede deshacer.",
+  cancelText = "Cancelar",
+  confirmText = "Eliminar",
+}: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Eliminar vídeo Lipsync</DialogTitle>
-          <DialogDescription>
-            ¿Seguro que quieres eliminar este vídeo? Esta acción no se puede
-            deshacer.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
-            Cancelar
+            {cancelText}
           </Button>
           <Button
             variant="destructive"
             onClick={onConfirm}
             disabled={deleting}
           >
-            {deleting ? "Eliminando..." : "Eliminar"}
+            {deleting ? "Eliminando..." : confirmText}
           </Button>
         </DialogFooter>
       </DialogContent>
