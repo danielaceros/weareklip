@@ -10,7 +10,14 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  serverTimestamp, 
+  setDoc 
+} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import {
   Card,
@@ -22,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -66,20 +74,43 @@ export default function LoginPage() {
     }
   };
 
+  const checkOnboardingNeeded = async (uid: string): Promise<boolean> => {
+    try {
+      const clonacionSnap = await getDocs(collection(db, "users", uid, "clonacion"));
+      if (!clonacionSnap.empty) return false;
+
+      const voicesSnap = await getDocs(collection(db, "users", uid, "voices"));
+      if (!voicesSnap.empty) return false;
+
+      // Si no hay ni vídeos ni voces
+      return true;
+    } catch (err) {
+      console.error("Error comprobando clonación/voces:", err);
+      // fallback: mejor mandarlo a onboarding
+      return true;
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
     try {
+      let user;
       if (mode === "login") {
-        const { user } = await signInWithEmailAndPassword(auth, email, password);
+        const res = await signInWithEmailAndPassword(auth, email, password);
+        user = res.user;
         await ensureUserDoc(user.uid, user.email || email);
       } else {
-        const { user } = await createUserWithEmailAndPassword(auth, email, password);
+        const res = await createUserWithEmailAndPassword(auth, email, password);
+        user = res.user;
         await ensureUserDoc(user.uid, user.email || email);
       }
+
       toast.success(mode === "login" ? "¡Bienvenido!" : "Cuenta creada");
-      router.replace("/dashboard");
+
+      const needsOnboarding = await checkOnboardingNeeded(user.uid);
+      router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
     } catch (err) {
       const message =
         (err as { code?: string }).code === "auth/invalid-credential"
@@ -97,8 +128,11 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider();
       const { user } = await signInWithPopup(auth, provider);
       await ensureUserDoc(user.uid, user.email || "");
+
       toast.success("Inicio de sesión con Google");
-      router.replace("/dashboard");
+
+      const needsOnboarding = await checkOnboardingNeeded(user.uid);
+      router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
     } catch {
       toast.error("No se pudo iniciar sesión con Google");
     } finally {
