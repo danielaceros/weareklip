@@ -31,8 +31,8 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
 }) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
-      <h1 className="text-2xl font-semibold">{title}</h1>
-
+      <h1 className="text-2xl font-bold">Mis Ideas</h1>
+      <div className="flex justify-between"></div>
       <div className="flex flex-wrap gap-3">
         {/* Idioma */}
         <DropdownMenu>

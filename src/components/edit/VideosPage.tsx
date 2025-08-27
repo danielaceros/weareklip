@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 
 import VideoCard from "./VideoCard";
-import DeleteVideoDialog from "./DeleteVideoDialog";
 import CreateVideoPage from "./CreateVideoPage";
-
 import {
   Pagination,
   PaginationContent,
@@ -20,6 +18,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+import { getStorage, ref, deleteObject } from "firebase/storage";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 
 export interface VideoData {
   projectId: string;
@@ -37,8 +38,9 @@ export default function VideosPage() {
   const [user, setUser] = useState<User | null>(null);
 
   const [videoToDelete, setVideoToDelete] = useState<VideoData | null>(null);
+  const [deleteAll, setDeleteAll] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // estado para el modal de creación
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [page, setPage] = useState(1);
@@ -76,12 +78,64 @@ export default function VideosPage() {
     fetchVideos();
   }, [user]);
 
+  async function handleConfirmDelete() {
+    if (!user) return;
+    setDeleting(true);
+
+    try {
+      if (deleteAll) {
+        // 🔴 Borrar todos
+        await Promise.all(
+          videos.map(async (video) => {
+            await deleteDoc(doc(db, "users", user.uid, "videos", video.projectId));
+            if (video.storagePath) {
+              try {
+                const storage = getStorage();
+                await deleteObject(ref(storage, video.storagePath));
+              } catch {}
+            }
+          })
+        );
+        setVideos([]);
+        toast.success("Todos los vídeos han sido eliminados");
+      } else if (videoToDelete) {
+        // 🟠 Borrar uno
+        await deleteDoc(doc(db, "users", user.uid, "videos", videoToDelete.projectId));
+        if (videoToDelete.storagePath) {
+          try {
+            const storage = getStorage();
+            await deleteObject(ref(storage, videoToDelete.storagePath));
+          } catch {}
+        }
+        setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
+        toast.success("Vídeo eliminado correctamente");
+      }
+    } catch (err) {
+      console.error("Error eliminando vídeos:", err);
+      toast.error("No se pudieron eliminar los vídeos");
+    } finally {
+      setDeleting(false);
+      setVideoToDelete(null);
+      setDeleteAll(false);
+    }
+  }
+
   if (loading) return <p>Cargando vídeos...</p>;
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      {/* Botón crear vídeo */}
-      <div className="flex justify-end">
+      <h1 className="text-2xl font-bold">Mis Ediciones</h1>
+      <div className="flex justify-between">
+        <Button
+          variant="destructive"
+          className="rounded-lg"
+          onClick={() => setDeleteAll(true)}
+          disabled={videos.length === 0}
+        >
+          <Trash2 size={18} className="mr-2" />
+          Borrar todos
+        </Button>
+
         <Button
           onClick={() => setShowCreateModal(true)}
           className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
@@ -176,16 +230,22 @@ export default function VideosPage() {
         </div>
       )}
 
-      {/* Modal eliminar */}
-      <DeleteVideoDialog
-        open={!!videoToDelete}
-        onClose={() => setVideoToDelete(null)}
-        video={videoToDelete}
-        onDeleted={() =>
-          setVideos((prev) =>
-            prev.filter((v) => v.projectId !== videoToDelete?.projectId)
-          )
+      {/* Modal eliminar (reusable) */}
+      <ConfirmDeleteDialog
+        open={!!videoToDelete || deleteAll}
+        onClose={() => {
+          setVideoToDelete(null);
+          setDeleteAll(false);
+        }}
+        onConfirm={handleConfirmDelete}
+        deleting={deleting}
+        title={deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo"}
+        description={
+          deleteAll
+            ? "¿Seguro que quieres eliminar TODOS los vídeos? Esta acción no se puede deshacer."
+            : "¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
         }
+        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
       />
     </div>
   );

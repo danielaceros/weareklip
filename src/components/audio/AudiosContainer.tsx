@@ -6,6 +6,7 @@ import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { getStorage, ref, deleteObject } from "firebase/storage";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { Plus, Trash2 } from "lucide-react";
 import { AudiosList, AudioData } from "./AudiosList";
 import {
   Dialog,
@@ -13,7 +14,7 @@ import {
   DialogOverlay,
 } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
-import DeleteAudioDialog from "./DeleteAudioDialog";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 
 export default function AudiosContainer() {
@@ -22,8 +23,9 @@ export default function AudiosContainer() {
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  // estado para modal eliminar
+  // estado para eliminar
   const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
+  const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function AudiosContainer() {
       setAudios(data);
     } catch (error) {
       console.error("Error fetching audios:", error);
+      toast.error("Error cargando audios");
     } finally {
       setLoading(false);
     }
@@ -63,60 +66,79 @@ export default function AudiosContainer() {
   }, [fetchAudios]);
 
   const handleConfirmDelete = async () => {
-    if (!user || !audioToDelete) return;
+    if (!user) return;
     setDeleting(true);
     try {
-      // 1) Firestore
-      await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
-
-      // 2) Storage
-      if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
-        try {
-          const storage = getStorage();
-          const path = decodeURIComponent(
-            new URL(audioToDelete.url).pathname.split("/o/")[1].split("?")[0]
-          );
-          await deleteObject(ref(storage, path));
-          toast.success("Audio y archivo eliminados correctamente");
-        } catch (err) {
-          console.warn("No se pudo eliminar archivo en Storage:", err);
-          toast.success("Audio eliminado (archivo no encontrado en Storage)");
+      if (deleteAll) {
+        // borrar todos
+        await Promise.all(
+          audios.map(async (audio) => {
+            await deleteDoc(doc(db, "users", user.uid, "audios", audio.audioId));
+            if (audio.url && audio.url.includes("firebasestorage")) {
+              try {
+                const storage = getStorage();
+                const path = decodeURIComponent(
+                  new URL(audio.url).pathname.split("/o/")[1].split("?")[0]
+                );
+                await deleteObject(ref(storage, path));
+              } catch {}
+            }
+          })
+        );
+        setAudios([]);
+        toast.success("Todos los audios eliminados");
+      } else if (audioToDelete) {
+        // borrar uno
+        await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
+        if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
+          try {
+            const storage = getStorage();
+            const path = decodeURIComponent(
+              new URL(audioToDelete.url).pathname.split("/o/")[1].split("?")[0]
+            );
+            await deleteObject(ref(storage, path));
+          } catch {}
         }
-      } else {
-        toast.success("Audio eliminado correctamente");
+        setAudios((prev) => prev.filter((a) => a.audioId !== audioToDelete.audioId));
+        toast.success("Audio eliminado");
       }
-
-      // actualizar estado
-      setAudios((prev) => prev.filter((a) => a.audioId !== audioToDelete.audioId));
     } catch (err) {
       console.error("Error eliminando audio:", err);
       toast.error("No se pudo eliminar el audio");
     } finally {
       setDeleting(false);
       setAudioToDelete(null);
+      setDeleteAll(false);
     }
   };
 
   if (loading) return <p>Cargando audios...</p>;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Mis audios</h1>
-        <Button
-          onClick={() => setIsNewOpen(true)}
-          className="rounded-lg"
-        >
-          + Nuevo audio
-        </Button>
+      <h1 className="text-2xl font-bold">Mis Audios</h1>
+      <div className="flex justify-between">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={audios.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
+          <Button
+            onClick={() => setIsNewOpen(true)}
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          >
+            <Plus size={18} className="mr-2" />
+            Nuevo audio
+          </Button>
       </div>
 
       {/* Lista de audios */}
-      <AudiosList
-        audios={audios}
-        onDelete={(audio) => setAudioToDelete(audio)}
-      />
+      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
 
       {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
@@ -127,11 +149,21 @@ export default function AudiosContainer() {
       </Dialog>
 
       {/* Modal eliminar */}
-      <DeleteAudioDialog
-        open={!!audioToDelete}
-        onClose={() => setAudioToDelete(null)}
+      <ConfirmDeleteDialog
+        open={!!audioToDelete || deleteAll}
+        onClose={() => {
+          setAudioToDelete(null);
+          setDeleteAll(false);
+        }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
+        title={deleteAll ? "Eliminar todos los audios" : "Eliminar audio"}
+        description={
+          deleteAll
+            ? "¿Seguro que quieres eliminar TODOS los audios? Esta acción no se puede deshacer."
+            : "¿Seguro que quieres eliminar este audio? Esta acción no se puede deshacer."
+        }
+        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
       />
     </div>
   );
