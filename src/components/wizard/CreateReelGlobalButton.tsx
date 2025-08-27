@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Bell } from "lucide-react";
+import { Plus, Bell, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import NotificationFloatingPanel from "@/components/shared/NotificationFloatingPanel";
+import ChatbotPanel from "@/components/shared/ChatbotPanel";
 
 export default function CreateReelGlobalButton() {
   const [openNotif, setOpenNotif] = useState(false);
+  const [openChat, setOpenChat] = useState(false);
   const router = useRouter();
 
   return (
@@ -36,7 +38,19 @@ export default function CreateReelGlobalButton() {
           </span>
         </button>
 
-        {openNotif && <NotificationFloatingPanel onClose={() => setOpenNotif(false)} />}
+        {/* Botón Chatbot */}
+        <button
+          id="btn-chatbot"
+          onClick={() => setOpenChat((v) => !v)}
+          className="relative bg-neutral-900 text-white rounded-full p-3 shadow hover:bg-neutral-800 transition"
+        >
+          <Bot className="w-5 h-5" />
+        </button>
+
+        {openNotif && (
+          <NotificationFloatingPanel onClose={() => setOpenNotif(false)} />
+        )}
+        {openChat && <ChatbotPanel onClose={() => setOpenChat(false)} />}
       </div>
     </>
   );
