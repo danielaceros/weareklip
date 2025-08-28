@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
 import { gaServerEvent } from "@/lib/ga-server";
+import { sendEventPush } from "@/lib/sendEventPush";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,7 +64,6 @@ export async function POST(req: Request) {
 
     // 🔁 SIMULACIÓN
     if (simulate) {
-      console.log("🟢 Simulación ElevenLabs activa");
       const audioId = randomUUID();
       const fakeUrl = `https://fake.elevenlabs.local/${uid}/audios/${audioId}.mp3`;
 
@@ -110,6 +110,15 @@ export async function POST(req: Request) {
         { userId: uid }
       );
 
+      // ✅ Notificación in-app (preview disponible)
+      try {
+        await sendEventPush(uid, "voice_preview", {
+          audioId,
+          voiceId,
+          simulated: true,
+        });
+      } catch {}
+
       return NextResponse.json({
         ok: true,
         audioId,
@@ -153,6 +162,11 @@ export async function POST(req: Request) {
         { error: err, voiceId },
         { userId: uid }
       );
+
+      // ❗ Notificación de error
+      try {
+        await sendEventPush(uid, "voice_error", { voiceId, error: err });
+      } catch {}
 
       return NextResponse.json(
         { error: "Error en ElevenLabs", details: err },
@@ -223,6 +237,15 @@ export async function POST(req: Request) {
       { userId: uid }
     );
 
+    // ✅ Notificación in-app (preview disponible)
+    try {
+      await sendEventPush(uid, "voice_preview", {
+        audioId,
+        voiceId,
+        url: audioUrl,
+      });
+    } catch {}
+
     return NextResponse.json({
       ok: true,
       audioId,
@@ -246,6 +269,13 @@ export async function POST(req: Request) {
       { error: e?.message || String(e) },
       uid ? { userId: uid } : undefined
     );
+
+    // ❗ Notificación de error
+    if (uid) {
+      try {
+        await sendEventPush(uid, "voice_error", { error: e?.message || String(e) });
+      } catch {}
+    }
 
     return NextResponse.json(
       { error: "Error interno", details: e?.message || String(e) },

@@ -6,16 +6,25 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import NotificationFloatingPanel from "@/components/shared/NotificationFloatingPanel";
 import ChatbotPanel from "@/components/shared/ChatbotPanel";
+import { usePushInbox } from "@/lib/pushInbox";
 
 export default function CreateReelGlobalButton() {
   const [openNotif, setOpenNotif] = useState(false);
   const [openChat, setOpenChat] = useState(false);
   const router = useRouter();
+  const { unread } = usePushInbox();
 
   return (
     <>
+      {/* overlay para cerrar al clickar fuera */}
+      {openNotif && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setOpenNotif(false)}
+        />
+      )}
+
       <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
-        {/* Botón Crear reel */}
         <Button
           id="btn-create-reel"
           onClick={() => router.push("/dashboard/create")}
@@ -26,19 +35,19 @@ export default function CreateReelGlobalButton() {
           Crear reel
         </Button>
 
-        {/* Botón Notificaciones */}
         <button
           id="btn-notifications"
           onClick={() => setOpenNotif((v) => !v)}
           className="relative bg-neutral-900 text-white rounded-full p-3 shadow hover:bg-neutral-800 transition"
         >
           <Bell className="w-5 h-5" />
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full px-1.5">
-            3
-          </span>
+          {unread > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full px-1.5">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
         </button>
 
-        {/* Botón Chatbot */}
         <button
           id="btn-chatbot"
           onClick={() => setOpenChat((v) => !v)}
