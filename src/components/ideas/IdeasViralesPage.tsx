@@ -74,8 +74,8 @@ export default function IdeasViralesPage() {
     setLoading(false);
   };
 
-  // Filtrar
-  const filteredVideos = videos.filter(
+  // Filtrar (parche: asegura array para evitar crash cuando la API falle)
+  const filteredVideos = (Array.isArray(videos) ? videos : []).filter(
     (video) =>
       video.title.toLowerCase().includes(query.toLowerCase()) ||
       video.description?.toLowerCase().includes(query.toLowerCase())
