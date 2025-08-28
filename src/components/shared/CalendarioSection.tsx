@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { getAuth } from "firebase/auth"
 
 type Evento = {
   id: string
@@ -47,24 +48,44 @@ export default function CalendarioSection({ uid, guiones, videos }: Props) {
   const [itemId, setItemId] = useState("")
   const [fecha, setFecha] = useState("")
 
+  
   const fetchEventos = useCallback(async () => {
-    if (!uid) return
-    const snap = await getDocs(collection(db, "users", uid, "calendario"))
-    const data = snap.docs.map((d) => {
-      const raw = d.data() as {
-        tipo: "guion" | "video"
-        titulo: string
-        fecha?: unknown
-      }
-      return {
-        id: d.id,
-        tipo: raw.tipo,
-        titulo: raw.titulo,
-        fecha: toDateISOOnly(raw.fecha),
-      }
-    })
-    setEventos(data)
-  }, [uid])
+    if (!uid) return;
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${uid}/calendario`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const docs = await res.json();
+
+      const data = docs.map(
+        (d: {
+          id: string;
+          tipo: "guion" | "video";
+          titulo: string;
+          fecha?: unknown;
+        }) => ({
+          id: d.id,
+          tipo: d.tipo,
+          titulo: d.titulo,
+          fecha: toDateISOOnly(d.fecha),
+        })
+      );
+
+      setEventos(data);
+    } catch (err) {
+      console.error("Error cargando eventos:", err);
+    }
+  }, [uid]);
 
   useEffect(() => {
     void fetchEventos()

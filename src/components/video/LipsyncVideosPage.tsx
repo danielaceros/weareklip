@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { LipsyncVideoList } from "./LipsyncVideoList";
@@ -43,66 +43,98 @@ export default function LipsyncVideosPage() {
   useEffect(() => {
     const fetchVideos = async () => {
       if (!user) return;
+      setLoading(true);
       try {
-        const videosRef = collection(db, "users", user.uid, "lipsync");
-        const snapshot = await getDocs(videosRef);
-        const data: VideoData[] = snapshot.docs.map((docSnap) => ({
-          projectId: docSnap.id,
-          ...(docSnap.data() as Omit<VideoData, "projectId">),
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/lipsync`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error("Error cargando lipsync");
+
+        const data = await res.json();
+
+        const mapped: VideoData[] = data.map((d: any) => ({
+          projectId: d.id,
+          ...(d as Omit<VideoData, "projectId">),
         }));
-        setVideos(data);
+
+        setVideos(mapped);
       } catch (error) {
         console.error("Error fetching lipsync videos:", error);
       } finally {
         setLoading(false);
       }
     };
+
     fetchVideos();
   }, [user]);
+
 
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
 
     try {
+      const token = await user.getIdToken();
+
       if (deleteAll) {
-        // Borrar todos
+        // 🟥 Borrar todos via API
         await Promise.all(
           videos.map(async (video) => {
-            await deleteDoc(doc(db, "users", user.uid, "lipsync", video.projectId));
-            if (video.downloadUrl && video.downloadUrl.includes("firebasestorage")) {
+            // 1) DELETE en Firestore (via API)
+            const res = await fetch(
+              `/api/firebase/users/${user.uid}/lipsync/${video.projectId}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+            if (!res.ok) throw new Error(`Error borrando doc ${video.projectId}`);
+
+            // 2) DELETE en Storage
+            if (video.downloadUrl?.includes("firebasestorage")) {
               try {
-                const storage = getStorage();
                 const path = decodeURIComponent(
-                  new URL(video.downloadUrl).pathname.split("/o/")[1].split("?")[0]
+                  new URL(video.downloadUrl).pathname.split("/o/")[1]?.split("?")[0] ?? ""
                 );
-                await deleteObject(ref(storage, path));
-              } catch {}
+                if (path) await deleteObject(ref(storage, path));
+              } catch (err) {
+                console.warn("⚠️ Error borrando archivo en Storage:", err);
+              }
             }
           })
         );
+
         setVideos([]);
-        toast.success("Todos los vídeos han sido eliminados");
+        toast.success("Todos los vídeos han sido eliminados ✅");
       } else if (videoToDelete) {
-        // Borrar uno
-        await deleteDoc(doc(db, "users", user.uid, "lipsync", videoToDelete.projectId));
-        if (
-          videoToDelete.downloadUrl &&
-          videoToDelete.downloadUrl.includes("firebasestorage")
-        ) {
+        // 🟧 Borrar uno
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/lipsync/${videoToDelete.projectId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (!res.ok) throw new Error(`Error borrando doc ${videoToDelete.projectId}`);
+
+        if (videoToDelete.downloadUrl?.includes("firebasestorage")) {
           try {
-            const storage = getStorage();
             const path = decodeURIComponent(
-              new URL(videoToDelete.downloadUrl).pathname.split("/o/")[1].split("?")[0]
+              new URL(videoToDelete.downloadUrl).pathname.split("/o/")[1]?.split("?")[0] ?? ""
             );
-            await deleteObject(ref(storage, path));
-          } catch {}
+            if (path) await deleteObject(ref(storage, path));
+          } catch (err) {
+            console.warn("⚠️ Error borrando archivo en Storage:", err);
+          }
         }
+
         setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
-        toast.success("Vídeo eliminado correctamente");
+        toast.success("Vídeo eliminado correctamente ✅");
       }
     } catch (err) {
-      console.error("Error eliminando vídeos:", err);
+      console.error("❌ Error eliminando vídeos:", err);
       toast.error("No se pudieron eliminar los vídeos");
     } finally {
       setDeleting(false);
@@ -110,6 +142,7 @@ export default function LipsyncVideosPage() {
       setDeleteAll(false);
     }
   }
+
 
   if (loading) return <p>Cargando vídeos...</p>;
 

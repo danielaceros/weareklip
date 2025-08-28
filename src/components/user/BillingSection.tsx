@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import {
   doc,
   onSnapshot,
@@ -78,7 +78,8 @@ type Task = {
   paidQty: number;
   quantity: number;
   unitCents: number;
-  createdAt: FireTimestamp | null;
+  createdAt: string | null;   // ✅ ahora es string
+  updatedAt?: string | null; // si también la devuelves
   jobId?: string;
 };
 
@@ -96,8 +97,11 @@ const fmtDate = (d: Date | null) =>
       })
     : "-";
 
-const tsToDate = (ts?: FireTimestamp | null) =>
-  ts?.seconds ? new Date(ts.seconds * 1000) : null;
+function tsToDate(ts?: string | null): Date | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 function statusBadge(status: string | null, cancelAtPeriodEnd?: boolean) {
   if (!status) return <Badge variant="secondary">Sin suscripción</Badge>;
@@ -145,8 +149,29 @@ export default function BillingSection() {
 
   useEffect(() => {
     if (!user) return;
-    const ref = doc(db, "users", user.uid).withConverter(userConverter);
-    return onSnapshot(ref, (snap) => setDocData(snap.data() ?? null));
+
+    let active = true;
+    const loadUser = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+        if (active) setDocData(data);
+      } catch (err) {
+        console.error("❌ Error cargando usuario:", err);
+        setDocData(null);
+      }
+    };
+
+    void loadUser();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   useEffect(() => {
@@ -173,30 +198,34 @@ export default function BillingSection() {
   // 🔥 Obtener tasks (detalle histórico)
   useEffect(() => {
     if (!user) return;
-    setLoadingTasks(true);
 
-    const q = query(
-      collection(db, "users", user.uid, "tasks"),
-      orderBy("createdAt", "desc"),
-      limit(200)
-    );
+    const fetchTasks = async () => {
+      setLoadingTasks(true);
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error("No autenticado");
+        const idToken = await currentUser.getIdToken();
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const rows: Task[] = [];
-        snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
-        setTasks(rows);
-        setLoadingTasks(false);
-      },
-      (err) => {
-        console.error("Tasks snapshot error:", err);
+        const res = await fetch(`/api/firebase/users/${user.uid}/tasks`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error("Error en servidor");
+
+        const data: Task[] = await res.json();
+        console.log(data)
+        setTasks(data);
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+      } finally {
         setLoadingTasks(false);
       }
-    );
+    };
 
-    return () => unsub();
+    void fetchTasks();
   }, [user]);
+
 
   // 🔥 Obtener summary de Stripe
   useEffect(() => {
@@ -249,24 +278,25 @@ export default function BillingSection() {
 
   // 🔥 Filtrar tareas en memoria
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      const d = tsToDate(t.createdAt);
-      if (!d) return false;
+  return tasks.filter((t) => {
+    const d = tsToDate(t.createdAt);
 
-      // filtro por rango
-      if (filterRange === "week") {
-        if (d < currentWeek.start || d > currentWeek.end) return false;
-      }
-      if (filterRange === "month") {
-        if (d.getMonth() !== new Date().getMonth()) return false;
-      }
+    if (!d) return false;
 
-      // filtro por tipo
-      if (filterKind !== "all" && t.kind !== filterKind) return false;
+    // 🔹 Filtro por rango
+    if (filterRange === "week") {
+      if (d < currentWeek.start || d > currentWeek.end) return false;
+    }
+    if (filterRange === "month") {
+      if (d.getMonth() !== new Date().getMonth()) return false;
+    }
 
-      return true;
-    });
-  }, [tasks, filterKind, filterRange, currentWeek]);
+    // 🔹 Filtro por tipo
+    if (filterKind !== "all" && t.kind !== filterKind) return false;
+
+    return true;
+  });
+}, [tasks, filterKind, filterRange, currentWeek]);
 
   return (
     <section className="space-y-6">

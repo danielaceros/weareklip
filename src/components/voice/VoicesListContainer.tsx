@@ -54,12 +54,21 @@ export default function VoicesListContainer({
 
   const fetchVoices = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
     try {
-      const ref = collection(db, "users", user.uid, "voices");
-      const snapshot = await getDocs(ref);
-      const rawVoices: VoiceData[] = snapshot.docs.map((doc) => ({
-        voiceId: doc.id,
-        ...(doc.data() as Omit<VoiceData, "voiceId">),
+      const idToken = await user.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${user.uid}/voices`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) throw new Error("Error fetching voices");
+
+      const data = await res.json();
+
+      const rawVoices: VoiceData[] = data.map((d: any) => ({
+        voiceId: d.id,
+        ...(d as Omit<VoiceData, "voiceId">),
       }));
 
       setVoices(rawVoices);
@@ -70,6 +79,7 @@ export default function VoicesListContainer({
     }
   }, [user]);
 
+
   useEffect(() => {
     fetchVoices();
   }, [fetchVoices]);
@@ -77,8 +87,27 @@ export default function VoicesListContainer({
   const handleDelete = async () => {
     if (!user || !deleteTarget) return;
     setDeleting(true);
+
     try {
-      await deleteDoc(doc(db, "users", user.uid, "voices", deleteTarget));
+      const idToken = await user.getIdToken();
+
+      // 🔹 Llamada a tu API CRUD
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/voices/${deleteTarget}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Error eliminando voz: ${errText}`);
+      }
+
+      // ✅ Actualizar estado local
       setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
       setDeleteTarget(null);
     } catch (err) {
@@ -87,6 +116,7 @@ export default function VoicesListContainer({
       setDeleting(false);
     }
   };
+
 
   const totalPages = Math.ceil(voices.length / perPage);
   const paginated = voices.slice((page - 1) * perPage, page * perPage);

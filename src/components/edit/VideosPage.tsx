@@ -60,54 +60,74 @@ export default function VideosPage() {
     const fetchVideos = async () => {
       if (!user) return;
       try {
-        const videosRef = collection(db, "users", user.uid, "videos");
-        const snapshot = await getDocs(videosRef);
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+
         setVideos(
-          snapshot.docs.map((docSnap) => ({
-            projectId: docSnap.id,
-            ...(docSnap.data() as Omit<VideoData, "projectId">),
-          }))
+          data.map(
+            (v: any) =>
+              ({
+                projectId: v.id,
+                ...v,
+              } as VideoData)
+          )
         );
       } catch (error) {
-        console.error(error);
+        console.error("Error cargando vídeos:", error);
         toast.error("Error cargando vídeos");
       } finally {
         setLoading(false);
       }
     };
+
     fetchVideos();
   }, [user]);
+
 
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
 
     try {
+      const idToken = await user.getIdToken();
+
       if (deleteAll) {
         // 🔴 Borrar todos
-        await Promise.all(
-          videos.map(async (video) => {
-            await deleteDoc(doc(db, "users", user.uid, "videos", video.projectId));
-            if (video.storagePath) {
-              try {
-                const storage = getStorage();
-                await deleteObject(ref(storage, video.storagePath));
-              } catch {}
-            }
-          })
-        );
+        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ all: true }), // el backend entiende "borrar todos"
+        });
+
+        if (!res.ok) throw new Error("Error eliminando todos los vídeos");
+
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
         // 🟠 Borrar uno
-        await deleteDoc(doc(db, "users", user.uid, "videos", videoToDelete.projectId));
-        if (videoToDelete.storagePath) {
-          try {
-            const storage = getStorage();
-            await deleteObject(ref(storage, videoToDelete.storagePath));
-          } catch {}
-        }
-        setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          }
+        );
+
+        if (!res.ok) throw new Error("Error eliminando vídeo");
+
+        setVideos((prev) =>
+          prev.filter((v) => v.projectId !== videoToDelete.projectId)
+        );
         toast.success("Vídeo eliminado correctamente");
       }
     } catch (err) {
@@ -119,6 +139,7 @@ export default function VideosPage() {
       setDeleteAll(false);
     }
   }
+
 
   if (loading) return <p>Cargando vídeos...</p>;
 

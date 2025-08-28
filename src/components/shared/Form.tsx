@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getAuth } from "firebase/auth"
 
 export function ScriptForm() {
   const [email, setEmail] = useState("")
@@ -25,35 +26,54 @@ export function ScriptForm() {
 
   const handleCreate = async () => {
     if (!email || !titulo || !contenido) {
-      toast.error("Completa todos los campos")
-      return
+      toast.error("Completa todos los campos");
+      return;
     }
 
     try {
-      setLoading(true)
-      const res = await fetch(`/api/get-uid-by-email?email=${email}`)
-      const { uid } = await res.json()
-      if (!uid) throw new Error("UID no encontrado")
+      setLoading(true);
 
-      await addDoc(collection(db, `users/${uid}/guiones`), {
-        titulo,
-        contenido,
-        estado: parseInt(estado),
-        createdAt: Timestamp.now(),
-      })
+      // 1️⃣ Obtener UID desde backend
+      const resUid = await fetch(`/api/get-uid-by-email?email=${email}`);
+      const { uid } = await resUid.json();
+      if (!uid) throw new Error("UID no encontrado");
 
-      toast.success("Guion creado correctamente")
-      setEmail("")
-      setTitulo("")
-      setContenido("")
-      setEstado("1")
+      // 2️⃣ Obtener token del usuario autenticado
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("No autenticado");
+      const idToken = await currentUser.getIdToken();
+
+      // 3️⃣ Crear guion vía backend
+      const res = await fetch(`/api/firebase/users/${uid}/scripts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`, // 🔑 seguridad
+        },
+        body: JSON.stringify({
+          titulo,
+          contenido,
+          estado: parseInt(estado),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error en el servidor");
+      await res.json();
+
+      toast.success("Guion creado correctamente");
+      setEmail("");
+      setTitulo("");
+      setContenido("");
+      setEstado("1");
     } catch (error) {
-      console.error(error)
-      toast.error("Error creando guion")
+      console.error(error);
+      toast.error("Error creando guion");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
 
   return (
     <div className="space-y-4 max-w-xl">

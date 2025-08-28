@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { auth, db, storage } from "@/lib/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   collection,
   doc,
@@ -61,13 +61,29 @@ export function useUserPanel() {
 
   // Cargar vídeos de clonación
   const fetchClonacionVideos = async (uid: string) => {
-    const snap = await getDocs(collection(db, `users/${uid}/clonacion`));
-        const vids = snap.docs.map((doc) => ({
-      id: doc.id, // 👈 aquí cogemos el ID de Firestore
-      ...doc.data(),
-    })) as ClonacionVideo[];
-    setClonacionVideos(vids);
-  };
+    try {
+      const auth = getAuth()
+      const currentUser = auth.currentUser
+      if (!currentUser) throw new Error("No autenticado")
+
+      const idToken = await currentUser.getIdToken()
+
+      const res = await fetch(`/api/firebase/users/${uid}/clones`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+
+      if (!res.ok) {
+        throw new Error("Error al cargar videos de clonación")
+      }
+
+      const vids: ClonacionVideo[] = await res.json()
+      setClonacionVideos(vids)
+    } catch (err) {
+      console.error("fetchClonacionVideos error:", err)
+      toast.error("Error cargando vídeos de clonación")
+    }
+  }
+
 
   // Subir vídeo
   const handleUpload = async (file: File) => {
@@ -77,56 +93,96 @@ export function useUserPanel() {
     }
 
     const id = crypto.randomUUID();
-    const storageRef = ref(storage, `users/${user.uid}/clonacion/${id}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    setUploading(true);
-    setProgress(0);
-
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const prog = Math.round(
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        );
-        setProgress(prog);
-      },
-      (error) => {
-        console.error(error);
-        toast.error(t("clonacion.uploadError"));
-        setUploading(false);
-      },
-      async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-
-        await setDoc(doc(db, `users/${user.uid}/clonacion/${id}`), {
-          id,
-          url,
-          createdAt: serverTimestamp(),
-        });
-
-        toast.success(t("clonacion.uploadSuccess"));
-        setUploading(false);
-        setProgress(0);
-        await fetchClonacionVideos(user.uid);
-      }
-    );
-  };
-
-  // Eliminar vídeo (sin confirm nativo, solo tu modal)
-  const handleDelete = async (videoId: string) => {
-    if (!user) return;
+    const storagePath = `users/${user.uid}/clonacion/${id}`;
 
     try {
-      await deleteDoc(doc(db, `users/${user.uid}/clonacion/${videoId}`));
-      await deleteObject(ref(storage, `users/${user.uid}/clonacion/${videoId}`));
+      setUploading(true);
+      setProgress(0);
+
+      // 1) Subir a Storage
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const prog = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
+            setProgress(prog);
+          },
+          reject,
+          resolve
+        );
+      });
+
+      // 2) Obtener URL
+      const url = await getDownloadURL(storageRef);
+
+      // 3) Persistir en tu API (CRUD)
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/firebase/users/${user.uid}/clonacion`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          url,
+          storagePath,
+          createdAt: Date.now(),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Error guardando clonación (${res.status})`);
+      }
+
+      toast.success(t("clonacion.uploadSuccess"));
+      setUploading(false);
+      setProgress(0);
+      await fetchClonacionVideos(user.uid);
+    } catch (err) {
+      console.error("❌ Upload error:", err);
+      toast.error(t("clonacion.uploadError"));
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (videoId: string, storagePath: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+
+      // 1) Eliminar doc via API
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/clonacion/${videoId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!res.ok) throw new Error(`Error borrando doc (${res.status})`);
+
+      // 2) Eliminar archivo de Storage
+      if (storagePath) {
+        try {
+          await deleteObject(ref(storage, storagePath));
+        } catch (storageErr) {
+          console.warn("⚠️ Error borrando en Storage:", storageErr);
+        }
+      }
+
       toast.success(t("clonacion.deleteSuccess"));
       await fetchClonacionVideos(user.uid);
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       toast.error(t("clonacion.deleteError"));
     }
   };
+
 
   return {
     t,

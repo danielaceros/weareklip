@@ -18,25 +18,32 @@ export default function LanguageSwitcher() {
     if (saving || next === current) return;
     setSaving(true);
     try {
-      // 1) cookie (la leerá tu RootLayout)
+      // 1) Actualizar cookie (la usará tu RootLayout)
       await fetch(`/api/i18n/set-locale?locale=${next}`, { method: "POST" });
 
-      // 2) persistir preferencia en Firestore: users/{uid}.settings.lang
+      // 2) Persistir preferencia en backend vía CRUD API
       const user = auth.currentUser;
       if (user) {
-        await setDoc(
-          doc(db, "users", user.uid),
-          { settings: { lang: next } },
-          { merge: true }
-        );
+        const idToken = await user.getIdToken();
+        await fetch(`/api/firebase/users/${user.uid}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            settings: { lang: next },
+          }),
+        });
       }
 
-      // 3) refrescar UI (para que NextIntl recargue strings)
+      // 3) Refrescar UI (para que NextIntl recargue strings)
       router.refresh();
     } finally {
       setSaving(false);
     }
   };
+
 
   return (
     <Select value={current} onValueChange={(v) => changeLocale(v as Locale)} disabled={saving}>

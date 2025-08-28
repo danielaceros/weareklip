@@ -16,10 +16,11 @@ import {
   uploadBytesResumable,
   deleteObject,
 } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import clsx from "clsx";
+import { getAuth } from "firebase/auth";
 
 interface ClonacionVideo {
   id: string;
@@ -46,29 +47,42 @@ export default function ClonacionVideos({ userId }: Props) {
   const dragDropRef = useRef<HTMLDivElement | null>(null);
 
   const loadClonacionVideos = useCallback(async () => {
-    setLoadingVideos(true);
+    if (!userId) return
+    setLoadingVideos(true)
     try {
-      const q = query(collection(db, "users", userId, "clonacion"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const videos: ClonacionVideo[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        videos.push({
-          id: doc.id,
-          titulo: data.titulo ?? "Sin título",
-          url: data.url,
-          storagePath: data.storagePath,
-        });
-      });
-      setClonacionVideos(videos);
-      setEditTitles(videos.reduce((acc, v) => ({ ...acc, [v.id]: v.titulo }), {}));
+      const auth = getAuth()
+      const currentUser = auth.currentUser
+      if (!currentUser) return
+
+      const idToken = await currentUser.getIdToken()
+
+      const res = await fetch(`/api/firebase/users/${userId}/clones`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      })
+
+      if (!res.ok) throw new Error(`Error ${res.status}`)
+
+      const docs: any[] = await res.json()
+      const videos: ClonacionVideo[] = docs.map((d) => ({
+        id: d.id,
+        titulo: d.titulo ?? "Sin título",
+        url: d.url,
+        storagePath: d.storagePath,
+      }))
+
+      setClonacionVideos(videos)
+      setEditTitles(videos.reduce((acc, v) => ({ ...acc, [v.id]: v.titulo }), {}))
     } catch (error) {
-      console.error("Error cargando videos clonacion:", error);
-      toast.error("Error cargando videos de clonación.");
+      console.error("Error cargando videos clonacion:", error)
+      toast.error("Error cargando videos de clonación.")
     } finally {
-      setLoadingVideos(false);
+      setLoadingVideos(false)
     }
-  }, [userId]);
+  }, [userId])
+
 
   useEffect(() => {
     if (userId) {
@@ -127,6 +141,7 @@ export default function ClonacionVideos({ userId }: Props) {
     const videoRef = storageRef(storage, videoPath);
 
     const uploadTask = uploadBytesResumable(videoRef, file);
+
     uploadTask.on(
       "state_changed",
       (snapshot) => {
@@ -141,17 +156,37 @@ export default function ClonacionVideos({ userId }: Props) {
       async () => {
         try {
           const url = await getDownloadURL(uploadTask.snapshot.ref);
-          const docRef = await addDoc(collection(db, "users", userId, "clonacion"), {
-            titulo: title,
-            url,
-            storagePath: videoPath,
-            createdAt: Date.now(),
+
+          // 🔹 ahora guardamos en nuestro endpoint seguro
+          const auth = getAuth();
+          const currentUser = auth.currentUser;
+          if (!currentUser) throw new Error("No user logged in");
+
+          const idToken = await currentUser.getIdToken();
+
+          const res = await fetch(`/api/firebase/users/${userId}/clones`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              titulo: title,
+              url,
+              storagePath: videoPath,
+            }),
           });
+
+          if (!res.ok) throw new Error(`Error creando metadata: ${res.status}`);
+          const saved = await res.json();
+
+          // 🔹 actualizamos el estado local con la respuesta del backend
           setClonacionVideos((prev) => [
-            { id: docRef.id, titulo: title, url, storagePath: videoPath },
+            { id: saved.id, titulo: title, url, storagePath: videoPath },
             ...prev,
           ]);
-          setEditTitles((prev) => ({ ...prev, [docRef.id]: title }));
+          setEditTitles((prev) => ({ ...prev, [saved.id]: title }));
+
           toast.success("Vídeo subido correctamente.");
         } catch (e) {
           console.error(e);
@@ -162,6 +197,7 @@ export default function ClonacionVideos({ userId }: Props) {
       }
     );
   };
+
 
   const confirmDeleteVideo = (video: ClonacionVideo) => {
     setVideoToDelete(video);
@@ -179,19 +215,41 @@ export default function ClonacionVideos({ userId }: Props) {
     }
 
     try {
-      await deleteDoc(doc(db, "users", userId, "clonacion", videoToDelete.id));
-      const videoRef = storageRef(storage, videoToDelete.storagePath);
-      await deleteObject(videoRef);
-      setClonacionVideos((prev) => prev.filter((v) => v.id !== videoToDelete.id));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `/api/firebase/users/${userId}/clonacion/${videoToDelete.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      // Actualizar estado local
+      setClonacionVideos((prev) =>
+        prev.filter((v) => v.id !== videoToDelete.id)
+      );
       toast.success("Vídeo eliminado correctamente.");
-      if (selectedVideo?.id === videoToDelete.id) setSelectedVideo(null);
+
+      if (selectedVideo?.id === videoToDelete.id) {
+        setSelectedVideo(null);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("❌ Error eliminando vídeo:", e);
       toast.error("Error eliminando vídeo.");
     } finally {
       setVideoToDelete(null);
     }
   };
+
 
   return (
     <>

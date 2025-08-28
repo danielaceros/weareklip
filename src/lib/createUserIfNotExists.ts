@@ -1,24 +1,31 @@
-import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import type { User } from "firebase/auth";
 
-export const createUserIfNotExists = async (user: {
-  uid: string;
-  email: string | null;
-  name?: string | null;
-}) => {
-  if (!user.email) return;
+export const createUserIfNotExists = async (user: User) => {
+  if (!user?.uid || !user?.email) return;
 
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
-
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      uid: user.uid,
-      email: user.email,
-      name: user.name || "",
-      role: "client",
-      createdAt: serverTimestamp(),
+  try {
+    const idToken = await user.getIdToken(); // ✅ ahora sí existe
+    const res = await fetch(`/api/firebase/users/${user.uid}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email.toLowerCase().trim(),
+        name: user.displayName?.trim() || "",
+      }),
     });
-    console.log("Nuevo usuario creado en Firestore ✅");
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Error creando usuario (${res.status}): ${errorText}`);
+    }
+
+    console.log("✅ Usuario creado/actualizado vía API CRUD:", user.email);
+  } catch (err) {
+    console.error("❌ Error en createUserIfNotExists (API CRUD):", err);
+    throw err;
   }
 };

@@ -17,7 +17,7 @@ import {
   deleteObject,
 } from "firebase/storage";
 import { useDropzone, type FileRejection } from "react-dropzone";
-import { db, storage } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
+import { getAuth } from "firebase/auth";
 
 interface Props {
   uid: string;
@@ -46,23 +47,39 @@ export default function ClonacionVideosSection({ uid }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete | null>(null);
 
   const fetchVideos = useCallback(async () => {
+    if (!uid) return;
     try {
-      const snap = await getDocs(collection(db, "users", uid, "clonacion"));
-      const data = snap.docs.map((d) => {
-        const docData = d.data();
-        return {
-          firebaseId: d.id,
-          titulo: docData.titulo ?? t("upload.none"),
-          url: docData.url,
-          estado: typeof docData.estado === "number" ? docData.estado : 0,
-          notas: docData.notas ?? "",
-        } as Video;
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("Usuario no autenticado");
+
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${uid}/clones`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
       });
+
+      if (!res.ok) throw new Error(`Error ${res.status} al cargar vídeos`);
+
+      const docs = await res.json();
+
+      const data: Video[] = docs.map((d: any) => ({
+        firebaseId: d.id,
+        titulo: d.titulo ?? t("upload.none"),
+        url: d.url,
+        estado: typeof d.estado === "number" ? d.estado : 0,
+        notas: d.notas ?? "",
+      }));
+
       setVideos(data);
     } catch (error) {
+      console.error("Error cargando vídeos de clonación:", error);
       handleError(error, t("upload.loadingError"));
     }
   }, [uid, t]);
+
 
   const onDrop = useCallback(
     async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
@@ -80,10 +97,21 @@ export default function ClonacionVideosSection({ uid }: Props) {
         });
       });
 
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setUploading(false);
+        toast.error("Debes iniciar sesión");
+        return;
+      }
+      const idToken = await currentUser.getIdToken();
+
       for (const file of acceptedFiles) {
         const storageRef = ref(storage, `users/${uid}/clonacion/${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
-        const loadingToast = showLoading(t("upload.uploadingFile", { name: file.name }));
+        const loadingToast = showLoading(
+          t("upload.uploadingFile", { name: file.name })
+        );
 
         uploadTask.on(
           "state_changed",
@@ -105,20 +133,35 @@ export default function ClonacionVideosSection({ uid }: Props) {
           async () => {
             try {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
-              const docRef = await addDoc(
-                collection(db, "users", uid, "clonacion"),
-                {
+
+              // 👉 Guardamos el doc en Firestore vía backend
+              const res = await fetch(`/api/firebase/users/${uid}/clones`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
                   titulo: file.name,
                   url,
                   estado: 0,
                   notas: "",
                   creadoEn: new Date(),
-                }
-              );
+                }),
+              });
+
+              if (!res.ok) throw new Error("Error guardando clonación");
+              const newDoc = await res.json();
 
               setVideos((prev) => [
                 ...prev,
-                { firebaseId: docRef.id, titulo: file.name, url, estado: 0, notas: "" },
+                {
+                  firebaseId: newDoc.id,
+                  titulo: file.name,
+                  url,
+                  estado: 0,
+                  notas: "",
+                },
               ]);
 
               toast.dismiss(loadingToast);
@@ -142,6 +185,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
     [uid, t]
   );
 
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "video/*": [".mp4", ".mov", ".avi", ".mkv"] },
     maxSize: 100 * 1024 * 1024,
@@ -150,19 +194,33 @@ export default function ClonacionVideosSection({ uid }: Props) {
   });
 
   const handleConfirmDelete = async () => {
-    if (!confirmDelete) return;
-    const { id, url } = confirmDelete;
+    if (!confirmDelete || !uid) return;
+    const { id } = confirmDelete;
     setDeletingIds((prev) => [...prev, id]);
     const loadingToast = showLoading(t("delete.deleting"));
 
     try {
-      const path = decodeURIComponent(new URL(url).pathname.split("/o/")[1].split("?")[0]);
-      await deleteObject(ref(storage, path));
-      await deleteDoc(doc(db, "users", uid, "clonacion", id));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      // 🔹 Llamar al endpoint DELETE de tu CRUD
+      const res = await fetch(`/api/firebase/users/${uid}/clonacion/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      // 🔹 Actualizar estado local
       setVideos((prev) => prev.filter((v) => v.firebaseId !== id));
+
       toast.dismiss(loadingToast);
       showSuccess(t("delete.success"));
     } catch (error) {
+      console.error("❌ Error al eliminar clonación:", error);
       toast.dismiss(loadingToast);
       handleError(error, t("delete.error"));
     } finally {
@@ -170,6 +228,8 @@ export default function ClonacionVideosSection({ uid }: Props) {
       setConfirmDelete(null);
     }
   };
+
+
 
   useEffect(() => {
     fetchVideos();

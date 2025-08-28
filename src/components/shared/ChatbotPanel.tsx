@@ -11,6 +11,7 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ interface ChatbotPanelProps {
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  createdAt?: Timestamp;
 };
 
 export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
@@ -42,21 +44,46 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     if (!user) return;
 
     const sessionId = "default";
-    const messagesRef = collection(
-      db,
-      `users/${user.uid}/chatSessions/${sessionId}/messages`
-    );
 
-    const q = query(messagesRef, orderBy("createdAt", "asc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const loaded: ChatMessage[] = snap.docs.map(
-        (doc) => doc.data() as ChatMessage
-      );
-      setMessages(loaded);
-    });
+    const fetchMessages = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(
+          `/api/users/${user.uid}/chatSessions/${sessionId}/messages`,
+          {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
+        );
 
-    return () => unsub();
+        if (!res.ok) throw new Error("Error al cargar mensajes");
+
+        const data: ChatMessage[] = await res.json();
+        // 🔄 Ordenamos por fecha (si no lo hace tu API)
+        data.sort((a, b) => {
+          const tA = a.createdAt instanceof Date 
+            ? a.createdAt.getTime() 
+            : (a.createdAt as any)?.toMillis?.() ?? 0;
+          const tB = b.createdAt instanceof Date 
+            ? b.createdAt.getTime() 
+            : (b.createdAt as any)?.toMillis?.() ?? 0;
+          return tA - tB;
+        });
+
+        setMessages(data);
+      } catch (err) {
+        console.error("❌ Error cargando mensajes:", err);
+      }
+    };
+
+    // 1. Cargar mensajes al montar
+    fetchMessages();
+
+    // 2. Polling cada 5s para simular el onSnapshot
+    const interval = setInterval(fetchMessages, 5000);
+
+    return () => clearInterval(interval);
   }, []);
+
 
   const sendMessage = async () => {
     if (!input.trim()) return;

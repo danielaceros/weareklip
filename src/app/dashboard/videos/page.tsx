@@ -74,21 +74,34 @@ export default function VideosPage() {
     async (uid: string) => {
       setLoading(true);
       try {
-        const ref = collection(db, "users", uid, "videos");
-        const snapshot = await getDocs(ref);
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("Not authenticated");
 
-        if (snapshot.empty) {
+        const res = await fetch(`/api/firebase/users/${uid}/videos`, {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error ${res.status}`);
+        }
+
+        const docs: any[] = await res.json();
+
+        if (!docs.length) {
           toast(t("toast.noVideosYet"));
         }
 
-        const data: Video[] = snapshot.docs.map((d) => {
-          const v = d.data() as Record<string, unknown>;
+        const data: Video[] = docs.map((d) => {
+          const v = d as Record<string, unknown>;
           const estadoNum =
             typeof v.estado === "number"
               ? (v.estado as number)
               : parseInt((v.estado as string) ?? "0", 10) || 0;
 
-        return {
+          return {
             firebaseId: d.id,
             titulo: (v.titulo as string) ?? t("untitled"),
             url: (v.url as string) ?? "",
@@ -150,26 +163,41 @@ export default function VideosPage() {
 
     const loadingToast = showLoading(t("loading.saving"));
     try {
-      const ref = doc(db, "users", userId, "videos", selected.firebaseId);
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
       const nuevoEstado = parseInt(estadoEditado);
 
-      await updateDoc(ref, {
-        estado: nuevoEstado,
-        titulo: tituloEditado.trim(),
-        notas: estadoEditado === "1" ? notasEditadas.trim() : "",
-      });
+      // 🔹 Llamada a la API (PUT)
+      const res = await fetch(
+        `/api/firebase/users/${userId}/videos/${selected.firebaseId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            estado: nuevoEstado,
+            titulo: tituloEditado.trim(),
+            notas: estadoEditado === "1" ? notasEditadas.trim() : "",
+          }),
+        }
+      );
 
-      const updatedVideo: Video = {
-        ...selected,
-        estado: nuevoEstado,
-        titulo: tituloEditado.trim(),
-        notas: estadoEditado === "1" ? notasEditadas.trim() : "",
-      };
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
 
+      const updatedVideo = (await res.json()) as Video;
+
+      // 🔹 Actualizar estado local
       setVideos((prev) =>
         prev.map((v) => (v.firebaseId === selected.firebaseId ? updatedVideo : v))
       );
 
+      // 🔹 Log si cambia estado
       const estadoCambio = estadoOriginal !== estadoEditado;
       if (estadoCambio && auth.currentUser) {
         try {
@@ -189,11 +217,12 @@ export default function VideosPage() {
           }
 
           if (action && message) {
-            await logAction({
+            await logAction(auth.currentUser, {
               type: "video",
               action,
               uid: auth.currentUser.uid,
-              admin: auth.currentUser.email || auth.currentUser.displayName || "Cliente",
+              admin:
+                auth.currentUser.email || auth.currentUser.displayName || "Cliente",
               targetId: selected.firebaseId,
               message,
             });
@@ -250,6 +279,7 @@ export default function VideosPage() {
     }
   };
 
+
   const handleDeleteConfirmado = async () => {
     if (!userId || !userEmail || !videoToDelete) return;
 
@@ -257,15 +287,36 @@ export default function VideosPage() {
     const loadingToast = showLoading(t("loading.deleting"));
 
     try {
-      await deleteDoc(doc(db, "users", userId, "videos", videoToDelete.firebaseId));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
 
-      setVideos((prev) => prev.filter((v) => v.firebaseId !== videoToDelete.firebaseId));
+      // 🔹 Llamada DELETE a la API
+      const res = await fetch(
+        `/api/firebase/users/${userId}/videos/${videoToDelete.firebaseId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      // 🔹 Actualizar lista local
+      setVideos((prev) =>
+        prev.filter((v) => v.firebaseId !== videoToDelete.firebaseId)
+      );
 
       setOpen(false);
       setSelected(null);
 
       showSuccess(t("toast.deleted"));
 
+      // 🔹 Notificación
       await sendNotificationEmail(
         `🗑️ Video eliminado por ${userEmail}`,
         `El cliente ha eliminado el video titulado: "${videoToDelete.titulo}".`
@@ -279,6 +330,7 @@ export default function VideosPage() {
       setVideoToDelete(null);
     }
   };
+
 
   const handleDownload = async () => {
     if (!selected) return;

@@ -37,22 +37,28 @@ export default function AudiosContainer() {
 
   const fetchAudios = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
+
     try {
-      const audiosRef = collection(db, "users", user.uid, "audios");
-      const snapshot = await getDocs(audiosRef);
-      const data: AudioData[] = snapshot.docs.map((docSnap) => {
-        const docData = docSnap.data() as Partial<AudioData> & { audioUrl?: string };
-        return {
-          audioId: docSnap.id,
-          url: docData.audioUrl ?? "",
-          name: docData.name ?? "",
-          description: docData.description ?? "",
-          createdAt: docData.createdAt,
-          duration: docData.duration,
-          language: docData.language,
-        };
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/firebase/users/${user.uid}/audios`, {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
-      setAudios(data);
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const mapped: AudioData[] = data.map((d: any) => ({
+        audioId: d.id,
+        url: d.audioUrl ?? "",
+        name: d.name ?? "",
+        description: d.description ?? "",
+        createdAt: d.createdAt,
+        duration: d.duration,
+        language: d.language,
+      }));
+
+      setAudios(mapped);
     } catch (error) {
       console.error("Error fetching audios:", error);
       toast.error("Error cargando audios");
@@ -61,6 +67,7 @@ export default function AudiosContainer() {
     }
   }, [user]);
 
+
   useEffect(() => {
     fetchAudios();
   }, [fetchAudios]);
@@ -68,39 +75,50 @@ export default function AudiosContainer() {
   const handleConfirmDelete = async () => {
     if (!user) return;
     setDeleting(true);
+
     try {
+      const idToken = await user.getIdToken();
+
       if (deleteAll) {
         // borrar todos
         await Promise.all(
           audios.map(async (audio) => {
-            await deleteDoc(doc(db, "users", user.uid, "audios", audio.audioId));
-            if (audio.url && audio.url.includes("firebasestorage")) {
-              try {
-                const storage = getStorage();
-                const path = decodeURIComponent(
-                  new URL(audio.url).pathname.split("/o/")[1].split("?")[0]
-                );
-                await deleteObject(ref(storage, path));
-              } catch {}
+            const res = await fetch(
+              `/api/firebase/users/${user.uid}/audios/${audio.audioId}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${idToken}` },
+              }
+            );
+
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || `Error ${res.status}`);
             }
           })
         );
+
         setAudios([]);
-        toast.success("Todos los audios eliminados");
+        toast.success("Todos los audios eliminados ✅");
       } else if (audioToDelete) {
         // borrar uno
-        await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
-        if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
-          try {
-            const storage = getStorage();
-            const path = decodeURIComponent(
-              new URL(audioToDelete.url).pathname.split("/o/")[1].split("?")[0]
-            );
-            await deleteObject(ref(storage, path));
-          } catch {}
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
+        );
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error ${res.status}`);
         }
-        setAudios((prev) => prev.filter((a) => a.audioId !== audioToDelete.audioId));
-        toast.success("Audio eliminado");
+
+        setAudios((prev) =>
+          prev.filter((a) => a.audioId !== audioToDelete.audioId)
+        );
+        toast.success("Audio eliminado ✅");
       }
     } catch (err) {
       console.error("Error eliminando audio:", err);
@@ -111,6 +129,7 @@ export default function AudiosContainer() {
       setDeleteAll(false);
     }
   };
+
 
   if (loading) return <p>Cargando audios...</p>;
 

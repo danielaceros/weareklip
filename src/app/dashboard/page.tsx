@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -15,14 +14,11 @@ import { es as dfnsEs, enUS as dfnsEn, fr as dfnsFr } from "date-fns/locale";
 import {
   collection,
   getDocs,
-  query,
-  orderBy,
-  limit,
   type Timestamp,
   type CollectionReference,
 } from "firebase/firestore";
 import { useT } from "@/lib/i18n";
-import { useLocale } from "next-intl";
+import { Locale, useLocale } from "next-intl";
 import TablePreview from "@/components/shared/TablePreview";
 
 // -------- Types --------
@@ -44,6 +40,28 @@ type Evento = {
   estado: Estado;
   refId: string;
 };
+
+type GuionDoc = {
+  titulo?: string;
+  contenido?: string;
+  estado?: number;
+  creadoEn?: string;
+  lang?: Locale;
+  notas?: string;
+};
+
+// Guion con id para la UI / API
+type Guion = GuionDoc & { id: string };
+
+type VideoDoc = {
+  titulo?: string;
+  url?: string;
+  estado?: number | string;
+  creadoEn?: string;
+};
+
+// Video con id
+type Video = VideoDoc & { id: string };
 
 type UltimoGuion = {
   id: string;
@@ -83,20 +101,6 @@ type CalendarioDoc = {
   refId: string;
 };
 
-type GuionDoc = {
-  titulo?: string;
-  contenido?: string;
-  estado?: number;
-  creadoEn?: string;
-};
-
-type VideoDoc = {
-  titulo?: string;
-  url?: string;
-  estado?: number | string;
-  creadoEn?: string;
-};
-
 // -------- Utils --------
 function formatDateToISO(date: Date) {
   const y = date.getFullYear();
@@ -115,7 +119,7 @@ export default function DashboardPage() {
   const displayLocale =
     locale === "fr" ? "fr-FR" : locale === "es" ? "es-ES" : "en-US";
   const langLabel = (locale || "es").toUpperCase();
-  const searchParams = useSearchParams(); 
+  const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Date | undefined>();
@@ -163,30 +167,28 @@ export default function DashboardPage() {
   const fetchUltimoGuion = useCallback(
     async (uid: string) => {
       try {
-        const colRef = collection(
-          db,
-          "users",
-          uid,
-          "guiones"
-        ) as CollectionReference<GuionDoc>;
-        const qy = query(colRef, orderBy("creadoEn", "desc"), limit(1));
-        const snap = await getDocs(qy);
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
 
-        const useDoc = !snap.empty
-          ? snap.docs[0]
-          : (await getDocs(colRef)).docs[0];
+        const res = await fetch(`/api/users/${uid}/guiones?limit=1&order=desc`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error("Error al cargar guiones");
+        const docs: Guion[] = await res.json(); // ✅ incluye id
+
+        const useDoc = docs[0];
         if (useDoc) {
-          const data = useDoc.data();
           setUltimoGuion({
             id: useDoc.id,
-            titulo: data.titulo ?? t("scripts.untitled"),
-            contenido: data.contenido ?? "",
-            estado: data.estado ?? 0,
-            createdAt: data.creadoEn,
+            titulo: useDoc.titulo ?? t("scripts.untitled"),
+            contenido: useDoc.contenido ?? "",
+            estado: useDoc.estado ?? 0,
+            createdAt: useDoc.creadoEn,
           });
         }
       } catch (e) {
-        console.error("Error cargando último guión:", e);
+        console.error("Error cargando último guion:", e);
       }
     },
     [t]
@@ -195,26 +197,24 @@ export default function DashboardPage() {
   const fetchUltimoVideo = useCallback(
     async (uid: string) => {
       try {
-        const colRef = collection(
-          db,
-          "users",
-          uid,
-          "videos"
-        ) as CollectionReference<VideoDoc>;
-        const qy = query(colRef, orderBy("creadoEn", "desc"), limit(1));
-        const snap = await getDocs(qy);
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
 
-        const useDoc = !snap.empty
-          ? snap.docs[0]
-          : (await getDocs(colRef)).docs[0];
+        const res = await fetch(`/api/users/${uid}/videos?limit=1&order=desc`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error("Error al cargar videos");
+        const docs: Video[] = await res.json(); // ✅ incluye id
+
+        const useDoc = docs[0];
         if (useDoc) {
-          const data = useDoc.data();
           setUltimoVideo({
             id: useDoc.id,
-            titulo: data.titulo ?? t("videos.untitled"),
-            url: data.url ?? "",
-            estado: Number(data.estado ?? 0),
-            createdAt: data.creadoEn,
+            titulo: useDoc.titulo ?? t("videos.untitled"),
+            url: useDoc.url ?? "",
+            estado: Number(useDoc.estado ?? 0),
+            createdAt: useDoc.creadoEn,
           });
         }
       } catch (e) {
@@ -226,37 +226,35 @@ export default function DashboardPage() {
 
   const fetchStats = useCallback(async (uid: string) => {
     try {
-      const guionesCol = collection(
-        db,
-        "users",
-        uid,
-        "guiones"
-      ) as CollectionReference<GuionDoc>;
-      const guionesSnap = await getDocs(guionesCol);
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+
+      const resGuiones = await fetch(`/api/users/${uid}/guiones`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!resGuiones.ok) throw new Error("Error al cargar guiones");
+      const guiones: Guion[] = await resGuiones.json();
 
       let nuevos = 0,
         cambios = 0,
         aprobados = 0;
-      guionesSnap.docs.forEach((docSnap) => {
-        const estado = docSnap.data().estado ?? 0;
+      guiones.forEach((g) => {
+        const estado = g.estado ?? 0;
         if (estado === 0) nuevos++;
         else if (estado === 1) cambios++;
         else if (estado === 2) aprobados++;
       });
 
-      const videosCol = collection(
-        db,
-        "users",
-        uid,
-        "videos"
-      ) as CollectionReference<VideoDoc>;
-      const videosSnap = await getDocs(videosCol);
-      const totalVideos = videosSnap.size;
+      const resVideos = await fetch(`/api/users/${uid}/videos`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!resVideos.ok) throw new Error("Error al cargar videos");
+      const videos: Video[] = await resVideos.json();
 
       setStats((prev) => ({
         ...prev,
         guiones: { nuevos, cambios, aprobados },
-        videos: totalVideos,
+        videos: videos.length,
       }));
     } catch (e) {
       console.error("Error cargando estadísticas:", e);
@@ -322,18 +320,11 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [
-      fetchEventos,
-      fetchUltimoGuion,
-      fetchUltimoVideo,
-      fetchStats,
-      t,
-      displayLocale,
-    ]
+    [fetchEventos, fetchUltimoGuion, fetchUltimoVideo, fetchStats, t, displayLocale]
   );
 
   // --- Auth listener ---
-    useEffect(() => {
+  useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
         toast.error(t("dashboard.authError.title"), {
@@ -344,7 +335,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // ✅ chequea el session_id después de login
       const sessionId = searchParams.get("session_id");
       if (sessionId) {
         toast.success("🎉 Prueba iniciada con éxito", {
@@ -357,7 +347,6 @@ export default function DashboardPage() {
     });
     return () => unsub();
   }, [router, fetchData, t, searchParams]);
-
 
   // -------- Calendar Aggregation --------
   type DiaInfo = { estado: Estado | null; cantidad: number };
@@ -614,6 +603,8 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
+
+          {/* Plantillas */}
           <Card className="p-3 lg:p-4 col-span-1 lg:col-span-3">
             <h2 className="font-semibold text-base lg:text-lg mb-3">
               🎨 Plantillas disponibles

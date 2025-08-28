@@ -37,15 +37,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 type Guion = {
-  firebaseId: string;
+  firebaseId: string;   // 👈 siempre esta
   titulo: string;
   contenido: string;
-  estado: number; // 0 nuevo, 1 cambios, 2 aprobado
+  estado: number;
   notas?: string;
-  creadoEn?: string; // ISO string o lo que tengáis guardado
-  lang?: Locale; // 'es' | 'en' | 'fr'
+  creadoEn?: string;
+  lang?: Locale;
 };
 
 // Firestore document shape (para tipar el getDocs)
@@ -79,34 +80,27 @@ export default function ScriptsPage() {
   const loadScripts = useCallback(
     async (uid: string) => {
       try {
-        const colRef = collection(
-          db,
-          "users",
-          uid,
-          "guiones"
-        ) as CollectionReference<GuionDoc>;
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("No autenticado");
 
-        // Intentamos ordenar por creadoEn si existe
-        let docsSnap = await getDocs(
-          query(colRef, orderBy("creadoEn", "desc"))
-        );
-        if (docsSnap.empty) {
-          // Fallback sin orderBy
-          docsSnap = await getDocs(colRef);
-        }
-
-        const list: Guion[] = docsSnap.docs.map((d) => {
-          const data = d.data();
-          return {
-            firebaseId: d.id,
-            titulo: data.titulo ?? t("scripts.untitled"),
-            contenido: data.contenido ?? "",
-            estado: data.estado ?? 0,
-            creadoEn: data.creadoEn,
-            notas: data.notas,
-            lang: data.lang,
-          };
+        // 🚀 Pedimos a tu API CRUD
+        const res = await fetch(`/api/users/${uid}/guiones?order=desc`, {
+          headers: { Authorization: `Bearer ${idToken}` },
         });
+
+        if (!res.ok) throw new Error("Error al cargar guiones");
+
+        const docs: Guion[] = await res.json();
+
+        const list: Guion[] = docs.map((d: any) => ({
+          firebaseId: d.id, // 👈 mapeamos `id` → `firebaseId`
+          titulo: d.titulo ?? t("scripts.untitled"),
+          contenido: d.contenido ?? "",
+          estado: d.estado ?? 0,
+          creadoEn: d.creadoEn,
+          notas: d.notas,
+          lang: d.lang,
+        }));
 
         setScripts(list);
       } catch (err) {
@@ -117,6 +111,7 @@ export default function ScriptsPage() {
     },
     [t]
   );
+
 
   // Auth + carga
   useEffect(() => {
@@ -158,33 +153,51 @@ export default function ScriptsPage() {
   const handleSave = async (updated: Guion) => {
     if (!user) return;
 
-    showLoading(t("scriptsPage.update.loading"));
+    const loadingToast = showLoading(t("scriptsPage.update.loading"));
     try {
-      const ref = doc(db, "users", user.uid, "guiones", updated.firebaseId);
-      await updateDoc(ref, {
-        titulo: updated.titulo,
-        contenido: updated.contenido,
-        estado: updated.estado,
-        notas: updated.notas ?? "",
-        // Persistimos el idioma del guion
-        lang: updated.lang ?? currentLang,
-      });
+      const idToken = await user.getIdToken(); // 🔐 auth para la API
 
-      // Actualizamos la lista local
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/scripts/${updated.firebaseId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            titulo: updated.titulo,
+            contenido: updated.contenido,
+            estado: updated.estado,
+            notas: updated.notas ?? "",
+            lang: updated.lang ?? currentLang,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      const saved = (await res.json()) as Guion;
+
+      // 🔹 Actualizamos lista local con respuesta de la API
       setScripts((prev) =>
         prev.map((g) =>
-          g.firebaseId === updated.firebaseId ? { ...g, ...updated } : g
+          g.firebaseId === updated.firebaseId ? { ...g, ...saved } : g
         )
       );
 
       showSuccess(t("scriptsPage.update.success"));
     } catch (err) {
+      console.error("❌ Error actualizando guion:", err);
       handleError(err, t("scriptsPage.errors.save"));
-      throw err;
     } finally {
-      // el helper showLoading ya gestiona su ciclo de vida
+      toast.dismiss(loadingToast);
     }
   };
+
 
   // === Duplicar guion en otro idioma ===
   const openDuplicateDialog = (g: Guion) => {

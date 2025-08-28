@@ -75,20 +75,44 @@ export default function ScriptsContainer() {
 
   const fetchScripts = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
     try {
-      const scriptsRef = collection(db, "users", user.uid, "guiones");
-      const snapshot = await getDocs(scriptsRef);
-      const data: ScriptData[] = snapshot.docs.map((docSnap) => ({
-        scriptId: docSnap.id,
-        ...(docSnap.data() as Omit<ScriptData, "scriptId">),
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data: any[] = await res.json();
+
+      const mapped: ScriptData[] = data.map((doc) => ({
+        scriptId: doc.id, // renombramos el id de Firestore
+        description: doc.description,
+        platform: doc.platform,
+        language: doc.language,
+        script: doc.script,
+        createdAt: doc.createdAt,
+        fuente: doc.fuente,
+        isAI: doc.isAI,
+        videoTitle: doc.videoTitle,
+        videoDescription: doc.videoDescription,
+        videoChannel: doc.videoChannel,
+        videoPublishedAt: doc.videoPublishedAt,
+        videoViews: doc.videoViews,
+        videoThumbnail: doc.videoThumbnail,
       }));
-      setScripts(data);
+
+      setScripts(mapped);
     } catch (error) {
       console.error("Error fetching scripts:", error);
     } finally {
       setLoading(false);
     }
   }, [user]);
+
+
 
   useEffect(() => {
     fetchScripts();
@@ -97,24 +121,56 @@ export default function ScriptsContainer() {
   const handleConfirmDelete = async () => {
     if (!user) return;
     setDeleting(true);
+
     try {
+      const idToken = await user.getIdToken();
+
       if (deleteAll) {
+        // 🔴 Borrar todos los guiones
         await Promise.all(
-          scripts.map((script) =>
-            deleteDoc(doc(db, "users", user.uid, "guiones", script.scriptId))
-          )
+          scripts.map(async (script) => {
+            const res = await fetch(
+              `/api/firebase/users/${user.uid}/scripts/${script.scriptId}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${idToken}`,
+                },
+              }
+            );
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || `Error ${res.status}`);
+            }
+          })
         );
+
         setScripts([]);
-        toast.success("Todos los guiones han sido eliminados");
+        toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
-        await deleteDoc(doc(db, "users", user.uid, "guiones", scriptToDelete.scriptId));
+        // 🟠 Borrar un solo guion
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          }
+        );
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error ${res.status}`);
+        }
+
         setScripts((prev) =>
           prev.filter((s) => s.scriptId !== scriptToDelete.scriptId)
         );
-        toast.success("Guion eliminado correctamente");
+        toast.success("Guion eliminado correctamente ✅");
       }
     } catch (err) {
-      console.error("Error eliminando guiones:", err);
+      console.error("❌ Error eliminando guiones:", err);
       toast.error("No se pudieron eliminar los guiones");
     } finally {
       setDeleting(false);
@@ -123,17 +179,38 @@ export default function ScriptsContainer() {
     }
   };
 
+
   const handleRating = async (scriptId: string, newRating: number) => {
     if (!user) return;
-    await updateDoc(doc(db, "users", user.uid, "guiones", scriptId), {
-      rating: newRating,
-    });
-    setScripts((prev) =>
-      prev.map((s) =>
-        s.scriptId === scriptId ? { ...s, rating: newRating } : s
-      )
-    );
+
+    try {
+      const idToken = await user.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ rating: newRating }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      setScripts((prev) =>
+        prev.map((s) =>
+          s.scriptId === scriptId ? { ...s, rating: newRating } : s
+        )
+      );
+    } catch (err) {
+      console.error("❌ Error actualizando rating:", err);
+      toast.error("No se pudo actualizar la valoración del guion");
+    }
   };
+
 
   const sortedScripts = [...scripts].sort((a, b) => {
     const dateA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;

@@ -230,6 +230,7 @@ export default function NewVoiceContainer() {
 
       toast.loading("Creando voz en ElevenLabs...");
 
+      // 🔹 Llamada a nuestro backend que conecta con ElevenLabs
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
@@ -267,17 +268,31 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      const { getFirestore, doc, setDoc, serverTimestamp } = await import("firebase/firestore");
-      const db = getFirestore();
+      // ✅ Guardar en Firestore vía CRUD API
+      const saveRes = await fetch(
+        `/api/firebase/users/${user.uid}/voices/${data.voice_id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            voice_id: data.voice_id,
+            requires_verification:
+              "requires_verification" in data ? data.requires_verification : undefined,
+            name: `Voz-${Date.now()}`,
+            paths,
+            createdAt: Date.now(),
+            idem,
+          }),
+        }
+      );
 
-      await setDoc(doc(db, `users/${user.uid}/voices/${data.voice_id}`), {
-        voice_id: data.voice_id,
-        requires_verification: "requires_verification" in data ? data.requires_verification : undefined,
-        name: `Voz-${Date.now()}`,
-        paths,
-        created_at: serverTimestamp(),
-        idem,
-      });
+      if (!saveRes.ok) {
+        const errText = await saveRes.text();
+        throw new Error(`Error guardando voz: ${errText}`);
+      }
 
       toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
       router.push("/dashboard/voice");
@@ -287,6 +302,7 @@ export default function NewVoiceContainer() {
       toast.error((err as Error).message || "Error de conexión al crear la voz");
     }
   };
+
 
   return (
     <div className="max-w-6xl w-full mx-auto py-8"> 

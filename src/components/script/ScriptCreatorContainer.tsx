@@ -142,30 +142,46 @@ export default function ScriptCreatorContainer() {
   const acceptScript = async () => {
     if (!user) return;
     try {
+      const idToken = await user.getIdToken();
       const scriptId = uuidv4();
-      await setDoc(doc(db, "users", user.uid, "guiones", scriptId), {
-        description,
-        tone,
-        platform,
-        duration,
-        language,
-        structure,
-        addCTA,
-        ctaText,
-        script,
-        createdAt: serverTimestamp(),
-        scriptId,
-        regenerations: scriptRegens,
-        isAI: true,
+
+      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+        method: "PUT", // porque ya conocemos el ID
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          description,
+          tone,
+          platform,
+          duration,
+          language,
+          structure,
+          addCTA,
+          ctaText,
+          script,
+          createdAt: Date.now(),
+          scriptId,
+          regenerations: scriptRegens,
+          isAI: true,
+        }),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
       toast.success("Guion guardado correctamente");
       setShowModal(false);
       router.push("/dashboard/script");
     } catch (err) {
-      console.error(err);
+      console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.");
     }
   };
+
 
   return (
     <>

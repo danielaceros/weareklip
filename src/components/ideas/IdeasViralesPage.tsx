@@ -44,10 +44,25 @@ export default function IdeasViralesPage() {
   }, []);
 
   const loadFavorites = async (uid: string) => {
-    const favSnap = await getDocs(collection(db, `users/${uid}/ideas`));
-    const favs = favSnap.docs.map((doc) => doc.data() as ShortVideo);
-    setFavorites(favs);
+    try {
+      const idToken = await user?.getIdToken();
+      if (!idToken) throw new Error("Usuario no autenticado");
+
+      const res = await fetch(`/api/firebase/users/${uid}/ideas`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const favs = data.map((d: any) => d as ShortVideo);
+      setFavorites(favs);
+    } catch (err) {
+      console.error("Error cargando favoritos:", err);
+      toast.error("Error cargando favoritos");
+    }
   };
+
 
   // Buscar vídeos virales
   const fetchVideos = async () => {
@@ -108,17 +123,32 @@ export default function IdeasViralesPage() {
       toast.error("Debes iniciar sesión para guardar favoritos");
       return;
     }
-    const favRef = doc(collection(db, `users/${user.uid}/ideas`), video.id);
-    const exists = favorites.some((fav) => fav.id === video.id);
-    if (exists) {
-      await deleteDoc(favRef);
-      toast.success("Eliminado de favoritos");
-    } else {
-      await setDoc(favRef, video);
-      toast.success("Añadido a favoritos");
+
+    try {
+      const idToken = await user.getIdToken();
+      const exists = favorites.some((fav) => fav.id === video.id);
+
+      const url = `/api/firebase/users/${user.uid}/ideas/${video.id}`;
+      const options: RequestInit = {
+        method: exists ? "DELETE" : "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: exists ? undefined : JSON.stringify(video),
+      };
+
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+
+      toast.success(exists ? "Eliminado de favoritos" : "Añadido a favoritos");
+      await loadFavorites(user.uid);
+    } catch (err) {
+      console.error("Error en toggleFavorite:", err);
+      toast.error("No se pudo actualizar favoritos");
     }
-    await loadFavorites(user.uid);
   };
+
 
   // Replicar vídeo
   const replicateVideo = async (video: ShortVideo) => {
@@ -126,8 +156,10 @@ export default function IdeasViralesPage() {
       toast.error("Debes iniciar sesión para replicar vídeos");
       return;
     }
+
     const replicateToast = toast.loading("Replicando guion...");
     try {
+      // 🔹 Obtener transcripción desde tu API
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
       const data = await res.json();
 
@@ -136,14 +168,13 @@ export default function IdeasViralesPage() {
         return;
       }
 
-      const guionRef = doc(collection(db, `users/${user.uid}/guiones`));
-      await setDoc(guionRef, {
+      // 🔹 Preparar body para el nuevo guion
+      const newScript = {
         description: `Guion replicado de ${video.title}`,
         platform: "youtube",
         language: "es",
         script: data.transcript,
-        createdAt: serverTimestamp(),
-        scriptId: guionRef.id,
+        createdAt: new Date(), // tu backend lo guarda como Timestamp
         fuente: video.url,
         isAI: false,
         videoTitle: video.title,
@@ -152,15 +183,30 @@ export default function IdeasViralesPage() {
         videoPublishedAt: video.publishedAt,
         videoViews: video.views,
         videoThumbnail: video.thumbnail,
+      };
+
+      // 🔹 Guardar en /scripts via API segura
+      const idToken = await user.getIdToken();
+      const saveRes = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(newScript),
       });
+
+      if (!saveRes.ok) throw new Error(`Error ${saveRes.status}`);
+      await saveRes.json();
 
       toast.success("Guion replicado y guardado ✅", { id: replicateToast });
       router.push("/dashboard/script");
     } catch (err) {
-      console.error(err);
+      console.error("Error replicando vídeo:", err);
       toast.error("Error al replicar vídeo", { id: replicateToast });
     }
   };
+
 
   return (
     <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">

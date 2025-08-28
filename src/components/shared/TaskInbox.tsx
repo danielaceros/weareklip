@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import {
   collection,
   getDocs,
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n";
+import { getAuth } from "firebase/auth";
 
 type Task = {
   id: string;
@@ -35,67 +36,124 @@ export default function TaskInbox({ adminId }: Props) {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
-    try {
-      const snap = await getDocs(collection(db, "admin", adminId, "tasks"));
-      const data = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Task, "id">),
-      })) as Task[];
+    if (!adminId) return;
 
-      setTasks(data.sort((a, b) => b.creadoEn - a.creadoEn));
-    } catch {
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("No autenticado");
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/firebase/admin/${adminId}/tasks`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) throw new Error("Error en el servidor");
+
+      const data: Task[] = await res.json();
+
+      setTasks(data.sort((a, b) => (b.creadoEn ?? 0) - (a.creadoEn ?? 0)));
+    } catch (err) {
+      console.error("Error fetching tasks:", err);
       toast.error(t("admin.tasks.toasts.loadError"));
     }
   }, [adminId, t]);
 
+  const handleEdit = (task: Task) => setEditingTask(task);
+  // ✅ Alternar estado de una tarea
   const toggleTask = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
     const newEstado: Task["estado"] = task.estado === "Hecho" ? "Nuevo" : "Hecho";
     try {
-      await updateDoc(doc(db, "admin", adminId, "tasks", taskId), {
-        estado: newEstado,
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      const res = await fetch(`/api/firebase/admin/${adminId}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ estado: newEstado }),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, estado: newEstado } : t))
       );
-    } catch {
+    } catch (err) {
+      console.error("❌ Error toggleTask:", err);
       toast.error(t("admin.tasks.toasts.toggleError"));
     }
   };
 
-  const handleEdit = (task: Task) => setEditingTask(task);
-
-  const handleDelete = async (taskId: string) => {
-    // confirm con traducción
-    if (!confirm(t("admin.tasks.toasts.deleteConfirm"))) return;
-    try {
-      await deleteDoc(doc(db, "admin", adminId, "tasks", taskId));
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      toast.success(t("admin.tasks.toasts.deleted"));
-    } catch {
-      toast.error(t("admin.tasks.toasts.deleteError"));
-    }
-  };
-
+  // ✅ Editar tarea
   const saveEditedTask = async () => {
     if (!editingTask) return;
     try {
       const { id, descripcion, fechaFin } = editingTask;
-      await updateDoc(doc(db, "admin", adminId, "tasks", id), {
-        descripcion,
-        fechaFin,
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      const res = await fetch(`/api/firebase/admin/${adminId}/tasks/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ descripcion, fechaFin }),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
       setTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, descripcion, fechaFin } : t))
       );
+
       toast.success(t("admin.tasks.toasts.saved"));
       setEditingTask(null);
-    } catch {
+    } catch (err) {
+      console.error("❌ Error saveEditedTask:", err);
       toast.error(t("admin.tasks.toasts.saveError"));
     }
   };
+
+  // ✅ Eliminar tarea
+  const handleDelete = async (taskId: string) => {
+    if (!confirm(t("admin.tasks.toasts.deleteConfirm"))) return;
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      const res = await fetch(`/api/firebase/admin/${adminId}/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      toast.success(t("admin.tasks.toasts.deleted"));
+    } catch (err) {
+      console.error("❌ Error handleDelete:", err);
+      toast.error(t("admin.tasks.toasts.deleteError"));
+    }
+  };
+
 
   useEffect(() => {
     fetchTasks();
