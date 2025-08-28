@@ -368,6 +368,25 @@ export async function POST(req: NextRequest) {
 
     const creditedCents = freeQty * unitCents;
 
+    // ================= NUEVO: Añadir task de consumo =================
+    const taskRef = adminDB
+      .collection("users")
+      .doc(uid)
+      .collection("tasks")
+      .doc();
+    await taskRef.set({
+      kind,
+      quantity,
+      freeQty,
+      paidQty,
+      unitCents,
+      creditedCents,
+      chargedCents: chargedCentsThisCall,
+      currency,
+      usageEventId,
+      createdAt: adminTimestamp.now(),
+    });
+
     await gaServerEvent("usage_success", {
       uid,
       kind,

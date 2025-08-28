@@ -158,8 +158,10 @@ export async function GET(req: NextRequest) {
       });
 
       for (const line of preview?.lines?.data ?? []) {
-        const priceId = line.id;
+        const priceId = (line as any).pricing?.price_details?.price;
         const amount = line.amount ?? 0;
+
+        if (!priceId) continue;
 
         if (
           priceId === process.env.STRIPE_PRICE_USAGE_SCRIPT ||
@@ -186,6 +188,8 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+
+
     } catch (err) {
       console.warn("No se pudo calcular usage:", err);
     }

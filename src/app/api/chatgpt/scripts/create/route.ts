@@ -58,6 +58,28 @@ export async function POST(req: NextRequest) {
     // 🔁 RAMA A: SIMULACIÓN
     if (simulate) {
       script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}` : ""}.`;
+      
+      const usageRes = await fetch(
+      new URL("/api/billing/usage", req.nextUrl.origin),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: req.headers.get("authorization") || "",
+          "X-Idempotency-Key": idem,
+        },
+        body: JSON.stringify({ kind: "script", quantity: 1, idem }),
+      }
+    );
+    let usage: UsageResp = {};
+    try {
+      usage = (await usageRes.json()) as UsageResp;
+    } catch {}
+
+    if (!usageRes.ok || usage.ok !== true) {
+      const msg = usage.message || usage.error || `usage status ${usageRes.status}`;
+      throw new Error(msg);
+    }
     }
 
     // 🔁 RAMA B: REAL
