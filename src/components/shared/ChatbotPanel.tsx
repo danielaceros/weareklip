@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatbotPanelProps {
   onClose: () => void;
@@ -65,15 +65,15 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
 
     const sessionId = "default";
     const messagesRef = collection(
-        db,
-        `users/${user.uid}/chatSessions/${sessionId}/messages`
+      db,
+      `users/${user.uid}/chatSessions/${sessionId}/messages`
     );
 
     // Guardamos el mensaje del usuario
     await addDoc(messagesRef, {
-        role: "user",
-        content: input,
-        createdAt: serverTimestamp(),
+      role: "user",
+      content: input,
+      createdAt: serverTimestamp(),
     });
 
     const newMessages = [...messages, { role: "user", content: input }];
@@ -81,58 +81,62 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     setLoading(true);
 
     try {
-        const token = await user.getIdToken();
-        const res = await fetch("/api/chatgpt/chatbot", {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/chatgpt/chatbot", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ messages: newMessages }),
+      });
+
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantMsg = "";
+
+      // 🔹 Creamos doc vacío para ir actualizando en Firestore
+      const docRef = await addDoc(messagesRef, {
+        role: "assistant",
+        content: "",
+        createdAt: serverTimestamp(),
+      });
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        assistantMsg += decoder.decode(value, { stream: true });
+
+        // 🔹 Actualizamos SIEMPRE el mismo doc
+        await updateDoc(docRef, {
+          content: assistantMsg,
         });
-
-        if (!res.body) throw new Error("No response body");
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let assistantMsg = "";
-
-        // 🔹 Creamos doc vacío para ir actualizando en Firestore
-        const docRef = await addDoc(messagesRef, {
-            role: "assistant",
-            content: "",
-            createdAt: serverTimestamp(),
-            });
-
-            while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            assistantMsg += decoder.decode(value, { stream: true });
-
-            // 🔹 Actualizamos SIEMPRE el mismo doc
-            await updateDoc(docRef, {
-                content: assistantMsg,
-            });
-            }
-
-        // Mensaje completo en Firestore
-        // (si prefieres update en lugar de múltiples add, cambia esto a updateDoc(docRef, { content: assistantMsg }))
+      }
     } catch (err) {
-        console.error(err);
-        await addDoc(messagesRef, {
+      console.error(err);
+      await addDoc(messagesRef, {
         role: "assistant",
         content: "⚠️ Error al contactar al asistente.",
         createdAt: serverTimestamp(),
-        });
+      });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
-
+  };
 
   return (
-    <div className="fixed bottom-20 right-6 w-80 h-96 bg-background text-foreground shadow-xl rounded-2xl flex flex-col border overflow-hidden">
+    <div
+      className="
+        fixed right-0 md:right-6 bottom-0 md:bottom-20
+        w-full md:w-80
+        h-[60vh] md:h-96
+        bg-background text-foreground shadow-xl rounded-t-2xl md:rounded-2xl
+        flex flex-col border overflow-hidden z-50
+      "
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
         <h2 className="font-semibold text-sm">Asistente 🤖</h2>
@@ -149,26 +153,28 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
         <div className="px-3 py-2 space-y-2 text-sm">
           {messages.map((m, i) => {
             const isLastAssistant =
-                i === messages.length - 1 && m.role === "assistant";
+              i === messages.length - 1 && m.role === "assistant";
 
             return (
-                <div
+              <div
                 key={i}
                 className={`p-2 rounded-lg max-w-[80%] ${
-                    m.role === "user"
+                  m.role === "user"
                     ? "bg-primary text-primary-foreground ml-auto"
                     : "bg-muted text-foreground/80 mr-auto"
                 }`}
-                >
+              >
                 {m.content}
                 {isLastAssistant && loading && (
-                    <span className="ml-1 animate-pulse">▋</span>
+                  <span className="ml-1 animate-pulse">▋</span>
                 )}
-                </div>
+              </div>
             );
-            })}
+          })}
           {loading && (
-            <p className="text-xs text-muted-foreground italic">Escribiendo...</p>
+            <p className="text-xs text-muted-foreground italic">
+              Escribiendo...
+            </p>
           )}
           <div ref={bottomRef} />
         </div>
