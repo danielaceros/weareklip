@@ -30,17 +30,19 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
   setFavoritesOnly,
 }) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <h1 className="text-2xl font-bold">Mis Ideas</h1>
-      <div className="flex justify-between"></div>
-      <div className="flex flex-wrap gap-3">
+    <div className="space-y-4">
+      {/* 📌 Título */}
+      <h1 className="text-2xl font-bold">{title}</h1>
+
+      {/* 📌 Filtros */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
         {/* Idioma */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="rounded-lg text-sm font-medium"
+              className="w-full sm:w-auto rounded-lg text-sm font-medium"
             >
               Idioma:{" "}
               {country === "ES"
@@ -75,7 +77,7 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="rounded-lg text-sm font-medium"
+              className="w-full sm:w-auto rounded-lg text-sm font-medium"
             >
               Tiempo:{" "}
               {range === "today"
@@ -110,7 +112,7 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
             size="sm"
             onClick={() => setFavoritesOnly(!favoritesOnly)}
             className={cn(
-              "rounded-lg text-sm font-medium",
+              "w-full sm:w-auto rounded-lg text-sm font-medium",
               favoritesOnly && "bg-primary text-white"
             )}
           >

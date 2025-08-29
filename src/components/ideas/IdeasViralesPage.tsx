@@ -163,7 +163,7 @@ export default function IdeasViralesPage() {
   };
 
   return (
-    <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">
+    <div className="flex flex-col h-full space-y-6">
       <IdeasViralesHeader
         country={country}
         setCountry={setCountry}

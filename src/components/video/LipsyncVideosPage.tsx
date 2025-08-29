@@ -114,27 +114,31 @@ export default function LipsyncVideosPage() {
   if (loading) return <p>Cargando vídeos...</p>;
 
   return (
-    <div className="space-y-4">
-      {/* Botones superiores */}
-      <h1 className="text-2xl font-bold">Mis Grabaciones</h1>
-      <div className="flex justify-between">
-        <Button
-          variant="destructive"
-          className="rounded-lg"
-          onClick={() => setDeleteAll(true)}
-          disabled={videos.length === 0}
-        >
-          <Trash2 size={18} className="mr-2" />
-          Borrar todos
-        </Button>
+    <div className="space-y-6">
+      {/* Header con título y botones */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-2xl font-bold">Clones</h1>
+        <div className="flex gap-3">
+          <div className="flex gap-3 justify-end">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={videos.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
 
-        <Button
-          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-          onClick={() => setIsNewOpen(true)}
-        >
-          <Plus size={18} className="mr-2" />
-          Crear vídeo
-        </Button>
+          <Button
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+            onClick={() => setIsNewOpen(true)}
+          >
+            <Plus size={18} className="mr-2" />
+            Crear vídeo
+          </Button>
+          </div>
+        </div>
       </div>
 
       {/* Lista de vídeos */}
@@ -148,6 +152,7 @@ export default function LipsyncVideosPage() {
             downloadUrl: url,
           })
         }
+        perPage={3}
       />
 
       {/* Modal crear */}
@@ -158,7 +163,7 @@ export default function LipsyncVideosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal eliminar (reusable) */}
+      {/* Modal eliminar */}
       <ConfirmDeleteDialog
         open={!!videoToDelete || deleteAll}
         onClose={() => {

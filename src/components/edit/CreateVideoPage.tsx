@@ -74,7 +74,7 @@ export default function CreateVideoPage({
   const [magicZooms, setMagicZooms] = useState(false);
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
-
+  const [showTemplates, setShowTemplates] = useState(false);
   const [languages, setLanguages] = useState<{ name: string; code: string }[]>(
     []
   );
@@ -255,7 +255,7 @@ export default function CreateVideoPage({
     : "Generar edición de vídeo";
 
   return (
-    <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+    <div className="w-full max-w-6xl mx-auto p-4 sm:p-6">
       {/* Título */}
       <div className="lg:col-span-2 mb-4">
         <h2 className="text-2xl font-bold">🎥 Edición de Vídeo IA</h2>
@@ -264,211 +264,243 @@ export default function CreateVideoPage({
         </p>
       </div>
 
-      {/* IZQUIERDA: Upload / preview o lista preloaded */}
-      <div className="flex flex-col gap-4 items-center">
-        {preloadedVideos.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 w-full">
-            {preloadedVideos.map((v) => (
-              <div
-                key={v.id}
-                onClick={() => {
-                  setVideoUrl(v.url);
-                  toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
-                }}
-                className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
-                  videoUrl === v.url ? "ring-2 ring-blue-500" : ""
-                }`}
+      {/* Layout responsive */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* IZQUIERDA */}
+        <div className="flex flex-col gap-4 items-center">
+          {preloadedVideos.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
+              {preloadedVideos.map((v) => (
+                <div
+                  key={v.id}
+                  onClick={() => {
+                    setVideoUrl(v.url);
+                    toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                  }}
+                  className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
+                    videoUrl === v.url ? "ring-2 ring-blue-500" : ""
+                  }`}
+                >
+                  <video
+                    src={v.url}
+                    className="w-full h-40 object-cover"
+                    muted
+                    loop
+                    playsInline
+                  />
+                  <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+                </div>
+              ))}
+            </div>
+          ) : videoUrl ? (
+            <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
+              <video
+                src={videoUrl}
+                controls
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer 
+                  w-full max-w-[280px] sm:max-w-sm aspect-[9/16] max-h-[10vh] transition
+                  ${isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"}`}
               >
-                <video
-                  src={v.url}
-                  className="w-full h-40 object-cover"
-                  muted
-                  loop
-                  playsInline
-                />
-                <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+
+              <input {...getInputProps()} />
+              {file ? (
+                <>
+                  <VideoIcon className="w-10 h-10 mb-2 text-primary" />
+                  <p className="text-sm font-medium text-center">{file.name}</p>
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground text-center">
+                    {isDragActive
+                      ? "Suelta el vídeo aquí..."
+                      : "Arrastra un vídeo o haz click"}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {uploadProgress > 0 && (
+            <Progress value={uploadProgress} className="w-full max-w-sm" />
+          )}
+        </div>
+
+        {/* DERECHA */}
+        <div className="space-y-6">
+          {/* Templates */}
+          <div>
+            <Label className="mb-2 block">Template</Label>
+            {loadingTpl ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
               </div>
-            ))}
-          </div>
-        ) : videoUrl ? (
-          <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
-            <video
-              src={videoUrl}
-              controls
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : (
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer w-full max-w-sm aspect-[9/16] transition ${
-              isDragActive
-                ? "border-primary bg-muted"
-                : "border-muted-foreground/50"
-            }`}
-          >
-            <input {...getInputProps()} />
-            {file ? (
-              <>
-                <VideoIcon className="w-10 h-10 mb-2 text-primary" />
-                <p className="text-sm font-medium text-center">{file.name}</p>
-              </>
             ) : (
               <>
-                <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground text-center">
-                  {isDragActive
-                    ? "Suelta el vídeo aquí..."
-                    : "Arrastra un vídeo o haz click"}
-                </p>
+                {/* Mobile: 3 filas + toggle */}
+                <div className="sm:hidden">
+                  <div className="grid grid-cols-2 gap-2">
+                    {(showTemplates ? templates : templates.slice(0, 6)).map((t) => (
+                      <Button
+                        key={t}
+                        type="button"
+                        variant={t === template ? "default" : "secondary"}
+                        className="w-full"
+                        onClick={() => {
+                          setTemplate(t);
+                          toast.success(`📑 Template "${t}" seleccionado`);
+                        }}
+                      >
+                        {t}
+                      </Button>
+                    ))}
+                  </div>
+                  {templates.length > 6 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-full"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                    >
+                      {showTemplates ? "Ver menos" : "Ver más"}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Desktop: todos */}
+                <div className="hidden sm:grid sm:grid-cols-3 gap-3">
+                  {templates.map((t) => (
+                    <Button
+                      key={t}
+                      type="button"
+                      variant={t === template ? "default" : "secondary"}
+                      className="w-full"
+                      onClick={() => {
+                        setTemplate(t);
+                        toast.success(`📑 Template "${t}" seleccionado`);
+                      }}
+                    >
+                      {t}
+                    </Button>
+                  ))}
+                </div>
               </>
             )}
           </div>
-        )}
-        {uploadProgress > 0 && (
-          <Progress value={uploadProgress} className="w-full max-w-sm" />
-        )}
-      </div>
-
-      {/* DERECHA: Opciones */}
-      <div className="space-y-6">
-        {/* Templates */}
-        <div>
-          <Label className="mb-2 block">Template</Label>
-          {loadingTpl ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {templates.map((t) => (
-                <Button
-                  key={t}
-                  type="button"
-                  variant={t === template ? "default" : "secondary"}
-                  className="w-full"
-                  onClick={() => {
-                    setTemplate(t);
-                    toast.success(`📑 Template "${t}" seleccionado`);
-                  }}
-                >
-                  {t}
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Idioma */}
-        <div>
-          <Label className="mb-2 block">Idioma</Label>
-          {loadingLang ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
-            </div>
-          ) : (
-            <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar un idioma" />
-              </SelectTrigger>
-              <SelectContent>
-                {languages.map((l) => (
-                  <SelectItem key={l.code} value={l.code}>
-                    {l.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
 
-        {/* Diccionario */}
-        <div>
-          <Label className="mb-2 block">Descripción breve</Label>
-          <Input
-            value={dictionary}
-            onChange={(e) => setDictionary(e.target.value)}
-            placeholder="Escribe una breve descripción..."
-          />
-        </div>
 
-        {/* Opciones mágicas con tooltips */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-6">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center space-x-2 cursor-pointer">
-                  <Checkbox
-                    checked={magicZooms}
-                    onCheckedChange={(c) => {
-                      setMagicZooms(!!c);
-                      toast(
-                        !!c
-                          ? "🔍 Magic Zooms activado"
-                          : "Magic Zooms desactivado"
-                      );
-                    }}
-                  />
-                  <Label>Magic Zooms</Label>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Agrega acercamientos automáticos para más dinamismo.</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center space-x-2 cursor-pointer">
-                  <Checkbox
-                    checked={magicBrolls}
-                    onCheckedChange={(c) => {
-                      setMagicBrolls(!!c);
-                      toast(
-                        !!c
-                          ? "🎞 Magic B-rolls activado"
-                          : "Magic B-rolls desactivado"
-                      );
-                    }}
-                  />
-                  <Label>Magic B-rolls</Label>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
-              </TooltipContent>
-            </Tooltip>
+          {/* Idioma */}
+          <div>
+            <Label className="mb-2 block">Idioma</Label>
+            {loadingLang ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+              </div>
+            ) : (
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar un idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          {magicBrolls && (
-            <div>
-              <Label className="mb-1 block">
-                Porcentaje de B-rolls: {magicBrollsPercentage}%
-              </Label>
-              <Slider
-                defaultValue={[magicBrollsPercentage]}
-                max={100}
-                step={1}
-                onValueChange={(v) => {
-                  setMagicBrollsPercentage(v[0]);
-                  toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
-                }}
-              />
+          {/* Diccionario */}
+          <div>
+            <Label className="mb-2 block">Descripción breve</Label>
+            <Input
+              value={dictionary}
+              onChange={(e) => setDictionary(e.target.value)}
+              placeholder="Escribe una breve descripción..."
+            />
+          </div>
+
+          {/* Opciones mágicas */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-2 cursor-pointer">
+                    <Checkbox
+                      checked={magicZooms}
+                      onCheckedChange={(c) => {
+                        setMagicZooms(!!c);
+                        toast(
+                          !!c
+                            ? "🔍 Magic Zooms activado"
+                            : "Magic Zooms desactivado"
+                        );
+                      }}
+                    />
+                    <Label>Magic Zooms</Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Agrega acercamientos automáticos para más dinamismo.</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-2 cursor-pointer">
+                    <Checkbox
+                      checked={magicBrolls}
+                      onCheckedChange={(c) => {
+                        setMagicBrolls(!!c);
+                        toast(
+                          !!c
+                            ? "🎞 Magic B-rolls activado"
+                            : "Magic B-rolls desactivado"
+                        );
+                      }}
+                    />
+                    <Label>Magic B-rolls</Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
-          )}
+
+            {magicBrolls && (
+              <div>
+                <Label className="mb-1 block">
+                  Porcentaje de B-rolls: {magicBrollsPercentage}%
+                </Label>
+                <Slider
+                  defaultValue={[magicBrollsPercentage]}
+                  max={100}
+                  step={1}
+                  onValueChange={(v) => {
+                    setMagicBrollsPercentage(v[0]);
+                    toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Botón final */}
+          <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
+            {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+            {buttonText}
+          </Button>
         </div>
-
-
-        {/* Botón final */}
-        <Button
-          onClick={handleSubmit}
-          disabled={isLoading}
-          className="w-full"
-        >
-          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          {buttonText}
-        </Button>
       </div>
-    </div>
   );
 }
