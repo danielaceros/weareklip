@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Trash2, Play, Pause } from "lucide-react";
@@ -18,6 +16,7 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface VoiceData {
   voiceId: string;
@@ -79,7 +78,6 @@ export default function VoicesListContainer({
     }
   }, [user]);
 
-
   useEffect(() => {
     fetchVoices();
   }, [fetchVoices]);
@@ -117,7 +115,6 @@ export default function VoicesListContainer({
     }
   };
 
-
   const totalPages = Math.ceil(voices.length / perPage);
   const paginated = voices.slice((page - 1) * perPage, page * perPage);
 
@@ -135,7 +132,9 @@ export default function VoicesListContainer({
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando voces...</p>
+        <div className="flex justify-center items-center h-40">
+          <Spinner size="lg" variant="ellipsis" /> {/* 👈 Spinner mientras carga */}
+        </div>
       ) : voices.length === 0 ? (
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
@@ -234,21 +233,28 @@ function VoiceCard({
   const [previewUrl, setPreviewUrl] = useState<string | null>(
     voice.preview_url ?? null
   );
+  const [loadingPreview, setLoadingPreview] = useState(!voice.preview_url);
 
   useEffect(() => {
     if (!previewUrl && voice.voiceId) {
       const fetchPreview = async () => {
         try {
-          const res = await fetch(`/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`);
+          const res = await fetch(
+            `/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`
+          );
           const data = await res.json();
           if (res.ok && data.preview_url) {
             setPreviewUrl(data.preview_url);
           }
         } catch (err) {
           console.error("❌ Error cargando preview de ElevenLabs:", err);
+        } finally {
+          setLoadingPreview(false);
         }
       };
       fetchPreview();
+    } else {
+      setLoadingPreview(false);
     }
   }, [previewUrl, voice.voiceId]);
 
@@ -279,7 +285,11 @@ function VoiceCard({
       </div>
 
       {/* Player o placeholder */}
-      {previewUrl ? (
+      {loadingPreview ? (
+        <div className="flex justify-center items-center h-20">
+          <Spinner size="sm" variant="ellipsis" /> {/* 👈 spinner preview */}
+        </div>
+      ) : previewUrl ? (
         <div className="flex items-center gap-3">
           <button
             onClick={togglePlay}

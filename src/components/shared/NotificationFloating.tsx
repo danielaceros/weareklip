@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import {
-  subscribeToUnreadLogs,
+  fetchUnreadLogs,
   markLogsAsRead,
   markSingleLogAsRead,
   Log,
@@ -17,40 +17,58 @@ export default function NotificationFloating() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
+  // --- Listener auth ---
   useEffect(() => {
-    let unsubscribeLogs: (() => void) | null = null;
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (unsubscribeLogs) {
-        unsubscribeLogs();
-        unsubscribeLogs = null;
-      }
-      if (!user) {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
         setIsAdmin(false);
         setLogs([]);
+        setUser(null);
         return;
       }
-      const admin = await checkIsAdmin(user.uid);
+      setUser(u);
+      const admin = await checkIsAdmin(u.uid);
       setIsAdmin(admin);
-      unsubscribeLogs = subscribeToUnreadLogs(user.uid, admin, (data) => {
-        setLogs(data);
-      });
     });
-    return () => {
-      if (unsubscribeLogs) unsubscribeLogs();
-      unsubscribeAuth();
-    };
+    return () => unsub();
   }, []);
+
+  // --- Polling de logs ---
+  useEffect(() => {
+    if (!user) return;
+
+    let stop = false;
+
+    const fetchLoop = async () => {
+      try {
+        const data = await fetchUnreadLogs(user, isAdmin);
+        if (!stop) setLogs(data);
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+      }
+      if (!stop) setTimeout(fetchLoop, 10000); // cada 10s
+    };
+
+    fetchLoop();
+    return () => {
+      stop = true;
+    };
+  }, [user, isAdmin]);
 
   const unreadCount = logs.length;
 
   const handleMarkAsRead = async () => {
-    await markLogsAsRead(logs, isAdmin);
+    if (!user) return;
+    await markLogsAsRead(user, logs, isAdmin);
+    setLogs([]);
     setOpen(false);
   };
 
   const handleMarkSingle = async (log: Log) => {
-    await markSingleLogAsRead(log, isAdmin);
+    if (!user) return;
+    await markSingleLogAsRead(user, log, isAdmin);
     setLogs((prev) => prev.filter((l) => l.id !== log.id));
   };
 

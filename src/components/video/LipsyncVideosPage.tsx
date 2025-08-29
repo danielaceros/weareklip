@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase";
+import { storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { LipsyncVideoList } from "./LipsyncVideoList";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import LipsyncCreatePage from "./LipsyncCreatePage";
 import { toast } from "sonner";
-import { getStorage, ref, deleteObject } from "firebase/storage";
+import { ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface VideoData {
   projectId: string;
@@ -62,6 +62,7 @@ export default function LipsyncVideosPage() {
         setVideos(mapped);
       } catch (error) {
         console.error("Error fetching lipsync videos:", error);
+        toast.error("❌ No se pudieron cargar los vídeos");
       } finally {
         setLoading(false);
       }
@@ -69,7 +70,6 @@ export default function LipsyncVideosPage() {
 
     fetchVideos();
   }, [user]);
-
 
   async function handleConfirmDelete() {
     if (!user) return;
@@ -82,7 +82,6 @@ export default function LipsyncVideosPage() {
         // 🟥 Borrar todos via API
         await Promise.all(
           videos.map(async (video) => {
-            // 1) DELETE en Firestore (via API)
             const res = await fetch(
               `/api/firebase/users/${user.uid}/lipsync/${video.projectId}`,
               {
@@ -92,7 +91,7 @@ export default function LipsyncVideosPage() {
             );
             if (!res.ok) throw new Error(`Error borrando doc ${video.projectId}`);
 
-            // 2) DELETE en Storage
+            // Borrar en Storage si aplica
             if (video.downloadUrl?.includes("firebasestorage")) {
               try {
                 const path = decodeURIComponent(
@@ -109,7 +108,6 @@ export default function LipsyncVideosPage() {
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados ✅");
       } else if (videoToDelete) {
-        // 🟧 Borrar uno
         const res = await fetch(
           `/api/firebase/users/${user.uid}/lipsync/${videoToDelete.projectId}`,
           {
@@ -143,8 +141,14 @@ export default function LipsyncVideosPage() {
     }
   }
 
-
-  if (loading) return <p>Cargando vídeos...</p>;
+  // ✅ Spinner loader
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis"/>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -191,7 +195,7 @@ export default function LipsyncVideosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal eliminar (reusable) */}
+      {/* Modal eliminar */}
       <ConfirmDeleteDialog
         open={!!videoToDelete || deleteAll}
         onClose={() => {

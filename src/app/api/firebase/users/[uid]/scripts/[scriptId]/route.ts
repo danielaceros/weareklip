@@ -5,27 +5,19 @@ import { adminDB, adminAuth } from "@/lib/firebase-admin";
 // 🔹 Verificación de auth
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
+  if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
 
   const token = authHeader.split(" ")[1];
   const decoded = await adminAuth.verifyIdToken(token);
 
-  if (decoded.uid !== expectedUid) {
-    throw new Error("Forbidden");
-  }
-
+  if (decoded.uid !== expectedUid) throw new Error("Forbidden");
   return decoded;
 }
 
 // 🔹 Obtener un script por ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; scriptId: string }> }
-) {
+export async function GET(req: NextRequest, context: any) {
   try {
-    const { uid, scriptId } = await params;
+    const { uid, scriptId } = context.params;
     await verifyAuth(req, uid);
 
     const docSnap = await adminDB
@@ -52,25 +44,26 @@ export async function GET(
   }
 }
 
-// 🔹 Actualizar un script
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; scriptId: string }> }
-) {
+// 🔹 Crear o actualizar un script (usa set con merge)
+export async function PUT(req: NextRequest, context: any) {
   try {
-    const { uid, scriptId } = await params;
+    const { uid, scriptId } = context.params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
+
     await adminDB
       .collection("users")
       .doc(uid)
       .collection("scripts")
       .doc(scriptId)
-      .update({
-        ...body,
-        updatedAt: new Date(),
-      });
+      .set(
+        {
+          ...body,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
 
     return NextResponse.json({ id: scriptId, ...body });
   } catch (err: any) {
@@ -86,12 +79,9 @@ export async function PUT(
 }
 
 // 🔹 Eliminar un script
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; scriptId: string }> }
-) {
+export async function DELETE(req: NextRequest, context: any) {
   try {
-    const { uid, scriptId } = await params;
+    const { uid, scriptId } = context.params;
     await verifyAuth(req, uid);
 
     await adminDB

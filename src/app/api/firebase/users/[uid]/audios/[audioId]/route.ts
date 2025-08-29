@@ -3,44 +3,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDB, adminAuth } from "@/lib/firebase-admin";
 import admin from "firebase-admin";
 
-// 🔹 Helper local para verificar token
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
+  if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
 
   const token = authHeader.split(" ")[1];
   const decoded = await adminAuth.verifyIdToken(token);
 
-  if (decoded.uid !== expectedUid) {
-    throw new Error("Forbidden");
-  }
-
+  if (decoded.uid !== expectedUid) throw new Error("Forbidden");
   return decoded;
 }
 
-// 🔹 Obtener un audio
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; audioId: string }> }
-) {
+// 🔹 GET
+export async function GET(req: NextRequest, context: any) {
   try {
-    const { uid, audioId } = await params;
+    const { uid, audioId } = context.params;
     await verifyAuth(req, uid);
 
-    const doc = await adminDB
+    const docSnap = await adminDB
       .collection("users")
       .doc(uid)
       .collection("audios")
       .doc(audioId)
       .get();
 
-    if (!doc.exists) {
+    if (!docSnap.exists) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ id: doc.id, ...doc.data() });
+    return NextResponse.json({ id: docSnap.id, ...docSnap.data() });
   } catch (err: any) {
     console.error("GET audio error:", err);
     const status =
@@ -53,25 +44,26 @@ export async function GET(
   }
 }
 
-// 🔹 Actualizar un audio
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; audioId: string }> }
-) {
+// 🔹 PUT
+export async function PUT(req: NextRequest, context: any) {
   try {
-    const { uid, audioId } = await params;
+    const { uid, audioId } = context.params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
+
     await adminDB
       .collection("users")
       .doc(uid)
       .collection("audios")
       .doc(audioId)
-      .update({
-        ...body,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      .set(
+        {
+          ...body,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
     return NextResponse.json({ id: audioId, ...body });
   } catch (err: any) {
@@ -86,13 +78,10 @@ export async function PUT(
   }
 }
 
-// 🔹 Eliminar un audio
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ uid: string; audioId: string }> }
-) {
+// 🔹 DELETE
+export async function DELETE(req: NextRequest, context: any) {
   try {
-    const { uid, audioId } = await params;
+    const { uid, audioId } = context.params;
     await verifyAuth(req, uid);
 
     await adminDB

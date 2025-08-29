@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { onAuthStateChanged, getAuth, type User } from "firebase/auth";
 import { useDropzone } from "react-dropzone";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import {
   getStorage,
   ref,

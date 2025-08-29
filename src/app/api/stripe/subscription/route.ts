@@ -1,18 +1,11 @@
 // src/app/api/stripe/customers/route.ts
 import { stripe } from "@/lib/stripe";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { NextResponse } from "next/server";
-import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
+import { gaServerEvent } from "@/lib/ga-server";
 
 export const dynamic = "force-dynamic";
-
-type FirestoreUser = {
-  uid: string;
-  email: string;
-  name?: string;
-  createdAt?: number | null;
-};
 
 type Enriched = {
   uid: string;
@@ -100,21 +93,11 @@ export async function GET(req: Request) {
     // 🔹 cache de usuarios de Firestore 60s
     let usersCache = globalThis.__firestoreUsersCache;
     if (!usersCache || now - usersCache.ts >= CACHE_TTL_MS) {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Not authenticated");
-
-      const res = await fetch("/api/firebase/users", {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Error ${res.status}`);
-      }
-
-      const docs: any[] = await res.json();
+      const snapshot = await getDocs(collection(db, "users"));
+      const docs: any[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
       const map: Record<string, { uid: string; name?: string; createdAt?: number | null }> = {};
       docs.forEach((d) => {
@@ -215,6 +198,9 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("Error en /api/stripe/customers:", error);
     await gaServerEvent("customers_failed", { error: (error as Error).message });
-    return NextResponse.json({ error: "Error cargando customers" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error cargando customers" },
+      { status: 500 }
+    );
   }
 }

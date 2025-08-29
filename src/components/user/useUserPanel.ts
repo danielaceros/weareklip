@@ -1,23 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth, storage } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import {
-  collection,
-  doc,
-  getDocs,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
-import toast from "react-hot-toast";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 
 // Definir un tipo para la suscripción sin usar any
@@ -31,6 +18,7 @@ interface ClonacionVideo {
   id: string;
   url: string;
   thumbnail?: string;
+  storagePath?: string;
 }
 
 export function useUserPanel() {
@@ -39,6 +27,7 @@ export function useUserPanel() {
   const [clonacionVideos, setClonacionVideos] = useState<ClonacionVideo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loading, setLoading] = useState(true); // ✅ spinner en primera carga
 
   // Props extra para evitar errores de TS en SubscriptionSection
   const loadingSub = false;
@@ -55,6 +44,7 @@ export function useUserPanel() {
       } else {
         setClonacionVideos([]);
       }
+      setLoading(false); // ✅ termina el loading tras la primera respuesta
     });
     return () => unsub();
   }, []);
@@ -62,28 +52,27 @@ export function useUserPanel() {
   // Cargar vídeos de clonación
   const fetchClonacionVideos = async (uid: string) => {
     try {
-      const auth = getAuth()
-      const currentUser = auth.currentUser
-      if (!currentUser) throw new Error("No autenticado")
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("No autenticado");
 
-      const idToken = await currentUser.getIdToken()
+      const idToken = await currentUser.getIdToken();
 
       const res = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
-      })
+      });
 
       if (!res.ok) {
-        throw new Error("Error al cargar videos de clonación")
+        throw new Error("Error al cargar videos de clonación");
       }
 
-      const vids: ClonacionVideo[] = await res.json()
-      setClonacionVideos(vids)
+      const vids: ClonacionVideo[] = await res.json();
+      setClonacionVideos(vids);
     } catch (err) {
-      console.error("fetchClonacionVideos error:", err)
-      toast.error("Error cargando vídeos de clonación")
+      console.error("fetchClonacionVideos error:", err);
+      toast.error("Error cargando vídeos de clonación");
     }
-  }
-
+  };
 
   // Subir vídeo
   const handleUpload = async (file: File) => {
@@ -183,7 +172,6 @@ export function useUserPanel() {
     }
   };
 
-
   return {
     t,
     user,
@@ -192,6 +180,7 @@ export function useUserPanel() {
     handleDelete,
     uploading,
     progress,
+    loading, // 👈 ahora lo exponemos
 
     // Props extra para SubscriptionSection
     loadingSub,

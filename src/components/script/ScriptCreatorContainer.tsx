@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
@@ -39,15 +38,14 @@ export default function ScriptCreatorContainer() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // 🔑 Autenticación
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (currentUser) =>
-      setUser(currentUser)
-    );
-    return () => unsub();
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
-  const handleGenerate = async () => {
+  // 🚀 Generar script
+  const handleGenerate = useCallback(async () => {
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
       return;
@@ -83,8 +81,10 @@ export default function ScriptCreatorContainer() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando guion");
 
-      setScript(data.script || "");
-      setShowModal(true); // 👈 abrimos modal en vez de guardar directo
+      flushSync(() => {
+        setScript(data.script || "");
+        setShowModal(true);
+      });
     } catch (err: unknown) {
       console.error(err);
       toast.error(
@@ -93,9 +93,10 @@ export default function ScriptCreatorContainer() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [description, tone, platform, duration, structure, language, addCTA, ctaText, user]);
 
-  const regenerateScript = async () => {
+  // 🔄 Regenerar script
+  const regenerateScript = useCallback(async () => {
     if (scriptRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el guion 2 veces.");
       return;
@@ -105,13 +106,13 @@ export default function ScriptCreatorContainer() {
     const loadingId = toast.loading("🔄 Regenerando guion...");
     try {
       if (!user) throw new Error("No autenticado");
-      const idToken = await user.getIdToken(); // 👈 aquí obtienes el token
+      const idToken = await user.getIdToken();
 
       const res = await fetch("/api/chatgpt/scripts/regenerate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`, // 👈 lo mandas al backend
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           description,
@@ -136,17 +137,24 @@ export default function ScriptCreatorContainer() {
     } finally {
       toast.dismiss(loadingId);
     }
-  };
+  }, [user, scriptRegens, description, tone, platform, duration, language, structure, addCTA, ctaText]);
 
-
-  const acceptScript = async () => {
+  // 💾 Aceptar y guardar script
+  const acceptScript = useCallback(async () => {
     if (!user) return;
+
+    // feedback instantáneo
+    flushSync(() => {
+      setShowModal(false);
+    });
+    const toastId = toast.loading("💾 Guardando guion...");
+
     try {
       const idToken = await user.getIdToken();
       const scriptId = uuidv4();
 
       const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
-        method: "PUT", // porque ya conocemos el ID
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
@@ -173,15 +181,13 @@ export default function ScriptCreatorContainer() {
         throw new Error(err.error || `Error ${res.status}`);
       }
 
-      toast.success("Guion guardado correctamente");
-      setShowModal(false);
+      toast.success("✅ Guion guardado correctamente", { id: toastId });
       router.push("/dashboard/script");
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
-      toast.error("No se pudo guardar el guion.");
+      toast.error("No se pudo guardar el guion.", { id: toastId });
     }
-  };
-
+  }, [user, description, tone, platform, duration, language, structure, addCTA, ctaText, script, scriptRegens, router]);
 
   return (
     <>

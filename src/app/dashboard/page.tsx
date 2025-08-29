@@ -50,7 +50,6 @@ type GuionDoc = {
   notas?: string;
 };
 
-// Guion con id para la UI / API
 type Guion = GuionDoc & { id: string };
 
 type VideoDoc = {
@@ -59,8 +58,6 @@ type VideoDoc = {
   estado?: number | string;
   creadoEn?: string;
 };
-
-// Video con id
 type Video = VideoDoc & { id: string };
 
 type UltimoGuion = {
@@ -169,14 +166,11 @@ export default function DashboardPage() {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-
-        const res = await fetch(`/api/users/${uid}/guiones?limit=1&order=desc`, {
+        const res = await fetch(`/api/firebase/users/${uid}/scripts?limit=1&order=desc`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
-
         if (!res.ok) throw new Error("Error al cargar guiones");
-        const docs: Guion[] = await res.json(); // ✅ incluye id
-
+        const docs: Guion[] = await res.json();
         const useDoc = docs[0];
         if (useDoc) {
           setUltimoGuion({
@@ -199,14 +193,11 @@ export default function DashboardPage() {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-
-        const res = await fetch(`/api/users/${uid}/videos?limit=1&order=desc`, {
+        const res = await fetch(`/api/firebase/users/${uid}/videos?limit=1&order=desc`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
-
         if (!res.ok) throw new Error("Error al cargar videos");
-        const docs: Video[] = await res.json(); // ✅ incluye id
-
+        const docs: Video[] = await res.json();
         const useDoc = docs[0];
         if (useDoc) {
           setUltimoVideo({
@@ -228,28 +219,25 @@ export default function DashboardPage() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) return;
-
-      const resGuiones = await fetch(`/api/users/${uid}/guiones`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (!resGuiones.ok) throw new Error("Error al cargar guiones");
+      const [resGuiones, resVideos] = await Promise.all([
+        fetch(`/api/firebase/users/${uid}/scripts`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        }),
+        fetch(`/api/firebase/users/${uid}/videos`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        }),
+      ]);
+      if (!resGuiones.ok || !resVideos.ok) throw new Error("Error cargando stats");
       const guiones: Guion[] = await resGuiones.json();
+      const videos: Video[] = await resVideos.json();
 
-      let nuevos = 0,
-        cambios = 0,
-        aprobados = 0;
+      let nuevos = 0, cambios = 0, aprobados = 0;
       guiones.forEach((g) => {
         const estado = g.estado ?? 0;
         if (estado === 0) nuevos++;
         else if (estado === 1) cambios++;
         else if (estado === 2) aprobados++;
       });
-
-      const resVideos = await fetch(`/api/users/${uid}/videos`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (!resVideos.ok) throw new Error("Error al cargar videos");
-      const videos: Video[] = await resVideos.json();
 
       setStats((prev) => ({
         ...prev,
@@ -278,25 +266,14 @@ export default function DashboardPage() {
                 status: (data.status ?? "no_active") as SubscriptionStatus,
                 plan: data.plan ?? t("dashboard.subscription.unknownPlan"),
                 renovacion: data.current_period_end
-                  ? new Date(data.current_period_end * 1000).toLocaleDateString(
-                      displayLocale
-                    )
+                  ? new Date(data.current_period_end * 1000).toLocaleDateString(displayLocale)
                   : t("dashboard.subscription.unknownRenewal"),
-              },
-            }));
-          } else {
-            setStats((prev) => ({
-              ...prev,
-              subscripcion: {
-                status: "no_active",
-                plan: t("dashboard.subscription.none"),
-                renovacion: t("dashboard.subscription.unknownRenewal"),
               },
             }));
           }
         }
 
-        await Promise.all([
+        await Promise.allSettled([
           fetchEventos(user.uid),
           fetchUltimoGuion(user.uid),
           fetchUltimoVideo(user.uid),
@@ -304,18 +281,7 @@ export default function DashboardPage() {
         ]);
       } catch (e) {
         console.error("Error al cargar dashboard:", e);
-        toast.error(t("dashboard.subscription.loadError"), {
-          description: t("dashboard.subscription.unknown"),
-          duration: 8000,
-        });
-        setStats((prev) => ({
-          ...prev,
-          subscripcion: {
-            status: "no_active",
-            plan: t("dashboard.subscription.none"),
-            renovacion: t("dashboard.subscription.unknownRenewal"),
-          },
-        }));
+        toast.error(t("dashboard.subscription.loadError"));
       } finally {
         setLoading(false);
       }
@@ -327,26 +293,19 @@ export default function DashboardPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        toast.error(t("dashboard.authError.title"), {
-          description: t("dashboard.authError.description"),
-        });
+        toast.error(t("dashboard.authError.title"));
         router.replace("/login");
         setLoading(false);
         return;
       }
-
-      const sessionId = searchParams.get("session_id");
       if (sessionId) {
-        toast.success("🎉 Prueba iniciada con éxito", {
-          description: "Ya tienes acceso a la plataforma.",
-        });
+        toast.success("🎉 Prueba iniciada con éxito");
         router.replace("/dashboard");
       }
-
       fetchData(user);
     });
     return () => unsub();
-  }, [router, fetchData, t, searchParams]);
+  }, [router, fetchData, t, sessionId]);
 
   // -------- Calendar Aggregation --------
   type DiaInfo = { estado: Estado | null; cantidad: number };
@@ -359,8 +318,7 @@ export default function DashboardPage() {
       eventosPorDia[k].cantidad += 1;
       const estados: (Estado | null)[] = [eventosPorDia[k].estado, ev.estado];
       if (estados.includes("por_hacer")) eventosPorDia[k].estado = "por_hacer";
-      else if (estados.includes("en_proceso"))
-        eventosPorDia[k].estado = "en_proceso";
+      else if (estados.includes("en_proceso")) eventosPorDia[k].estado = "en_proceso";
       else eventosPorDia[k].estado = "completado";
     }
   });
@@ -384,31 +342,34 @@ export default function DashboardPage() {
     if (estado === 0)
       return <Badge className="bg-red-500 text-white">{t("status.new")}</Badge>;
     if (estado === 1)
-      return (
-        <Badge className="bg-yellow-400 text-black">
-          {t("status.changes")}
-        </Badge>
-      );
+      return <Badge className="bg-yellow-400 text-black">{t("status.changes")}</Badge>;
     if (estado === 2)
-      return (
-        <Badge className="bg-green-500 text-white">
-          {t("status.approved")}
-        </Badge>
-      );
+      return <Badge className="bg-green-500 text-white">{t("status.approved")}</Badge>;
     return <Badge variant="secondary">{t("common.unknown")}</Badge>;
   };
+
+  // -------- Spinner --------
+  const SpinnerEllipsis = () => (
+    <div className="flex justify-center items-center gap-1">
+      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+    </div>
+  );
 
   // -------- Render --------
   if (loading) {
     return (
-      <div className="p-6 text-center text-muted-foreground animate-pulse">
-        <p className="text-lg">🔄 {t("dashboard.loading")}</p>
+      <div className="p-6 text-center text-muted-foreground">
+        <SpinnerEllipsis />
+        <p className="mt-3 text-lg">{t("dashboard.loading")}</p>
       </div>
     );
   }
 
   return (
     <>
+      {/* estilos para calendar */}
       <style>{`
         .event-day-por-hacer { background-color: #fee2e2 !important; border-radius: 0.375rem !important; }
         .event-day-en-proceso { background-color: #ffedd5 !important; border-radius: 0.375rem !important; }
@@ -602,14 +563,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </Card>
-
-          {/* Plantillas */}
-          <Card className="p-3 lg:p-4 col-span-1 lg:col-span-3">
-            <h2 className="font-semibold text-base lg:text-lg mb-3">
-              🎨 Plantillas disponibles
-            </h2>
-            <TablePreview />
           </Card>
         </div>
       </div>

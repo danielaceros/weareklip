@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { getAuth } from "firebase/auth";
 

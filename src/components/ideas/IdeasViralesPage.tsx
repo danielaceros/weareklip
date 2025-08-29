@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useT } from "@/lib/i18n";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { serverTimestamp } from "firebase/firestore";
+
 import { IdeasViralesHeader } from "@/components/ideas/IdeasViralesHeader";
 import { IdeasViralesSearch } from "@/components/ideas/IdeasViralesSearch";
 import {
@@ -23,7 +22,6 @@ export default function IdeasViralesPage() {
   const [range, setRange] = useState("week");
   const [query, setQuery] = useState("");
   const [videos, setVideos] = useState<ShortVideo[]>([]);
-  const [displayCount, setDisplayCount] = useState(5);
   const [favorites, setFavorites] = useState<ShortVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -35,7 +33,7 @@ export default function IdeasViralesPage() {
     const unsub = onAuthStateChanged(auth, async (loggedUser) => {
       setUser(loggedUser);
       if (loggedUser) {
-        await loadFavorites(loggedUser.uid);
+        await loadFavorites(loggedUser);
       } else {
         setFavorites([]);
       }
@@ -43,12 +41,11 @@ export default function IdeasViralesPage() {
     return () => unsub();
   }, []);
 
-  const loadFavorites = async (uid: string) => {
+  const loadFavorites = async (loggedUser: User) => {
     try {
-      const idToken = await user?.getIdToken();
-      if (!idToken) throw new Error("Usuario no autenticado");
+      const idToken = await loggedUser.getIdToken();
 
-      const res = await fetch(`/api/firebase/users/${uid}/ideas`, {
+      const res = await fetch(`/api/firebase/users/${loggedUser.uid}/ideas`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 
@@ -62,7 +59,6 @@ export default function IdeasViralesPage() {
       toast.error("Error cargando favoritos");
     }
   };
-
 
   // Buscar vídeos virales
   const fetchVideos = async () => {
@@ -79,8 +75,15 @@ export default function IdeasViralesPage() {
         )}`
       );
       const data = await res.json();
-      setVideos(data);
-      setDisplayCount(5);
+
+      // 🔹 Normalizar views a number
+      const normalized: ShortVideo[] = data.map((d: any) => ({
+        ...d,
+        views: Number(d.views) || 0,
+      }));
+
+      setVideos(normalized);
+
       toast.success("Vídeos cargados correctamente", { id: loadingToast });
     } catch (err) {
       console.error("Error fetching shorts:", err);
@@ -90,32 +93,14 @@ export default function IdeasViralesPage() {
   };
 
   // Filtrar
-  const filteredVideos = videos.filter(
-    (video) =>
-      video.title.toLowerCase().includes(query.toLowerCase()) ||
-      video.description?.toLowerCase().includes(query.toLowerCase())
-  );
-
-  // Scroll infinito
-  const handleScroll = useCallback(() => {
-    if (!listRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-    if (scrollTop + clientHeight >= scrollHeight - 20) {
-      setDisplayCount((prev) => Math.min(prev + 5, filteredVideos.length));
-    }
-  }, [filteredVideos.length]);
-
-  useEffect(() => {
-    const currentRef = listRef.current;
-    if (currentRef) {
-      currentRef.addEventListener("scroll", handleScroll);
-    }
-    return () => {
-      if (currentRef) {
-        currentRef.removeEventListener("scroll", handleScroll);
-      }
-    };
-  }, [handleScroll]);
+  const filteredVideos =
+    query.trim() === ""
+      ? videos
+      : videos.filter(
+          (video) =>
+            video.title.toLowerCase().includes(query.toLowerCase()) ||
+            video.description?.toLowerCase().includes(query.toLowerCase())
+        );
 
   // Añadir o quitar favoritos
   const toggleFavorite = async (video: ShortVideo) => {
@@ -142,13 +127,12 @@ export default function IdeasViralesPage() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
 
       toast.success(exists ? "Eliminado de favoritos" : "Añadido a favoritos");
-      await loadFavorites(user.uid);
+      await loadFavorites(user);
     } catch (err) {
       console.error("Error en toggleFavorite:", err);
       toast.error("No se pudo actualizar favoritos");
     }
   };
-
 
   // Replicar vídeo
   const replicateVideo = async (video: ShortVideo) => {
@@ -206,7 +190,6 @@ export default function IdeasViralesPage() {
       toast.error("Error al replicar vídeo", { id: replicateToast });
     }
   };
-
 
   return (
     <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">

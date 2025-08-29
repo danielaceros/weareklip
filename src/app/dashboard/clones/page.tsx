@@ -9,7 +9,7 @@ export default function UserPage() {
     t,
     clonacionVideos,
     handleUpload,
-    handleDelete,
+    handleDelete, // este requiere id + storagePath
     uploading,
     progress,
   } = useUserPanel();
@@ -20,13 +20,16 @@ export default function UserPage() {
         t={t}
         clonacionVideos={clonacionVideos}
         handleUpload={handleUpload}
-        handleDelete={handleDelete}
+        // 👇 aquí el wrapper
+        handleDelete={(id) => {
+          const video = clonacionVideos.find((v) => v.id === id);
+          return handleDelete(id, (video as any)?.storagePath ?? "");
+        }}
         uploading={uploading}
         progress={progress}
       />
 
       <VoicesListContainer variant="card" title="🎤 Voces de clonación" />
-
     </div>
   );
 }

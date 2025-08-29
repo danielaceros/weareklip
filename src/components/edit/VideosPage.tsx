@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, X } from "lucide-react";
 
@@ -19,8 +17,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-import { getStorage, ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 export interface VideoData {
   projectId: string;
@@ -51,8 +49,7 @@ export default function VideosPage() {
   // Escucha de usuario autenticado
   useEffect(() => {
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return unsubscribe;
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   // Carga de vídeos del usuario
@@ -88,7 +85,6 @@ export default function VideosPage() {
     fetchVideos();
   }, [user]);
 
-
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
@@ -97,32 +93,26 @@ export default function VideosPage() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // 🔴 Borrar todos
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${idToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ all: true }), // el backend entiende "borrar todos"
+          body: JSON.stringify({ all: true }),
         });
 
         if (!res.ok) throw new Error("Error eliminando todos los vídeos");
-
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
-        // 🟠 Borrar uno
         const res = await fetch(
           `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
           {
             method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-            },
+            headers: { Authorization: `Bearer ${idToken}` },
           }
         );
-
         if (!res.ok) throw new Error("Error eliminando vídeo");
 
         setVideos((prev) =>
@@ -140,8 +130,14 @@ export default function VideosPage() {
     }
   }
 
-
-  if (loading) return <p>Cargando vídeos...</p>;
+  // 👇 Spinner en vez de texto plano
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -171,12 +167,7 @@ export default function VideosPage() {
         <p>No tienes vídeos aún.</p>
       ) : (
         <>
-          <div
-            className="
-              grid gap-4
-              grid-cols-[repeat(auto-fill,minmax(280px,300px))]
-            "
-          >
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,300px))]">
             {paginated.map((video) => (
               <VideoCard
                 key={video.projectId}
@@ -233,12 +224,10 @@ export default function VideosPage() {
       {/* Modal crear vídeo */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Fondo blur */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowCreateModal(false)}
           />
-          {/* Contenido */}
           <div className="relative bg-background rounded-xl shadow-lg w-full max-w-4xl mx-auto p-6 z-50 overflow-y-auto max-h-[90vh]">
             <button
               onClick={() => setShowCreateModal(false)}
@@ -251,7 +240,7 @@ export default function VideosPage() {
         </div>
       )}
 
-      {/* Modal eliminar (reusable) */}
+      {/* Modal eliminar */}
       <ConfirmDeleteDialog
         open={!!videoToDelete || deleteAll}
         onClose={() => {

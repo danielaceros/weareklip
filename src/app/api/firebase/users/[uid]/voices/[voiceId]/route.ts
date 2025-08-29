@@ -5,41 +5,33 @@ import { adminDB, adminAuth } from "@/lib/firebase-admin";
 // 🔹 Verificar token y ownership
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
+  if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
 
   const token = authHeader.split(" ")[1];
   const decoded = await adminAuth.verifyIdToken(token);
 
-  if (decoded.uid !== expectedUid) {
-    throw new Error("Forbidden");
-  }
-
+  if (decoded.uid !== expectedUid) throw new Error("Forbidden");
   return decoded;
 }
 
 // 🔹 GET una voz
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; voiceId: string }> }
-) {
+export async function GET(req: NextRequest, context: any) {
   try {
-    const { uid, voiceId } = await context.params;
+    const { uid, voiceId } = context.params;
     await verifyAuth(req, uid);
 
-    const doc = await adminDB
+    const docSnap = await adminDB
       .collection("users")
       .doc(uid)
       .collection("voices")
       .doc(voiceId)
       .get();
 
-    if (!doc.exists) {
+    if (!docSnap.exists) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ id: doc.id, ...doc.data() });
+    return NextResponse.json({ id: docSnap.id, ...docSnap.data() });
   } catch (err: any) {
     console.error("GET voice error:", err);
     const status =
@@ -52,25 +44,26 @@ export async function GET(
   }
 }
 
-// 🔹 PUT actualizar voz
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; voiceId: string }> }
-) {
+// 🔹 PUT crear o actualizar voz
+export async function PUT(req: NextRequest, context: any) {
   try {
-    const { uid, voiceId } = await context.params;
+    const { uid, voiceId } = context.params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
+
     await adminDB
       .collection("users")
       .doc(uid)
       .collection("voices")
       .doc(voiceId)
-      .update({
-        ...body,
-        updatedAt: new Date(),
-      });
+      .set(
+        {
+          ...body,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
 
     return NextResponse.json({ id: voiceId, ...body });
   } catch (err: any) {
@@ -86,12 +79,9 @@ export async function PUT(
 }
 
 // 🔹 DELETE eliminar voz
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; voiceId: string }> }
-) {
+export async function DELETE(req: NextRequest, context: any) {
   try {
-    const { uid, voiceId } = await context.params;
+    const { uid, voiceId } = context.params;
     await verifyAuth(req, uid);
 
     await adminDB

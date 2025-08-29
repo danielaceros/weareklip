@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { flushSync } from "react-dom"; 
+import { useState, useCallback, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -75,10 +74,19 @@ export function AudioForm({
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
 
+  const isLoading = processing || loading;
+  const buttonText = useMemo(
+    () =>
+      processing
+        ? "Procesando..."
+        : loading
+        ? "Generando audio..."
+        : "Generar audio",
+    [processing, loading]
+  );
+
   const handleGenerateClick = async () => {
-    flushSync(() => {
-      setProcessing(true);
-    });
+    setProcessing(true);
 
     const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
@@ -87,20 +95,8 @@ export function AudioForm({
       return;
     }
 
-    if (!text.trim()) {
-      toast.error("⚠️ Debes escribir un texto para convertirlo en audio.");
-      setProcessing(false);
-      return;
-    }
-
-    if (!voiceId) {
-      toast.error("⚠️ Selecciona una voz para continuar.");
-      setProcessing(false);
-      return;
-    }
-
-    if (!languageCode) {
-      toast.error("⚠️ Selecciona un idioma para el audio.");
+    if (!text.trim() || !voiceId || !languageCode) {
+      toast.error("⚠️ Completa todos los campos obligatorios.");
       setProcessing(false);
       return;
     }
@@ -112,12 +108,13 @@ export function AudioForm({
     }
   };
 
-  const isLoading = processing || loading;
-  const buttonText = processing
-    ? "Procesando..."
-    : loading
-    ? "Generando audio..."
-    : "Generar audio";
+  // 🔹 Memorizar handlers
+  const handleStability = useCallback((v: number[]) => setStability(v[0]), [setStability]);
+  const handleSimilarity = useCallback((v: number[]) => setSimilarityBoost(v[0]), [setSimilarityBoost]);
+  const handleStyle = useCallback((v: number[]) => setStyle(v[0]), [setStyle]);
+  const handleSpeed = useCallback((v: number[]) => setSpeed(v[0]), [setSpeed]);
+
+  const disableButton = !text.trim() || !voiceId || !languageCode || isLoading;
 
   return (
     <TooltipProvider>
@@ -178,19 +175,21 @@ export function AudioForm({
         <div className="space-y-4">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
+              <label htmlFor="stability-slider">
                 <div className="flex justify-between text-sm font-medium">
-                  <Label>Estabilidad</Label>
+                  <span>Estabilidad</span>
                   <span>{stability.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
+                  id="stability-slider"
+                  aria-label="Control de estabilidad"
                   value={[stability]}
                   min={0}
                   max={1}
                   step={0.01}
-                  onValueChange={(v) => setStability(v[0])}
+                  onValueChange={handleStability}
                 />
-              </div>
+              </label>
             </TooltipTrigger>
             <TooltipContent>
               <p>Consistencia de la voz. Más alto = más estable y menos variación.</p>
@@ -199,19 +198,21 @@ export function AudioForm({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
+              <label htmlFor="similarity-slider">
                 <div className="flex justify-between text-sm font-medium">
-                  <Label>Similaridad</Label>
+                  <span>Similaridad</span>
                   <span>{similarityBoost.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
+                  id="similarity-slider"
+                  aria-label="Control de similaridad"
                   value={[similarityBoost]}
                   min={0}
                   max={1}
                   step={0.01}
-                  onValueChange={(v) => setSimilarityBoost(v[0])}
+                  onValueChange={handleSimilarity}
                 />
-              </div>
+              </label>
             </TooltipTrigger>
             <TooltipContent>
               <p>Qué tan parecido suena el resultado a tu voz original.</p>
@@ -220,19 +221,21 @@ export function AudioForm({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
+              <label htmlFor="style-slider">
                 <div className="flex justify-between text-sm font-medium">
-                  <Label>Estilo</Label>
+                  <span>Estilo</span>
                   <span>{style.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
+                  id="style-slider"
+                  aria-label="Control de estilo"
                   value={[style]}
                   min={0}
                   max={1}
                   step={0.01}
-                  onValueChange={(v) => setStyle(v[0])}
+                  onValueChange={handleStyle}
                 />
-              </div>
+              </label>
             </TooltipTrigger>
             <TooltipContent>
               <p>Ajusta la expresividad de la voz (0 = plano, 1 = expresivo).</p>
@@ -241,19 +244,21 @@ export function AudioForm({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
+              <label htmlFor="speed-slider">
                 <div className="flex justify-between text-sm font-medium">
-                  <Label>Velocidad</Label>
+                  <span>Velocidad</span>
                   <span>{speed.toFixed(2)} / 2.00</span>
                 </div>
                 <Slider
+                  id="speed-slider"
+                  aria-label="Control de velocidad"
                   value={[speed]}
                   min={0.5}
                   max={2.0}
                   step={0.01}
-                  onValueChange={(v) => setSpeed(v[0])}
+                  onValueChange={handleSpeed}
                 />
-              </div>
+              </label>
             </TooltipTrigger>
             <TooltipContent>
               <p>Rapidez de la locución (0.5x lento, 2x muy rápido).</p>
@@ -266,10 +271,12 @@ export function AudioForm({
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2">
               <Checkbox
+                id="speaker-boost"
                 checked={speakerBoost}
                 onCheckedChange={(c) => setSpeakerBoost(!!c)}
+                aria-label="Activar Speaker Boost"
               />
-              <Label>Usar Speaker Boost</Label>
+              <Label htmlFor="speaker-boost">Usar Speaker Boost</Label>
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -280,7 +287,7 @@ export function AudioForm({
         {/* Botón */}
         <Button
           onClick={handleGenerateClick}
-          disabled={isLoading}
+          disabled={disableButton}
           className="w-full rounded-lg"
         >
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}

@@ -65,6 +65,7 @@
     "react-phone-number-input": "^3.4.12",
     "sonner": "^2.0.6",
     "stripe": "^18.4.0",
+    "swr": "^2.3.6",
     "tailwind-merge": "^3.3.0",
     "undici": "^7.13.0",
     "uuid": "^11.1.0",

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -25,22 +27,34 @@ export default function DeleteScriptDialog({
   deleting,
   script,
 }: Props) {
-  const title = script?.description || script?.videoTitle || "este guion";
+  // 🔹 Memorizar para evitar renders innecesarios
+  const title = useMemo(
+    () => script?.description || script?.videoTitle || "este guion",
+    [script?.description, script?.videoTitle]
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md animate-in fade-in-0 zoom-in-95">
         <DialogHeader>
           <DialogTitle>Eliminar guion</DialogTitle>
           <DialogDescription>
-            ¿Seguro que quieres eliminar <strong>{title}</strong>? Esta acción no se puede deshacer.
+            ¿Seguro que quieres eliminar{" "}
+            <strong className="text-foreground">{title}</strong>? <br />
+            Esta acción no se puede deshacer.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-3">
           <Button variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={deleting}>
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={deleting}
+            aria-label={`Eliminar ${title}`}
+          >
+            {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {deleting ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogFooter>

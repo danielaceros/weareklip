@@ -1,8 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 
 export function useAudioForm(defaultText: string) {
@@ -18,47 +16,62 @@ export function useAudioForm(defaultText: string) {
   const [speakerBoost, setSpeakerBoost] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  // 🔑 Manejo de voces
+  const loadVoices = useCallback(async (currentUser: User) => {
+    const controller = new AbortController();
+
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(`/api/firebase/users/${currentUser.uid}/voices`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const loadedVoices: { id: string; name: string }[] = data.map((v: any) => ({
+        id: v.id,
+        name: v.name || v.id,
+      }));
+
+      setVoices(loadedVoices);
+
+      if (loadedVoices.length === 0) {
+        toast.warning("No tienes voces guardadas, primero crea o clona una voz.");
+      } else if (!voiceId) {
+        // 👌 Selecciona primera voz automáticamente
+        setVoiceId(loadedVoices[0].id);
+      }
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        console.error("❌ Error cargando voces:", err);
+        toast.error("Error cargando voces desde el servidor.");
+      }
+    }
+
+    return () => controller.abort();
+  }, [voiceId]);
+
+  // 🔑 Auth listener
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-
       if (currentUser) {
-        try {
-          const idToken = await currentUser.getIdToken();
-          const res = await fetch(`/api/firebase/users/${currentUser.uid}/voices`, {
-            headers: { Authorization: `Bearer ${idToken}` },
-          });
-
-          if (!res.ok) throw new Error(`Error ${res.status}`);
-          const data = await res.json();
-
-          const loadedVoices: { id: string; name: string }[] = data.map((v: any) => ({
-            id: v.id,
-            name: v.name || v.id,
-          }));
-
-          setVoices(loadedVoices);
-
-          if (loadedVoices.length === 0) {
-            toast.warning("No tienes voces guardadas, primero crea o clona una voz.");
-          }
-        } catch (err) {
-          console.error(err);
-          toast.error("Error cargando voces desde el servidor.");
-        }
+        loadVoices(currentUser);
       } else {
         setVoices([]);
+        setVoiceId("");
       }
     });
-
     return () => unsub();
-  }, []);
+  }, [loadVoices]);
 
-
+  // 🔑 Texto inicial desde guion
   useEffect(() => {
     if (defaultText) {
-      toast.success("Texto cargado automáticamente desde el guion seleccionado");
+      toast.message("Texto cargado desde el guion seleccionado ✨");
     }
   }, [defaultText]);
 
@@ -72,6 +85,6 @@ export function useAudioForm(defaultText: string) {
     style, setStyle,
     speed, setSpeed,
     speakerBoost, setSpeakerBoost,
-    loading, setLoading
+    loading, setLoading,
   };
 }

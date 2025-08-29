@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { flushSync } from "react-dom"; // 👈 Import clave
+import { useState, useCallback, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -62,27 +62,38 @@ export function ScriptForm({
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     flushSync(() => {
       setProcessing(true);
     });
+
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
       toast.error("Necesitas una suscripción activa para generar guiones.");
+      setProcessing(false);
       return;
     }
 
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
+      setProcessing(false);
       return;
     }
-    
+
     try {
       await onSubmit();
     } finally {
       setProcessing(false);
     }
-  };
+  }, [
+    ensureSubscribed,
+    description,
+    tone,
+    platform,
+    duration,
+    structure,
+    onSubmit,
+  ]);
 
   const isLoading = processing || loading;
   const buttonText = processing
@@ -90,6 +101,63 @@ export function ScriptForm({
     : loading
     ? "Generando..."
     : "Generar guion";
+
+  // ✅ Memoizar las opciones de Select para evitar recreación
+  const toneOptions = useMemo(
+    () => [
+      { value: "motivador", label: "Motivador" },
+      { value: "educativo", label: "Educativo" },
+      { value: "humoristico", label: "Humorístico" },
+      { value: "serio", label: "Serio" },
+      { value: "inspirador", label: "Inspirador" },
+      { value: "emocional", label: "Emocional" },
+      { value: "provocador", label: "Provocador" },
+    ],
+    []
+  );
+
+  const platformOptions = useMemo(
+    () => [
+      { value: "instagram", label: "Instagram" },
+      { value: "tiktok", label: "TikTok" },
+      { value: "youtube", label: "YouTube Shorts" },
+      { value: "linkedin", label: "LinkedIn" },
+    ],
+    []
+  );
+
+  const durationOptions = useMemo(
+    () => [
+      { value: "15-30", label: "15–30 segundos" },
+      { value: "30-45", label: "30–45 segundos" },
+      { value: "45-60", label: "45–60 segundos" },
+      { value: "60-90", label: "60–90 segundos" },
+    ],
+    []
+  );
+
+  const languageOptions = useMemo(
+    () => [
+      { value: "es", label: "Español" },
+      { value: "en", label: "Inglés" },
+      { value: "fr", label: "Francés" },
+    ],
+    []
+  );
+
+  const structureOptions = useMemo(
+    () => [
+      { value: "gancho-desarrollo-cierre", label: "Gancho – Desarrollo – Cierre" },
+      { value: "storytelling", label: "Storytelling" },
+      { value: "lista-tips", label: "Lista de tips" },
+      { value: "pregunta-retorica", label: "Pregunta retórica" },
+      { value: "comparativa-antes-despues", label: "Comparativa antes/después" },
+      { value: "mito-vs-realidad", label: "Mito vs realidad" },
+      { value: "problema-solucion", label: "Problema – Solución" },
+      { value: "testimonio", label: "Testimonio" },
+    ],
+    []
+  );
 
   return (
     <div className="w-full space-y-8">
@@ -122,13 +190,11 @@ export function ScriptForm({
                 <SelectValue placeholder="Seleccionar un tono" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="motivador">Motivador</SelectItem>
-                <SelectItem value="educativo">Educativo</SelectItem>
-                <SelectItem value="humoristico">Humorístico</SelectItem>
-                <SelectItem value="serio">Serio</SelectItem>
-                <SelectItem value="inspirador">Inspirador</SelectItem>
-                <SelectItem value="emocional">Emocional</SelectItem>
-                <SelectItem value="provocador">Provocador</SelectItem>
+                {toneOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -140,10 +206,11 @@ export function ScriptForm({
                 <SelectValue placeholder="Seleccionar una plataforma" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="instagram">Instagram</SelectItem>
-                <SelectItem value="tiktok">TikTok</SelectItem>
-                <SelectItem value="youtube">YouTube Shorts</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
+                {platformOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -158,10 +225,11 @@ export function ScriptForm({
                 <SelectValue placeholder="Seleccionar una duración" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="15-30">15–30 segundos</SelectItem>
-                <SelectItem value="30-45">30–45 segundos</SelectItem>
-                <SelectItem value="45-60">45–60 segundos</SelectItem>
-                <SelectItem value="60-90">60–90 segundos</SelectItem>
+                {durationOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -173,9 +241,11 @@ export function ScriptForm({
                 <SelectValue placeholder="Seleccionar un idioma" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="en">Inglés</SelectItem>
-                <SelectItem value="fr">Francés</SelectItem>
+                {languageOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -187,22 +257,11 @@ export function ScriptForm({
                 <SelectValue placeholder="Seleccionar una estructura" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gancho-desarrollo-cierre">
-                  Gancho – Desarrollo – Cierre
-                </SelectItem>
-                <SelectItem value="storytelling">Storytelling</SelectItem>
-                <SelectItem value="lista-tips">Lista de tips</SelectItem>
-                <SelectItem value="pregunta-retorica">
-                  Pregunta retórica
-                </SelectItem>
-                <SelectItem value="comparativa-antes-despues">
-                  Comparativa antes/después
-                </SelectItem>
-                <SelectItem value="mito-vs-realidad">Mito vs realidad</SelectItem>
-                <SelectItem value="problema-solucion">
-                  Problema – Solución
-                </SelectItem>
-                <SelectItem value="testimonio">Testimonio</SelectItem>
+                {structureOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -230,6 +289,8 @@ export function ScriptForm({
           type="button"
           onClick={handleSubmit}
           disabled={isLoading}
+          aria-busy={isLoading}
+          aria-disabled={isLoading}
           className="w-full"
           data-paywall
           data-paywall-feature="script"

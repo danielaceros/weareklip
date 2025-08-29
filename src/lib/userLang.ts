@@ -13,7 +13,7 @@ export async function getUserLang(uid?: string): Promise<Locale> {
   if (!idToken) return "es";
 
   try {
-    const res = await fetch(`/api/users/${userId}`, {
+    const res = await fetch(`/api/firebase/users/${userId}`, {
       headers: {
         Authorization: `Bearer ${idToken}`,
       },
@@ -44,7 +44,7 @@ export async function setUserLang(next: Locale, uid?: string) {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("No autenticado");
 
-  const res = await fetch(`/api/users/${userId}`, {
+  const res = await fetch(`/api/firebase/users/${userId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

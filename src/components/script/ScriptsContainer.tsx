@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -11,10 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
-import { ScriptCard } from "./ScriptCard";
-import { ScriptModal } from "./ScriptModal";
 import {
   Pagination,
   PaginationContent,
@@ -24,9 +20,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import { Plus, Trash2 } from "lucide-react";
+import { ScriptCard } from "./ScriptCard";
+import { ScriptModal } from "./ScriptModal";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
-import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog"; // 👈 reusado
-import { toast } from "sonner";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface ScriptData {
   scriptId: string;
@@ -68,56 +67,56 @@ export default function ScriptsContainer() {
 
   const perPage = 8;
 
+  // 🔑 Auth
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
+  // 📥 Fetch de scripts
   const fetchScripts = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
       const idToken = await user.getIdToken();
       const res = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
+        headers: { Authorization: `Bearer ${idToken}` },
       });
 
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: any[] = await res.json();
 
-      const mapped: ScriptData[] = data.map((doc) => ({
-        scriptId: doc.id, // renombramos el id de Firestore
-        description: doc.description,
-        platform: doc.platform,
-        language: doc.language,
-        script: doc.script,
-        createdAt: doc.createdAt,
-        fuente: doc.fuente,
-        isAI: doc.isAI,
-        videoTitle: doc.videoTitle,
-        videoDescription: doc.videoDescription,
-        videoChannel: doc.videoChannel,
-        videoPublishedAt: doc.videoPublishedAt,
-        videoViews: doc.videoViews,
-        videoThumbnail: doc.videoThumbnail,
-      }));
-
-      setScripts(mapped);
+      setScripts(
+        data.map((doc) => ({
+          scriptId: doc.id,
+          description: doc.description,
+          platform: doc.platform,
+          language: doc.language,
+          script: doc.script,
+          createdAt: doc.createdAt,
+          fuente: doc.fuente,
+          isAI: doc.isAI,
+          videoTitle: doc.videoTitle,
+          videoDescription: doc.videoDescription,
+          videoChannel: doc.videoChannel,
+          videoPublishedAt: doc.videoPublishedAt,
+          videoViews: doc.videoViews,
+          videoThumbnail: doc.videoThumbnail,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching scripts:", error);
+      toast.error("No se pudieron cargar los guiones");
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-
-
   useEffect(() => {
     fetchScripts();
   }, [fetchScripts]);
 
+  // 🟠 Borrado con UI optimista
   const handleConfirmDelete = async () => {
     if (!user) return;
     setDeleting(true);
@@ -126,52 +125,31 @@ export default function ScriptsContainer() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // 🔴 Borrar todos los guiones
+        const prev = scripts;
+        setScripts([]); // Optimista
         await Promise.all(
-          scripts.map(async (script) => {
-            const res = await fetch(
-              `/api/firebase/users/${user.uid}/scripts/${script.scriptId}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${idToken}`,
-                },
-              }
-            );
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              throw new Error(err.error || `Error ${res.status}`);
-            }
-          })
+          prev.map((script) =>
+            fetch(`/api/firebase/users/${user.uid}/scripts/${script.scriptId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${idToken}` },
+            })
+          )
         );
-
-        setScripts([]);
         toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
-        // 🟠 Borrar un solo guion
+        const prev = scripts;
+        setScripts((s) => s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId));
         const res = await fetch(
           `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-            },
-          }
+          { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
         );
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Error ${res.status}`);
-        }
-
-        setScripts((prev) =>
-          prev.filter((s) => s.scriptId !== scriptToDelete.scriptId)
-        );
+        if (!res.ok) throw new Error("Error en borrado");
         toast.success("Guion eliminado correctamente ✅");
       }
     } catch (err) {
       console.error("❌ Error eliminando guiones:", err);
       toast.error("No se pudieron eliminar los guiones");
+      fetchScripts(); // rollback
     } finally {
       setDeleting(false);
       setScriptToDelete(null);
@@ -179,13 +157,15 @@ export default function ScriptsContainer() {
     }
   };
 
-
+  // ⭐ Rating optimista
   const handleRating = async (scriptId: string, newRating: number) => {
     if (!user) return;
-
+    const prev = scripts;
+    setScripts((s) =>
+      s.map((sc) => (sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc))
+    );
     try {
       const idToken = await user.getIdToken();
-
       const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
         method: "PUT",
         headers: {
@@ -194,70 +174,69 @@ export default function ScriptsContainer() {
         },
         body: JSON.stringify({ rating: newRating }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Error ${res.status}`);
-      }
-
-      setScripts((prev) =>
-        prev.map((s) =>
-          s.scriptId === scriptId ? { ...s, rating: newRating } : s
-        )
-      );
+      if (!res.ok) throw new Error("Error rating");
     } catch (err) {
-      console.error("❌ Error actualizando rating:", err);
-      toast.error("No se pudo actualizar la valoración del guion");
+      toast.error("No se pudo actualizar la valoración");
+      setScripts(prev); // rollback
     }
   };
 
-
-  const sortedScripts = [...scripts].sort((a, b) => {
-    const dateA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
-    const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
-    if (sortOption === "date-desc") return dateB - dateA;
-    if (sortOption === "date-asc") return dateA - dateB;
-    if (sortOption === "rating-desc") return (b.rating || 0) - (a.rating || 0);
-    if (sortOption === "rating-asc") return (a.rating || 0) - (b.rating || 0);
-    return 0;
-  });
+  // 📊 Orden y paginación memoizados
+  const sortedScripts = useMemo(() => {
+    return [...scripts].sort((a, b) => {
+      const dateA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
+      const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
+      if (sortOption === "date-desc") return dateB - dateA;
+      if (sortOption === "date-asc") return dateA - dateB;
+      if (sortOption === "rating-desc") return (b.rating || 0) - (a.rating || 0);
+      if (sortOption === "rating-asc") return (a.rating || 0) - (b.rating || 0);
+      return 0;
+    });
+  }, [scripts, sortOption]);
 
   const totalPages = Math.ceil(sortedScripts.length / perPage);
   const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
 
-  if (loading) return <p className="text-muted-foreground">Cargando guiones...</p>;
+  // ✅ Spinner loader centrado
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
       <h1 className="text-2xl font-bold">Mis Guiones</h1>
       <div className="flex justify-between">
-          <Button
-            variant="destructive"
-            className="rounded-lg"
-            onClick={() => setDeleteAll(true)}
-            disabled={scripts.length === 0}
-          >
-            <Trash2 size={18} className="mr-2" />
-            Borrar todos
-          </Button>
-          </div>
-          <div className="flex justify-end gap-5">
-          <Select value={sortOption} onValueChange={setSortOption}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date-desc">Fecha ↓</SelectItem>
-              <SelectItem value="date-asc">Fecha ↑</SelectItem>
-              <SelectItem value="rating-desc">Rating ↓</SelectItem>
-              <SelectItem value="rating-asc">Rating ↑</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button className="rounded-lg" onClick={() => setIsNewOpen(true)}>
-            <Plus size={18} className="mr-2" /> Crear guion
-          </Button>
-          </div>
+        <Button
+          variant="destructive"
+          className="rounded-lg"
+          onClick={() => setDeleteAll(true)}
+          disabled={scripts.length === 0}
+        >
+          <Trash2 size={18} className="mr-2" />
+          Borrar todos
+        </Button>
+      </div>
+      <div className="flex justify-end gap-5">
+        <Select value={sortOption} onValueChange={setSortOption}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date-desc">Fecha ↓</SelectItem>
+            <SelectItem value="date-asc">Fecha ↑</SelectItem>
+            <SelectItem value="rating-desc">Rating ↓</SelectItem>
+            <SelectItem value="rating-asc">Rating ↑</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button className="rounded-lg" onClick={() => setIsNewOpen(true)}>
+          <Plus size={18} className="mr-2" /> Crear guion
+        </Button>
+      </div>
 
       {/* Grid */}
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">

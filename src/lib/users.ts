@@ -8,7 +8,7 @@ export async function checkIsAdmin(uid?: string): Promise<boolean> {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) return false;
 
-    const res = await fetch(`/api/users/${userId}`, {
+    const res = await fetch(`/api/firebase/users/${userId}`, {
       headers: {
         Authorization: `Bearer ${idToken}`,
       },

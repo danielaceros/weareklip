@@ -5,27 +5,19 @@ import { adminDB, adminAuth } from "@/lib/firebase-admin";
 // 🔹 Verificar token y ownership
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
+  if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
 
   const token = authHeader.split(" ")[1];
   const decoded = await adminAuth.verifyIdToken(token);
 
-  if (decoded.uid !== expectedUid) {
-    throw new Error("Forbidden");
-  }
-
+  if (decoded.uid !== expectedUid) throw new Error("Forbidden");
   return decoded;
 }
 
 // 🔹 GET vídeo
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; videoId: string }> }
-) {
+export async function GET(req: NextRequest, context: any) {
   try {
-    const { uid, videoId } = await context.params;
+    const { uid, videoId } = context.params;
     await verifyAuth(req, uid);
 
     const docSnap = await adminDB
@@ -52,13 +44,10 @@ export async function GET(
   }
 }
 
-// 🔹 UPDATE vídeo
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; videoId: string }> }
-) {
+// 🔹 CREATE or UPDATE vídeo
+export async function PUT(req: NextRequest, context: any) {
   try {
-    const { uid, videoId } = await context.params;
+    const { uid, videoId } = context.params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
@@ -68,10 +57,13 @@ export async function PUT(
       .doc(uid)
       .collection("videos")
       .doc(videoId)
-      .update({
-        ...body,
-        updatedAt: new Date(),
-      });
+      .set(
+        {
+          ...body,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
 
     return NextResponse.json({ id: videoId, ...body });
   } catch (err: any) {
@@ -87,12 +79,9 @@ export async function PUT(
 }
 
 // 🔹 DELETE vídeo
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ uid: string; videoId: string }> }
-) {
+export async function DELETE(req: NextRequest, context: any) {
   try {
-    const { uid, videoId } = await context.params;
+    const { uid, videoId } = context.params;
     await verifyAuth(req, uid);
 
     await adminDB

@@ -91,7 +91,7 @@ async function syncUserLang(lang: Locale) {
     const u = auth.currentUser;
     if (!u) return;
     const token = await u.getIdToken();
-    await fetch("/api/users/settings", {
+    await fetch("/api/firebase/users/settings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

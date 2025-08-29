@@ -49,7 +49,7 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
       try {
         const idToken = await user.getIdToken();
         const res = await fetch(
-          `/api/users/${user.uid}/chatSessions/${sessionId}/messages`,
+          `/api/firebase/users/${user.uid}/sessions/${sessionId}/messages`,
           {
             headers: { Authorization: `Bearer ${idToken}` },
           }
@@ -93,7 +93,7 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     const sessionId = "default";
     const messagesRef = collection(
         db,
-        `users/${user.uid}/chatSessions/${sessionId}/messages`
+        `users/${user.uid}/sessions/${sessionId}/messages`
     );
 
     // Guardamos el mensaje del usuario

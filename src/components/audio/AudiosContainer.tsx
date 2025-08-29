@@ -1,21 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { getStorage, ref, deleteObject } from "firebase/storage";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { AudiosList, AudioData } from "./AudiosList";
-import {
-  Dialog,
-  DialogContent,
-  DialogOverlay,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 export default function AudiosContainer() {
   const [audios, setAudios] = useState<AudioData[]>([]);
@@ -23,16 +17,14 @@ export default function AudiosContainer() {
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  // estado para eliminar
+  // estado de borrado
   const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   const fetchAudios = useCallback(async () => {
@@ -61,19 +53,19 @@ export default function AudiosContainer() {
       setAudios(mapped);
     } catch (error) {
       console.error("Error fetching audios:", error);
-      toast.error("Error cargando audios");
+      toast.error("❌ No se pudieron cargar los audios");
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-
   useEffect(() => {
     fetchAudios();
   }, [fetchAudios]);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!user) return;
+    if (deleting) return; // prevenir clicks dobles
     setDeleting(true);
 
     try {
@@ -90,16 +82,14 @@ export default function AudiosContainer() {
                 headers: { Authorization: `Bearer ${idToken}` },
               }
             );
-
             if (!res.ok) {
               const err = await res.json().catch(() => ({}));
               throw new Error(err.error || `Error ${res.status}`);
             }
           })
         );
-
         setAudios([]);
-        toast.success("Todos los audios eliminados ✅");
+        toast.success("🗑️ Todos los audios eliminados");
       } else if (audioToDelete) {
         // borrar uno
         const res = await fetch(
@@ -109,7 +99,6 @@ export default function AudiosContainer() {
             headers: { Authorization: `Bearer ${idToken}` },
           }
         );
-
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `Error ${res.status}`);
@@ -122,38 +111,49 @@ export default function AudiosContainer() {
       }
     } catch (err) {
       console.error("Error eliminando audio:", err);
-      toast.error("No se pudo eliminar el audio");
+      toast.error("❌ No se pudo eliminar el audio");
     } finally {
       setDeleting(false);
       setAudioToDelete(null);
       setDeleteAll(false);
     }
-  };
+  }, [user, deleteAll, audioToDelete, audios, deleting]);
 
+  const deleteDialogOpen = useMemo(
+    () => !!audioToDelete || deleteAll,
+    [audioToDelete, deleteAll]
+  );
 
-  if (loading) return <p>Cargando audios...</p>;
+  // ✅ Spinner state (en vez de skeletons)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis"/>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-4">
       {/* Header */}
       <h1 className="text-2xl font-bold">Mis Audios</h1>
       <div className="flex justify-between">
-          <Button
-            variant="destructive"
-            className="rounded-lg"
-            onClick={() => setDeleteAll(true)}
-            disabled={audios.length === 0}
-          >
-            <Trash2 size={18} className="mr-2" />
-            Borrar todos
-          </Button>
-          <Button
-            onClick={() => setIsNewOpen(true)}
-            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-          >
-            <Plus size={18} className="mr-2" />
-            Nuevo audio
-          </Button>
+        <Button
+          variant="destructive"
+          className="rounded-lg"
+          onClick={() => setDeleteAll(true)}
+          disabled={audios.length === 0 || deleting}
+        >
+          <Trash2 size={18} className="mr-2" />
+          {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
+        </Button>
+        <Button
+          onClick={() => setIsNewOpen(true)}
+          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+        >
+          <Plus size={18} className="mr-2" />
+          Nuevo audio
+        </Button>
       </div>
 
       {/* Lista de audios */}
@@ -169,7 +169,7 @@ export default function AudiosContainer() {
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
-        open={!!audioToDelete || deleteAll}
+        open={deleteDialogOpen}
         onClose={() => {
           setAudioToDelete(null);
           setDeleteAll(false);

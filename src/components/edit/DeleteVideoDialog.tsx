@@ -13,7 +13,7 @@ import { db, storage } from "@/lib/firebase";
 import { doc, deleteDoc } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
 import { getAuth } from "firebase/auth";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useState } from "react";
 
 interface VideoData {

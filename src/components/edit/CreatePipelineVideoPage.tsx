@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Loader2, UploadCloud, VideoIcon } from "lucide-react";
