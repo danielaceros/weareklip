@@ -48,14 +48,12 @@ export default function VideosPage() {
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
-  // Escucha de usuario autenticado
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return unsubscribe;
   }, []);
 
-  // Carga de vídeos del usuario
   useEffect(() => {
     const fetchVideos = async () => {
       if (!user) return;
@@ -84,7 +82,6 @@ export default function VideosPage() {
 
     try {
       if (deleteAll) {
-        // 🔴 Borrar todos
         await Promise.all(
           videos.map(async (video) => {
             await deleteDoc(doc(db, "users", user.uid, "videos", video.projectId));
@@ -99,7 +96,6 @@ export default function VideosPage() {
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
-        // 🟠 Borrar uno
         await deleteDoc(doc(db, "users", user.uid, "videos", videoToDelete.projectId));
         if (videoToDelete.storagePath) {
           try {
@@ -124,25 +120,27 @@ export default function VideosPage() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      <h1 className="text-2xl font-bold">Mis Ediciones</h1>
-      <div className="flex justify-between">
-        <Button
-          variant="destructive"
-          className="rounded-lg"
-          onClick={() => setDeleteAll(true)}
-          disabled={videos.length === 0}
-        >
-          <Trash2 size={18} className="mr-2" />
-          Borrar todos
-        </Button>
-
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-        >
-          <Plus size={18} className="mr-2" />
-          Crear vídeo
-        </Button>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-2xl font-bold">Ediciones</h1>
+        <div className="flex gap-3">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={videos.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          >
+            <Plus size={18} className="mr-2" />
+            Crear vídeo
+          </Button>
+        </div>
       </div>
 
       {/* Lista de vídeos */}
@@ -153,7 +151,7 @@ export default function VideosPage() {
           <div
             className="
               grid gap-4
-              grid-cols-[repeat(auto-fill,minmax(280px,300px))]
+              grid-cols-2 xs:grid-cols-2 sm:grid-cols-6 lg:grid-cols-6
             "
           >
             {paginated.map((video) => (
@@ -212,12 +210,10 @@ export default function VideosPage() {
       {/* Modal crear vídeo */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Fondo blur */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowCreateModal(false)}
           />
-          {/* Contenido */}
           <div className="relative bg-background rounded-xl shadow-lg w-full max-w-4xl mx-auto p-6 z-50 overflow-y-auto max-h-[90vh]">
             <button
               onClick={() => setShowCreateModal(false)}
@@ -230,7 +226,7 @@ export default function VideosPage() {
         </div>
       )}
 
-      {/* Modal eliminar (reusable) */}
+      {/* Modal eliminar */}
       <ConfirmDeleteDialog
         open={!!videoToDelete || deleteAll}
         onClose={() => {

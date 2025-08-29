@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
-import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog"; // 👈 reusado
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 
 interface ScriptData {
@@ -66,7 +66,7 @@ export default function ScriptsContainer() {
   const [page, setPage] = useState(1);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  const perPage = 8;
+  const perPage = 4;
 
   useEffect(() => {
     const auth = getAuth();
@@ -152,38 +152,45 @@ export default function ScriptsContainer() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      {/* Header */}
-      <h1 className="text-2xl font-bold">Mis Guiones</h1>
-      <div className="flex justify-between">
-          <Button
-            variant="destructive"
-            className="rounded-lg"
-            onClick={() => setDeleteAll(true)}
-            disabled={scripts.length === 0}
-          >
-            <Trash2 size={18} className="mr-2" />
-            Borrar todos
-          </Button>
-          </div>
-          <div className="flex justify-end gap-5">
-          <Select value={sortOption} onValueChange={setSortOption}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date-desc">Fecha ↓</SelectItem>
-              <SelectItem value="date-asc">Fecha ↑</SelectItem>
-              <SelectItem value="rating-desc">Rating ↓</SelectItem>
-              <SelectItem value="rating-asc">Rating ↑</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button className="rounded-lg" onClick={() => setIsNewOpen(true)}>
-            <Plus size={18} className="mr-2" /> Crear guion
-          </Button>
-          </div>
+      {/* Header principal */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Guiones</h1>
+        <Button
+          className="rounded-lg bg-neutral-200 text-black hover:bg-neutral-300"
+          onClick={() => setIsNewOpen(true)}
+        >
+          <Plus size={18} className="mr-2" /> Generar guión
+        </Button>
+      </div>
+
+      {/* Toolbar secundario */}
+      <div className="flex items-center justify-between gap-3">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="rounded-lg"
+          onClick={() => setDeleteAll(true)}
+          disabled={scripts.length === 0}
+        >
+          <Trash2 size={16} className="mr-2" />
+          Borrar todos
+        </Button>
+
+        <Select value={sortOption} onValueChange={setSortOption}>
+          <SelectTrigger className="w-40 rounded-lg">
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date-desc">Fecha ↓</SelectItem>
+            <SelectItem value="date-asc">Fecha ↑</SelectItem>
+            <SelectItem value="rating-desc">Rating ↓</SelectItem>
+            <SelectItem value="rating-asc">Rating ↑</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Grid */}
-      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {paginated.length === 0 && (
           <p className="col-span-full text-muted-foreground text-sm text-center">
             No tienes guiones aún.

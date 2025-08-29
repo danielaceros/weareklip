@@ -16,18 +16,18 @@ export const IdeasViralesSearch: FC<IdeasViralesSearchProps> = ({
   onSearch,
 }) => {
   return (
-    <div className="flex w-full gap-2">
+    <div className="flex flex-col sm:flex-row w-full gap-2">
       <Input
         type="text"
         placeholder="Busca tu nicho"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="flex-1 rounded-lg bg-muted text-sm focus-visible:ring-1 focus-visible:ring-ring"
+        className="w-full sm:flex-1 rounded-lg bg-muted text-sm focus-visible:ring-1 focus-visible:ring-ring"
       />
       <Button
         onClick={onSearch}
         disabled={!query.trim()}
-        className="rounded-lg px-6"
+        className="w-full sm:w-auto rounded-lg px-6"
       >
         Buscar
       </Button>

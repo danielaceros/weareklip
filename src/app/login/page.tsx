@@ -158,12 +158,12 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-black p-4">
-      <Card className="w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-lg font-semibold">
+      <Card className="w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg px-4 py-6 sm:px-6 sm:py-8">
+        <CardHeader className="space-y-2 text-center">
+          <CardTitle className="text-base sm:text-lg font-semibold">
             {mode === "login" ? "Inicia sesión en tu cuenta" : "Crea tu cuenta"}
           </CardTitle>
-          <p className="text-sm text-neutral-400">
+          <p className="text-xs sm:text-sm text-neutral-400">
             Introduce tu correo electrónico para acceder a tu cuenta
           </p>
         </CardHeader>
@@ -173,7 +173,7 @@ export default function LoginPage() {
             onSubmit={onSubmit}
             aria-label="Formulario de acceso"
           >
-            <div className="grid gap-1">
+            <div className="grid gap-2">
               <label className="text-sm font-medium">Correo electrónico</label>
               <Input
                 type="email"
@@ -183,11 +183,11 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
+                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
             </div>
 
-            <div className="grid gap-1">
+            <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Contraseña</label>
                 {mode === "login" && (
@@ -195,7 +195,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={onResetPassword}
                     disabled={loadingReset}
-                    className="text-sm text-neutral-400 hover:text-white"
+                    className="text-xs sm:text-sm text-neutral-400 hover:text-white"
                   >
                     {loadingReset ? "Enviando..." : "¿Has olvidado tu contraseña?"}
                   </button>
@@ -210,14 +210,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
+                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 bg-neutral-200 text-black hover:bg-neutral-300"
+              className="w-full py-2.5 sm:py-3 mt-2 bg-neutral-200 text-black hover:bg-neutral-300"
             >
               {loading
                 ? "Cargando..."
@@ -230,16 +230,14 @@ export default function LoginPage() {
               type="button"
               onClick={onGoogle}
               disabled={loadingGoogle}
-              className="bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+              className="w-full py-2.5 sm:py-3 bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
             >
               {loadingGoogle ? "Conectando..." : "Iniciar sesión con Google"}
             </Button>
 
             <button
               type="button"
-              className={cn(
-                "mt-2 text-sm text-neutral-400 hover:text-white"
-              )}
+              className="mt-2 text-xs sm:text-sm text-neutral-400 hover:text-white"
               onClick={() =>
                 setMode((m) => (m === "login" ? "register" : "login"))
               }

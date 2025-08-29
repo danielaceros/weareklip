@@ -155,13 +155,13 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                     </p>
                   </CardContent>
 
-                  <CardFooter className="flex items-center justify-between p-4 pt-0">
-                    <div className="flex gap-2">
+                  <CardFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 pt-0">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         asChild
-                        className="rounded-lg"
+                        className="rounded-lg w-full sm:w-auto"
                       >
                         <a
                           href={video.url}
@@ -173,7 +173,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="rounded-lg"
+                        className="rounded-lg w-full sm:w-auto"
                         onClick={() => onReplicate(video)}
                       >
                         Replicar video
@@ -182,7 +182,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
 
                     <button
                       onClick={() => onToggleFavorite(video)}
-                      className={`p-2 rounded-full transition ${
+                      className={`self-end sm:self-auto p-2 rounded-full transition ${
                         isFav
                           ? "text-red-500 hover:text-red-600"
                           : "text-muted-foreground hover:text-foreground"
@@ -194,6 +194,8 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       />
                     </button>
                   </CardFooter>
+
+
                 </Card>
               );
             })}

@@ -15,18 +15,22 @@ export default function UserPage() {
   } = useUserPanel();
 
   return (
-    <div className="space-y-8">
-      <ClonacionVideosSection
-        t={t}
-        clonacionVideos={clonacionVideos}
-        handleUpload={handleUpload}
-        handleDelete={handleDelete}
-        uploading={uploading}
-        progress={progress}
-      />
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-8">
+      {/* Layout responsive: columnas en desktop, stack en móvil */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Videos */}
+        <ClonacionVideosSection
+          t={t}
+          clonacionVideos={clonacionVideos}
+          handleUpload={handleUpload}
+          handleDelete={handleDelete}
+          uploading={uploading}
+          progress={progress}
+        />
 
-      <VoicesListContainer variant="card" title="🎤 Voces de clonación" />
-
+        {/* Voces */}
+        <VoicesListContainer variant="card" title="Voces" />
+      </div>
     </div>
   );
 }

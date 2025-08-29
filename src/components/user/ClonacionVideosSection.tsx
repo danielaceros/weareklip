@@ -68,7 +68,7 @@ export default function ClonacionVideosSection({
       setDeleting(false);
     }
   };
-  
+
   return (
     <Card className="p-6 shadow-sm bg-card text-card-foreground">
       {/* Header */}
@@ -81,12 +81,13 @@ export default function ClonacionVideosSection({
 
       <Separator className="my-4" />
 
-      <div className="flex gap-6 items-start">
+      {/* Layout responsivo */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* IZQUIERDA: Upload */}
-        <div className="flex flex-col items-center gap-4">
-          <label className="flex flex-col items-center justify-center w-57 border-2 border-dashed border-border rounded-lg p-4 aspect-[9/16] cursor-pointer hover:bg-muted/40 transition">
+        <div className="flex flex-col items-center gap-4 w-full lg:w-auto">
+          <label className="flex flex-col items-center justify-center w-full sm:w-40 md:w-48 lg:w-56 border-2 border-dashed border-border rounded-lg p-3 aspect-[9/16] max-h-[100px] cursor-pointer hover:bg-muted/40 transition">
             <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
-            <span className="text-sm font-medium">
+            <span className="text-xs sm:text-sm font-medium text-center">
               {t("clonacion.uploadPrompt")}
             </span>
             <input
@@ -113,7 +114,7 @@ export default function ClonacionVideosSection({
         </div>
 
         {/* DERECHA: Grid */}
-        <div className="flex-1 flex flex-col gap-6">
+        <div className="flex-1 flex flex-col gap-6 w-full">
           {clonacionVideos.length === 0 ? (
             <p className="text-muted-foreground italic">
               {t("clonacion.noVideos")}
@@ -123,13 +124,15 @@ export default function ClonacionVideosSection({
               <div
                 className="
                   grid gap-4
-                  grid-cols-[repeat(auto-fill,minmax(200px,1fr))]
+                  grid-cols-[repeat(auto-fill,minmax(140px,1fr))]
+                  sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))]
+                  md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]
                 "
               >
                 {paginated.map((video, idx) => (
                   <div
                     key={video.id ?? video.url ?? idx}
-                    className="relative group rounded-lg overflow-hidden border border-border aspect-[9/16]"
+                    className="relative group rounded-lg overflow-hidden border border-border aspect-[9/16] max-h-[260px]"
                   >
                     {/* Miniatura */}
                     {video.thumbnail ? (
@@ -215,7 +218,7 @@ export default function ClonacionVideosSection({
 
       {/* Modal de preview */}
       <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-lg sm:max-w-xl md:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("clonacion.previewTitle")}</DialogTitle>
           </DialogHeader>
@@ -224,7 +227,7 @@ export default function ClonacionVideosSection({
               src={selectedVideo}
               controls
               autoPlay
-              className="w-full h-auto rounded-lg"
+              className="w-full h-auto rounded-lg max-h-[70vh]"
             />
           )}
         </DialogContent>

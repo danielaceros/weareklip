@@ -23,7 +23,6 @@ export default function AudiosContainer() {
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  // estado para eliminar
   const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -70,7 +69,6 @@ export default function AudiosContainer() {
     setDeleting(true);
     try {
       if (deleteAll) {
-        // borrar todos
         await Promise.all(
           audios.map(async (audio) => {
             await deleteDoc(doc(db, "users", user.uid, "audios", audio.audioId));
@@ -88,7 +86,6 @@ export default function AudiosContainer() {
         setAudios([]);
         toast.success("Todos los audios eliminados");
       } else if (audioToDelete) {
-        // borrar uno
         await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
         if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
           try {
@@ -115,10 +112,11 @@ export default function AudiosContainer() {
   if (loading) return <p>Cargando audios...</p>;
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full space-y-6">
       {/* Header */}
-      <h1 className="text-2xl font-bold">Mis Audios</h1>
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
+      <h1 className="text-2xl font-bold">Audios</h1>
+        <div className="flex gap-3">
           <Button
             variant="destructive"
             className="rounded-lg"
@@ -133,12 +131,15 @@ export default function AudiosContainer() {
             className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
           >
             <Plus size={18} className="mr-2" />
-            Nuevo audio
+            Generar voz
           </Button>
+        </div>
       </div>
 
-      {/* Lista de audios */}
-      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
+      {/* Grid de audios */}
+      <div className="">
+        <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
+      </div>
 
       {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>

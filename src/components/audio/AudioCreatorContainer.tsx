@@ -32,30 +32,40 @@ export default function AudioCreatorContainer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const togglePlay = () => {
-  if (!audioRef.current) return;
+    if (!audioRef.current) return;
 
-  if (isPlaying) {
-    audioRef.current.pause();
-  } else {
-    audioRef.current.play().catch((err) => {
-      console.warn("No se pudo reproducir:", err);
-    });
-  }
-};
-
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch((err) => {
+        console.warn("No se pudo reproducir:", err);
+      });
+    }
+  };
 
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
-    const p =
-      (audioRef.current.currentTime / audioRef.current.duration) * 100;
-    setProgress(p);
+    const el = audioRef.current;
+    setProgress(el.currentTime);
   };
 
   const handleEnded = () => {
     setIsPlaying(false);
     setProgress(0);
+  };
+
+  const formatTime = (time: number) => {
+    if (!time || isNaN(time)) return "00:00";
+    const m = Math.floor(time / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = Math.floor(time % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${m}:${s}`;
   };
 
   // 👉 helper para enviar el body correcto
@@ -173,35 +183,45 @@ export default function AudioCreatorContainer() {
       <AudioForm {...form} onGenerate={handleGenerate} />
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md space-y-4">
           <DialogHeader>
             <DialogTitle>🎧 Audio generado</DialogTitle>
           </DialogHeader>
 
           {audioUrl && (
-            <div className="bg-neutral-900 rounded-xl p-4 flex items-center justify-between gap-4">
-              <div className="flex flex-col flex-1">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={togglePlay}
-                    className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white"
-                  >
-                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                  </button>
+            <div className="bg-neutral-900 rounded-xl p-4 space-y-3">
+              {/* Player */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={togglePlay}
+                  className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white"
+                >
+                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                </button>
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>{formatTime(progress)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
                       className="h-1 bg-white rounded-full"
-                      style={{ width: `${progress}%` }}
+                      style={{
+                        width: duration ? `${(progress / duration) * 100}%` : "0%",
+                      }}
                     />
                   </div>
                 </div>
               </div>
+
+              {/* hidden audio element */}
               <audio
                 ref={audioRef}
                 src={audioUrl}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                 onEnded={handleEnded}
                 hidden
               />

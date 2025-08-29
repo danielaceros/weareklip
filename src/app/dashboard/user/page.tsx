@@ -21,10 +21,8 @@ export default function UserPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [userData, setUserData] = useState<{ email?: string } | null>(null);
 
-  // 👇 ajuste de tipo: ref nullable
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Cargar datos del perfil
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setFbUser(u);
@@ -85,26 +83,29 @@ export default function UserPage() {
     );
   };
 
-  const handleInstagramUserChange = (e: ChangeEvent<HTMLInputElement>) => setInstagramUser(e.target.value);
+  const handleInstagramUserChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setInstagramUser(e.target.value);
 
   return (
-    <div className="space-y-8">
-      <UserProfileSection
-        t={t}
-        name={name}
-        setName={setName}
-        instagramUser={instagramUser}
-        handleInstagramUserChange={handleInstagramUserChange}
-        phone={phone}
-        setPhone={setPhone}
-        userData={userData}
-        uploadingPhoto={uploadingPhoto}
-        fileInputRef={fileInputRef}
-        handlePhotoClick={handlePhotoClick}
-        handlePhotoChange={handlePhotoChange}
-        photoURL={photoURL}
-        saveUserData={saveUserData}
-      />
+    <div className="flex justify-center w-full px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-2xl space-y-8">
+        <UserProfileSection
+          t={t}
+          name={name}
+          setName={setName}
+          instagramUser={instagramUser}
+          handleInstagramUserChange={handleInstagramUserChange}
+          phone={phone}
+          setPhone={setPhone}
+          userData={userData}
+          uploadingPhoto={uploadingPhoto}
+          fileInputRef={fileInputRef}
+          handlePhotoClick={handlePhotoClick}
+          handlePhotoChange={handlePhotoChange}
+          photoURL={photoURL}
+          saveUserData={saveUserData}
+        />
+      </div>
     </div>
   );
 }

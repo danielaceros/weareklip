@@ -24,7 +24,7 @@ export interface AudioData {
 
 interface AudiosListProps {
   audios: AudioData[];
-  onDelete: (audio: AudioData) => void; 
+  onDelete: (audio: AudioData) => void;
   perPage?: number;
 }
 
@@ -37,62 +37,66 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
   if (audios.length === 0) return <p>No tienes audios aún.</p>;
 
   return (
-    <div className="flex flex-col h-full space-y-6">
-      {/* Grid */}
-      <div
-        className="
-          grid gap-4 
-          grid-cols-[repeat(auto-fill,minmax(400px,1fr))]
-        "
-      >
-        {paginated.map((audio) => (
-          <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
-        ))}
-      </div>
-
-      {/* Paginación */}
-      {totalPages > 1 && (
-        <div className="mt-auto">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (page > 1) setPage(page - 1);
-                  }}
-                />
-              </PaginationItem>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <PaginationItem key={i}>
-                  <PaginationLink
-                    href="#"
-                    isActive={page === i + 1}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPage(i + 1);
-                    }}
-                  >
-                    {i + 1}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (page < totalPages) setPage(page + 1);
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
+  <div className="flex flex-col h-full space-y-6">
+    {/* Grid responsivo */}
+    <div
+      className="
+        grid gap-4
+        grid-cols-1
+        sm:grid-cols-2
+        lg:grid-cols-3
+        xl:grid-cols-4
+      "
+    >
+      {paginated.map((audio) => (
+        <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
+      ))}
     </div>
-  );
+
+    {/* Paginación */}
+    {totalPages > 1 && (
+      <div className="mt-auto flex justify-center col-span-full">
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page > 1) setPage(page - 1);
+                }}
+              />
+            </PaginationItem>
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <PaginationItem key={i}>
+                <PaginationLink
+                  href="#"
+                  isActive={page === i + 1}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage(i + 1);
+                  }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page < totalPages) setPage(page + 1);
+                }}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    )}
+  </div>
+);
+
 }
 
 function AudioCard({
@@ -100,26 +104,26 @@ function AudioCard({
   onDelete,
 }: {
   audio: AudioData;
-  onDelete: (audio: AudioData) => void; // 👈 recibe el objeto
+  onDelete: (audio: AudioData) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  console.log(audio)
-  const togglePlay = () => {
-  if (!audioRef.current) return;
 
-  if (isPlaying) {
-    audioRef.current.pause();
-  } else {
-    audioRef.current.play().catch((err) => {
-      console.warn("No se pudo reproducir:", err);
-    });
-  }
-};
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch((err) => {
+        console.warn("No se pudo reproducir:", err);
+      });
+    }
+  };
 
   return (
-    <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm">
+    <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col">
