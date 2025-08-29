@@ -52,15 +52,19 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Grid */}
-      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(400px,1fr))]">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
         {paginated.map((audio) => (
-          <MemoizedAudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
+          <MemoizedAudioCard
+            key={audio.audioId}
+            audio={audio}
+            onDelete={onDelete}
+          />
         ))}
       </div>
 
       {/* Paginación */}
       {totalPages > 1 && (
-        <div className="mt-auto">
+        <div className="mt-auto flex justify-center col-span-full">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
@@ -103,7 +107,13 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
   );
 }
 
-function AudioCard({ audio, onDelete }: { audio: AudioData; onDelete: (a: AudioData) => void }) {
+function AudioCard({
+  audio,
+  onDelete,
+}: {
+  audio: AudioData;
+  onDelete: (a: AudioData) => void;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -120,7 +130,7 @@ function AudioCard({ audio, onDelete }: { audio: AudioData; onDelete: (a: AudioD
     }
   }, [isPlaying]);
 
-  // Mejorar suavidad del slider con requestAnimationFrame
+  // 🔹 actualizar progreso con RAF (más fluido que onTimeUpdate)
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -145,7 +155,7 @@ function AudioCard({ audio, onDelete }: { audio: AudioData; onDelete: (a: AudioD
   }, [isPlaying]);
 
   return (
-    <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm">
+    <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col">

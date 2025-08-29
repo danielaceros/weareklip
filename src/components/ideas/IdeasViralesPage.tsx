@@ -92,7 +92,7 @@ export default function IdeasViralesPage() {
     setLoading(false);
   };
 
-  // Filtrar
+  // 🔹 Filtrar resultados por query
   const filteredVideos =
     query.trim() === ""
       ? videos
@@ -143,7 +143,6 @@ export default function IdeasViralesPage() {
 
     const replicateToast = toast.loading("Replicando guion...");
     try {
-      // 🔹 Obtener transcripción desde tu API
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
       const data = await res.json();
 
@@ -152,13 +151,12 @@ export default function IdeasViralesPage() {
         return;
       }
 
-      // 🔹 Preparar body para el nuevo guion
       const newScript = {
         description: `Guion replicado de ${video.title}`,
         platform: "youtube",
         language: "es",
         script: data.transcript,
-        createdAt: new Date(), // tu backend lo guarda como Timestamp
+        createdAt: new Date(),
         fuente: video.url,
         isAI: false,
         videoTitle: video.title,
@@ -169,7 +167,6 @@ export default function IdeasViralesPage() {
         videoThumbnail: video.thumbnail,
       };
 
-      // 🔹 Guardar en /scripts via API segura
       const idToken = await user.getIdToken();
       const saveRes = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
         method: "POST",
@@ -192,7 +189,7 @@ export default function IdeasViralesPage() {
   };
 
   return (
-    <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">
+    <div className="flex flex-col h-full space-y-6">
       <IdeasViralesHeader
         country={country}
         setCountry={setCountry}

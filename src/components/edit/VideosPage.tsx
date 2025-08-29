@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/pagination";
 
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 export interface VideoData {
   projectId: string;
@@ -46,13 +46,11 @@ export default function VideosPage() {
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
-  // Escucha de usuario autenticado
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // Carga de vídeos del usuario
   useEffect(() => {
     const fetchVideos = async () => {
       if (!user) return;
@@ -93,6 +91,7 @@ export default function VideosPage() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
+        // DELETE en lote
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
           method: "DELETE",
           headers: {
@@ -106,6 +105,7 @@ export default function VideosPage() {
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
+        // DELETE individual
         const res = await fetch(
           `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
           {
@@ -130,7 +130,6 @@ export default function VideosPage() {
     }
   }
 
-  // 👇 Spinner en vez de texto plano
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -141,25 +140,27 @@ export default function VideosPage() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      <h1 className="text-2xl font-bold">Mis Ediciones</h1>
-      <div className="flex justify-between">
-        <Button
-          variant="destructive"
-          className="rounded-lg"
-          onClick={() => setDeleteAll(true)}
-          disabled={videos.length === 0}
-        >
-          <Trash2 size={18} className="mr-2" />
-          Borrar todos
-        </Button>
-
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-        >
-          <Plus size={18} className="mr-2" />
-          Crear vídeo
-        </Button>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-2xl font-bold">Ediciones</h1>
+        <div className="flex gap-3">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={videos.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          >
+            <Plus size={18} className="mr-2" />
+            Crear vídeo
+          </Button>
+        </div>
       </div>
 
       {/* Lista de vídeos */}
@@ -167,7 +168,7 @@ export default function VideosPage() {
         <p>No tienes vídeos aún.</p>
       ) : (
         <>
-          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,300px))]">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
             {paginated.map((video) => (
               <VideoCard
                 key={video.projectId}

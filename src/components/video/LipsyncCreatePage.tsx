@@ -121,7 +121,6 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   async function handleGenerate() {
     flushSync(() => setProcessing(true));
 
-    // 1) Validar suscripción
     const ok = await ensureSubscribed({ feature: "lipsync" });
     if (!ok) {
       toast.error("Necesitas suscripción para generar Lipsync.");
@@ -129,14 +128,12 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       return;
     }
 
-    // 2) Usuario
     if (!user) {
       toast.error("Debes iniciar sesión.");
       setProcessing(false);
       return;
     }
 
-    // 3) Audio
     const audio = audios.find((a) => a.id === selectedAudioId);
     if (!audio?.audioUrl) {
       toast.error("Debes seleccionar un audio válido.");
@@ -144,7 +141,6 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       return;
     }
 
-    // 4) Vídeo
     const video = videos.find((v) => v.id === selectedVideoId);
     if (!video?.url) {
       toast.error("Debes seleccionar un vídeo válido.");
@@ -152,16 +148,13 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       return;
     }
 
-    // 5) Título
     if (!title.trim()) {
       toast.error("Debes escribir un título para el vídeo.");
       setProcessing(false);
       return;
     }
 
-    toast.info(
-      `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
-    );
+    toast.info(`Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`);
 
     setLoading(true);
     try {
@@ -183,13 +176,11 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       if (!res.ok) throw new Error(data.error || "Error creando vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-      onClose?.(); // 👈 cerrar modal si existe
+      onClose?.();
       router.push("/dashboard/video");
     } catch (err) {
       console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "No se pudo crear el lipsync"
-      );
+      toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");
     } finally {
       setLoading(false);
       setProcessing(false);
@@ -197,11 +188,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   }
 
   const isLoading = processing || loading;
-  const buttonText = processing
-    ? "Procesando..."
-    : loading
-    ? "Generando..."
-    : "Generar video";
+  const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar video";
 
   const togglePlay = (id: string) => {
     const current = audioRefs.current[id];
@@ -223,16 +210,16 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   const paginatedAudios = audios.slice(audioPage * PAGE_SIZE, (audioPage + 1) * PAGE_SIZE);
 
   return (
-    <div className="w-full max-w-6xl mx-auto rounded-2xl space-y-8 p-6">
-      <h2 className="text-2xl font-bold">Videos clonados</h2>
+    <div className="w-full max-w-6xl mx-auto rounded-2xl space-y-8 p-4 sm:p-6">
+      <h2 className="text-xl sm:text-2xl font-bold">Videos clonados</h2>
 
       {/* Carrusel de videos */}
       <div className="relative">
-        <div className="flex gap-4 p-4 bg-muted/30 rounded-lg justify-center">
+        <div className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/30 rounded-lg justify-center">
           {paginatedVideos.map((v) => (
             <Card
               key={v.id}
-              className={`flex-shrink-0 w-40 h-60 rounded-lg cursor-pointer border-2 ${
+              className={`flex-shrink-0 w-32 h-48 sm:w-40 sm:h-60 rounded-lg cursor-pointer border-2 ${
                 selectedVideoId === v.id ? "border-primary" : "border-transparent"
               }`}
               onClick={() => setSelectedVideoId(v.id)}
@@ -246,6 +233,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
           <Button
             size="icon"
             variant="ghost"
+            className="bg-background/70 sm:bg-transparent"
             onClick={() => setVideoPage((p) => Math.max(0, p - 1))}
             disabled={videoPage === 0}
           >
@@ -256,6 +244,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
           <Button
             size="icon"
             variant="ghost"
+            className="bg-background/70 sm:bg-transparent"
             onClick={() =>
               setVideoPage((p) => ((p + 1) * PAGE_SIZE < videos.length ? p + 1 : p))
             }
@@ -268,17 +257,17 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
       {/* Carrusel de audios */}
       <div className="relative">
-        <div className="flex gap-4 p-4 bg-muted/30 rounded-lg justify-center">
+        <div className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/30 rounded-lg justify-center">
           {paginatedAudios.map((a) => (
             <Card
               key={a.id}
-              className={`flex-shrink-0 w-48 p-3 rounded-lg cursor-pointer border-2 ${
+              className={`flex-shrink-0 w-36 sm:w-48 p-3 rounded-lg cursor-pointer border-2 ${
                 selectedAudioId === a.id ? "border-primary" : "border-transparent"
               }`}
               onClick={() => a.audioUrl && setSelectedAudioId(a.id)}
             >
               <div className="flex flex-col gap-2">
-                <span className="font-medium text-sm truncate">{a.name}</span>
+                <span className="font-medium text-xs sm:text-sm truncate">{a.name}</span>
                 {a.audioUrl ? (
                   <>
                     <button
@@ -286,7 +275,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
                         e.stopPropagation();
                         togglePlay(a.id);
                       }}
-                      className="flex items-center justify-center w-10 h-10 rounded-full border hover:bg-muted"
+                      className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border hover:bg-muted"
                     >
                       {playing === a.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     </button>
@@ -311,6 +300,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
           <Button
             size="icon"
             variant="ghost"
+            className="bg-background/70 sm:bg-transparent"
             onClick={() => setAudioPage((p) => Math.max(0, p - 1))}
             disabled={audioPage === 0}
           >
@@ -321,6 +311,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
           <Button
             size="icon"
             variant="ghost"
+            className="bg-background/70 sm:bg-transparent"
             onClick={() =>
               setAudioPage((p) => ((p + 1) * PAGE_SIZE < audios.length ? p + 1 : p))
             }
@@ -332,15 +323,19 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       </div>
 
       {/* Barra inferior */}
-      <div className="flex gap-4 items-center">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Título del video"
-          className="flex-1 px-4 py-2 rounded-lg border border-border bg-background"
+          className="flex-1 px-3 py-2 sm:px-4 sm:py-2 rounded-lg border border-border bg-background text-sm sm:text-base"
         />
-        <Button onClick={handleGenerate} disabled={isLoading} className="min-w-[180px]">
+        <Button
+          onClick={handleGenerate}
+          disabled={isLoading}
+          className="w-full sm:w-auto min-w-[150px] sm:min-w-[180px]"
+        >
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           {buttonText}
         </Button>

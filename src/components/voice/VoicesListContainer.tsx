@@ -89,7 +89,6 @@ export default function VoicesListContainer({
     try {
       const idToken = await user.getIdToken();
 
-      // 🔹 Llamada a tu API CRUD
       const res = await fetch(
         `/api/firebase/users/${user.uid}/voices/${deleteTarget}`,
         {
@@ -105,7 +104,6 @@ export default function VoicesListContainer({
         throw new Error(`Error eliminando voz: ${errText}`);
       }
 
-      // ✅ Actualizar estado local
       setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
       setDeleteTarget(null);
     } catch (err) {
@@ -133,19 +131,14 @@ export default function VoicesListContainer({
 
       {loading ? (
         <div className="flex justify-center items-center h-40">
-          <Spinner size="lg" variant="ellipsis" /> {/* 👈 Spinner mientras carga */}
+          <Spinner size="lg" variant="ellipsis" />
         </div>
       ) : voices.length === 0 ? (
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
-          {/* Grid */}
-          <div
-            className="
-              grid gap-4 
-              grid-cols-[repeat(auto-fill,minmax(320px,1fr))]
-            "
-          >
+          {/* Grid responsive */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {paginated.map((voice) => (
               <VoiceCard
                 key={voice.voiceId}
@@ -284,21 +277,21 @@ function VoiceCard({
         </button>
       </div>
 
-      {/* Player o placeholder */}
+      {/* Player */}
       {loadingPreview ? (
         <div className="flex justify-center items-center h-20">
-          <Spinner size="sm" variant="ellipsis" /> {/* 👈 spinner preview */}
+          <Spinner size="sm" variant="ellipsis" />
         </div>
       ) : previewUrl ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full">
           <button
             onClick={togglePlay}
-            className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+            className="flex items-center justify-center w-10 h-10 rounded-full border border-border hover:bg-muted transition shrink-0"
           >
             {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </button>
 
-          <div className="flex-1">
+          <div className="flex-1 w-full">
             <input
               type="range"
               min={0}

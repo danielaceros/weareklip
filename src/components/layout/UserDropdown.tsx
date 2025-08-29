@@ -1,4 +1,3 @@
-// src/components/layout/UserDropdown.tsx
 "use client";
 
 import Image from "next/image";
@@ -7,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { useTheme } from "next-themes";
 import { auth } from "@/lib/firebase";
-import { useT, LOCALES, type Locale, changeLocale, getStoredLocale } from "@/lib/i18n";
+import {
+  useT,
+  LOCALES,
+  type Locale,
+  changeLocale,
+  getStoredLocale,
+} from "@/lib/i18n";
 
 import {
   DropdownMenu,
@@ -32,11 +37,8 @@ import {
   Languages,
   User as UserIcon,
   CreditCard,
-  PlayCircle, // 👈 añade este
-  ChevronRight,
-  ChevronLeft,
+  PlayCircle,
 } from "lucide-react";
-
 
 interface Props {
   user: {
@@ -94,7 +96,9 @@ export default function UserDropdown({ user }: Props) {
   const trialDaysLeft = (() => {
     if (!user?.trialEnd) return null;
     const end = new Date(user.trialEnd * 1000);
-    const diff = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil(
+      (end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    );
     return diff > 0 ? diff : 0;
   })();
 
@@ -130,10 +134,14 @@ export default function UserDropdown({ user }: Props) {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="w-72 rounded-2xl border border-border bg-popover p-2 shadow-lg"
+        className="
+          w-72 max-w-[50vw] md:max-w-sm
+          max-h-[50vh] overflow-y-auto 
+          rounded-2xl border border-border bg-popover p-2 shadow-lg
+        "
       >
         <DropdownMenuLabel className="px-2 py-1.5 text-base font-semibold">
-          {t("dropdown.account") /* "Mi cuenta" */}
+          {t("dropdown.account")}
         </DropdownMenuLabel>
 
         {/* Badges debajo de "Mi cuenta" */}
@@ -165,8 +173,13 @@ export default function UserDropdown({ user }: Props) {
               {t("dropdown.theme")}
             </span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-56">
-            <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+          <DropdownMenuSubContent
+            className="w-48 max-w-[80vw] rounded-xl border border-border bg-popover p-2 shadow-lg"
+          >
+            <DropdownMenuRadioGroup
+              value={theme ?? "system"}
+              onValueChange={setTheme}
+            >
               <DropdownMenuRadioItem value="light">
                 <Sun className="mr-2 h-4 w-4" /> {t("dropdown.light")}
               </DropdownMenuRadioItem>
@@ -188,8 +201,13 @@ export default function UserDropdown({ user }: Props) {
               {t("dropdown.language")}
             </span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-56">
-            <DropdownMenuRadioGroup value={locale} onValueChange={handleChangeLocale}>
+          <DropdownMenuSubContent
+            className="w-48 max-w-[80vw] rounded-xl border border-border bg-popover p-2 shadow-lg"
+          >
+            <DropdownMenuRadioGroup
+              value={locale}
+              onValueChange={handleChangeLocale}
+            >
               {Object.entries(LOCALES).map(([code, label]) => (
                 <DropdownMenuRadioItem key={code} value={code}>
                   {label}
@@ -222,7 +240,7 @@ export default function UserDropdown({ user }: Props) {
             setTimeout(() => {
               localStorage.removeItem("dashboardTourSeen");
               window.location.reload();
-            }, 300); // 👈 espera a que termine la navegación
+            }, 300);
           }}
           className="cursor-pointer"
         >

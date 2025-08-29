@@ -1,18 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import {
-  doc,
-  onSnapshot,
-  type FirestoreDataConverter,
-  type DocumentData,
-  collection,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,8 +25,6 @@ import {
 import { startOfWeek, endOfWeek } from "date-fns";
 
 /* ========= Tipos ========= */
-
-type FireTimestamp = { seconds: number; nanoseconds: number };
 
 export interface SubscriptionInfo {
   id?: string | null;
@@ -62,10 +50,6 @@ interface UserDoc {
   subscription?: SubscriptionInfo;
   usage?: { tokens?: number; euros?: number };
 }
-const userConverter: FirestoreDataConverter<UserDoc> = {
-  toFirestore: (data: UserDoc) => data as DocumentData,
-  fromFirestore: (snap, options) => snap.data(options) as UserDoc,
-};
 
 /** Tareas (Firestore /tasks) */
 type Task = {
@@ -78,8 +62,8 @@ type Task = {
   paidQty: number;
   quantity: number;
   unitCents: number;
-  createdAt: string | null;   // ✅ ahora es string
-  updatedAt?: string | null; // si también la devuelves
+  createdAt: string | null;
+  updatedAt?: string | null;
   jobId?: string;
 };
 
@@ -95,7 +79,7 @@ const fmtDate = (d: Date | null) =>
         month: "short",
         year: "2-digit",
       })
-    : "-";
+    : "—";
 
 function tsToDate(ts?: string | null): Date | null {
   if (!ts) return null;
@@ -134,7 +118,7 @@ export default function BillingSection() {
   // NUEVO: filtros
   const [filterKind, setFilterKind] = useState<string>("all");
   const [filterRange, setFilterRange] = useState<"week" | "month" | "all">(
-    "week" // 👈 por defecto semana actual
+    "week"
   );
 
   const currentWeek = useMemo(() => {
@@ -147,7 +131,7 @@ export default function BillingSection() {
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-  // 🔥 Optimización: fetch paralelo con AbortController
+  // 🔥 Fetch paralelo
   useEffect(() => {
     if (!user) return;
     const ctrl = new AbortController();
@@ -205,7 +189,7 @@ export default function BillingSection() {
     };
   }, [user]);
 
-  // 🔥 Obtener tasks (detalle histórico)
+  // 🔥 Obtener tasks
   useEffect(() => {
     if (!user) return;
     const ctrl = new AbortController();
@@ -266,14 +250,13 @@ export default function BillingSection() {
   const periodEnd =
     sub?.status === "trialing" ? sub?.trial_end ?? null : sub?.renewal ?? null;
 
-  // 🔥 Filtrar tareas en memoria
+  // 🔥 Filtrar tareas
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       const d = tsToDate(t.createdAt);
 
       if (!d) return false;
 
-      // 🔹 Filtro por rango
       if (filterRange === "week") {
         if (d < currentWeek.start || d > currentWeek.end) return false;
       }
@@ -281,7 +264,6 @@ export default function BillingSection() {
         if (d.getMonth() !== new Date().getMonth()) return false;
       }
 
-      // 🔹 Filtro por tipo
       if (filterKind !== "all" && t.kind !== filterKind) return false;
 
       return true;
@@ -289,7 +271,7 @@ export default function BillingSection() {
   }, [tasks, filterKind, filterRange, currentWeek]);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 px-4 sm:px-6">
       <h2 className="text-2xl font-semibold tracking-tight">Suscripción</h2>
 
       <div className="grid gap-6 lg:grid-cols-12">
@@ -350,7 +332,9 @@ export default function BillingSection() {
                   {statusBadge(sub?.status ?? null, sub?.cancel_at_period_end)}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Renovación</span>
+                  <span className="text-sm text-muted-foreground">
+                    Renovación
+                  </span>
                   <Badge variant="secondary">
                     {sub?.status === "trialing"
                       ? fmtDate(sub?.trial_end ?? null)
@@ -380,12 +364,12 @@ export default function BillingSection() {
           )}
         </div>
 
-        {/* Columna derecha: tabla */}
+        {/* Columna derecha */}
         <div className="lg:col-span-8">
           {/* Controles de filtro */}
-          <div className="flex items-center justify-between mb-3 gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
             <Select value={filterKind} onValueChange={setFilterKind}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="sm:w-[160px] w-full">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -398,7 +382,7 @@ export default function BillingSection() {
             </Select>
 
             <Select value={filterRange} onValueChange={(v: any) => setFilterRange(v)}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="sm:w-[160px] w-full">
                 <SelectValue placeholder="Rango" />
               </SelectTrigger>
               <SelectContent>
@@ -409,14 +393,17 @@ export default function BillingSection() {
             </Select>
           </div>
 
-          <div className="rounded-2xl border overflow-hidden">
-            <Table>
+          {/* Tabla responsiva */}
+          <div className="rounded-2xl border overflow-x-auto">
+            <Table className="w-full sm:min-w-[500px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[140px]">Tipo</TableHead>
+                  <TableHead className="w-[100px] sm:w-[140px]">Tipo</TableHead>
                   <TableHead>ID del trabajo</TableHead>
-                  <TableHead className="w-[120px]">Coste</TableHead>
-                  <TableHead className="w-[200px]">Fecha de procesado</TableHead>
+                  <TableHead className="w-[80px] sm:w-[120px]">Coste</TableHead>
+                  <TableHead className="w-[140px] sm:w-[200px]">
+                    Fecha de procesado
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -437,7 +424,7 @@ export default function BillingSection() {
                   </TableRow>
                 ) : (
                   filteredTasks.map((t) => (
-                    <TableRow key={t.id} className="animate-fade-in">
+                    <TableRow key={t.id}>
                       <TableCell className="capitalize">
                         {t.kind === "script"
                           ? "Guión"
@@ -449,9 +436,11 @@ export default function BillingSection() {
                           ? "Edición"
                           : t.kind}
                       </TableCell>
-                      <TableCell>{t.id}</TableCell>
+                      <TableCell className="truncate max-w-[100px] sm:max-w-[140px]">
+                        {t.id}
+                      </TableCell>
                       <TableCell>{euro(t.chargedCents ?? 0)}€</TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {(() => {
                           const d = tsToDate(t.createdAt);
                           return d
