@@ -614,12 +614,6 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
-          <Card className="p-3 lg:p-4 col-span-1 lg:col-span-3">
-            <h2 className="font-semibold text-base lg:text-lg mb-3">
-              🎨 Plantillas disponibles
-            </h2>
-            <TablePreview />
-          </Card>
         </div>
       </div>
     </>

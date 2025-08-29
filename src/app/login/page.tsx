@@ -28,8 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -82,12 +80,10 @@ export default function LoginPage() {
       const voicesSnap = await getDocs(collection(db, "users", uid, "voices"));
       if (!voicesSnap.empty) return false;
 
-      // Si no hay ni vídeos ni voces
-      return true;
+      return true; // Si no hay ni vídeos ni voces
     } catch (err) {
       console.error("Error comprobando clonación/voces:", err);
-      // fallback: mejor mandarlo a onboarding
-      return true;
+      return true; // fallback: mejor mandarlo a onboarding
     }
   };
 
@@ -157,39 +153,42 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-black p-4">
-      <Card className="w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg px-4 py-6 sm:px-6 sm:py-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-black px-2 sm:px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <Card className="w-full max-w-sm sm:max-w-md md:max-w-lg bg-neutral-900 text-white rounded-2xl shadow-lg px-4 sm:px-6 md:px-8 py-6 sm:py-8">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-base sm:text-lg font-semibold">
+          <CardTitle className="text-lg sm:text-xl md:text-2xl font-semibold">
             {mode === "login" ? "Inicia sesión en tu cuenta" : "Crea tu cuenta"}
           </CardTitle>
-          <p className="text-xs sm:text-sm text-neutral-400">
+          <p className="text-sm sm:text-base text-neutral-400">
             Introduce tu correo electrónico para acceder a tu cuenta
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-auto max-h-[80vh] sm:max-h-none">
           <form
             className="grid gap-4"
             onSubmit={onSubmit}
             aria-label="Formulario de acceso"
           >
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Correo electrónico</label>
+              <label className="text-sm sm:text-base font-medium">Correo electrónico</label>
               <Input
                 type="email"
                 name="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
                 autoComplete="email"
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
+                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500 text-sm sm:text-base min-h-[44px]"
               />
             </div>
 
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Contraseña</label>
+                <label className="text-sm sm:text-base font-medium">Contraseña</label>
                 {mode === "login" && (
                   <button
                     type="button"
@@ -210,14 +209,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
+                className="w-full bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500 text-sm sm:text-base min-h-[44px]"
               />
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 sm:py-3 mt-2 bg-neutral-200 text-black hover:bg-neutral-300"
+              className="w-full py-3 sm:py-4 mt-2 bg-neutral-200 text-black hover:bg-neutral-300 text-sm sm:text-base font-medium min-h-[44px]"
             >
               {loading
                 ? "Cargando..."
@@ -230,14 +229,14 @@ export default function LoginPage() {
               type="button"
               onClick={onGoogle}
               disabled={loadingGoogle}
-              className="w-full py-2.5 sm:py-3 bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+              className="w-full py-3 sm:py-4 bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-sm sm:text-base font-medium min-h-[44px]"
             >
               {loadingGoogle ? "Conectando..." : "Iniciar sesión con Google"}
             </Button>
 
             <button
               type="button"
-              className="mt-2 text-xs sm:text-sm text-neutral-400 hover:text-white"
+              className="mt-2 text-xs sm:text-sm md:text-base text-neutral-400 hover:text-white"
               onClick={() =>
                 setMode((m) => (m === "login" ? "register" : "login"))
               }

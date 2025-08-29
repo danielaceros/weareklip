@@ -110,11 +110,11 @@ export default function VoicesListContainer({
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
-          {/* Grid */}
+          {/* Grid responsive */}
           <div
             className="
               grid gap-4 
-              grid-cols-[repeat(auto-fill,minmax(320px,1fr))]
+              grid-cols-1 sm:grid-cols-2 lg:grid-cols-3
             "
           >
             {paginated.map((voice) => (
@@ -125,7 +125,6 @@ export default function VoicesListContainer({
               />
             ))}
           </div>
-
           {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-auto">
@@ -250,15 +249,19 @@ function VoiceCard({
 
       {/* Player o placeholder */}
       {previewUrl ? (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
           <button
             onClick={togglePlay}
-            className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+            className="flex items-center justify-center w-10 h-10 rounded-full border border-border hover:bg-muted transition shrink-0"
           >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {isPlaying ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
           </button>
 
-          <div className="flex-1">
+          <div className="flex-1 w-full">
             <input
               type="range"
               min={0}
@@ -287,6 +290,7 @@ function VoiceCard({
       ) : (
         <p className="text-sm text-muted-foreground">🎧 Preview no disponible</p>
       )}
+
     </Card>
   );
 }
