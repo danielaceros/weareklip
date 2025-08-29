@@ -150,18 +150,36 @@ export default function OnboardingPage() {
       },
       async () => {
         const url = await getDownloadURL(task.snapshot.ref);
-        await setDoc(doc(db, `users/${user.uid}/clonacion/${id}`), {
-          id,
-          url,
-          storagePath,
-          titulo: file.name.replace(/\.[^/.]+$/, ""),
-          createdAt: Date.now(),
-          source: "onboarding",
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("No autenticado");
+        const res = await fetch(`/api/firebase/users/${user.uid}/clonacion/${id}`, {
+          method: "PUT", // porque actualizas/creas un documento con ID conocido
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            id,
+            url,
+            storagePath,
+            titulo: file.name.replace(/\.[^/.]+$/, ""),
+            createdAt: Date.now(),
+            source: "onboarding",
+          }),
         });
-        setVideoDoc({ id, url, storagePath });
+
+        if (!res.ok) {
+          throw new Error(`Error guardando clonación: ${res.status}`);
+        }
+
+        const saved = await res.json();
+
+        // actualizar estado en UI
+        setVideoDoc(saved);
         setUploadingVideo(false);
         setVideoProgressPct(0);
         toast.success("Vídeo subido correctamente");
+
       }
     );
   };
@@ -331,77 +349,93 @@ export default function OnboardingPage() {
     if (!videoDoc) return toast.error("Debes subir un vídeo en el paso 2");
     if (!validStep1) return toast.error("Completa los datos del paso 1");
     if (totalDuration === 0) return toast.error("No se pudo calcular duración total");
-    if (totalDuration > MAX_TOTAL_SECONDS) return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
+    if (totalDuration > MAX_TOTAL_SECONDS) {
+      return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
+    }
 
     const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
     if (!ok) return;
 
     try {
-        const idToken = await user.getIdToken(true);
-        const idem = uuidv4();
-        const paths = samples.map((s) => s.storagePath);
+      const idToken = await user.getIdToken(true);
+      const idem = uuidv4();
+      const paths = samples.map((s) => s.storagePath);
 
-        toast.loading("Creando voz…");
+      toast.loading("Creando voz…");
 
-        const res = await fetch("/api/elevenlabs/voice/create", {
+      // 1. Pedir a ElevenLabs que cree la voz
+      const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-            "X-Idempotency-Key": idem,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+          "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-            paths,
-            voiceName: `Voz-${Date.now()}`,
+          paths,
+          voiceName: `Voz-${Date.now()}`,
         }),
-        });
+      });
 
-        const data = await res.json().catch(() => ({} as any));
-        toast.dismiss();
+      const data = await res.json().catch(() => ({} as any));
+      toast.dismiss();
 
-        if (!res.ok || !data?.voice_id) {
-        return toast.error(data?.error || data?.message || "No se pudo crear la voz");
-        }
-
-        // Guardamos la voz en la subcolección voices
-        await setDoc(
-        doc(db, "users", user.uid, "voices", data.voice_id),
-        {
-            voice_id: data.voice_id,
-            name: `Voz-${Date.now()}`,
-            paths,
-            requires_verification: data.requires_verification ?? false,
-            createdAt: serverTimestamp(),
-            source: "onboarding",
-            idem,
-        },
-        { merge: true }
+      if (!res.ok || !data?.voice_id) {
+        return toast.error(
+          data?.error || data?.message || "No se pudo crear la voz"
         );
+      }
 
-        // Actualizamos el doc principal del usuario con metadata de onboarding
-        await setDoc(
-        doc(db, "users", user.uid),
-        {
-            cloneName: name,
-            cloneCategory: category,
-            cloneDesc: shortDesc,
-            onboardingCompleted: true,
-            onboardingCompletedAt: serverTimestamp(),
-            firstClone: {
-            videoId: videoDoc.id,
-            voiceId: data.voice_id,
-            },
+      // 2. Guardar la voz en la subcolección "voices" (API segura)
+      const voicePayload = {
+        voice_id: data.voice_id,
+        name: `Voz-${Date.now()}`,
+        paths,
+        requires_verification: data.requires_verification ?? false,
+        createdAt: Date.now(),
+        source: "onboarding",
+        idem,
+      };
+
+      await fetch(`/api/firebase/users/${user.uid}/voices/${data.voice_id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
-        { merge: true }
-        );
+        body: JSON.stringify(voicePayload),
+      });
 
-        toast.success("🎉 Onboarding completado. Tu voz está lista.");
-        router.push("/dashboard");
+      // 3. Actualizar metadata de onboarding en el doc principal del usuario (API segura)
+      const userPayload = {
+        cloneName: name,
+        cloneCategory: category,
+        cloneDesc: shortDesc,
+        onboardingCompleted: true,
+        onboardingCompletedAt: Date.now(),
+        firstClone: {
+          videoId: videoDoc.id,
+          voiceId: data.voice_id,
+        },
+      };
+
+      await fetch(`/api/firebase/users/${user.uid}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(userPayload),
+      });
+
+      toast.success("🎉 Onboarding completado. Tu voz está lista.");
+      router.push("/dashboard");
     } catch (err) {
-        console.error(err);
-        toast.error("Error de conexión al crear la voz");
+      console.error(err);
+      toast.error("Error de conexión al crear la voz");
     }
-    };
+  };
+
 
 
   /* ----------------- Validaciones ----------------- */

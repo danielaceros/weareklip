@@ -1,79 +1,97 @@
 // src/lib/scripts.ts
-import { db } from "@/lib/firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  updateDoc,
-  setDoc,
-} from "firebase/firestore";
 import type { Locale } from "@/lib/i18n";
+import type { User } from "firebase/auth";
 
-/** Estructura del guion en BBDD */
-export type GuionDoc = {
+export type ScriptDoc = {
   titulo?: string;
   contenido?: string;
   estado?: number;   // 0 nuevo, 1 cambios, 2 aprobado
-  creadoEn?: string; // ISO string (ordenas por "creadoEn")
+  creadoEn?: string; // ISO string
   lang?: Locale;     // 'es' | 'en' | 'fr'
   notas?: string;
 };
 
-/** Crea un guion forzando el campo lang y creadoEn */
-export async function createGuion(
-  userId: string,
-  data: Omit<GuionDoc, "lang" | "creadoEn">,
+/** Crea un guion en backend */
+export async function createScript(
+  user: User,
+  data: Omit<ScriptDoc, "lang" | "creadoEn">,
   lang: Locale
 ) {
-  const colRef = collection(db, "users", userId, "guiones");
-  const payload: GuionDoc = {
-    ...data,
-    lang,
-    creadoEn: new Date().toISOString(),
-  };
-  const ref = await addDoc(colRef, payload);
-  return ref.id;
+  const idToken = await user.getIdToken();
+  const res = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      ...data,
+      lang,
+      creadoEn: new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) throw new Error("Error creando guion");
+  const json = await res.json();
+  return json.id as string;
 }
 
-/** Actualiza un guion; si pasas lang, lo fija */
-export async function updateGuion(
-  userId: string,
-  guionId: string,
-  data: Partial<GuionDoc>,
+/** Actualiza un guion existente */
+export async function updateScript(
+  user: User,
+  scriptId: string,
+  data: Partial<ScriptDoc>,
   lang?: Locale
 ) {
-  const ref = doc(db, "users", userId, "guiones", guionId);
-  const payload: Partial<GuionDoc> = { ...data };
+  const idToken = await user.getIdToken();
+  const payload: Partial<ScriptDoc> = { ...data };
   if (lang !== undefined) payload.lang = lang;
-  await updateDoc(ref, payload);
+
+  const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Error actualizando guion");
 }
 
-/** Crea/mergea un guion con ID concreto; añade creadoEn si no está */
-export async function setGuion(
-  userId: string,
-  guionId: string,
-  data: Partial<GuionDoc>,
+/** Crea/mergea un guion con ID concreto */
+export async function setScript(
+  user: User,
+  scriptId: string,
+  data: Partial<ScriptDoc>,
   lang?: Locale
 ) {
-  const ref = doc(db, "users", userId, "guiones", guionId);
-  const payload: Partial<GuionDoc> = { ...data };
+  const idToken = await user.getIdToken();
+  const payload: Partial<ScriptDoc> = { ...data };
   if (lang !== undefined) payload.lang = lang;
   if (!payload.creadoEn) payload.creadoEn = new Date().toISOString();
-  await setDoc(ref, payload, { merge: true });
+
+  const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Error guardando guion");
 }
 
-/** Asegura que un doc existente tenga lang (útil para backfill) */
-export async function ensureGuionLang(
-  userId: string,
-  guionId: string,
-  fallback: Locale
-) {
-  const ref = doc(db, "users", userId, "guiones", guionId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-  const data = snap.data() as GuionDoc;
-  if (!data.lang) {
-    await updateDoc(ref, { lang: fallback });
+/** Asegura que un doc existente tenga lang */
+export async function ensureScriptLang(user: User, scriptId: string, fallback: Locale) {
+  const idToken = await user.getIdToken();
+  const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) return;
+
+  const doc = await res.json();
+  if (!doc.lang) {
+    await updateScript(user, scriptId, { lang: fallback });
   }
 }

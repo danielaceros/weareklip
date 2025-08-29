@@ -1,6 +1,6 @@
 // /app/api/stripe/customers/route.ts
 import { stripe } from "@/lib/stripe";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
@@ -117,21 +117,37 @@ export async function GET(req: Request) {
     // 🔹 cache de usuarios de Firestore 60s
     let usersCache = globalThis.__firestoreUsersCache;
     if (!usersCache || now - usersCache.ts >= CACHE_TTL_MS) {
-      const snap = await getDocs(collection(db, "users"));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
+      const res = await fetch("/api/firebase/users", {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      const docs: FirestoreUser[] = await res.json();
+
       const map: Record<string, { uid: string; name?: string; createdAt?: number | null }> = {};
-      snap.forEach((doc) => {
-        const d = doc.data() as FirestoreUser;
+      docs.forEach((d: any) => {
         if (d?.email) {
           map[normalize(d.email)] = {
-            uid: doc.id,
+            uid: d.id,
             name: d.name,
             createdAt: d.createdAt ?? null,
           };
         }
       });
+
       usersCache = { ts: now, map };
       globalThis.__firestoreUsersCache = usersCache;
     }
+
 
     // 📥 pagina clientes de Stripe
     const customers = await stripe.customers.list({

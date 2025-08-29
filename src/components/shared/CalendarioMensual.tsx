@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { es as esLocale, enUS as enLocale } from "date-fns/locale";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import {
   collection,
   getDocs,
@@ -18,6 +18,8 @@ import { handleError, showSuccess } from "@/lib/errors";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getAuth } from "firebase/auth";
+import { toast } from "sonner";
 
 /* ------------------------------- Tipos ------------------------------- */
 type Item = { firebaseId: string; titulo: string; url?: string };
@@ -91,27 +93,40 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
   const fetchEventos = useCallback(async () => {
     if (!uid) return;
     try {
-      const snap = await getDocs(collection(db, "users", uid, "calendario"));
-      const data: Evento[] = snap.docs.map((d) => {
-        const raw = d.data() as CalendarDoc;
-        return {
-          id: d.id,
-          tipo: raw.tipo,
-          titulo: raw.titulo,
-          fecha: formatDateToISO(toDateSafe(raw.fecha)),
-          estado: raw.estado ?? "por_hacer",
-          refId: raw.refId,
-          syncedWithMetricool: raw.syncedWithMetricool ?? false,
-          metricoolId: raw.metricoolId ?? "",
-          plataforma: raw.plataforma ?? "",
-          status: raw.status ?? "",
-        };
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(`/api/firebase/users/${uid}/calendario`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
       });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const docs: any[] = await res.json();
+
+      const data: Evento[] = docs.map((d) => ({
+        id: d.id,
+        tipo: d.tipo,
+        titulo: d.titulo,
+        fecha: formatDateToISO(toDateSafe(d.fecha)),
+        estado: d.estado ?? "por_hacer",
+        refId: d.refId,
+        syncedWithMetricool: d.syncedWithMetricool ?? false,
+        metricoolId: d.metricoolId ?? "",
+        plataforma: d.plataforma ?? "",
+        status: d.status ?? "",
+      }));
+
       setEventos(data);
     } catch (error) {
       handleError(error, t("errors.loadEvents"));
     }
   }, [uid, t]);
+
+
 
   useEffect(() => {
     fetchEventos();
@@ -127,20 +142,45 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
       handleError(null, t("alerts.selectItemAndDate"));
       return;
     }
+
     const fuente = tipo === "guion" ? guiones : videos;
     const item = fuente.find((i) => i.firebaseId === itemId);
     if (!item) return;
 
     try {
-      await addDoc(collection(db, "users", uid, "calendario"), {
-        tipo,
-        refId: itemId,
-        titulo: item.titulo,
-        fecha: Timestamp.fromDate(new Date(fechaEvento)),
-        estado: "por_hacer" as Estado,
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast.error("Debes iniciar sesión");
+        return;
+      }
+
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${uid}/calendario`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tipo,
+          refId: itemId,
+          titulo: item.titulo,
+          fecha: new Date(fechaEvento), // 👈 ya no necesitas `Timestamp.fromDate`, el backend lo guarda como Date
+          estado: "por_hacer" as Estado,
+        }),
       });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       showSuccess(t("success.added"));
-      setItemId(""); setFechaEvento(""); setHoraEvento(""); setPublicarEnRedes(false);
+
+      // Reset
+      setItemId("");
+      setFechaEvento("");
+      setHoraEvento("");
+      setPublicarEnRedes(false);
+
       fetchEventos();
     } catch (error) {
       handleError(error, t("errors.create"));
@@ -149,23 +189,56 @@ export default function CalendarioMensual({ uid, guiones, videos }: Props) {
 
   const handleEliminarEvento = async (eventoId: string) => {
     try {
-      await deleteDoc(doc(db, "users", uid, "calendario", eventoId));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
+      const res = await fetch(`/api/firebase/users/${uid}/calendario/${eventoId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
       setEventos((prev) => prev.filter((e) => e.id !== eventoId));
       showSuccess(t("success.deleted"));
     } catch (error) {
+      console.error("❌ Error eliminando evento:", error);
       handleError(error, t("errors.delete"));
     }
-  };
+};
 
   const handleCambiarEstado = async (eventoId: string, nuevoEstado: Estado) => {
     try {
-      await updateDoc(doc(db, "users", uid, "calendario", eventoId), { estado: nuevoEstado });
-      setEventos((prev) => prev.map((e) => e.id === eventoId ? { ...e, estado: nuevoEstado } : e));
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
+      const res = await fetch(`/api/firebase/users/${uid}/calendario/${eventoId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ estado: nuevoEstado }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+
+      setEventos((prev) =>
+        prev.map((e) => (e.id === eventoId ? { ...e, estado: nuevoEstado } : e))
+      );
       showSuccess(t("success.stateUpdated"));
     } catch (error) {
+      console.error("❌ Error cambiando estado:", error);
       handleError(error, t("errors.updateStatus"));
     }
   };
+
 
   return (
     <div className="flex flex-col gap-8 p-4">

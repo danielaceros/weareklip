@@ -13,7 +13,7 @@ import { db, storage } from "@/lib/firebase";
 import { doc, deleteDoc } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
 import { getAuth } from "firebase/auth";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useState } from "react";
 
 interface VideoData {
@@ -48,16 +48,21 @@ export default function DeleteVideoDialog({
 
     setDeleting(true);
     try {
-      // 1. Eliminar doc de Firestore
-      await deleteDoc(doc(db, "users", user.uid, "videos", video.projectId));
+      const idToken = await user.getIdToken();
 
-      // 2. Eliminar archivo de Storage (si existe)
-      if (video.storagePath) {
-        await deleteObject(ref(storage, video.storagePath));
-      } else if (video.downloadUrl) {
-        const url = new URL(video.downloadUrl);
-        const path = decodeURIComponent(url.pathname.split("/o/")[1] || "").split("?")[0];
-        if (path) await deleteObject(ref(storage, path));
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/videos/${video.projectId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
       }
 
       toast.success("✅ Vídeo eliminado correctamente");
@@ -70,6 +75,7 @@ export default function DeleteVideoDialog({
       setDeleting(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

@@ -69,7 +69,7 @@ export default function UserDropdown({ user }: Props) {
       const u = auth.currentUser;
       if (u) {
         const token = await u.getIdToken();
-        fetch("/api/users/settings", {
+        fetch("/api/firebase/users/settings", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

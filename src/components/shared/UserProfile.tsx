@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,9 +52,11 @@ export default function UserProfile({ userId, userData, setUserData }: Props) {
       toast.error("Usuario no autenticado");
       return;
     }
+
     setUploadingPhoto(true);
     const photoRef = ref(storage, `users/${userId}/profile_photo_${Date.now()}`);
     const uploadTask = uploadBytesResumable(photoRef, file);
+
     uploadTask.on(
       "state_changed",
       () => {},
@@ -64,16 +66,32 @@ export default function UserProfile({ userId, userData, setUserData }: Props) {
         setUploadingPhoto(false);
       },
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setPhotoURL(url);
         try {
-          await updateDoc(doc(db, "users", userId), { photoURL: url });
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setPhotoURL(url);
+
+          const idToken = await auth.currentUser?.getIdToken();
+          if (!idToken) throw new Error("No autenticado");
+
+          // 🔹 Usamos la API CRUD
+          const res = await fetch(`/api/firebase/users/${userId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ photoURL: url }),
+          });
+
+          if (!res.ok) throw new Error(`Error ${res.status}`);
           setUserData((prev) => (prev ? { ...prev, photoURL: url } : null));
           toast.success("Foto de perfil subida y guardada");
-        } catch {
+        } catch (err) {
+          console.error("Error guardando foto:", err);
           toast.error("Error guardando foto en base de datos");
+        } finally {
+          setUploadingPhoto(false);
         }
-        setUploadingPhoto(false);
       }
     );
   };
@@ -83,27 +101,37 @@ export default function UserProfile({ userId, userData, setUserData }: Props) {
       toast.error("Usuario no autenticado");
       return;
     }
+
     try {
-      await updateDoc(doc(db, "users", userId), {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      const body = {
         name: name.trim(),
         instagramUser: instagramUser.trim(),
         phone: phone.trim(),
+      };
+
+      // 🔹 Usamos la API CRUD
+      const res = await fetch(`/api/firebase/users/${userId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(body),
       });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+
+      setUserData((prev) => (prev ? { ...prev, ...body } : null));
       toast.success("Datos actualizados correctamente");
-      setUserData((prev) =>
-        prev
-          ? {
-              ...prev,
-              name: name.trim(),
-              instagramUser: instagramUser.trim(),
-              phone: phone.trim(),
-            }
-          : null
-      );
-    } catch {
+    } catch (err) {
+      console.error("Error guardando datos:", err);
       toast.error("Error guardando datos");
     }
   };
+
 
   const handleInstagramUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;

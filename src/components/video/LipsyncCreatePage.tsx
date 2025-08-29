@@ -75,33 +75,48 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
   async function loadMedia(uid: string) {
     try {
-      const audiosSnap = await getDocs(collection(db, "users", uid, "audios"));
-      const a: AudioItem[] = audiosSnap.docs.map((doc) => {
-        const data = doc.data() as Partial<AudioItem> & { audioUrl?: string };
-        return {
-          id: doc.id,
-          audioUrl: data.audioUrl ?? "",
-          name: data.name || doc.id,
-        };
-      });
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("No autenticado");
 
-      const videosSnap = await getDocs(collection(db, "users", uid, "clonacion"));
-      const v: VideoItem[] = videosSnap.docs.map((doc) => {
-        const data = doc.data() as Partial<VideoItem> & { url?: string; titulo?: string };
-        return {
-          id: doc.id,
-          url: data.url ?? "",
-          name: data.titulo || doc.id,
-        };
-      });
+      const idToken = await currentUser.getIdToken();
 
-      setAudios(a);
-      setVideos(v);
+      // 🔹 Fetch audios
+      const resAudios = await fetch(`/api/firebase/users/${uid}/audios`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!resAudios.ok) throw new Error("Error cargando audios");
+      const audios: any[] = await resAudios.json();
+
+      // 🔹 Fetch clones (renombrado a "clones")
+      const resClones = await fetch(`/api/firebase/users/${uid}/clones`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!resClones.ok) throw new Error("Error cargando vídeos");
+      const clones: any[] = await resClones.json();
+
+      // 🔹 Adaptamos los datos al tipo que espera el estado
+      setAudios(
+        audios.map((a) => ({
+          id: a.id,
+          audioUrl: a.audioUrl ?? "",
+          name: a.name || a.id,
+        })) as AudioItem[]
+      );
+
+      setVideos(
+        clones.map((v) => ({
+          id: v.id,
+          url: v.url ?? "",
+          name: v.titulo || v.id, // 👈 usamos "titulo" pero lo mapeamos a "name"
+        })) as VideoItem[]
+      );
     } catch (err) {
-      console.error(err);
+      console.error("loadMedia error:", err);
       toast.error("Error cargando audios/vídeos");
     }
   }
+
 
   async function handleGenerate() {
     flushSync(() => setProcessing(true));

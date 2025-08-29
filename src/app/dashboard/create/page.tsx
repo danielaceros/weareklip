@@ -3,7 +3,7 @@
 import CreateReelWizard from "@/components/wizard/CreateReelWizard";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 export default function CreateReelPage() {
   const { Modals } = useSubscriptionGate();

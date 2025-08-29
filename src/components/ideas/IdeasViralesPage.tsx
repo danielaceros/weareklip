@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useT } from "@/lib/i18n";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { serverTimestamp } from "firebase/firestore";
+
 import { IdeasViralesHeader } from "@/components/ideas/IdeasViralesHeader";
 import { IdeasViralesSearch } from "@/components/ideas/IdeasViralesSearch";
 import {
@@ -23,7 +22,6 @@ export default function IdeasViralesPage() {
   const [range, setRange] = useState("week");
   const [query, setQuery] = useState("");
   const [videos, setVideos] = useState<ShortVideo[]>([]);
-  const [displayCount, setDisplayCount] = useState(5);
   const [favorites, setFavorites] = useState<ShortVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -35,7 +33,7 @@ export default function IdeasViralesPage() {
     const unsub = onAuthStateChanged(auth, async (loggedUser) => {
       setUser(loggedUser);
       if (loggedUser) {
-        await loadFavorites(loggedUser.uid);
+        await loadFavorites(loggedUser);
       } else {
         setFavorites([]);
       }
@@ -43,10 +41,23 @@ export default function IdeasViralesPage() {
     return () => unsub();
   }, []);
 
-  const loadFavorites = async (uid: string) => {
-    const favSnap = await getDocs(collection(db, `users/${uid}/ideas`));
-    const favs = favSnap.docs.map((doc) => doc.data() as ShortVideo);
-    setFavorites(favs);
+  const loadFavorites = async (loggedUser: User) => {
+    try {
+      const idToken = await loggedUser.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${loggedUser.uid}/ideas`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const favs = data.map((d: any) => d as ShortVideo);
+      setFavorites(favs);
+    } catch (err) {
+      console.error("Error cargando favoritos:", err);
+      toast.error("Error cargando favoritos");
+    }
   };
 
   // Buscar vídeos virales
@@ -64,8 +75,15 @@ export default function IdeasViralesPage() {
         )}`
       );
       const data = await res.json();
-      setVideos(data);
-      setDisplayCount(5);
+
+      // 🔹 Normalizar views a number
+      const normalized: ShortVideo[] = data.map((d: any) => ({
+        ...d,
+        views: Number(d.views) || 0,
+      }));
+
+      setVideos(normalized);
+
       toast.success("Vídeos cargados correctamente", { id: loadingToast });
     } catch (err) {
       console.error("Error fetching shorts:", err);
@@ -74,33 +92,15 @@ export default function IdeasViralesPage() {
     setLoading(false);
   };
 
-  // Filtrar (parche: asegura array para evitar crash cuando la API falle)
-  const filteredVideos = (Array.isArray(videos) ? videos : []).filter(
-    (video) =>
-      video.title.toLowerCase().includes(query.toLowerCase()) ||
-      video.description?.toLowerCase().includes(query.toLowerCase())
-  );
-
-  // Scroll infinito
-  const handleScroll = useCallback(() => {
-    if (!listRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-    if (scrollTop + clientHeight >= scrollHeight - 20) {
-      setDisplayCount((prev) => Math.min(prev + 5, filteredVideos.length));
-    }
-  }, [filteredVideos.length]);
-
-  useEffect(() => {
-    const currentRef = listRef.current;
-    if (currentRef) {
-      currentRef.addEventListener("scroll", handleScroll);
-    }
-    return () => {
-      if (currentRef) {
-        currentRef.removeEventListener("scroll", handleScroll);
-      }
-    };
-  }, [handleScroll]);
+  // 🔹 Filtrar resultados por query
+  const filteredVideos =
+    query.trim() === ""
+      ? videos
+      : videos.filter(
+          (video) =>
+            video.title.toLowerCase().includes(query.toLowerCase()) ||
+            video.description?.toLowerCase().includes(query.toLowerCase())
+        );
 
   // Añadir o quitar favoritos
   const toggleFavorite = async (video: ShortVideo) => {
@@ -108,16 +108,30 @@ export default function IdeasViralesPage() {
       toast.error("Debes iniciar sesión para guardar favoritos");
       return;
     }
-    const favRef = doc(collection(db, `users/${user.uid}/ideas`), video.id);
-    const exists = favorites.some((fav) => fav.id === video.id);
-    if (exists) {
-      await deleteDoc(favRef);
-      toast.success("Eliminado de favoritos");
-    } else {
-      await setDoc(favRef, video);
-      toast.success("Añadido a favoritos");
+
+    try {
+      const idToken = await user.getIdToken();
+      const exists = favorites.some((fav) => fav.id === video.id);
+
+      const url = `/api/firebase/users/${user.uid}/ideas/${video.id}`;
+      const options: RequestInit = {
+        method: exists ? "DELETE" : "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: exists ? undefined : JSON.stringify(video),
+      };
+
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+
+      toast.success(exists ? "Eliminado de favoritos" : "Añadido a favoritos");
+      await loadFavorites(user);
+    } catch (err) {
+      console.error("Error en toggleFavorite:", err);
+      toast.error("No se pudo actualizar favoritos");
     }
-    await loadFavorites(user.uid);
   };
 
   // Replicar vídeo
@@ -126,6 +140,7 @@ export default function IdeasViralesPage() {
       toast.error("Debes iniciar sesión para replicar vídeos");
       return;
     }
+
     const replicateToast = toast.loading("Replicando guion...");
     try {
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
@@ -136,14 +151,12 @@ export default function IdeasViralesPage() {
         return;
       }
 
-      const guionRef = doc(collection(db, `users/${user.uid}/guiones`));
-      await setDoc(guionRef, {
+      const newScript = {
         description: `Guion replicado de ${video.title}`,
         platform: "youtube",
         language: "es",
         script: data.transcript,
-        createdAt: serverTimestamp(),
-        scriptId: guionRef.id,
+        createdAt: new Date(),
         fuente: video.url,
         isAI: false,
         videoTitle: video.title,
@@ -152,12 +165,25 @@ export default function IdeasViralesPage() {
         videoPublishedAt: video.publishedAt,
         videoViews: video.views,
         videoThumbnail: video.thumbnail,
+      };
+
+      const idToken = await user.getIdToken();
+      const saveRes = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(newScript),
       });
+
+      if (!saveRes.ok) throw new Error(`Error ${saveRes.status}`);
+      await saveRes.json();
 
       toast.success("Guion replicado y guardado ✅", { id: replicateToast });
       router.push("/dashboard/script");
     } catch (err) {
-      console.error(err);
+      console.error("Error replicando vídeo:", err);
       toast.error("Error al replicar vídeo", { id: replicateToast });
     }
   };

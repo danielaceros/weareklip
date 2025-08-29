@@ -19,7 +19,7 @@ import {
 import { useState, useMemo } from "react";
 import { handleError, showSuccess, showLoading } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { ProgressReel } from "@/components/shared/ProgressReel";
 import Comments from "@/components/shared/Comments";

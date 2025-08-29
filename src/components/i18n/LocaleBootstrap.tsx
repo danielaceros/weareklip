@@ -67,19 +67,31 @@ function guessFromNavigator(): Locale | null {
 async function getUserLangFromFirestore(): Promise<Locale | null> {
   const u = auth.currentUser;
   if (!u) return null;
-  const ref = doc(db, "users", u.uid);
-  const snap = await getDoc(ref);
-  const lang: unknown = snap.get("settings.lang");
+
+  const idToken = await u.getIdToken();
+  const res = await fetch(`/api/firebase/users/${u.uid}`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  if (!res.ok) {
+    console.error("❌ Error al obtener user settings:", await res.text());
+    return null;
+  }
+
+  const data = await res.json();
+  const lang: unknown = data?.settings?.lang;
   if (lang === "es" || lang === "en" || lang === "fr") return lang;
+
   return null;
 }
+
 
 async function syncUserLang(lang: Locale) {
   try {
     const u = auth.currentUser;
     if (!u) return;
     const token = await u.getIdToken();
-    await fetch("/api/users/settings", {
+    await fetch("/api/firebase/users/settings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -20,7 +20,7 @@ export interface ShortVideo {
   id: string; // YouTube Video ID
   title: string;
   channel: string;
-  views: string;
+  views: number;
   url: string;
   thumbnail: string;
   description: string;
@@ -151,8 +151,9 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       {video.channel}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {Number(video.views).toLocaleString()} views
+                      {video.views.toLocaleString()} views
                     </p>
+
                   </CardContent>
 
                   <CardFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 pt-0">

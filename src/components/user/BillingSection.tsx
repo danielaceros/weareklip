@@ -1,18 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import {
-  doc,
-  onSnapshot,
-  type FirestoreDataConverter,
-  type DocumentData,
-  collection,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,8 +25,6 @@ import {
 import { startOfWeek, endOfWeek } from "date-fns";
 
 /* ========= Tipos ========= */
-
-type FireTimestamp = { seconds: number; nanoseconds: number };
 
 export interface SubscriptionInfo {
   id?: string | null;
@@ -62,10 +50,6 @@ interface UserDoc {
   subscription?: SubscriptionInfo;
   usage?: { tokens?: number; euros?: number };
 }
-const userConverter: FirestoreDataConverter<UserDoc> = {
-  toFirestore: (data: UserDoc) => data as DocumentData,
-  fromFirestore: (snap, options) => snap.data(options) as UserDoc,
-};
 
 /** Tareas (Firestore /tasks) */
 type Task = {
@@ -78,7 +62,8 @@ type Task = {
   paidQty: number;
   quantity: number;
   unitCents: number;
-  createdAt: FireTimestamp | null;
+  createdAt: string | null;
+  updatedAt?: string | null;
   jobId?: string;
 };
 
@@ -94,10 +79,13 @@ const fmtDate = (d: Date | null) =>
         month: "short",
         year: "2-digit",
       })
-    : "-";
+    : "—";
 
-const tsToDate = (ts?: FireTimestamp | null) =>
-  ts?.seconds ? new Date(ts.seconds * 1000) : null;
+function tsToDate(ts?: string | null): Date | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 function statusBadge(status: string | null, cancelAtPeriodEnd?: boolean) {
   if (!status) return <Badge variant="secondary">Sin suscripción</Badge>;
@@ -130,7 +118,7 @@ export default function BillingSection() {
   // NUEVO: filtros
   const [filterKind, setFilterKind] = useState<string>("all");
   const [filterRange, setFilterRange] = useState<"week" | "month" | "all">(
-    "week" // 👈 por defecto semana actual
+    "week"
   );
 
   const currentWeek = useMemo(() => {
@@ -143,82 +131,97 @@ export default function BillingSection() {
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
+  // 🔥 Fetch paralelo
   useEffect(() => {
     if (!user) return;
-    const ref = doc(db, "users", user.uid).withConverter(userConverter);
-    return onSnapshot(ref, (snap) => setDocData(snap.data() ?? null));
-  }, [user]);
+    const ctrl = new AbortController();
+    let active = true;
 
-  useEffect(() => {
-    if (!user?.email) return;
-    const fetchStripe = async () => {
-      setLoadingStripe(true);
+    const fetchAll = async () => {
       try {
-        const res = await fetch(
-          `/api/stripe/email?email=${encodeURIComponent(user.email!)}`
-        );
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setStripeData(data);
-      } catch (e) {
-        console.error("Stripe fetch error:", e);
-        setStripeData(null);
-      } finally {
-        setLoadingStripe(false);
-      }
-    };
-    fetchStripe();
-  }, [user?.email]);
+        setLoadingStripe(true);
+        setLoadingSummary(true);
 
-  // 🔥 Obtener tasks (detalle histórico)
-  useEffect(() => {
-    if (!user) return;
-    setLoadingTasks(true);
-
-    const q = query(
-      collection(db, "users", user.uid, "tasks"),
-      orderBy("createdAt", "desc"),
-      limit(200)
-    );
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const rows: Task[] = [];
-        snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as any) }));
-        setTasks(rows);
-        setLoadingTasks(false);
-      },
-      (err) => {
-        console.error("Tasks snapshot error:", err);
-        setLoadingTasks(false);
-      }
-    );
-
-    return () => unsub();
-  }, [user]);
-
-  // 🔥 Obtener summary de Stripe
-  useEffect(() => {
-    if (!user) return;
-    const fetchSummary = async () => {
-      setLoadingSummary(true);
-      try {
         const idToken = await user.getIdToken();
-        const res = await fetch("/api/billing/summary", {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setSummary(data);
+
+        const [userRes, stripeRes, summaryRes] = await Promise.allSettled([
+          fetch(`/api/firebase/users/${user.uid}`, {
+            headers: { Authorization: `Bearer ${idToken}` },
+            signal: ctrl.signal,
+          }),
+          fetch(`/api/stripe/email?email=${encodeURIComponent(user.email!)}`, {
+            signal: ctrl.signal,
+          }),
+          fetch("/api/billing/summary", {
+            headers: { Authorization: `Bearer ${idToken}` },
+            signal: ctrl.signal,
+          }),
+        ]);
+
+        if (!active) return;
+
+        if (userRes.status === "fulfilled" && userRes.value.ok) {
+          setDocData(await userRes.value.json());
+        }
+        if (stripeRes.status === "fulfilled" && stripeRes.value.ok) {
+          setStripeData(await stripeRes.value.json());
+        }
+        if (summaryRes.status === "fulfilled" && summaryRes.value.ok) {
+          setSummary(await summaryRes.value.json());
+        }
       } catch (err) {
-        console.error("Summary fetch error:", err);
-        setSummary(null);
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("❌ Error en fetch paralelo:", err);
+        }
       } finally {
-        setLoadingSummary(false);
+        if (active) {
+          setLoadingStripe(false);
+          setLoadingSummary(false);
+        }
       }
     };
-    fetchSummary();
+
+    fetchAll();
+
+    return () => {
+      active = false;
+      ctrl.abort();
+    };
+  }, [user]);
+
+  // 🔥 Obtener tasks
+  useEffect(() => {
+    if (!user) return;
+    const ctrl = new AbortController();
+
+    const fetchTasks = async () => {
+      setLoadingTasks(true);
+      try {
+        const currentUser = getAuth().currentUser;
+        if (!currentUser) throw new Error("No autenticado");
+        const idToken = await currentUser.getIdToken();
+
+        const res = await fetch(`/api/firebase/users/${user.uid}/tasks`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+          signal: ctrl.signal,
+        });
+
+        if (res.ok) {
+          const data: Task[] = await res.json();
+          setTasks(data);
+        }
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error fetching tasks:", err);
+        }
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+
+    void fetchTasks();
+
+    return () => ctrl.abort();
   }, [user]);
 
   const sub = useMemo(() => {
@@ -247,13 +250,13 @@ export default function BillingSection() {
   const periodEnd =
     sub?.status === "trialing" ? sub?.trial_end ?? null : sub?.renewal ?? null;
 
-  // 🔥 Filtrar tareas en memoria
+  // 🔥 Filtrar tareas
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       const d = tsToDate(t.createdAt);
+
       if (!d) return false;
 
-      // filtro por rango
       if (filterRange === "week") {
         if (d < currentWeek.start || d > currentWeek.end) return false;
       }
@@ -261,7 +264,6 @@ export default function BillingSection() {
         if (d.getMonth() !== new Date().getMonth()) return false;
       }
 
-      // filtro por tipo
       if (filterKind !== "all" && t.kind !== filterKind) return false;
 
       return true;
@@ -276,8 +278,7 @@ export default function BillingSection() {
         {/* Columna izquierda */}
         <div className="lg:col-span-4 space-y-6">
           {loadingStripe ? (
-            <div className="rounded-2xl border bg-card p-5 space-y-4">
-              {/* Skeletons */}
+            <div className="rounded-2xl border bg-card p-5 space-y-4 animate-pulse">
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-6 w-3/4" />
               <Skeleton className="h-[72px] w-full rounded-xl" />
@@ -291,7 +292,7 @@ export default function BillingSection() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border bg-card p-5">
+            <div className="rounded-2xl border bg-card p-5 transition-all duration-200">
               <div className="text-sm text-muted-foreground mb-1">
                 Periodo de facturación
               </div>
@@ -393,73 +394,72 @@ export default function BillingSection() {
           </div>
 
           {/* Tabla responsiva */}
-            <div className="rounded-2xl border overflow-x-auto">
-              <Table className="w-full sm:min-w-[500px]">
-                <TableHeader>
+          <div className="rounded-2xl border overflow-x-auto">
+            <Table className="w-full sm:min-w-[500px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px] sm:w-[140px]">Tipo</TableHead>
+                  <TableHead>ID del trabajo</TableHead>
+                  <TableHead className="w-[80px] sm:w-[120px]">Coste</TableHead>
+                  <TableHead className="w-[140px] sm:w-[200px]">
+                    Fecha de procesado
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingTasks ? (
                   <TableRow>
-                    <TableHead className="w-[100px] sm:w-[140px]">Tipo</TableHead>
-                    <TableHead>ID del trabajo</TableHead>
-                    <TableHead className="w-[80px] sm:w-[120px]">Coste</TableHead>
-                    <TableHead className="w-[140px] sm:w-[200px]">
-                      Fecha de procesado
-                    </TableHead>
+                    <TableCell colSpan={4} className="text-center">
+                      <Skeleton className="h-6 w-1/2 mx-auto" />
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingTasks ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center">
-                        Cargando...
+                ) : filteredTasks.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-sm text-muted-foreground"
+                    >
+                      No hay tareas registradas en este periodo.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredTasks.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="capitalize">
+                        {t.kind === "script"
+                          ? "Guión"
+                          : t.kind === "audio"
+                          ? "Audio"
+                          : t.kind === "video"
+                          ? "Vídeo"
+                          : t.kind === "edit"
+                          ? "Edición"
+                          : t.kind}
+                      </TableCell>
+                      <TableCell className="truncate max-w-[100px] sm:max-w-[140px]">
+                        {t.id}
+                      </TableCell>
+                      <TableCell>{euro(t.chargedCents ?? 0)}€</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {(() => {
+                          const d = tsToDate(t.createdAt);
+                          return d
+                            ? d.toLocaleString(undefined, {
+                                day: "2-digit",
+                                month: "short",
+                                year: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—";
+                        })()}
                       </TableCell>
                     </TableRow>
-                  ) : filteredTasks.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        className="text-center py-8 text-sm text-muted-foreground"
-                      >
-                        No hay tareas registradas en este periodo.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredTasks.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="capitalize">
-                          {t.kind === "script"
-                            ? "Guión"
-                            : t.kind === "audio"
-                            ? "Audio"
-                            : t.kind === "video"
-                            ? "Vídeo"
-                            : t.kind === "edit"
-                            ? "Edición"
-                            : t.kind}
-                        </TableCell>
-                        <TableCell className="truncate max-w-[100px] sm:max-w-[140px]">
-                          {t.id}
-                        </TableCell>
-                        <TableCell>{euro(t.chargedCents ?? 0)}€</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {(() => {
-                            const d = tsToDate(t.createdAt);
-                            return d
-                              ? d.toLocaleString(undefined, {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "—";
-                          })()}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
 

@@ -53,17 +53,29 @@ export default function UserPanel() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        toast.error("No autenticado", { description: "Inicia sesión para ver tu panel." });
+        toast.error("No autenticado", {
+          description: "Inicia sesión para ver tu panel.",
+        });
+        setUserId(null);
+        setUserData(null);
+        setSub(null);
         return;
       }
+
       setUserId(user.uid);
 
       try {
-        const docSnap = await getDoc(doc(db, "users", user.uid));
-        if (docSnap.exists()) {
-          setUserData(docSnap.data() as UserData);
-        }
-      } catch {
+        const token = await user.getIdToken();
+
+        // 🔹 Cargar datos del usuario desde API CRUD
+        const userRes = await fetch(`/api/firebase/users/${user.uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!userRes.ok) throw new Error("No se pudo obtener el usuario");
+        const userData = await userRes.json();
+        setUserData(userData as UserData);
+      } catch (err) {
+        console.error("❌ Error cargando datos de usuario:", err);
         toast.error("Error cargando datos de usuario.");
       }
 
@@ -76,7 +88,8 @@ export default function UserPanel() {
         if (!res.ok) throw new Error("No se pudo obtener la suscripción");
         const data = await res.json();
         setSub(data);
-      } catch {
+      } catch (err) {
+        console.error("❌ Error cargando suscripción:", err);
         toast.error("Error cargando suscripción.");
       } finally {
         setLoadingSub(false);
@@ -85,6 +98,7 @@ export default function UserPanel() {
 
     return () => unsub();
   }, []);
+
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">

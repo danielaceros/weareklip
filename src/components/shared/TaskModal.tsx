@@ -4,7 +4,7 @@ import { SetStateAction, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { db } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
 import { doc, setDoc, updateDoc } from "firebase/firestore"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
@@ -46,43 +46,54 @@ export default function TaskModal({ open, onOpenChange, adminId, task }: TaskMod
 
   const handleSave = async () => {
     if (!descripcion.trim()) {
-      toast.error("La descripción es obligatoria.")
-      return
+      toast.error("La descripción es obligatoria.");
+      return;
     }
 
     if (!fechaFin) {
-      toast.error("La fecha de fin es obligatoria.")
-      return
+      toast.error("La fecha de fin es obligatoria.");
+      return;
     }
 
     try {
-      setSaving(true)
-      const id = task?.id || uuidv4()
-      const ref = doc(db, "admin", adminId, "tasks", id)
+      setSaving(true);
 
-      const data: Task = {
+      const id = task?.id || uuidv4();
+      const payload: Task = {
         id,
         descripcion,
         estado,
         createdAt: task?.createdAt || Date.now(),
         fechaFin: fechaFin.getTime(),
+      };
+
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("No autenticado");
+
+      const res = await fetch(`/api/firebase/admin/${adminId}/tasks/${id}`, {
+        method: task ? "PUT" : "POST", // PUT si existe, POST si es nuevo
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
       }
 
-      if (task) {
-        await updateDoc(ref, data)
-      } else {
-        await setDoc(ref, data)
-      }
-
-      toast.success(task ? "Tarea actualizada" : "Tarea creada")
-      onOpenChange(false)
+      toast.success(task ? "Tarea actualizada" : "Tarea creada");
+      onOpenChange(false);
     } catch (err) {
-      console.error(err)
-      toast.error("Error al guardar la tarea")
+      console.error("❌ Error handleSave:", err);
+      toast.error("Error al guardar la tarea");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

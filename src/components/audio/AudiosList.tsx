@@ -2,7 +2,14 @@
 
 import { Card } from "@/components/ui/card";
 import { Trash2, Play, Pause } from "lucide-react";
-import { useRef, useState } from "react";
+import {
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  memo,
+} from "react";
 import {
   Pagination,
   PaginationContent,
@@ -32,71 +39,72 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(audios.length / perPage);
-  const paginated = audios.slice((page - 1) * perPage, page * perPage);
 
-  if (audios.length === 0) return <p>No tienes audios aún.</p>;
+  const paginated = useMemo(
+    () => audios.slice((page - 1) * perPage, page * perPage),
+    [audios, page, perPage]
+  );
+
+  if (audios.length === 0) {
+    return <p className="text-muted-foreground">No tienes audios aún.</p>;
+  }
 
   return (
-  <div className="flex flex-col h-full space-y-6">
-    {/* Grid responsivo */}
-    <div
-      className="
-        grid gap-4
-        grid-cols-1
-        sm:grid-cols-2
-        lg:grid-cols-3
-        xl:grid-cols-4
-      "
-    >
-      {paginated.map((audio) => (
-        <AudioCard key={audio.audioId} audio={audio} onDelete={onDelete} />
-      ))}
-    </div>
+    <div className="flex flex-col h-full space-y-6">
+      {/* Grid */}
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+        {paginated.map((audio) => (
+          <MemoizedAudioCard
+            key={audio.audioId}
+            audio={audio}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
 
-    {/* Paginación */}
-    {totalPages > 1 && (
-      <div className="mt-auto flex justify-center col-span-full">
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (page > 1) setPage(page - 1);
-                }}
-              />
-            </PaginationItem>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <PaginationItem key={i}>
-                <PaginationLink
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="mt-auto flex justify-center col-span-full">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
                   href="#"
-                  isActive={page === i + 1}
                   onClick={(e) => {
                     e.preventDefault();
-                    setPage(i + 1);
+                    if (page > 1) setPage((p) => p - 1);
                   }}
-                >
-                  {i + 1}
-                </PaginationLink>
+                />
               </PaginationItem>
-            ))}
-            <PaginationItem>
-              <PaginationNext
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (page < totalPages) setPage(page + 1);
-                }}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    )}
-  </div>
-);
-
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage((p) => p + 1);
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AudioCard({
@@ -104,15 +112,15 @@ function AudioCard({
   onDelete,
 }: {
   audio: AudioData;
-  onDelete: (audio: AudioData) => void;
+  onDelete: (a: AudioData) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const frameRef = useRef<number | null>(null);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
-
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -120,7 +128,31 @@ function AudioCard({
         console.warn("No se pudo reproducir:", err);
       });
     }
-  };
+  }, [isPlaying]);
+
+  // 🔹 actualizar progreso con RAF (más fluido que onTimeUpdate)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const updateProgress = () => {
+      if (el.duration) {
+        setProgress((el.currentTime / el.duration) * 100);
+      }
+      frameRef.current = requestAnimationFrame(updateProgress);
+    };
+
+    if (isPlaying) {
+      frameRef.current = requestAnimationFrame(updateProgress);
+    } else if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [isPlaying]);
 
   return (
     <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm h-full">
@@ -137,6 +169,7 @@ function AudioCard({
           )}
         </div>
         <button
+          aria-label="Eliminar audio"
           onClick={() => onDelete(audio)}
           className="p-2 rounded-full hover:bg-muted transition"
         >
@@ -147,14 +180,11 @@ function AudioCard({
       {/* Player */}
       <div className="flex items-center gap-3">
         <button
+          aria-label={isPlaying ? "Pausar" : "Reproducir"}
           onClick={togglePlay}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </button>
 
         <div className="flex-1">
@@ -163,7 +193,7 @@ function AudioCard({
             min={0}
             max={100}
             value={progress}
-            onChange={() => {}}
+            readOnly
             className="w-full accent-primary"
           />
         </div>
@@ -173,10 +203,6 @@ function AudioCard({
       <audio
         ref={audioRef}
         src={audio.url}
-        onTimeUpdate={(e) => {
-          const el = e.currentTarget;
-          setProgress((el.currentTime / el.duration) * 100 || 0);
-        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
@@ -184,12 +210,8 @@ function AudioCard({
           setProgress(0);
         }}
       />
-
-      {/* Footer con metadatos */}
-      <div className="mt-3 flex justify-between text-xs text-muted-foreground">
-        {audio.language && <span>🌍 {audio.language}</span>}
-        {audio.duration && <span>⏱ {audio.duration}</span>}
-      </div>
     </Card>
   );
 }
+
+const MemoizedAudioCard = memo(AudioCard);

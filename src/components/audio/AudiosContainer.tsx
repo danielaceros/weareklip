@@ -1,21 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { getStorage, ref, deleteObject } from "firebase/storage";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { AudiosList, AudioData } from "./AudiosList";
-import {
-  Dialog,
-  DialogContent,
-  DialogOverlay,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 export default function AudiosContainer() {
   const [audios, setAudios] = useState<AudioData[]>([]);
@@ -29,32 +23,36 @@ export default function AudiosContainer() {
 
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   const fetchAudios = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
+
     try {
-      const audiosRef = collection(db, "users", user.uid, "audios");
-      const snapshot = await getDocs(audiosRef);
-      const data: AudioData[] = snapshot.docs.map((docSnap) => {
-        const docData = docSnap.data() as Partial<AudioData> & { audioUrl?: string };
-        return {
-          audioId: docSnap.id,
-          url: docData.audioUrl ?? "",
-          name: docData.name ?? "",
-          description: docData.description ?? "",
-          createdAt: docData.createdAt,
-          duration: docData.duration,
-          language: docData.language,
-        };
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/firebase/users/${user.uid}/audios`, {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
-      setAudios(data);
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      const mapped: AudioData[] = data.map((d: any) => ({
+        audioId: d.id,
+        url: d.audioUrl ?? "",
+        name: d.name ?? "",
+        description: d.description ?? "",
+        createdAt: d.createdAt,
+        duration: d.duration,
+        language: d.language,
+      }));
+
+      setAudios(mapped);
     } catch (error) {
       console.error("Error fetching audios:", error);
-      toast.error("Error cargando audios");
+      toast.error("❌ No se pudieron cargar los audios");
     } finally {
       setLoading(false);
     }
@@ -64,82 +62,100 @@ export default function AudiosContainer() {
     fetchAudios();
   }, [fetchAudios]);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!user) return;
+    if (deleting) return; // prevenir clicks dobles
     setDeleting(true);
+
     try {
+      const idToken = await user.getIdToken();
+
       if (deleteAll) {
         await Promise.all(
           audios.map(async (audio) => {
-            await deleteDoc(doc(db, "users", user.uid, "audios", audio.audioId));
-            if (audio.url && audio.url.includes("firebasestorage")) {
-              try {
-                const storage = getStorage();
-                const path = decodeURIComponent(
-                  new URL(audio.url).pathname.split("/o/")[1].split("?")[0]
-                );
-                await deleteObject(ref(storage, path));
-              } catch {}
+            const res = await fetch(
+              `/api/firebase/users/${user.uid}/audios/${audio.audioId}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${idToken}` },
+              }
+            );
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || `Error ${res.status}`);
             }
           })
         );
         setAudios([]);
-        toast.success("Todos los audios eliminados");
+        toast.success("🗑️ Todos los audios eliminados");
       } else if (audioToDelete) {
-        await deleteDoc(doc(db, "users", user.uid, "audios", audioToDelete.audioId));
-        if (audioToDelete.url && audioToDelete.url.includes("firebasestorage")) {
-          try {
-            const storage = getStorage();
-            const path = decodeURIComponent(
-              new URL(audioToDelete.url).pathname.split("/o/")[1].split("?")[0]
-            );
-            await deleteObject(ref(storage, path));
-          } catch {}
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Error ${res.status}`);
         }
-        setAudios((prev) => prev.filter((a) => a.audioId !== audioToDelete.audioId));
-        toast.success("Audio eliminado");
+
+        setAudios((prev) =>
+          prev.filter((a) => a.audioId !== audioToDelete.audioId)
+        );
+        toast.success("Audio eliminado ✅");
       }
     } catch (err) {
       console.error("Error eliminando audio:", err);
-      toast.error("No se pudo eliminar el audio");
+      toast.error("❌ No se pudo eliminar el audio");
     } finally {
       setDeleting(false);
       setAudioToDelete(null);
       setDeleteAll(false);
     }
-  };
+  }, [user, deleteAll, audioToDelete, audios, deleting]);
 
-  if (loading) return <p>Cargando audios...</p>;
+  const deleteDialogOpen = useMemo(
+    () => !!audioToDelete || deleteAll,
+    [audioToDelete, deleteAll]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-      <h1 className="text-2xl font-bold">Audios</h1>
+        <h1 className="text-2xl font-bold">Mis Audios</h1>
         <div className="flex gap-3">
           <Button
             variant="destructive"
             className="rounded-lg"
             onClick={() => setDeleteAll(true)}
-            disabled={audios.length === 0}
+            disabled={audios.length === 0 || deleting}
           >
             <Trash2 size={18} className="mr-2" />
-            Borrar todos
+            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
           </Button>
           <Button
             onClick={() => setIsNewOpen(true)}
             className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
           >
             <Plus size={18} className="mr-2" />
-            Generar voz
+            Nuevo audio
           </Button>
         </div>
       </div>
 
       {/* Grid de audios */}
-      <div className="">
-        <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
-      </div>
+      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
 
       {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
@@ -151,7 +167,7 @@ export default function AudiosContainer() {
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
-        open={!!audioToDelete || deleteAll}
+        open={deleteDialogOpen}
         onClose={() => {
           setAudioToDelete(null);
           setDeleteAll(false);

@@ -277,14 +277,24 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
+
     try {
-      const db = getFirestore();
-      const clonacionRef = collection(db, `users/${user.uid}/clonacion`);
-      const snap = await withTiming("clonacion_videos_load", async () => getDocs(clonacionRef));
-      const list = snap.docs.map((doc) => {
-        const d = doc.data() as { titulo?: string; url?: string } | undefined;
-        return { id: doc.id, name: d?.titulo ?? doc.id, url: d?.url ?? "" };
+      const idToken = await user.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${user.uid}/clones`, {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
+
+      if (!res.ok) throw new Error("Error al cargar vídeos de clonación");
+
+      const data = await res.json();
+
+      const list = data.map((d: any) => ({
+        id: d.id,
+        name: d.titulo ?? d.id,
+        url: d.url ?? "",
+      }));
+
       setVideos(list);
       track("clonacion_videos_loaded", { count: list.length });
     } catch (err) {
@@ -295,6 +305,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       setLoadingVideos(false);
     }
   };
+
 
   const steps = ["Guion", "Audio", "Video"];
 

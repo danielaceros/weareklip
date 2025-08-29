@@ -1,5 +1,5 @@
 // lib/errors.ts
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 export function handleError(error: unknown, context: string = "Error inesperado") {
   console.error(context, error);

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/types/video";
 import EmptyState from "@/components/shared/EmptyState";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { ProgressReel } from "@/components/shared/ProgressReel";
 

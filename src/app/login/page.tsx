@@ -1,4 +1,3 @@
-// src/app/login/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,15 +9,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  serverTimestamp, 
-  setDoc 
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import {
   Card,
   CardContent,
@@ -56,34 +47,60 @@ export default function LoginPage() {
   };
 
   const ensureUserDoc = async (uid: string, emailAddr: string) => {
-    const ref = doc(db, "users", uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(
-        ref,
-        {
-          uid,
-          email: emailAddr.toLowerCase().trim(),
-          role: "user",
-          createdAt: serverTimestamp(),
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
+
+      const res = await fetch(`/api/firebase/users/${uid}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
-        { merge: true }
-      );
+        body: JSON.stringify({
+          uid,
+          email: emailAddr?.toLowerCase().trim() ?? "",
+          role: "user",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
+      }
+    } catch (err) {
+      console.error("Error en ensureUserDoc (API):", err);
+      // no rompemos login aunque falle
     }
   };
 
   const checkOnboardingNeeded = async (uid: string): Promise<boolean> => {
     try {
-      const clonacionSnap = await getDocs(collection(db, "users", uid, "clonacion"));
-      if (!clonacionSnap.empty) return false;
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Not authenticated");
 
-      const voicesSnap = await getDocs(collection(db, "users", uid, "voices"));
-      if (!voicesSnap.empty) return false;
+      // Revisar clones
+      const clonesRes = await fetch(`/api/firebase/users/${uid}/clones`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!clonesRes.ok) throw new Error(`Error al cargar clones (${clonesRes.status})`);
+      const clones = await clonesRes.json();
+      if (clones.length > 0) return false;
 
-      return true; // Si no hay ni vídeos ni voces
+      // Revisar voices
+      const voicesRes = await fetch(`/api/firebase/users/${uid}/voices`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!voicesRes.ok) throw new Error(`Error al cargar voices (${voicesRes.status})`);
+      const voices = await voicesRes.json();
+      if (voices.length > 0) return false;
+
+      // 🔹 Si no hay ni clones ni voces → necesita onboarding
+      return true;
     } catch (err) {
       console.error("Error comprobando clonación/voces:", err);
-      return true; // fallback: mejor mandarlo a onboarding
+      // fallback seguro: mejor mandarlo a onboarding
+      return true;
     }
   };
 

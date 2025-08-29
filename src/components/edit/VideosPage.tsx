@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, X } from "lucide-react";
 
@@ -19,8 +17,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-import { getStorage, ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 export interface VideoData {
   projectId: string;
@@ -50,29 +48,38 @@ export default function VideosPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return unsubscribe;
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   useEffect(() => {
     const fetchVideos = async () => {
       if (!user) return;
       try {
-        const videosRef = collection(db, "users", user.uid, "videos");
-        const snapshot = await getDocs(videosRef);
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+
         setVideos(
-          snapshot.docs.map((docSnap) => ({
-            projectId: docSnap.id,
-            ...(docSnap.data() as Omit<VideoData, "projectId">),
-          }))
+          data.map(
+            (v: any) =>
+              ({
+                projectId: v.id,
+                ...v,
+              } as VideoData)
+          )
         );
       } catch (error) {
-        console.error(error);
+        console.error("Error cargando vídeos:", error);
         toast.error("Error cargando vídeos");
       } finally {
         setLoading(false);
       }
     };
+
     fetchVideos();
   }, [user]);
 
@@ -81,29 +88,36 @@ export default function VideosPage() {
     setDeleting(true);
 
     try {
+      const idToken = await user.getIdToken();
+
       if (deleteAll) {
-        await Promise.all(
-          videos.map(async (video) => {
-            await deleteDoc(doc(db, "users", user.uid, "videos", video.projectId));
-            if (video.storagePath) {
-              try {
-                const storage = getStorage();
-                await deleteObject(ref(storage, video.storagePath));
-              } catch {}
-            }
-          })
-        );
+        // DELETE en lote
+        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ all: true }),
+        });
+
+        if (!res.ok) throw new Error("Error eliminando todos los vídeos");
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
-        await deleteDoc(doc(db, "users", user.uid, "videos", videoToDelete.projectId));
-        if (videoToDelete.storagePath) {
-          try {
-            const storage = getStorage();
-            await deleteObject(ref(storage, videoToDelete.storagePath));
-          } catch {}
-        }
-        setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
+        // DELETE individual
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
+        );
+        if (!res.ok) throw new Error("Error eliminando vídeo");
+
+        setVideos((prev) =>
+          prev.filter((v) => v.projectId !== videoToDelete.projectId)
+        );
         toast.success("Vídeo eliminado correctamente");
       }
     } catch (err) {
@@ -116,7 +130,13 @@ export default function VideosPage() {
     }
   }
 
-  if (loading) return <p>Cargando vídeos...</p>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] w-full">
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -148,12 +168,7 @@ export default function VideosPage() {
         <p>No tienes vídeos aún.</p>
       ) : (
         <>
-          <div
-            className="
-              grid gap-4
-              grid-cols-2 xs:grid-cols-2 sm:grid-cols-6 lg:grid-cols-6
-            "
-          >
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
             {paginated.map((video) => (
               <VideoCard
                 key={video.projectId}

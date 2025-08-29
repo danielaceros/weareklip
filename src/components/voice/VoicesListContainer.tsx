@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Trash2, Play, Pause } from "lucide-react";
@@ -18,6 +16,7 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface VoiceData {
   voiceId: string;
@@ -54,12 +53,21 @@ export default function VoicesListContainer({
 
   const fetchVoices = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
     try {
-      const ref = collection(db, "users", user.uid, "voices");
-      const snapshot = await getDocs(ref);
-      const rawVoices: VoiceData[] = snapshot.docs.map((doc) => ({
-        voiceId: doc.id,
-        ...(doc.data() as Omit<VoiceData, "voiceId">),
+      const idToken = await user.getIdToken();
+
+      const res = await fetch(`/api/firebase/users/${user.uid}/voices`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) throw new Error("Error fetching voices");
+
+      const data = await res.json();
+
+      const rawVoices: VoiceData[] = data.map((d: any) => ({
+        voiceId: d.id,
+        ...(d as Omit<VoiceData, "voiceId">),
       }));
 
       setVoices(rawVoices);
@@ -77,8 +85,25 @@ export default function VoicesListContainer({
   const handleDelete = async () => {
     if (!user || !deleteTarget) return;
     setDeleting(true);
+
     try {
-      await deleteDoc(doc(db, "users", user.uid, "voices", deleteTarget));
+      const idToken = await user.getIdToken();
+
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/voices/${deleteTarget}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Error eliminando voz: ${errText}`);
+      }
+
       setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
       setDeleteTarget(null);
     } catch (err) {
@@ -105,18 +130,15 @@ export default function VoicesListContainer({
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando voces...</p>
+        <div className="flex justify-center items-center h-40">
+          <Spinner size="lg" variant="ellipsis" />
+        </div>
       ) : voices.length === 0 ? (
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
           {/* Grid responsive */}
-          <div
-            className="
-              grid gap-4 
-              grid-cols-1 sm:grid-cols-2 lg:grid-cols-3
-            "
-          >
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {paginated.map((voice) => (
               <VoiceCard
                 key={voice.voiceId}
@@ -125,6 +147,7 @@ export default function VoicesListContainer({
               />
             ))}
           </div>
+
           {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-auto">
@@ -203,21 +226,28 @@ function VoiceCard({
   const [previewUrl, setPreviewUrl] = useState<string | null>(
     voice.preview_url ?? null
   );
+  const [loadingPreview, setLoadingPreview] = useState(!voice.preview_url);
 
   useEffect(() => {
     if (!previewUrl && voice.voiceId) {
       const fetchPreview = async () => {
         try {
-          const res = await fetch(`/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`);
+          const res = await fetch(
+            `/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`
+          );
           const data = await res.json();
           if (res.ok && data.preview_url) {
             setPreviewUrl(data.preview_url);
           }
         } catch (err) {
           console.error("❌ Error cargando preview de ElevenLabs:", err);
+        } finally {
+          setLoadingPreview(false);
         }
       };
       fetchPreview();
+    } else {
+      setLoadingPreview(false);
     }
   }, [previewUrl, voice.voiceId]);
 
@@ -247,18 +277,18 @@ function VoiceCard({
         </button>
       </div>
 
-      {/* Player o placeholder */}
-      {previewUrl ? (
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+      {/* Player */}
+      {loadingPreview ? (
+        <div className="flex justify-center items-center h-20">
+          <Spinner size="sm" variant="ellipsis" />
+        </div>
+      ) : previewUrl ? (
+        <div className="flex items-center gap-3 w-full">
           <button
             onClick={togglePlay}
             className="flex items-center justify-center w-10 h-10 rounded-full border border-border hover:bg-muted transition shrink-0"
           >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </button>
 
           <div className="flex-1 w-full">
@@ -290,7 +320,6 @@ function VoiceCard({
       ) : (
         <p className="text-sm text-muted-foreground">🎧 Preview no disponible</p>
       )}
-
     </Card>
   );
 }

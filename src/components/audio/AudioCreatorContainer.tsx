@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAudioForm } from "./useAudioForm";
 import { AudioForm } from "./AudioForm";
@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, Loader2 } from "lucide-react";
 
 export default function AudioCreatorContainer() {
   const searchParams = useSearchParams();
@@ -23,10 +23,10 @@ export default function AudioCreatorContainer() {
   const defaultText = searchParams.get("text") || "";
   const form = useAudioForm(defaultText);
 
-  const [audioUrl, setAudioUrl] = useState<string>("");
-  const [audioId, setAudioId] = useState<string>(""); // padre
-  const [regenCount, setRegenCount] = useState<number>(0);
-  const [showModal, setShowModal] = useState<boolean>(false);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [audioId, setAudioId] = useState("");
+  const [regenCount, setRegenCount] = useState(0);
+  const [showModal, setShowModal] = useState(false);
 
   // 🎵 Control de audio
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -34,9 +34,8 @@ export default function AudioCreatorContainer() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
-
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -44,13 +43,25 @@ export default function AudioCreatorContainer() {
         console.warn("No se pudo reproducir:", err);
       });
     }
-  };
+  }, [isPlaying]);
 
-  const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
-    const el = audioRef.current;
-    setProgress(el.currentTime);
-  };
+  // 🔹 Actualizar progreso fluido con requestAnimationFrame
+  useEffect(() => {
+    let rafId: number;
+    const updateProgress = () => {
+      if (audioRef.current) {
+        const el = audioRef.current;
+        const p = el.currentTime;
+        setProgress(p || 0);
+        rafId = requestAnimationFrame(updateProgress);
+      }
+    };
+
+    if (isPlaying) {
+      rafId = requestAnimationFrame(updateProgress);
+    }
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying]);
 
   const handleEnded = () => {
     setIsPlaying(false);
@@ -115,7 +126,7 @@ export default function AudioCreatorContainer() {
       if (!res.ok) throw new Error(data.error || "Error generando audio");
 
       setAudioUrl(data.audioUrl);
-      setAudioId(data.audioId); // guardamos padre
+      setAudioId(data.audioId);
       setShowModal(true);
       setRegenCount(0);
 
@@ -151,7 +162,7 @@ export default function AudioCreatorContainer() {
           "X-Idempotency-Key": uuidv4(),
         },
         body: JSON.stringify({
-          parentAudioId: audioId, // ✅ referencia al padre
+          parentAudioId: audioId,
           text: form.text,
           voiceId: form.voiceId,
           voice_settings: buildVoiceSettings(),
@@ -190,11 +201,11 @@ export default function AudioCreatorContainer() {
 
           {audioUrl && (
             <div className="bg-neutral-900 rounded-xl p-4 space-y-3">
-              {/* Player */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
-                  className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white"
+                  aria-label={isPlaying ? "Pausar audio" : "Reproducir audio"}
+                  className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white transition"
                 >
                   {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                 </button>
@@ -205,22 +216,22 @@ export default function AudioCreatorContainer() {
                   </div>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
-                      className="h-1 bg-white rounded-full"
+                      className="h-1 bg-white rounded-full transition-all"
                       style={{
-                        width: duration ? `${(progress / duration) * 100}%` : "0%",
+                        width: duration
+                          ? `${(progress / duration) * 100}%`
+                          : "0%",
                       }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* hidden audio element */}
               <audio
                 ref={audioRef}
                 src={audioUrl}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                 onEnded={handleEnded}
                 hidden
@@ -234,6 +245,9 @@ export default function AudioCreatorContainer() {
               onClick={handleRegenerate}
               disabled={regenCount >= 2}
             >
+              {form.loading && (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              )}
               Regenerar ({regenCount}/2)
             </Button>
             <Button onClick={handleAccept}>Aceptar y guardar</Button>

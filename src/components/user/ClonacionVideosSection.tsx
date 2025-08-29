@@ -22,6 +22,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface ClonacionVideo {
   id: string;
@@ -36,6 +37,7 @@ interface ClonacionVideosSectionProps {
   handleDelete: (id: string) => Promise<void> | void;
   uploading: boolean;
   progress: number;
+  loading?: boolean; // 👈 nuevo prop para spinner inicial
   perPage?: number;
 }
 
@@ -46,6 +48,7 @@ export default function ClonacionVideosSection({
   handleDelete,
   uploading,
   progress,
+  loading = false,
   perPage = 6,
 }: ClonacionVideosSectionProps) {
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -115,7 +118,11 @@ export default function ClonacionVideosSection({
 
         {/* DERECHA: Grid */}
         <div className="flex-1 flex flex-col gap-6 w-full">
-          {clonacionVideos.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center h-60">
+              <Spinner size="lg" variant="ellipsis" />
+            </div>
+          ) : clonacionVideos.length === 0 ? (
             <p className="text-muted-foreground italic">
               {t("clonacion.noVideos")}
             </p>
