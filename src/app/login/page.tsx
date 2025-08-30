@@ -9,16 +9,9 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from "firebase/auth";
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  serverTimestamp, 
-  setDoc 
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import {
   Card,
   CardContent,
@@ -30,6 +23,14 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+async function createSessionCookie(user: any) {
+  const idToken = await user.getIdToken();
+  await fetch("/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -62,8 +63,7 @@ export default function LoginPage() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Not authenticated");
 
-      // 🔹 Hacemos PUT a tu API (crea o actualiza el user doc)
-      const res = await fetch(`/api/firebase/users/${uid}`, {
+      await fetch(`/api/firebase/users/${uid}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -75,45 +75,31 @@ export default function LoginPage() {
           role: "user",
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Error ${res.status}`);
-      }
     } catch (err) {
-      console.error("Error en ensureUserDoc (API):", err);
-      // no rompemos login aunque falle
+      console.error("Error en ensureUserDoc:", err);
     }
   };
-
-
 
   const checkOnboardingNeeded = async (uid: string): Promise<boolean> => {
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Not authenticated");
+      if (!idToken) return true;
 
-      // 🔹 Revisar clones
       const clonesRes = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!clonesRes.ok) throw new Error(`Error al cargar clones (${clonesRes.status})`);
       const clones = await clonesRes.json();
-      if (clones.length > 0) return false;
+      if (Array.isArray(clones) && clones.length > 0) return false;
 
-      // 🔹 Revisar voices
       const voicesRes = await fetch(`/api/firebase/users/${uid}/voices`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!voicesRes.ok) throw new Error(`Error al cargar voices (${voicesRes.status})`);
       const voices = await voicesRes.json();
-      if (voices.length > 0) return false;
+      if (Array.isArray(voices) && voices.length > 0) return false;
 
-      // 🔹 Si no hay ni clones ni voices → necesita onboarding
       return true;
     } catch (err) {
-      console.error("Error comprobando clonación/voces:", err);
-      // fallback seguro: mejor mandarlo a onboarding
+      console.error("Error comprobando onboarding:", err);
       return true;
     }
   };
@@ -128,16 +114,26 @@ export default function LoginPage() {
         const res = await signInWithEmailAndPassword(auth, email, password);
         user = res.user;
         await ensureUserDoc(user.uid, user.email || email);
+
+        if (!user.emailVerified) {
+          toast.warning("Debes verificar tu correo antes de acceder");
+          return router.replace("/verify");
+        }
+
+        await createSessionCookie(user); // 🔑 crea cookie de sesión
+        toast.success("¡Bienvenido!");
+        const needsOnboarding = await checkOnboardingNeeded(user.uid);
+        router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
       } else {
         const res = await createUserWithEmailAndPassword(auth, email, password);
         user = res.user;
+
+        await sendEmailVerification(user);
+        toast.info("Hemos enviado un correo de verificación. Revisa tu bandeja.");
         await ensureUserDoc(user.uid, user.email || email);
+
+        return router.replace("/verify");
       }
-
-      toast.success(mode === "login" ? "¡Bienvenido!" : "Cuenta creada");
-
-      const needsOnboarding = await checkOnboardingNeeded(user.uid);
-      router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
     } catch (err) {
       const message =
         (err as { code?: string }).code === "auth/invalid-credential"
@@ -156,8 +152,10 @@ export default function LoginPage() {
       const { user } = await signInWithPopup(auth, provider);
       await ensureUserDoc(user.uid, user.email || "");
 
-      toast.success("Inicio de sesión con Google");
+      // Google siempre da email verificado
+      await createSessionCookie(user); // 🔑 crea cookie de sesión
 
+      toast.success("Inicio de sesión con Google");
       const needsOnboarding = await checkOnboardingNeeded(user.uid);
       router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
     } catch {
@@ -176,7 +174,7 @@ export default function LoginPage() {
     try {
       await sendPasswordResetEmail(auth, email);
       toast.success("Te hemos enviado un correo para restablecer tu contraseña");
-    } catch (err) {
+    } catch {
       toast.error("No se pudo enviar el correo de recuperación");
     } finally {
       setLoadingReset(false);
@@ -195,16 +193,11 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <form
-            className="grid gap-4"
-            onSubmit={onSubmit}
-            aria-label="Formulario de acceso"
-          >
+          <form className="grid gap-4" onSubmit={onSubmit}>
             <div className="grid gap-1">
               <label className="text-sm font-medium">Correo electrónico</label>
               <Input
                 type="email"
-                name="email"
                 autoComplete="email"
                 placeholder="tu@email.com"
                 value={email}
@@ -230,7 +223,6 @@ export default function LoginPage() {
               </div>
               <Input
                 type="password"
-                name="password"
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 placeholder="••••••••"
                 value={password}
@@ -264,12 +256,8 @@ export default function LoginPage() {
 
             <button
               type="button"
-              className={cn(
-                "mt-2 text-sm text-neutral-400 hover:text-white"
-              )}
-              onClick={() =>
-                setMode((m) => (m === "login" ? "register" : "login"))
-              }
+              className={cn("mt-2 text-sm text-neutral-400 hover:text-white")}
+              onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}
             >
               {mode === "login"
                 ? "¿No tienes una cuenta? Regístrate"

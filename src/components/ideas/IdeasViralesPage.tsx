@@ -66,17 +66,30 @@ export default function IdeasViralesPage() {
       toast.error("Escribe un nicho antes de buscar");
       return;
     }
+
     setLoading(true);
     const loadingToast = toast.loading("Buscando vídeos virales...");
+    
+    const userToken = user ? await user.getIdToken() : null;
+
+    if (!userToken) {
+      toast.error("Debes iniciar sesión para buscar vídeos");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(
-        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(
-          query
-        )}`
+        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
       );
       const data = await res.json();
 
-      // 🔹 Normalizar views a number
+      // Normalización de las vistas
       const normalized: ShortVideo[] = data.map((d: any) => ({
         ...d,
         views: Number(d.views) || 0,
@@ -91,6 +104,7 @@ export default function IdeasViralesPage() {
     }
     setLoading(false);
   };
+
 
   // Filtrar
   const filteredVideos =

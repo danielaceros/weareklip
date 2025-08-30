@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Bell, Bot, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -14,36 +14,14 @@ export default function CreateReelGlobalButton() {
   const router = useRouter();
   const { unread } = usePushInbox();
 
-  // --- Montar script de Zoho Support ---
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src =
-      "https://desk.zoho.eu/portal/api/feedbackwidget/209801000000400001?orgId=20106955370&displayType=popout";
-    script.defer = true;
-    document.body.appendChild(script);
-
-    // 🔥 Ocultar el botón azul feo de Zoho
-    const style = document.createElement("style");
-    style.innerHTML = `
-      #feedbackbutton, 
-      #feedbacklabelspan {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-      }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      document.body.removeChild(script);
-      document.head.removeChild(style);
-    };
-  }, []);
-
+  const redirectToSupport = () => {
+    // Redirigir a la URL de Notion
+    window.open("https://weareklip.notion.site/25f690859b7b8082838dee56be9fcaf4?pvs=105", "_blank");
+  };
 
   return (
     <>
-      {/* overlay para cerrar al clickar fuera */}
+      {/* Overlay para cerrar al hacer clic fuera */}
       {openNotif && (
         <div
           className="fixed inset-0 z-40"
@@ -89,7 +67,7 @@ export default function CreateReelGlobalButton() {
         {/* Botón Soporte */}
         <button
           id="btn-support"
-          onClick={() => document.getElementById("feedbacklabelspan")?.click()}
+          onClick={redirectToSupport} // Redirigir a la página de Notion
           className="relative bg-neutral-900 text-white rounded-full p-3 shadow hover:bg-neutral-800 transition"
         >
           <LifeBuoy className="w-5 h-5" />

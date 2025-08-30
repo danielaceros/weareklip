@@ -1,4 +1,3 @@
-// src/app/api/billing/onboard/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
@@ -20,11 +19,13 @@ const FALLBACK_TRIAL_DAYS = 7 as const;
 function isStripeError(x: unknown): x is { type?: string; code?: string; message?: string } {
   return typeof x === "object" && x !== null;
 }
+
 function isDeletedCustomer(
   c: Stripe.Customer | Stripe.DeletedCustomer
 ): c is Stripe.DeletedCustomer {
   return "deleted" in c && (c as Stripe.DeletedCustomer).deleted === true;
 }
+
 async function safeRetrieveCustomer(id: string): Promise<Stripe.Customer | null> {
   try {
     const c = await stripe.customers.retrieve(id);
@@ -37,6 +38,7 @@ async function safeRetrieveCustomer(id: string): Promise<Stripe.Customer | null>
     throw e;
   }
 }
+
 function emailFromDecoded(decoded: DecodedIdToken): string | undefined {
   if (typeof decoded.email === "string" && decoded.email) return decoded.email;
   type MaybeIdentities = { firebase?: { identities?: { email?: unknown } } };

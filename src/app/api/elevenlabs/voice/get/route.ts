@@ -1,8 +1,8 @@
-// app/api/elevenlabs/voice/get/route.ts
 import { gaServerEvent } from "@/lib/ga-server";
 
 export async function GET(req: Request) {
   try {
+    // 1) Obtención de parámetros
     const { searchParams } = new URL(req.url);
     const voiceId = searchParams.get("voiceId");
 
@@ -13,6 +13,7 @@ export async function GET(req: Request) {
       return Response.json({ error: "Falta el parámetro voiceId" }, { status: 400 });
     }
 
+    // 2) Solicitud a ElevenLabs API
     const elevenResp = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
       method: "GET",
       headers: {
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
 
     const data = await elevenResp.json();
 
+    // 3) Registro de eventos
     if (elevenResp.ok) {
       await gaServerEvent("voice_fetched", {
         voiceId,
@@ -35,13 +37,17 @@ export async function GET(req: Request) {
       });
     }
 
+    // 4) Respuesta
     return Response.json(data, { status: elevenResp.status });
   } catch (error: any) {
     console.error("❌ Error obteniendo voz:", error);
+
+    // Evento en caso de error
     await gaServerEvent("voice_fetch_failed", {
       error: error?.message || String(error),
       stage: "internal",
     });
+
     return Response.json({ error: "Error al obtener la voz" }, { status: 500 });
   }
 }

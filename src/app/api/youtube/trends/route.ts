@@ -1,6 +1,6 @@
-// src/app/api/youtube/shorts/route.ts
 import { NextResponse } from "next/server";
-import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
+import { gaServerEvent } from "@/lib/ga-server"; // 👈 evento GA4
+import { adminAuth } from "@/lib/firebase-admin";
 
 const API_KEY = process.env.YOUTUBE_API_KEY as string;
 const MAX_RESULTS = 50;
@@ -41,6 +41,30 @@ export async function GET(request: Request) {
   const country = searchParams.get("country") || "ES";
   const range = searchParams.get("range") || "week";
   const query = searchParams.get("query") || "";
+
+  // 1️⃣ Autenticación
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const idToken = authHeader.slice("Bearer ".length);
+  try {
+    // Verificación del token de usuario
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const uid = decoded.uid; // Usuario autenticado
+  } catch (err) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // 2️⃣ Validación de parámetros de búsqueda
+  if (!['today', 'week', 'month', 'year'].includes(range)) {
+    return NextResponse.json({ error: 'Invalid range' }, { status: 400 });
+  }
+
+  if (!['ES', 'MX', 'AR', 'US', 'FR'].includes(country)) {
+    return NextResponse.json({ error: 'Invalid country' }, { status: 400 });
+  }
 
   // 🔁 SIMULACIÓN
   if (simulate) {

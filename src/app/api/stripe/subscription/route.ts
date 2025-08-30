@@ -1,4 +1,3 @@
-// src/app/api/stripe/customers/route.ts
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";

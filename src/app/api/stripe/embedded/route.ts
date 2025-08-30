@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
     });
 
+    // Verificación de client_secret
     if (!session.client_secret) {
       throw new Error("Stripe no devolvió client_secret");
     }
