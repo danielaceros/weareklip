@@ -13,7 +13,7 @@ import { AuthProvider } from "@/context/authContext";
 import { Toaster } from "@/components/ui/sonner";
 import LocaleBootstrap from "@/components/i18n/LocaleBootstrap";
 import { SyncStripe } from "@/components/shared/SyncStripe";
-import { ClientLayout } from "@/components/layout/ClientLayout"; // 👈 añadido
+import { ClientLayout } from "@/components/layout/ClientLayout";
 
 // ✅ Fuentes desde Google Fonts
 const inter = Inter({
@@ -29,6 +29,12 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: "KLIP",
   description: "🤖 Automatizamos TODO tu contenido en redes",
+  manifest: "/manifest.json", // 👈 aquí añadimos manifest
+  themeColor: "#000000", // 👈 color de la barra del navegador
+  icons: {
+    icon: "/icons/icon-192.png", // para navegadores
+    apple: "/icons/icon-192.png", // para iOS
+  },
 };
 
 export default async function RootLayout({
@@ -58,6 +64,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        {/* 👇 Script para manejar "accent" (ya lo tenías) */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
@@ -71,6 +78,11 @@ export default async function RootLayout({
             })();`,
           }}
         />
+        {/* 👇 Meta tags extra para PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="KLIP" />
       </head>
       <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <ThemeProvider
@@ -83,7 +95,6 @@ export default async function RootLayout({
           <NextIntlClientProvider locale={locale} messages={messages}>
             <AuthProvider>
               <SyncStripe />
-              {/* 👇 Aquí enganchamos el tracking */}
               <ClientLayout>{children}</ClientLayout>
             </AuthProvider>
             <Toaster closeButton position="top-center" />

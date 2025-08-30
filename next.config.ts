@@ -1,14 +1,26 @@
 // next.config.ts
-import createNextIntlPlugin from 'next-intl/plugin';
-import type { NextConfig } from 'next';
+import createNextIntlPlugin from "next-intl/plugin";
+import type { NextConfig } from "next";
+import withPWAInit from "next-pwa";
+import pwaConfig from "./next-pwa.config";
 
-// Crea el plugin apuntando a tu archivo de request
-// Ajusta la ruta si tu request.ts está en otro lugar
-const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+// Configuración de next-intl
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-const nextConfig: NextConfig = {
+// Configuración de next-pwa
+const withPWA = withPWAInit({
+  dest: "public", // genera sw.js en /public
+  register: true, // se registra automáticamente
+  skipWaiting: true, // actualiza al instante
+  disable: process.env.NODE_ENV === "development", // solo en prod
+  ...pwaConfig,
+});
+
+// Config base Next.js
+const baseConfig: NextConfig = {
+  reactStrictMode: true,
   images: {
-    domains: ['firebasestorage.googleapis.com'],
+    domains: ["firebasestorage.googleapis.com"],
     remotePatterns: [
       {
         protocol: "https",
@@ -20,4 +32,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+// ✅ Encadenar primero PWA y luego Intl
+export default withNextIntl(withPWA(baseConfig as any) as any);
+

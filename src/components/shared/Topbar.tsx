@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton"; // 👈 importa tu componente
 
 type Summary = {
   subscription: { status: string | null; active: boolean; plan: string | null };
@@ -60,7 +61,7 @@ export function Topbar() {
 
   return (
     <>
-      {/* 🔴 Banner fijo arriba si hay deuda */}
+      {/* 🔴 Banner si hay deuda */}
       {summary?.hasOverdue && (
         <div className="w-full bg-red-100 text-red-800 text-sm py-2 px-4 flex justify-between items-center font-medium">
           <span>
@@ -79,13 +80,15 @@ export function Topbar() {
         </div>
       )}
 
-      {/* Topbar normal */}
-      <header className="flex h-14 w-full items-center justify-between border-b border-border bg-card px-6">
-        {/* Izquierda: placeholder título */}
-        <div className="text-sm font-medium text-muted-foreground"></div>
+      {/* Topbar */}
+      <header className="flex h-14 w-full items-center justify-between border-b border-border bg-card px-4 sm:px-6">
+        {/* 📌 Izquierda: en mobile mostramos los botones de CreateReelGlobalButton */}
+        <div className="md:hidden">
+          <CreateReelGlobalButton />
+        </div>
 
-        {/* Derecha: consumo + user */}
-        <div className="flex items-center gap-4">
+        {/* 📌 Derecha: consumo + user */}
+        <div className="flex items-center gap-4 ml-auto">
           {loading ? (
             <Skeleton className="h-6 w-28 rounded-md" />
           ) : summary ? (

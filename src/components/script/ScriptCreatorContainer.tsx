@@ -6,7 +6,6 @@ import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-import { ScriptForm } from "./ScriptForm";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +15,15 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ScriptCreatorContainer() {
   const [user, setUser] = useState<User | null>(null);
@@ -81,6 +89,7 @@ export default function ScriptCreatorContainer() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando guion");
 
+      // 👇 asegura render inmediato antes de abrir modal
       flushSync(() => {
         setScript(data.script || "");
         setShowModal(true);
@@ -93,7 +102,17 @@ export default function ScriptCreatorContainer() {
     } finally {
       setLoading(false);
     }
-  }, [description, tone, platform, duration, structure, language, addCTA, ctaText, user]);
+  }, [
+    description,
+    tone,
+    platform,
+    duration,
+    structure,
+    language,
+    addCTA,
+    ctaText,
+    user,
+  ]);
 
   // 🔄 Regenerar script
   const regenerateScript = useCallback(async () => {
@@ -137,13 +156,23 @@ export default function ScriptCreatorContainer() {
     } finally {
       toast.dismiss(loadingId);
     }
-  }, [user, scriptRegens, description, tone, platform, duration, language, structure, addCTA, ctaText]);
+  }, [
+    user,
+    scriptRegens,
+    description,
+    tone,
+    platform,
+    duration,
+    language,
+    structure,
+    addCTA,
+    ctaText,
+  ]);
 
   // 💾 Aceptar y guardar script
   const acceptScript = useCallback(async () => {
     if (!user) return;
 
-    // feedback instantáneo
     flushSync(() => {
       setShowModal(false);
     });
@@ -153,28 +182,31 @@ export default function ScriptCreatorContainer() {
       const idToken = await user.getIdToken();
       const scriptId = uuidv4();
 
-      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          description,
-          tone,
-          platform,
-          duration,
-          language,
-          structure,
-          addCTA,
-          ctaText,
-          script,
-          createdAt: Date.now(),
-          scriptId,
-          regenerations: scriptRegens,
-          isAI: true,
-        }),
-      });
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/scripts/${scriptId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            description,
+            tone,
+            platform,
+            duration,
+            language,
+            structure,
+            addCTA,
+            ctaText,
+            script,
+            createdAt: Date.now(),
+            scriptId,
+            regenerations: scriptRegens,
+            isAI: true,
+          }),
+        }
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -187,31 +219,141 @@ export default function ScriptCreatorContainer() {
       console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.", { id: toastId });
     }
-  }, [user, description, tone, platform, duration, language, structure, addCTA, ctaText, script, scriptRegens, router]);
+  }, [
+    user,
+    description,
+    tone,
+    platform,
+    duration,
+    language,
+    structure,
+    addCTA,
+    ctaText,
+    script,
+    scriptRegens,
+    router,
+  ]);
 
   return (
     <>
-      <ScriptForm
-        description={description}
-        tone={tone}
-        platform={platform}
-        duration={duration}
-        language={language}
-        structure={structure}
-        addCTA={addCTA}
-        ctaText={ctaText}
-        loading={loading}
-        setDescription={setDescription}
-        setTone={setTone}
-        setPlatform={setPlatform}
-        setDuration={setDuration}
-        setLanguage={setLanguage}
-        setStructure={setStructure}
-        setAddCTA={setAddCTA}
-        setCtaText={setCtaText}
-        onSubmit={handleGenerate}
-      />
+      <div className="space-y-6 p-6 rounded-xl">
+        <h2 className="text-xl font-bold">Generación de guion</h2>
 
+        {/* Descripción */}
+        <div className="space-y-2">
+          <Label>Descripción breve</Label>
+          <Textarea
+            placeholder="Escribe una breve descripción..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="resize-none"
+          />
+        </div>
+
+        {/* Filtros */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Tono</Label>
+            <Select value={tone} onValueChange={setTone}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar un tono" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="informal">Informal</SelectItem>
+                <SelectItem value="profesional">Profesional</SelectItem>
+                <SelectItem value="emocional">Emocional</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Plataforma</Label>
+            <Select value={platform} onValueChange={setPlatform}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar una plataforma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="instagram">Instagram</SelectItem>
+                <SelectItem value="tiktok">TikTok</SelectItem>
+                <SelectItem value="youtube">YouTube</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Duración</Label>
+            <Select value={duration} onValueChange={setDuration}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar una duración" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30s">30 segundos</SelectItem>
+                <SelectItem value="60s">1 minuto</SelectItem>
+                <SelectItem value="120s">2 minutos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Idioma</Label>
+            <Select value={language} onValueChange={setLanguage}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar un idioma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="es">Español</SelectItem>
+                <SelectItem value="en">Inglés</SelectItem>
+                <SelectItem value="fr">Francés</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Estructura</Label>
+            <Select value={structure} onValueChange={setStructure}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar una estructura" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="problema-solucion">Problema → Solución</SelectItem>
+                <SelectItem value="historia">Historia</SelectItem>
+                <SelectItem value="tutorial">Tutorial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            checked={addCTA}
+            onCheckedChange={(v) => setAddCTA(v as boolean)}
+          />
+          <Label>Añadir llamada a la acción (CTA)</Label>
+        </div>
+
+        {addCTA && (
+          <div className="space-y-2">
+            <Label>Texto del CTA</Label>
+            <Textarea
+              placeholder="Escribe tu CTA..."
+              value={ctaText}
+              onChange={(e) => setCtaText(e.target.value)}
+              className="resize-none"
+            />
+          </div>
+        )}
+
+        <Button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="w-full"
+        >
+          {loading ? "Generando..." : "Generar guion"}
+        </Button>
+      </div>
+
+      {/* Modal guion generado */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 export default function AudiosContainer() {
   const [audios, setAudios] = useState<AudioData[]>([]);
@@ -17,7 +17,6 @@ export default function AudiosContainer() {
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
-  // estado de borrado
   const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -72,7 +71,6 @@ export default function AudiosContainer() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // borrar todos
         await Promise.all(
           audios.map(async (audio) => {
             const res = await fetch(
@@ -91,7 +89,6 @@ export default function AudiosContainer() {
         setAudios([]);
         toast.success("🗑️ Todos los audios eliminados");
       } else if (audioToDelete) {
-        // borrar uno
         const res = await fetch(
           `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
           {
@@ -124,39 +121,40 @@ export default function AudiosContainer() {
     [audioToDelete, deleteAll]
   );
 
-  // ✅ Spinner state (en vez de skeletons)
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
-        <Spinner className="h-12 w-12 text-primary" variant="ellipsis"/>
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full space-y-6">
       {/* Header */}
-      <h1 className="text-2xl font-bold">Mis Audios</h1>
-      <div className="flex justify-between">
-        <Button
-          variant="destructive"
-          className="rounded-lg"
-          onClick={() => setDeleteAll(true)}
-          disabled={audios.length === 0 || deleting}
-        >
-          <Trash2 size={18} className="mr-2" />
-          {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
-        </Button>
-        <Button
-          onClick={() => setIsNewOpen(true)}
-          className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-        >
-          <Plus size={18} className="mr-2" />
-          Nuevo audio
-        </Button>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Mis Audios</h1>
+        <div className="flex gap-3">
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={audios.length === 0 || deleting}
+          >
+            <Trash2 size={18} className="mr-2" />
+            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
+          </Button>
+          <Button
+            onClick={() => setIsNewOpen(true)}
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+          >
+            <Plus size={18} className="mr-2" />
+            Nuevo audio
+          </Button>
+        </div>
       </div>
 
-      {/* Lista de audios */}
+      {/* Grid de audios */}
       <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
 
       {/* Modal crear audio */}

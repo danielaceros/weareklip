@@ -55,51 +55,53 @@ export function VoiceSamplesList({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {/* Grid de samples */}
       <div
         className="
           grid gap-4
-          grid-cols-[repeat(auto-fill,minmax(200px,1fr))]
+          grid-cols-1
+          sm:grid-cols-2
+          lg:grid-cols-[repeat(auto-fill,minmax(220px,1fr))]
         "
       >
         {paginated.map(({ name, duration, url }) => (
           <Card
             key={name}
-            className="p-4 bg-card border border-border rounded-xl shadow-sm flex flex-col"
+            className="p-3 sm:p-4 bg-card border border-border rounded-lg shadow-sm flex flex-col"
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold truncate">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs sm:text-sm font-semibold truncate">
                 {name || "Muestra sin nombre"}
               </h3>
               <button
                 onClick={() => onRemove(name)}
-                className="p-2 rounded-full hover:bg-muted transition"
+                className="p-1.5 sm:p-2 rounded-full hover:bg-muted transition"
               >
-                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-destructive" />
               </button>
             </div>
 
             {/* Upload progress o reproductor */}
             {uploadProgress[name] !== undefined ? (
-              <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-muted h-1.5 sm:h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-primary h-2 transition-all duration-200"
+                  className="bg-primary h-full transition-all duration-200"
                   style={{ width: `${uploadProgress[name]}%` }}
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* Play / Pause */}
                 <button
                   onClick={() => togglePlay(name)}
-                  className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
+                  className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-border hover:bg-muted transition"
                 >
                   {playing === name ? (
-                    <Pause className="h-4 w-4" />
+                    <Pause className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   ) : (
-                    <Play className="h-4 w-4" />
+                    <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   )}
                 </button>
 
@@ -124,7 +126,7 @@ export function VoiceSamplesList({
                         current.duration;
                     }
                   }}
-                  className="flex-1 accent-primary"
+                  className="flex-1 accent-primary h-1 sm:h-1.5"
                 />
 
                 {/* Hidden audio */}
@@ -142,7 +144,7 @@ export function VoiceSamplesList({
             )}
 
             {/* Duración */}
-            <span className="mt-2 text-xs text-muted-foreground">
+            <span className="mt-1 sm:mt-2 text-[11px] sm:text-xs text-muted-foreground">
               {Math.round(duration)} segundos
             </span>
           </Card>

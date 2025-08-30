@@ -2,7 +2,7 @@
 
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 interface VideoData {
   projectId: string;
@@ -14,29 +14,26 @@ interface VideoData {
 
 interface LipsyncVideoCardProps {
   video: VideoData;
-  onDelete?: (id: string, url?: string) => void;
+  onDelete: (id: string, url?: string) => void;
 }
 
 export function LipsyncVideoCard({ video, onDelete }: LipsyncVideoCardProps) {
   return (
     <Card className="overflow-hidden rounded-xl border bg-muted text-foreground w-full relative">
-      {/* Botón de eliminar */}
-      {onDelete && (
+      {/* Header */}
+      <CardHeader className="p-3 pr-10">
         <Button
           size="icon"
           variant="ghost"
-          className="absolute top-2 right-2 h-8 w-8 z-10 text-destructive hover:bg-destructive/10"
           onClick={() => onDelete(video.projectId, video.downloadUrl)}
+          className="self-end sm:self-start h-8 w-8 shrink-0"
         >
-          <Trash className="h-4 w-4" />
+          <Trash2 size={16} className="text-red-500" />
         </Button>
-      )}
-
-      {/* Header */}
-      <CardHeader className="p-3 pr-10">
         <h3 className="text-sm font-semibold truncate">
           {video.title || "Sin título"}
         </h3>
+        
       </CardHeader>
 
       {/* Preview */}
@@ -60,8 +57,8 @@ export function LipsyncVideoCard({ video, onDelete }: LipsyncVideoCardProps) {
 
       {/* Footer con acciones */}
       {video.downloadUrl && video.status === "completed" && (
-        <CardFooter className="p-3 flex justify-between items-center gap-2">
-          <Button size="sm" variant="secondary" asChild className="flex-1">
+        <CardFooter className="p-3 flex justify-between items-center gap-2 flex-wrap">
+          <Button size="sm" variant="secondary" asChild className="flex-1 min-w-[100px]">
             <a
               href={video.downloadUrl}
               download
@@ -74,7 +71,7 @@ export function LipsyncVideoCard({ video, onDelete }: LipsyncVideoCardProps) {
           <Button
             size="sm"
             variant="default"
-            className="flex-1"
+            className="flex-1 min-w-[100px]"
             onClick={() =>
               (window.location.href = `/dashboard/edit/new?videoUrl=${encodeURIComponent(
                 video.downloadUrl!

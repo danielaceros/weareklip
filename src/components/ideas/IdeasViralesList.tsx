@@ -17,7 +17,7 @@ import {
 
 export interface ShortVideo {
   rank: number;
-  id: string;
+  id: string; // YouTube Video ID
   title: string;
   channel: string;
   views: number;
@@ -36,6 +36,54 @@ interface IdeasViralesListProps {
   onReplicate: (video: ShortVideo) => void;
   viewOnYoutubeText: string;
 }
+
+/** Player ligero: muestra thumbnail y sólo monta el iframe nocookie al hacer click */
+const VideoThumbEmbed: FC<{
+  videoId: string;
+  title: string;
+  thumbnail: string;
+  className?: string;
+}> = ({ videoId, title, thumbnail, className = "" }) => {
+  const [active, setActive] = useState(false);
+  const embed = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+
+  return (
+    <div className={`relative w-full aspect-video overflow-hidden bg-black ${className}`}>
+      {!active && (
+        <button
+          type="button"
+          aria-label={`Reproducir: ${title}`}
+          onClick={() => setActive(true)}
+          className="group absolute inset-0 grid place-items-center"
+        >
+          <Image
+            src={thumbnail}
+            alt={title}
+            fill
+            loading="lazy"
+            className="object-cover opacity-90 transition group-hover:opacity-100"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+          <span className="absolute grid place-items-center rounded-full px-4 py-3 bg-white/90 backdrop-blur text-black text-sm font-semibold shadow-lg transition group-hover:scale-105">
+            ▶ Ver aquí
+          </span>
+        </button>
+      )}
+
+      {active && (
+        <iframe
+          className="absolute inset-0 h-full w-full"
+          src={embed}
+          title={title}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      )}
+    </div>
+  );
+};
 
 export const IdeasViralesList: FC<IdeasViralesListProps> = ({
   listRef,
@@ -88,14 +136,12 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                   key={video.id}
                   className="overflow-hidden border border-border rounded-xl bg-card flex flex-col"
                 >
-                  <div className="relative w-full aspect-video">
-                    <Image
-                      src={video.thumbnail}
-                      alt={video.title}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
+                  {/* Embed dentro del SaaS: youtube-nocookie + lazy */}
+                  <VideoThumbEmbed
+                    videoId={video.id}
+                    title={video.title}
+                    thumbnail={video.thumbnail}
+                  />
 
                   <CardContent className="p-4 flex-1">
                     <h3 className="font-semibold text-sm line-clamp-2">
@@ -110,13 +156,13 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
 
                   </CardContent>
 
-                  <CardFooter className="flex items-center justify-between p-4 pt-0">
-                    <div className="flex gap-2">
+                  <CardFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 pt-0">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         asChild
-                        className="rounded-lg"
+                        className="rounded-lg w-full sm:w-auto"
                       >
                         <a
                           href={video.url}
@@ -128,7 +174,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       </Button>
                       <Button
                         size="sm"
-                        className="rounded-lg"
+                        className="rounded-lg w-full sm:w-auto"
                         onClick={() => onReplicate(video)}
                       >
                         Replicar video
@@ -137,7 +183,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
 
                     <button
                       onClick={() => onToggleFavorite(video)}
-                      className={`p-2 rounded-full transition ${
+                      className={`self-end sm:self-auto p-2 rounded-full transition ${
                         isFav
                           ? "text-red-500 hover:text-red-600"
                           : "text-muted-foreground hover:text-foreground"
@@ -149,6 +195,8 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       />
                     </button>
                   </CardFooter>
+
+
                 </Card>
               );
             })}
