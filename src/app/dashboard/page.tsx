@@ -19,7 +19,6 @@ import {
 } from "firebase/firestore";
 import { useT } from "@/lib/i18n";
 import { Locale, useLocale } from "next-intl";
-import TablePreview from "@/components/shared/TablePreview";
 
 // -------- Types --------
 type SubscriptionStatus =

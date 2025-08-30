@@ -1,4 +1,3 @@
-// src/app/api/sync/create/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
 import { gaServerEvent } from "@/lib/ga-server";
@@ -25,26 +24,36 @@ function isSyncOk(x: unknown): x is SyncOk {
 }
 
 export async function POST(req: NextRequest) {
-  const idem = req.headers.get("x-idempotency-key") || crypto.randomUUID();
+  const idem = req.headers.get("X-Idempotency-Key") || crypto.randomUUID();
   const simulate = process.env.SIMULATE === "true";
 
   try {
     // 1) Auth
-    const authHeader = req.headers.get("authorization");
+    const authHeader = req.headers.get("Authorization") || "";
     const idToken = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
       : undefined;
-    if (!idToken)
+    if (!idToken) {
+      await gaServerEvent("lipsync_failed", { reason: "no_auth_header" });
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
     // 2) Body
     const { audioUrl, videoUrl, options } = (await req.json()) as Body;
     if (!audioUrl || !videoUrl) {
+      await gaServerEvent("lipsync_failed", { uid, reason: "missing_fields" });
       return NextResponse.json(
         { error: "Audio y vídeo son obligatorios" },
         { status: 400 }
       );
+    }
+
+    // Validación de opciones
+    if (options && typeof options !== "object") {
+      await gaServerEvent("lipsync_failed", { uid, reason: "invalid_options" });
+      return NextResponse.json({ error: "Opciones inválidas" }, { status: 400 });
     }
 
     // 🔔 Evento GA4 → inicio

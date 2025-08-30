@@ -1,4 +1,3 @@
-// src/app/api/submagic/create/route.ts
 import { NextResponse } from "next/server";
 import {
   adminAuth,

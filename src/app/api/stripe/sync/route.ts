@@ -1,4 +1,3 @@
-// src/app/api/stripe/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";

@@ -66,17 +66,30 @@ export default function IdeasViralesPage() {
       toast.error("Escribe un nicho antes de buscar");
       return;
     }
+
     setLoading(true);
     const loadingToast = toast.loading("Buscando vídeos virales...");
+    
+    const userToken = user ? await user.getIdToken() : null;
+
+    if (!userToken) {
+      toast.error("Debes iniciar sesión para buscar vídeos");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(
-        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(
-          query
-        )}`
+        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
       );
       const data = await res.json();
 
-      // 🔹 Normalizar views a number
+      // Normalización de las vistas
       const normalized: ShortVideo[] = data.map((d: any) => ({
         ...d,
         views: Number(d.views) || 0,
@@ -92,7 +105,8 @@ export default function IdeasViralesPage() {
     setLoading(false);
   };
 
-  // 🔹 Filtrar resultados por query
+
+  // Filtrar
   const filteredVideos =
     query.trim() === ""
       ? videos
@@ -143,6 +157,7 @@ export default function IdeasViralesPage() {
 
     const replicateToast = toast.loading("Replicando guion...");
     try {
+      // 🔹 Obtener transcripción desde tu API
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
       const data = await res.json();
 
@@ -151,12 +166,13 @@ export default function IdeasViralesPage() {
         return;
       }
 
+      // 🔹 Preparar body para el nuevo guion
       const newScript = {
         description: `Guion replicado de ${video.title}`,
         platform: "youtube",
         language: "es",
         script: data.transcript,
-        createdAt: new Date(),
+        createdAt: new Date(), // tu backend lo guarda como Timestamp
         fuente: video.url,
         isAI: false,
         videoTitle: video.title,
@@ -167,6 +183,7 @@ export default function IdeasViralesPage() {
         videoThumbnail: video.thumbnail,
       };
 
+      // 🔹 Guardar en /scripts via API segura
       const idToken = await user.getIdToken();
       const saveRes = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
         method: "POST",
@@ -189,7 +206,7 @@ export default function IdeasViralesPage() {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">
       <IdeasViralesHeader
         country={country}
         setCountry={setCountry}

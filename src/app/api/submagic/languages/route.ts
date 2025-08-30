@@ -17,10 +17,12 @@ export async function GET() {
   }
 
   try {
+    // Solicitar las lenguas desde la API de Submagic
     const r = await fetch("https://api.submagic.co/v1/languages", {
       headers: { "x-api-key": process.env.SUBMAGIC_API_KEY! },
     });
 
+    // Si la respuesta no es exitosa, registrar el error
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       await gaServerEvent("submagic_languages_failed", {
@@ -30,16 +32,19 @@ export async function GET() {
       return NextResponse.json(err, { status: r.status });
     }
 
+    // Procesar la respuesta y actualizar la caché
     const data = await r.json();
     cachedLanguages = data.languages;
     lastFetch = now;
 
+    // Evento de éxito en la obtención de lenguajes
     await gaServerEvent("submagic_languages_fetched", {
-      count: cachedLanguages?.length ?? 0,
+      count: cachedLanguages!.length,
     });
 
     return NextResponse.json({ languages: cachedLanguages });
   } catch (e: any) {
+    // Manejo de errores generales
     console.error("❌ Error fetching Submagic languages:", e);
     await gaServerEvent("submagic_languages_failed", {
       reason: e?.message || "internal_error",

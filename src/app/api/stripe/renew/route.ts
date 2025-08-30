@@ -1,4 +1,3 @@
-// app/api/stripe/renew/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDB } from "@/lib/firebase-admin";
