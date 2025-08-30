@@ -1,118 +1,156 @@
-// src/app/api/voices/create/route.ts
-import { getStorage } from "firebase-admin/storage";
+import { NextRequest, NextResponse } from "next/server";
+import admin from "firebase-admin";
 import { initAdmin, adminAuth } from "@/lib/firebase-admin";
-import { FormData, File } from "formdata-node";
-import { gaServerEvent } from "@/lib/ga-server";
-import { sendEventPush } from "@/lib/sendEventPush";
+import { FormData, File as FormDataFile } from "formdata-node";
+import { FormDataEncoder } from "form-data-encoder";
+import { Readable } from "node:stream";
 
 initAdmin();
 
-export async function POST(req: Request) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY!;
+const ELEVEN_ADD_VOICE_URL = "https://api.elevenlabs.io/v1/voices/add";
+
+function filenameFromPath(path: string, contentType?: string) {
+  const base = path.split("/").pop() || "sample";
+  if (base.includes(".")) return base;
+  const ext = contentType?.split("/")[1] || "dat";
+  return `${base}.${ext}`;
+}
+
+// Normaliza bucket de entorno si viene con firebasestorage.app
+function normalizeBucket(name?: string | null) {
+  if (!name) return undefined;
+  return name.includes("firebasestorage.app")
+    ? name.replace("firebasestorage.app", "appspot.com")
+    : name;
+}
+
+async function verifyOptional(req: NextRequest) {
+  const h = req.headers.get("authorization");
+  if (!h?.startsWith("Bearer ")) return null;
   try {
-    // 🔑 Auth opcional (si hay token, lo usamos para notis)
-    const authHeader = req.headers.get("Authorization") || "";
-    let uid: string | null = null;
-    if (authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
-      const decoded = await adminAuth.verifyIdToken(token).catch(() => null);
-      uid = decoded?.uid || null;
+    const token = h.split(" ")[1];
+    const dec = await adminAuth.verifyIdToken(token);
+    return dec?.uid ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    if (!ELEVEN_KEY) {
+      return NextResponse.json(
+        { error: "Falta ELEVENLABS_API_KEY en el entorno" },
+        { status: 500 }
+      );
     }
 
-    const { paths, voiceName } = await req.json();
-    if (!paths?.length) {
-      return Response.json({ error: "No se han enviado rutas de muestras" }, { status: 400 });
+    const uid = await verifyOptional(req);
+
+    const body = await req.json().catch(() => ({}));
+    const paths: string[] = Array.isArray(body?.paths) ? body.paths : [];
+    const voiceName: string = body?.voiceName || "Nueva voz";
+
+    if (paths.length === 0) {
+      return NextResponse.json(
+        { error: "Debes enviar al menos un sample en paths[]" },
+        { status: 422 }
+      );
     }
 
-    const storage = getStorage();
-    const bucket = storage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
+    // Bucket Admin (usa env si está, pero corrige dominio si viene mal)
+    const envBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET ?? null);
+    const bucket = admin.storage().bucket(envBucket);
 
-    const formData = new FormData();
-    formData.append("name", voiceName);
+    const form = new FormData();
+    form.set("name", voiceName);
 
-    for (let i = 0; i < paths.length; i++) {
-      const [fileBuffer] = await bucket.file(paths[i]).download();
-      const file = new File([fileBuffer], `sample-${i}.mp3`, { type: "audio/mpeg" });
-      formData.append("files", file);
+    for (const p of paths) {
+      const gcsFile = bucket.file(p);
+      const [exists] = await gcsFile.exists();
+      if (!exists) {
+        return NextResponse.json(
+          { error: `No existe en Storage: ${p}` },
+          { status: 422 }
+        );
+      }
+
+      // Intenta leer content-type real
+      let contentType = "application/octet-stream";
+      try {
+        const [meta] = await gcsFile.getMetadata();
+        if (meta?.contentType) contentType = meta.contentType;
+      } catch {
+        /* ignore */
+      }
+
+      // Solo audio válido para ElevenLabs
+      if (!contentType.startsWith("audio/")) {
+        return NextResponse.json(
+          {
+            error: `El archivo ${p} no es audio soportado (${contentType}). Sube muestras de audio (mp3, m4a, wav...).`,
+          },
+          { status: 422 }
+        );
+      }
+
+      const [buf] = await gcsFile.download();
+
+      // 👉 Usamos File de formdata-node (evita el error de Blob en Node)
+      const filename = filenameFromPath(p, contentType);
+      const file = new FormDataFile([buf], filename, { type: contentType });
+      form.append("files", file, filename); // campo repetido "files"
     }
 
-    const elevenResp = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+    // Codifica FormData para fetch en Node
+    const encoder = new FormDataEncoder(form);
+
+    const elRes = await fetch(ELEVEN_ADD_VOICE_URL, {
       method: "POST",
       headers: {
-        "xi-api-key": process.env.ELEVENLABS_API_KEY!,
+        "xi-api-key": ELEVEN_KEY,
+        ...encoder.headers, // boundary correcto
       },
-      body: formData as unknown as BodyInit,
+      body: Readable.from(encoder) as any,
     });
 
-    const data = await elevenResp.json();
-
-    if (elevenResp.ok) {
-      // 🔔 GA4
-      await gaServerEvent(
-        "voice_created",
-        {
-          voiceName,
-          pathsCount: paths.length,
-          provider: "elevenlabs",
-          voiceId: data?.voice_id || null,
-        },
-        uid ? { userId: uid } : undefined
-      );
-
-      // ✅ Notificación in-app: nueva voz creada
-      if (uid) {
-        try {
-          await sendEventPush(uid, "voice_created", {
-            voiceId: data?.voice_id ?? undefined,
-            voiceName,
-          });
-        } catch {}
-      }
-    } else {
-      // 🔔 GA4: fallo en ElevenLabs
-      await gaServerEvent(
-        "voice_failed",
-        {
-          voiceName,
-          error: data?.error || "Unknown error",
-          status: elevenResp.status,
-        },
-        uid ? { userId: uid } : undefined
-      );
-
-      // ❗ Notificación de error
-      if (uid) {
-        try {
-          await sendEventPush(uid, "voice_error", {
-            voiceName,
-            status: elevenResp.status,
-            error: data?.error || "Unknown error",
-          });
-        } catch {}
-      }
+    const text = await elRes.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      /* respuesta no-JSON, dejamos text */
     }
 
-    return Response.json(data, { status: elevenResp.status });
+    if (!elRes.ok) {
+      const detail =
+        data?.detail?.message ||
+        data?.detail ||
+        data?.message ||
+        data?.error ||
+        text ||
+        `ElevenLabs devolvió ${elRes.status}`;
+      return NextResponse.json({ error: detail }, { status: elRes.status });
+    }
+
+    const payload = {
+      voice_id: data?.voice_id || data?.voice?.voice_id || data?.id,
+      requires_verification:
+        data?.requires_verification ??
+        data?.voice?.requires_verification ??
+        false,
+    };
+
+    return NextResponse.json(payload, { status: 200 });
   } catch (err: any) {
-    console.error("❌ Error creando voz:", err);
-
-    await gaServerEvent("voice_failed", {
-      error: err?.message || String(err),
-      stage: "internal",
-    });
-
-    // ❗ Notificación de error (si hay uid)
-    try {
-      const authHeader = req.headers.get("Authorization") || "";
-      if (authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        const decoded = await adminAuth.verifyIdToken(token).catch(() => null);
-        const uid = decoded?.uid;
-        if (uid) {
-          await sendEventPush(uid, "voice_error", { error: err?.message || String(err) });
-        }
-      }
-    } catch {}
-
-    return Response.json({ error: "Error creando voz en ElevenLabs" }, { status: 500 });
+    console.error("[voices/create] error:", err);
+    return NextResponse.json(
+      { error: err?.message || "Error interno" },
+      { status: 500 }
+    );
   }
 }

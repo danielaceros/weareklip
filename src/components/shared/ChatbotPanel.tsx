@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { X, Bot } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import {
   collection,
@@ -165,7 +165,13 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
-        <h2 className="font-semibold text-sm">Asistente 🤖</h2>
+        <h2 className="font-semibold text-sm flex items-center gap-2">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Bot className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span>Asistente</span>
+        </h2>
+
         <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground transition"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Bell, Bot, LifeBuoy } from "lucide-react";
+import { Plus, Bell, Bot, MessageCircleQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import NotificationFloatingPanel from "@/components/shared/NotificationFloatingPanel";
@@ -103,7 +103,7 @@ export default function CreateReelGlobalButton() {
                 }
                 className="relative bg-neutral-900 text-white rounded-full w-12 h-12 flex items-center justify-center shadow hover:bg-neutral-800 transition"
               >
-                <LifeBuoy className="w-5 h-5" />
+                <MessageCircleQuestion className="w-5 h-5" />
               </motion.button>
             </>
           )}
@@ -182,7 +182,7 @@ export default function CreateReelGlobalButton() {
           onClick={() => document.getElementById("feedbacklabelspan")?.click()}
           className="relative bg-neutral-900 text-white rounded-full p-3 shadow hover:bg-neutral-800 transition"
         >
-          <LifeBuoy className="w-5 h-5" />
+          <MessageCircleQuestion className="w-5 h-5" />
         </button>
       </div>
 
