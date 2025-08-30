@@ -1,4 +1,3 @@
-// src/app/login/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -12,16 +11,36 @@ import {
   sendEmailVerification,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { FaGoogle } from 'react-icons/fa'; // Icono de Google
+
+// Lista blanca de dominios
+const ALLOWED_EMAIL_DOMAINS = [
+  "gmail.com", "yahoo.com", "outlook.com", "company.com", "hotmail.com",
+  "aol.com", "icloud.com", "protonmail.com", "zoho.com", "mail.com",
+  "yandex.com", "gmx.com", "fastmail.com", "tutanota.com", "hushmail.com",
+  "msn.com", "live.com", "comcast.net", "verizon.net", "sbcglobal.net",
+  "charter.net", "cox.net", "btinternet.com", "sky.com", "blueyonder.co.uk",
+  "virginmedia.com", "ntlworld.com", "talktalk.net", "orange.fr", "free.fr",
+  "wanadoo.fr", "sfr.fr", "laposte.net", "yahoo.co.uk", "ymail.com", "mail.ru",
+  "qq.com", "126.com", "163.com", "tencent.com", "zoho.in", "inbox.com",
+  "mailinator.com", "tempmail.com", "guerrillamail.com", "maildrop.cc",
+  "spamex.com", "trashmail.com", "spamgourmet.com", "dispostable.com",
+  "tempmailaddress.com", "throwawaymail.com", "sharklasers.com", "anonbox.net",
+  "getnada.com", "trashmail.io", "emailondeck.com", "10minutemail.com",
+  "mailcatch.com", "tmpmail.org", "fakemailgenerator.com", "burnermail.io",
+  "tempmailo.com", "jetable.org"
+];
+
+// Verifica si el dominio del correo electrónico está en la lista blanca
+const isAllowedDomain = (email: string): boolean => {
+  const domain = email.split('@')[1];
+  return ALLOWED_EMAIL_DOMAINS.includes(domain);
+};
 
 async function createSessionCookie(user: any) {
   const idToken = await user.getIdToken();
@@ -41,20 +60,28 @@ export default function LoginPage() {
   const [loadingReset, setLoadingReset] = useState(false);
   const router = useRouter();
 
-  const validate = (): boolean => {
+  const validate = async (): Promise<boolean> => {
     if (!email || !password) {
-      toast.warning("Completa todos los campos");
+      toast.error("Completa todos los campos");
       return false;
     }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      toast.warning("Email inválido");
+      toast.error("Email inválido");
       return false;
     }
+
+    if (!isAllowedDomain(email)) {
+      toast.warning("Este dominio de correo no está permitido");
+      return false;
+    }
+
     if (password.length < 6) {
       toast.warning("La contraseña debe tener al menos 6 caracteres");
       return false;
     }
+
     return true;
   };
 
@@ -106,7 +133,7 @@ export default function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!await validate()) return; // Esperar a que la validación se complete
     setLoading(true);
     try {
       let user;
@@ -121,7 +148,7 @@ export default function LoginPage() {
         }
 
         await createSessionCookie(user); // 🔑 crea cookie de sesión
-        toast.success("¡Bienvenido!");
+        toast.success("¡Bienvenido!", { style: { background: "green", color: "white" } });
         const needsOnboarding = await checkOnboardingNeeded(user.uid);
         router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
       } else {
@@ -136,8 +163,8 @@ export default function LoginPage() {
       }
     } catch (err) {
       const message =
-        (err as { code?: string }).code === "auth/invalid-credential"
-          ? "Credenciales inválidas"
+        (err as { code?: string }).code === "auth/email-already-in-use"
+          ? "Este correo electrónico ya está registrado. Intenta con otro."
           : (err as Error).message;
       toast.error(message || "Error de autenticación");
     } finally {
@@ -193,7 +220,7 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4" onSubmit={onSubmit}>
+          <form className="grid gap-3" onSubmit={onSubmit}>
             <div className="grid gap-1">
               <label className="text-sm font-medium">Correo electrónico</label>
               <Input
@@ -210,16 +237,6 @@ export default function LoginPage() {
             <div className="grid gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Contraseña</label>
-                {mode === "login" && (
-                  <button
-                    type="button"
-                    onClick={onResetPassword}
-                    disabled={loadingReset}
-                    className="text-sm text-neutral-400 hover:text-white"
-                  >
-                    {loadingReset ? "Enviando..." : "¿Has olvidado tu contraseña?"}
-                  </button>
-                )}
               </div>
               <Input
                 type="password"
@@ -233,10 +250,11 @@ export default function LoginPage() {
               />
             </div>
 
+            <div className="grid gap-0">
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 bg-neutral-200 text-black hover:bg-neutral-300"
+              className="mt-2 bg-neutral-200 text-black hover:bg-neutral-400"
             >
               {loading
                 ? "Cargando..."
@@ -249,11 +267,13 @@ export default function LoginPage() {
               type="button"
               onClick={onGoogle}
               disabled={loadingGoogle}
-              className="bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+              className="mt-4 flex items-center justify-center bg-neutral-700 text-white border-none rounded-md py-2 hover:bg-neutral-800 transition duration-300"
             >
-              {loadingGoogle ? "Conectando..." : "Iniciar sesión con Google"}
+              {loadingGoogle ? "Conectando..." : <>
+                <FaGoogle className="mr-2" /> Iniciar sesión con Google
+              </>}
             </Button>
-
+            </div>
             <button
               type="button"
               className={cn("mt-2 text-sm text-neutral-400 hover:text-white")}

@@ -165,7 +165,6 @@ export async function GET(req: Request) {
       if (!match) {
         if (!warned.has(email)) {
           warned.add(email);
-          console.warn(`⚠️ No match Firebase para email Stripe: ${email}`);
           await gaServerEvent("customers_no_match", { email });
         }
         return null;

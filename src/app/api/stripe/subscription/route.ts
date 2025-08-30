@@ -173,7 +173,6 @@ export async function GET(req: Request) {
 
     if (unmatchedEmails.length) {
       unmatchedEmails.slice(0, WARN_CAP).forEach((e) => {
-        console.warn(`⚠️ No match Firebase para email Stripe: ${e}`);
       });
       const extra = unmatchedEmails.length - WARN_CAP;
       if (extra > 0) {
