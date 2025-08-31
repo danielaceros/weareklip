@@ -319,6 +319,14 @@ export async function POST(req: NextRequest) {
           await upsertCustomerMapping(uid, customerId, s.customer_details?.email ?? undefined);
         }
 
+        // 👉 Marcar que ya usó su trial (aunque lo cancele después)
+        if (uid) {
+          await adminDB.collection("users").doc(uid).set(
+            { hasTrialUsed: true },
+            { merge: true }
+          );
+        }
+
         // Si arrancó en trial → dar crédito de prueba (una sola vez)
         if (userRef && customerId) {
           await ensureTrialCreditOnce(userRef, customerId, status);
@@ -367,6 +375,7 @@ export async function POST(req: NextRequest) {
 
         break;
       }
+
 
       /* -------- customer.subscription.created/updated -------- */
       case "customer.subscription.created":

@@ -26,6 +26,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
@@ -44,13 +45,12 @@ export default function NewVoiceContainer() {
   const storage = getStorage();
 
   const { ensureSubscribed } = useSubscriptionGate();
+  const [showCheckout, setShowCheckout] = useState(false);
 
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
-
   useEffect(() => {
     if (user) void fetchSamples();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const getAudioDurationFromURL = (url: string): Promise<number> =>
@@ -213,7 +213,10 @@ export default function NewVoiceContainer() {
     }
 
     const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
-    if (!ok) return;
+    if (!ok) {
+      setShowCheckout(true); // 👈 abre modal si no está suscrito
+      return;
+    }
 
     try {
       const idToken = await user.getIdToken(true);
@@ -236,7 +239,6 @@ export default function NewVoiceContainer() {
 
       toast.loading("Creando voz en ElevenLabs...");
 
-      // 🔹 Llamada a nuestro backend que conecta con ElevenLabs
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
@@ -274,7 +276,7 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      // ✅ Guardar en Firestore vía CRUD API
+      // Guardar en Firestore
       const saveRes = await fetch(
         `/api/firebase/users/${user.uid}/voices/${data.voice_id}`,
         {
@@ -301,18 +303,18 @@ export default function NewVoiceContainer() {
       }
 
       toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
-      router.push("/dashboard/voice");
+      router.push("/dashboard/clones  ");
     } catch (err) {
       console.error(err);
       toast.dismiss();
       toast.error((err as Error).message || "Error de conexión al crear la voz");
     }
   };
-const [page, setPage] = useState(1);
+
+  const [page, setPage] = useState(1);
   const perPage = 1;
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
-
 
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -320,12 +322,11 @@ const [page, setPage] = useState(1);
         Clonación de voz
       </h1>
 
-      {/* Grid principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-8">
         {/* Columna izquierda */}
         <div className="space-y-6">
           {/* Tips */}
-          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-2">
               <VolumeX className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
               <h3 className="font-medium text-sm">Evita entornos ruidosos</h3>
@@ -349,36 +350,31 @@ const [page, setPage] = useState(1);
             </div>
           </div>
 
-
           {/* Dropzone */}
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg 
-              p-4 sm:p-6 lg:p-8 
-              flex flex-col items-center justify-center text-center cursor-pointer transition 
-              w-full max-w-sm sm:max-w-md mx-auto lg:max-w-none
+            className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition w-full
               ${isDragActive ? "border-primary bg-muted/40" : "border-border"}`}
           >
             <input {...getInputProps()} />
-            <UploadCloud className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 mb-2 text-muted-foreground" />
-            <p className="text-xs sm:text-sm font-medium">
+            <UploadCloud className="h-8 w-8 mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">
               Haz clic para subir o arrastra y suelta
             </p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Archivos de audio o vídeo de hasta 10 MB cada uno
             </p>
-            <span className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground">o</span>
+            <span className="mt-2 text-xs text-muted-foreground">o</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 recording ? stopRecording() : startRecording();
               }}
-              className="mt-2 sm:mt-3 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg border hover:bg-muted transition text-xs sm:text-sm"
+              className="mt-3 px-4 py-2 rounded-lg border hover:bg-muted transition text-sm"
             >
               {recording ? "⏹ Detener" : "🎙 Grabar audio"}
             </button>
           </div>
-
 
           {/* Progreso */}
           <div className="flex items-center gap-4">
@@ -392,23 +388,16 @@ const [page, setPage] = useState(1);
           <div className="flex justify-center lg:justify-end">
             <button
               onClick={createVoice}
-              className="
-                px-4 py-2 text-sm               /* tamaño reducido en móvil */
-                sm:px-6 sm:py-2 sm:text-base    /* tamaño normal en pantallas medianas+ */
-                rounded-lg bg-primary text-primary-foreground
-                hover:opacity-90 transition
-                w-full sm:w-auto
-              "
+              className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition w-full sm:w-auto"
               data-paywall
               data-paywall-feature="elevenlabs-voice"
             >
               Generar audio
             </button>
           </div>
-
         </div>
 
-        {/* Columna derecha: muestras con paginación */}
+        {/* Columna derecha */}
         <div className="w-full space-y-6">
           <div className="max-h-[400px] overflow-y-auto pr-2">
             <VoiceSamplesList
@@ -418,7 +407,6 @@ const [page, setPage] = useState(1);
             />
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <Pagination>
               <PaginationContent>
@@ -459,6 +447,14 @@ const [page, setPage] = useState(1);
           )}
         </div>
       </div>
+
+      {/* Modal */}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
+        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+      />
     </div>
   );
 }

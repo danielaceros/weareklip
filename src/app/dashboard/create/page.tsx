@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function CreateReelPage() {
-  const { Modals } = useSubscriptionGate();
   const router = useRouter();
 
   const handleComplete = async (data: any) => {
@@ -18,7 +17,6 @@ export default function CreateReelPage() {
   return (
     <>
       <CreateReelWizard onComplete={handleComplete} />
-      <Modals />
     </>
   );
 }

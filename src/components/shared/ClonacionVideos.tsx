@@ -137,7 +137,7 @@ export default function ClonacionVideos({ userId }: Props) {
     setUploadingVideo(true);
     setVideoUploadProgress(0);
 
-    const videoPath = `users/${userId}/clonacion/${title}.${ext}`;
+    const videoPath = `users/${userId}/clones/${title}.${ext}`;
     const videoRef = storageRef(storage, videoPath);
 
     const uploadTask = uploadBytesResumable(videoRef, file);
@@ -219,7 +219,7 @@ export default function ClonacionVideos({ userId }: Props) {
       if (!idToken) throw new Error("Not authenticated");
 
       const res = await fetch(
-        `/api/firebase/users/${userId}/clonacion/${videoToDelete.id}`,
+        `/api/firebase/users/${userId}/clones/${videoToDelete.id}`,
         {
           method: "DELETE",
           headers: {

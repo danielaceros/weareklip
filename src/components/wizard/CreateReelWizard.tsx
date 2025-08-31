@@ -13,6 +13,7 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { useRouter } from "next/navigation";
 import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
 import { track, withTiming } from "@/lib/analytics-events";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
 
 type ReelData = {
   script: string;
@@ -58,7 +59,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
 
   const [scriptRegens, setScriptRegens] = useState(0);
   const [audioRegens, setAudioRegens] = useState(0);
-
+  const [showCheckout, setShowCheckout] = useState(false);
   const { ensureSubscribed } = useSubscriptionGate();
 
   useEffect(() => {
@@ -76,6 +77,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const generateScript = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
+      setShowCheckout(true); // 👈 abre modal
       track("subscription_gate_blocked", { feature: "reel", step: "script" });
       return;
     }
@@ -159,6 +161,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const generateAudio = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
+      setShowCheckout(true); // 👈 abre modal
       track("subscription_gate_blocked", { feature: "reel", step: "audio" });
       return;
     }
@@ -462,6 +465,12 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
         </div>
       </div>
     )}
+    <CheckoutRedirectModal
+            open={showCheckout}
+            onClose={() => setShowCheckout(false)}
+            plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
+            message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+          />
   </div>
 );
 }

@@ -8,20 +8,23 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email")?.toLowerCase().trim();
+    const customerId = searchParams.get("customerId")?.trim();
 
-    // Verificación de parámetro email
-    if (!email) {
-      return NextResponse.json({ error: "Falta el parámetro 'email'" }, { status: 400 });
+    // Verificación de parámetro customerId
+    if (!customerId) {
+      return NextResponse.json({ error: "Falta el parámetro 'customerId'" }, { status: 400 });
     }
 
-    // Buscar cliente por email
-    const customers = await stripe.customers.list({ email, limit: 1 });
-    if (!customers.data.length) {
+    // Recuperar el cliente para verificar que existe
+    let customer;
+    try {
+      customer = await stripe.customers.retrieve(customerId);
+      if ("deleted" in customer && customer.deleted) {
+        return NextResponse.json({ error: "Cliente eliminado en Stripe" }, { status: 404 });
+      }
+    } catch (e) {
       return NextResponse.json({ error: "Cliente no encontrado en Stripe" }, { status: 404 });
     }
-
-    const customer = customers.data[0];
 
     // Obtener suscripciones del cliente
     const subs = await stripe.subscriptions.list({

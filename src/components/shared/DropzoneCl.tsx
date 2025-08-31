@@ -107,7 +107,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
       const idToken = await currentUser.getIdToken();
 
       for (const file of acceptedFiles) {
-        const storageRef = ref(storage, `users/${uid}/clonacion/${file.name}`);
+        const storageRef = ref(storage, `users/${uid}/clones/${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
         const loadingToast = showLoading(
           t("upload.uploadingFile", { name: file.name })
@@ -204,7 +204,7 @@ export default function ClonacionVideosSection({ uid }: Props) {
       if (!idToken) throw new Error("No autenticado");
 
       // 🔹 Llamar al endpoint DELETE de tu CRUD
-      const res = await fetch(`/api/firebase/users/${uid}/clonacion/${id}`, {
+      const res = await fetch(`/api/firebase/users/${uid}/clones/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${idToken}` },
       });

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { toast } from "sonner";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 interface ScriptFormProps {
   description: string;
@@ -61,6 +62,7 @@ export function ScriptForm({
 }: ScriptFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const handleSubmit = useCallback(async () => {
     flushSync(() => {
@@ -69,10 +71,12 @@ export function ScriptForm({
 
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
-      toast.error("Necesitas una suscripción activa para generar guiones.");
       setProcessing(false);
+      setShowCheckout(true); // 👈 abre el modal
       return;
     }
+
+
 
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
@@ -299,6 +303,12 @@ export function ScriptForm({
           {buttonText}
         </Button>
       </div>
+      <CheckoutRedirectModal
+                          open={showCheckout}
+                          onClose={() => setShowCheckout(false)}
+                          plan="ACCESS"
+                          message="Necesitas una suscripción activa para generar audios."
+                        />
     </div>
   );
 }

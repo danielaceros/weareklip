@@ -90,9 +90,17 @@ export async function GET(req: NextRequest) {
       customer: customerId,
       status: "all",
       limit: 100,
-      expand: ["data.items.data.price"],
+      expand: ["data.items.data.price"], // con price basta si vas a mirar solo el id
     });
-    const sub = pickBestSubStatus(subs.data);
+
+    // 3.1) Buscar la suscripción de acceso (Access plan)
+    const accessSub = subs.data.find((s) =>
+      s.items.data.some((it) => it.price.id === process.env.STRIPE_PRICE_ACCESS)
+    );
+    console.log(accessSub)
+    // 3.2) Si no hay Access, caer al "best"
+    const sub = accessSub || pickBestSubStatus(subs.data);
+
 
     // 4) Recuperar customer
     const customer = (await stripe.customers.retrieve(
@@ -128,11 +136,17 @@ export async function GET(req: NextRequest) {
     }
 
     // 5) Estado y plan
-    const status = sub.status;
-    const trialing = status === "trialing";
+    let status = sub.status;
     const cancelAtPeriodEnd = sub.cancel_at_period_end === true;
-    const active =
-      (status === "active" || status === "trialing") && !cancelAtPeriodEnd;
+
+    // 👉 Bloquear inmediatamente si hay cancelación pendiente
+    if (cancelAtPeriodEnd) {
+      status = "canceled";
+    }
+
+    const trialing = status === "trialing";
+    const active = status === "active" || status === "trialing";
+
 
     const planItem = sub.items.data.find(
       (it) => it.price.recurring?.interval === "month"

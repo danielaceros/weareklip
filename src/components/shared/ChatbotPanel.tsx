@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Bot } from "lucide-react";
+import { X } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import {
   collection,
@@ -13,6 +13,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
 
 interface ChatbotPanelProps {
   onClose: () => void;
@@ -29,6 +32,9 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
+  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal
 
   // 🔹 Auto scroll al último mensaje
   useEffect(() => {
@@ -86,6 +92,13 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
 
   const sendMessage = async () => {
     if (!input.trim()) return;
+
+    const ok = await ensureSubscribed({ feature: "chatbot" }); // 👈 check paywall
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
     const user = auth.currentUser;
     if (!user) return alert("Debes iniciar sesión");
 
@@ -154,77 +167,81 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
   };
 
   return (
-    <div
-      className="
-        fixed right-0 md:right-6 bottom-0 md:bottom-20
-        w-full md:w-80
-        h-[60vh] md:h-96
-        bg-background text-foreground shadow-xl rounded-t-2xl md:rounded-2xl
-        flex flex-col border overflow-hidden z-50
-      "
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
-        <h2 className="font-semibold text-sm flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Bot className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <span>Asistente</span>
-        </h2>
-
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground transition"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Área scrollable */}
-      <ScrollArea className="flex-1 h-full overflow-y-auto">
-        <div className="px-3 py-2 space-y-2 text-sm">
-          {messages.map((m, i) => {
-            const isLastAssistant =
-              i === messages.length - 1 && m.role === "assistant";
-
-            return (
-              <div
-                key={i}
-                className={`p-2 rounded-lg max-w-[80%] ${
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground ml-auto"
-                    : "bg-muted text-foreground/80 mr-auto"
-                }`}
-              >
-                {m.content}
-                {isLastAssistant && loading && (
-                  <span className="ml-1 animate-pulse">▋</span>
-                )}
-              </div>
-            );
-          })}
-          {loading && (
-            <p className="text-xs text-muted-foreground italic">
-              Escribiendo...
-            </p>
-          )}
-          <div ref={bottomRef} />
+    <>
+      <div
+        className="
+          fixed right-0 md:right-6 bottom-0 md:bottom-20
+          w-full md:w-80
+          h-[60vh] md:h-96
+          bg-background text-foreground shadow-xl rounded-t-2xl md:rounded-2xl
+          flex flex-col border overflow-hidden z-50
+        "
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
+          <h2 className="font-semibold text-sm">Asistente 🤖</h2>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </ScrollArea>
 
-      {/* Input */}
-      <div className="p-3 border-t flex gap-2 bg-background">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder="Escribe tu mensaje..."
-          className="text-sm"
-        />
-        <Button size="sm" onClick={sendMessage} disabled={loading}>
-          Enviar
-        </Button>
+        {/* Área scrollable */}
+        <ScrollArea className="flex-1 h-full overflow-y-auto">
+          <div className="px-3 py-2 space-y-2 text-sm">
+            {messages.map((m, i) => {
+              const isLastAssistant =
+                i === messages.length - 1 && m.role === "assistant";
+
+              return (
+                <div
+                  key={i}
+                  className={`p-2 rounded-lg max-w-[80%] ${
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground ml-auto"
+                      : "bg-muted text-foreground/80 mr-auto"
+                  }`}
+                >
+                  {m.content}
+                  {isLastAssistant && loading && (
+                    <span className="ml-1 animate-pulse">▋</span>
+                  )}
+                </div>
+              );
+            })}
+            {loading && (
+              <p className="text-xs text-muted-foreground italic">
+                Escribiendo...
+              </p>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        </ScrollArea>
+
+        {/* Input */}
+        <div className="p-3 border-t flex gap-2 bg-background">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            placeholder="Escribe tu mensaje..."
+            className="text-sm"
+          />
+          <Button size="sm" onClick={sendMessage} disabled={loading}>
+            Enviar
+          </Button>
+        </div>
       </div>
-    </div>
+
+      {/* Modal checkout */}
+       <CheckoutRedirectModal
+                        open={showCheckout}
+                        onClose={() => setShowCheckout(false)}
+                        plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
+                        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+                      />
+    </>
   );
 }

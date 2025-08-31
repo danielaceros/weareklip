@@ -17,6 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2 } from "lucide-react";
 
+import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
+
 export default function AudioCreatorContainer() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -33,6 +36,9 @@ export default function AudioCreatorContainer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
+  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal checkout
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -90,6 +96,12 @@ export default function AudioCreatorContainer() {
 
   // 👉 Generar audio inicial
   const handleGenerate = async () => {
+    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check
+    if (!ok) {
+      setShowCheckout(true); // 👈 abre modal
+      return;
+    }
+
     if (!form.text.trim()) {
       toast.error("Debes escribir el texto a convertir.");
       return;
@@ -141,6 +153,12 @@ export default function AudioCreatorContainer() {
 
   // 👉 Regenerar audio
   const handleRegenerate = async () => {
+    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check también aquí
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
     if (!audioId) {
       toast.error("No hay audio base para regenerar.");
       return;
@@ -254,6 +272,14 @@ export default function AudioCreatorContainer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal paywall */}
+      <CheckoutRedirectModal
+                  open={showCheckout}
+                  onClose={() => setShowCheckout(false)}
+                  plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
+                  message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+                />
     </>
   );
 }

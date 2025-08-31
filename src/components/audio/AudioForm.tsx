@@ -22,6 +22,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 import
 
 interface Voice {
   id: string;
@@ -73,7 +74,7 @@ export function AudioForm({
 }: AudioFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
-
+  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado para modal
   const isLoading = processing || loading;
   const buttonText = useMemo(
     () =>
@@ -88,9 +89,9 @@ export function AudioForm({
   const handleGenerateClick = async () => {
     setProcessing(true);
 
-    const ok = await ensureSubscribed({ feature: "audio" });
+     const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
-      toast.error("Necesitas una suscripción activa para generar audios.");
+      setShowCheckout(true); // 👈 abre modal en vez de toast
       setProcessing(false);
       return;
     }
@@ -294,6 +295,12 @@ export function AudioForm({
           {buttonText}
         </Button>
       </div>
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar audios."
+      />
     </TooltipProvider>
   );
 }
