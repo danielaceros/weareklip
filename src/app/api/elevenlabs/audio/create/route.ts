@@ -1,4 +1,3 @@
-// src/app/api/elevenlabs/audio/create/route.ts
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
@@ -42,27 +41,27 @@ export async function POST(req: Request) {
     const idToken = authHeader.split(" ")[1];
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
-    // 2) Body
+    // 2) Body validation and sanitization
     const { voiceId, text, modelId, format, voice_settings } =
       (await req.json()) as Body;
 
     if (!voiceId || !text) {
       return NextResponse.json(
-        { error: "voiceId y text requeridos" },
+        { error: "voiceId y text son requeridos" },
         { status: 400 }
       );
     }
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
 
-    // 🔔 Evento: inicio generación audio
+    // 🔔 Evento: inicio de generación de audio
     await gaServerEvent(
       "voice_generation_started",
       { simulate, voiceId, text_length: text.length },
       { userId: uid }
     );
 
-    // 🔁 SIMULACIÓN
+    // 🔁 Simulación
     if (simulate) {
       const audioId = randomUUID();
       const fakeUrl = `https://fake.elevenlabs.local/${uid}/audios/${audioId}.mp3`;
@@ -127,7 +126,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 🔁 REAL
+    // 🔁 Real (no simulado)
     const XI_KEY = process.env.ELEVENLABS_API_KEY?.trim();
     if (!XI_KEY) {
       return NextResponse.json(

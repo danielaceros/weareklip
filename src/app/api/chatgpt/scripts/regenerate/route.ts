@@ -1,5 +1,4 @@
-// src/app/api/scripts/regenerate/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import { adminAuth } from "@/lib/firebase-admin";
@@ -21,9 +20,9 @@ type Body = {
   ctaText?: string;
 };
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const simulate = process.env.SIMULATE === "true";
-  const idem = randomUUID();
+  const idem = randomUUID(); // Generate unique idempotency key
 
   try {
     // 1) Auth
@@ -36,30 +35,29 @@ export async function POST(req: Request) {
     const uid = decoded?.uid;
     if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
-    // 2) Body
-    const body = (await req.json()) as Body;
-    const { description, tone, platform, duration, language, structure, addCTA, ctaText } = body;
+    // 2) Input validation and sanitization
+    const body = await req.json();
+    const { description, tone, platform, duration, language, structure, addCTA, ctaText } = body as Body;
 
+    // Ensure required fields are present
     if (!description || !tone || !platform || !duration || !language || !structure) {
       return NextResponse.json({ error: "Faltan parámetros obligatorios" }, { status: 400 });
     }
 
     let regeneratedScript = "";
 
-    // 🔔 Evento: inicio de regeneración
+    // 🔔 Event: start of regeneration
     await gaServerEvent(
       "script_regenerate_started",
       { simulate, description, tone, platform, duration, language },
       { userId: uid }
     );
 
-    // 🔁 RAMA A: SIMULACIÓN
+    // 🔁 SIMULATION (if enabled)
     if (simulate) {
       regeneratedScript = `Este es un guion simulado (regenerado) para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y llamada a la acción "${ctaText || "Invita a seguir"}"` : ""}.`;
-    }
-
-    // 🔁 RAMA B: REAL
-    else {
+    } else {
+      // 🔁 REAL REGENERATION
       const prompt = `
 Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
 Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
@@ -91,12 +89,12 @@ Reglas estrictas:
 
       regeneratedScript =
         completion.choices[0]?.message?.content
-          ?.replace(/^["'\s]+|["'\s]+$/g, "")
+          ?.replace(/^["'\s]+|["'\s]+$/g, "") // Sanitization of OpenAI response
           .replace(/^(Aquí.*?:\s*)/i, "")
           .trim() || "";
     }
 
-    // 🔔 Evento: regeneración completada
+    // 🔔 Event: regeneration completed
     await gaServerEvent(
       "script_regenerate_completed",
       { length: regeneratedScript.length, simulated: simulate },
@@ -108,7 +106,7 @@ Reglas estrictas:
     console.error("❌ Error /scripts/regenerate:", error);
     const msg = error instanceof Error ? error.message : "Error interno regenerando guion";
 
-    // 🔔 Evento: error en regeneración
+    // 🔔 Event: error during regeneration
     const idToken = req.headers.get("authorization")?.replace(/^Bearer\s+/, "");
     let uid: string | undefined;
     if (idToken) {

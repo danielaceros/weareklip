@@ -1,4 +1,3 @@
-// /app/api/stripe/clients/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
@@ -16,6 +15,7 @@ type UnknownRecord = Record<string, unknown>;
 function isRecord(v: unknown): v is UnknownRecord {
   return typeof v === "object" && v !== null;
 }
+
 function getNum(o: UnknownRecord, key: string): number | null {
   const v = o[key];
   return typeof v === "number" ? v : null;

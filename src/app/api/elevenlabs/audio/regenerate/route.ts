@@ -1,4 +1,3 @@
-// src/app/api/elevenlabs/audio/regenerate/route.ts
 import { NextResponse } from "next/server";
 import { adminAuth, adminDB, adminBucket } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
     const idToken = authHeader.slice("Bearer ".length);
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
-    // 2) Body
+    // 2) Body validation and sanitization
     const { parentAudioId, text, voiceId, voice_settings } =
       (await req.json()) as Body;
 
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
 
-    // 🔔 Evento: inicio regeneración
+    // 🔔 Evento: inicio de regeneración
     await gaServerEvent(
       "voice_regeneration_started",
       { parentAudioId, voiceId, text_length: text.length, simulate },

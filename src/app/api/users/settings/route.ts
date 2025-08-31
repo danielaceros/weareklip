@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     const decoded = await adminAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
+    // Validación del cuerpo (body) y del idioma
     const body = await req.json().catch(() => ({}));
     const lang = body?.lang as Locale | undefined;
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid "lang"' }, { status: 400 });
     }
 
-    // Guarda en users/{uid}/settings.lang (merge sin pisar otros campos)
+    // Actualizar la configuración del idioma
     await adminDB
       .collection('users')
       .doc(uid)
@@ -34,12 +35,19 @@ export async function POST(req: NextRequest) {
             updatedAt: Date.now(),
           },
         },
-        { merge: true }
+        { merge: true } // Merge evita sobrescribir otros campos
       );
 
+    // Respuesta exitosa
     return NextResponse.json({ ok: true, lang });
   } catch (err) {
     console.error('POST /api/users/settings error', err);
+
+    // Errores más detallados
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

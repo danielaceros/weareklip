@@ -1,4 +1,3 @@
-// src/app/api/billing/summary/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
@@ -188,8 +187,6 @@ export async function GET(req: NextRequest) {
           }
         }
       }
-
-
     } catch (err) {
       console.warn("No se pudo calcular usage:", err);
     }
