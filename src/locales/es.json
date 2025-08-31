@@ -144,9 +144,9 @@
       "delete": "Eliminar"
     },
     "email": {
-      "updatedSubject": "✍️ Guion actualizado por {email}",
+      "updatedSubject": "Guion actualizado por {email}",
       "updatedBody": "El guion \"{title}\" ha sido actualizado.\n\nEstado: {stateText}\nNotas: {notes}",
-      "deletedSubject": "🗑️ Guion eliminado por {email}",
+      "deletedSubject": "Guion eliminado por {email}",
       "deletedBody": "El cliente eliminó el guion titulado: \"{title}\"."
     }
   },
@@ -154,8 +154,8 @@
     "untitled": "Sin título"
   },
   "dashboard": {
-    "title": "¡Hola! 👋 Bienvenido a tu Panel",
-    "subtitle": "Consulta aquí el estado de tu proyecto y las fechas de entrega. ¡Mantente al día! 🚀",
+    "title": "Bienvenido a tu Panel",
+    "subtitle": "Consulta aquí el estado de tu proyecto y las fechas de entrega. ¡Mantente al día!",
     "loading": "Cargando tu panel...",
     "authError": {
       "title": "No autenticado",

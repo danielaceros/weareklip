@@ -33,7 +33,7 @@ export default function UserPage() {
         />
 
         {/* Voces */}
-        <VoicesListContainer variant="card" title="🎤 Voces de clonación" />
+        <VoicesListContainer variant="card" title="Voces de clonación" />
       </div>
     </div>
   );

@@ -1,102 +1,85 @@
-// src/app/api/firebase/users/[uid]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminDB, adminAuth } from "@/lib/firebase-admin";
 import admin from "firebase-admin";
 
-// ✅ helper inline para validar token
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 async function verifyAuth(req: NextRequest, expectedUid?: string) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
-
+  if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
   const token = authHeader.split(" ")[1];
   const decoded = await adminAuth.verifyIdToken(token);
-
-  if (expectedUid && decoded.uid !== expectedUid) {
-    throw new Error("Forbidden");
-  }
-
+  if (expectedUid && decoded.uid !== expectedUid) throw new Error("Forbidden");
   return decoded;
 }
 
-// 🔹 Obtener un usuario por UID
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ uid: string }> }
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
 ) {
   try {
-    const { uid } = await params;
-    await verifyAuth(req, uid); // ✅ seguridad
+    const { uid, cloneId } = await params;
+    await verifyAuth(req, uid);
 
-    const doc = await adminDB.collection("users").doc(uid).get();
+    const snap = await adminDB
+      .collection("users").doc(uid)
+      .collection("clones").doc(cloneId)
+      .get();
 
-    if (!doc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ id: doc.id, ...doc.data() });
+    if (!snap.exists) return NextResponse.json({ exists: false }, { status: 200 });
+    return NextResponse.json({ id: cloneId, ...snap.data() }, { status: 200 });
   } catch (err: any) {
-    console.error("GET user error:", err);
-    const status =
-      err.message === "Unauthorized"
-        ? 401
-        : err.message === "Forbidden"
-        ? 403
-        : 500;
+    const status = err.message === "Unauthorized" ? 401 :
+                   err.message === "Forbidden"   ? 403 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
 
-// 🔹 Actualizar un usuario por UID
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ uid: string }> }
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
 ) {
   try {
-    const { uid } = await params;
+    const { uid, cloneId } = await params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
+    const ref = adminDB
+      .collection("users").doc(uid)
+      .collection("clones").doc(cloneId);
 
-    await adminDB.collection("users").doc(uid).update({
-      ...body,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    await ref.set({ id: cloneId, ...body, updatedAt: now }, { merge: true });
 
-    return NextResponse.json({ id: uid, ...body });
+    const fresh = await ref.get();
+    return NextResponse.json({ id: cloneId, ...fresh.data() }, { status: 200 });
   } catch (err: any) {
-    console.error("PUT user error:", err);
-    const status =
-      err.message === "Unauthorized"
-        ? 401
-        : err.message === "Forbidden"
-        ? 403
-        : 500;
+    console.error("PUT clone error:", err);
+    const status = err.message === "Unauthorized" ? 401 :
+                   err.message === "Forbidden"   ? 403 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
 
-// 🔹 Eliminar un usuario por UID
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ uid: string }> }
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
 ) {
   try {
-    const { uid } = await params;
+    const { uid, cloneId } = await params;
     await verifyAuth(req, uid);
 
-    await adminDB.collection("users").doc(uid).delete();
+    await adminDB
+      .collection("users").doc(uid)
+      .collection("clones").doc(cloneId)
+      .delete();
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (err: any) {
-    console.error("DELETE user error:", err);
-    const status =
-      err.message === "Unauthorized"
-        ? 401
-        : err.message === "Forbidden"
-        ? 403
-        : 500;
+    console.error("DELETE clone error:", err);
+    const status = err.message === "Unauthorized" ? 401 :
+                   err.message === "Forbidden"   ? 403 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }

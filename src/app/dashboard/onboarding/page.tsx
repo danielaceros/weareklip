@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import {
   ref,
   uploadBytesResumable,
@@ -25,10 +24,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Mic,
-  VolumeX,
-  CheckCircle2,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
@@ -56,16 +53,24 @@ async function getAudioDurationSafe(url: string): Promise<number> {
     };
 
     const onMeta = () => {
-      if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+      if (
+        isFinite(audio.duration) &&
+        !isNaN(audio.duration) &&
+        audio.duration > 0
+      ) {
         cleanup();
         resolve(audio.duration);
       } else {
-        audio.currentTime = Number.MAX_SAFE_INTEGER; // forza calcular
+        audio.currentTime = Number.MAX_SAFE_INTEGER; // fuerza calcular
       }
     };
 
     const onTimeUpdate = () => {
-      if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+      if (
+        isFinite(audio.duration) &&
+        !isNaN(audio.duration) &&
+        audio.duration > 0
+      ) {
         cleanup();
         resolve(audio.duration);
       }
@@ -100,16 +105,25 @@ export default function OnboardingPage() {
   // Paso 2 – vídeo
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoProgressPct, setVideoProgressPct] = useState(0);
-  const [videoDoc, setVideoDoc] = useState<{ id: string; url: string; storagePath: string } | null>(null);
+  const [videoDoc, setVideoDoc] = useState<{
+    id: string;
+    url: string;
+    storagePath: string;
+  } | null>(null);
 
   // Paso 3 – audio
   const [recording, setRecording] = useState(false);
-  const [samples, setSamples] = useState<{ name: string; duration: number; url: string; storagePath: string }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [samples, setSamples] = useState<
+    { name: string; duration: number; url: string; storagePath: string }[]
+  >([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
   const { ensureSubscribed } = useSubscriptionGate();
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -126,8 +140,10 @@ export default function OnboardingPage() {
   const handleVideoUpload = async (file: File) => {
     if (!user) return;
 
-    if (!file.type.startsWith("video/")) return toast.error("El archivo debe ser un vídeo");
-    if (bytesToMB(file.size) > MAX_VIDEO_MB) return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
+    if (!file.type.startsWith("video/"))
+      return toast.error("El archivo debe ser un vídeo");
+    if (bytesToMB(file.size) > MAX_VIDEO_MB)
+      return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
 
     const id = uuidv4();
     const storagePath = `users/${user.uid}/clonacion/${id}`;
@@ -152,34 +168,34 @@ export default function OnboardingPage() {
         const url = await getDownloadURL(task.snapshot.ref);
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) throw new Error("No autenticado");
-        const res = await fetch(`/api/firebase/users/${user.uid}/clonacion/${id}`, {
-          method: "PUT", // porque actualizas/creas un documento con ID conocido
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            id,
-            url,
-            storagePath,
-            titulo: file.name.replace(/\.[^/.]+$/, ""),
-            createdAt: Date.now(),
-            source: "onboarding",
-          }),
-        });
 
-        if (!res.ok) {
+        const res = await fetch(
+          `/api/firebase/users/${user.uid}/clones/${id}`,
+          {
+            method: "PUT", // creamos/actualizamos doc con ID conocido
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              id,
+              url,
+              storagePath,
+              titulo: file.name.replace(/\.[^/.]+$/, ""),
+              createdAt: Date.now(),
+              source: "onboarding",
+            }),
+          }
+        );
+
+        if (!res.ok)
           throw new Error(`Error guardando clonación: ${res.status}`);
-        }
 
         const saved = await res.json();
-
-        // actualizar estado en UI
         setVideoDoc(saved);
         setUploadingVideo(false);
         setVideoProgressPct(0);
         toast.success("Vídeo subido correctamente");
-
       }
     );
   };
@@ -262,7 +278,10 @@ export default function OnboardingPage() {
           try {
             duration = await getAudioDurationSafe(url);
           } catch {}
-          setSamples((prev) => [...prev, { name: fileName, duration, url, storagePath }]);
+          setSamples((prev) => [
+            ...prev,
+            { name: fileName, duration, url, storagePath },
+          ]);
           setUploadProgress((p) => {
             const n = { ...p };
             delete n[fileName];
@@ -289,43 +308,48 @@ export default function OnboardingPage() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks.current = [];
-    mediaRecorderRef.current = new MediaRecorder(stream);
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.current.push(e.data);
-    };
-    mediaRecorderRef.current.onstop = async () => {
-      const blob = new Blob(audioChunks.current, { type: "audio/webm" });
-      if (bytesToMB(blob.size) > MAX_SAMPLE_MB) {
-        toast.error(`La grabación supera ${MAX_SAMPLE_MB} MB`);
+      audioChunks.current = [];
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.current.push(e.data);
+      };
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(audioChunks.current, { type: "audio/webm" });
+        if (bytesToMB(blob.size) > MAX_SAMPLE_MB) {
+          toast.error(`La grabación supera ${MAX_SAMPLE_MB} MB`);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        let dur = 0;
+        try {
+          dur = await getAudioDurationSafe(URL.createObjectURL(blob));
+        } catch {
+          dur = 0;
+        }
+        if (dur > MAX_SAMPLE_SECONDS) {
+          toast.error(`La grabación supera ${MAX_SAMPLE_SECONDS}s`);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const file = new File([blob], `recording-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
+        await uploadSample(file);
         stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      let dur = 0;
-      try {
-        dur = await getAudioDurationSafe(URL.createObjectURL(blob));
-      } catch {
-        dur = 0;
-      }
-      if (dur > MAX_SAMPLE_SECONDS) {
-        toast.error(`La grabación supera ${MAX_SAMPLE_SECONDS}s`);
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      const file = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
-      await uploadSample(file);
-      stream.getTracks().forEach((t) => t.stop());
-    };
-    mediaRecorderRef.current.start();
-    setRecording(true);
-    toast("🎙 Grabando…");
+      };
+      mediaRecorderRef.current.start();
+      setRecording(true);
+      toast("🎙 Grabando…");
     } catch {
       toast.error("No se pudo acceder al micrófono");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
@@ -341,29 +365,66 @@ export default function OnboardingPage() {
     }
   };
 
-  const totalDuration = samples.reduce((acc, s) => acc + (isFinite(s.duration) ? s.duration : 0), 0);
+  const totalDuration = samples.reduce(
+    (acc, s) => acc + (isFinite(s.duration) ? s.duration : 0),
+    0
+  );
+
+  const validStep1 = useMemo(
+    () => name.trim().length > 1 && accept,
+    [name, accept]
+  );
+  const validStep2 = useMemo(() => !!videoDoc, [videoDoc]);
+
+  const canCreate =
+    samples.length > 0 &&
+    totalDuration > 0 &&
+    totalDuration <= MAX_TOTAL_SECONDS &&
+    !!videoDoc &&
+    validStep1;
+
+  const createDisabledReason = !samples.length
+    ? "Sube al menos una muestra de voz"
+    : totalDuration === 0
+    ? "No se pudo calcular la duración total"
+    : totalDuration > MAX_TOTAL_SECONDS
+    ? `Reduce a ${MAX_TOTAL_SECONDS}s o menos`
+    : !videoDoc
+    ? "Sube un vídeo en el paso 2"
+    : !validStep1
+    ? "Completa el paso 1 (nombre y aceptar términos)"
+    : null;
 
   const createVoice = async () => {
-    if (!user) return toast.error("Debes iniciar sesión");
-    if (samples.length === 0) return toast.error("Sube al menos una muestra de voz");
-    if (!videoDoc) return toast.error("Debes subir un vídeo en el paso 2");
-    if (!validStep1) return toast.error("Completa los datos del paso 1");
-    if (totalDuration === 0) return toast.error("No se pudo calcular duración total");
-    if (totalDuration > MAX_TOTAL_SECONDS) {
-      return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
+    if (creating) return;
+    if (!canCreate) {
+      if (createDisabledReason) toast.error(createDisabledReason);
+      return;
     }
 
-    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
-    if (!ok) return;
-
     try {
-      const idToken = await user.getIdToken(true);
+      setCreating(true);
+
+      // token
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error("No autenticado");
+
+      // En dev saltamos el gate; en prod se respeta
+      const skipSubGate = process.env.NODE_ENV !== "production";
+      const ok = skipSubGate
+        ? true
+        : await ensureSubscribed({ feature: "elevenlabs-voice" });
+      if (!ok) {
+        toast.message("Necesitas una suscripción activa para crear voces.");
+        return;
+      }
+
       const idem = uuidv4();
       const paths = samples.map((s) => s.storagePath);
 
       toast.loading("Creando voz…");
 
-      // 1. Pedir a ElevenLabs que cree la voz
+      // 1) Crear voz en backend
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
@@ -377,36 +438,48 @@ export default function OnboardingPage() {
         }),
       });
 
-      const data = await res.json().catch(() => ({} as any));
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        /* respuesta no JSON */
+      }
+
       toast.dismiss();
 
       if (!res.ok || !data?.voice_id) {
-        return toast.error(
-          data?.error || data?.message || "No se pudo crear la voz"
-        );
+        const msg =
+          data?.error || data?.message || `Error ElevenLabs (${res.status})`;
+        throw new Error(msg);
       }
 
-      // 2. Guardar la voz en la subcolección "voices" (API segura)
+      // 2) Guardar voz en Firestore (API segura)
       const voicePayload = {
         voice_id: data.voice_id,
         name: `Voz-${Date.now()}`,
         paths,
-        requires_verification: data.requires_verification ?? false,
+        requires_verification: !!data.requires_verification,
         createdAt: Date.now(),
         source: "onboarding",
         idem,
       };
 
-      await fetch(`/api/firebase/users/${user.uid}/voices/${data.voice_id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(voicePayload),
-      });
+      const save = await fetch(
+        `/api/firebase/users/${user!.uid}/voices/${data.voice_id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify(voicePayload),
+        }
+      );
+      if (!save.ok)
+        throw new Error(`No se pudo guardar la voz (${save.status})`);
 
-      // 3. Actualizar metadata de onboarding en el doc principal del usuario (API segura)
+      // 3) Actualizar doc de usuario
       const userPayload = {
         cloneName: name,
         cloneCategory: category,
@@ -414,12 +487,12 @@ export default function OnboardingPage() {
         onboardingCompleted: true,
         onboardingCompletedAt: Date.now(),
         firstClone: {
-          videoId: videoDoc.id,
+          videoId: videoDoc!.id,
           voiceId: data.voice_id,
         },
       };
 
-      await fetch(`/api/firebase/users/${user.uid}`, {
+      const saveUser = await fetch(`/api/firebase/users/${user!.uid}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -427,25 +500,28 @@ export default function OnboardingPage() {
         },
         body: JSON.stringify(userPayload),
       });
+      if (!saveUser.ok)
+        throw new Error(
+          `No se pudo actualizar el usuario (${saveUser.status})`
+        );
 
       toast.success("🎉 Onboarding completado. Tu voz está lista.");
       router.push("/dashboard");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Error de conexión al crear la voz");
+      toast.dismiss();
+      toast.error(err?.message || "Error creando la voz");
+    } finally {
+      setCreating(false);
     }
   };
 
-
-
-  /* ----------------- Validaciones ----------------- */
-  const validStep1 = useMemo(() => name.trim().length > 1 && accept, [name, accept]);
-  const validStep2 = useMemo(() => !!videoDoc, [videoDoc]);
-
   const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
   const goNext = () => {
-    if (step === 1 && !validStep1) return toast.error("Completa el nombre y acepta los términos.");
-    if (step === 2 && !validStep2) return toast.error("Sube un vídeo de clonación.");
+    if (step === 1 && !validStep1)
+      return toast.error("Completa el nombre y acepta los términos.");
+    if (step === 2 && !validStep2)
+      return toast.error("Sube un vídeo de clonación.");
     setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
   };
 
@@ -468,7 +544,8 @@ export default function OnboardingPage() {
             <div>
               <h2 className="text-2xl font-semibold mb-2">Tu primer clon</h2>
               <p className="text-sm text-muted-foreground">
-                Ponle nombre y una breve descripción. Acepta los términos para continuar.
+                Ponle nombre y una breve descripción. Acepta los términos para
+                continuar.
               </p>
             </div>
             <div className="space-y-4">
@@ -478,17 +555,38 @@ export default function OnboardingPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Categoría</label>
-                <Input value={category} onChange={(e) => setCategory(e.target.value)} />
+                <Input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Descripción breve</label>
-                <Textarea rows={4} value={shortDesc} onChange={(e) => setShortDesc(e.target.value)} />
+                <Textarea
+                  rows={4}
+                  value={shortDesc}
+                  onChange={(e) => setShortDesc(e.target.value)}
+                />
               </div>
               <div className="flex items-start gap-2 pt-2">
-                <Checkbox id="terms" checked={accept} onCheckedChange={(v) => setAccept(Boolean(v))} />
-                <label htmlFor="terms" className="text-sm text-muted-foreground">
+                <Checkbox
+                  id="terms"
+                  checked={accept}
+                  onCheckedChange={(v) => setAccept(Boolean(v))}
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground"
+                >
                   Acepto los{" "}
-                  <a className="underline" href="/legal/terminos" target="_blank">términos y condiciones</a>.
+                  <a
+                    className="underline"
+                    href="/legal/terminos"
+                    target="_blank"
+                  >
+                    términos y condiciones
+                  </a>
+                  .
                 </label>
               </div>
             </div>
@@ -497,7 +595,9 @@ export default function OnboardingPage() {
 
         {step === 2 && (
           <section className="space-y-5">
-            <h2 className="text-xl font-semibold">Sube tu vídeo de clonación</h2>
+            <h2 className="text-xl font-semibold">
+              Sube tu vídeo de clonación
+            </h2>
 
             {!videoDoc ? (
               <div
@@ -508,15 +608,34 @@ export default function OnboardingPage() {
               >
                 <input {...getInputProps()} />
                 <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
-                <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
-                <p className="text-xs text-muted-foreground">Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16</p>
+                <p className="text-sm font-medium">
+                  Haz clic para subir o arrastra y suelta
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16
+                </p>
               </div>
             ) : (
               <div className="rounded-lg border overflow-hidden">
-                <video src={videoDoc.url} controls className="w-full max-h-96 object-cover" />
+                <div
+                  className="w-full max-w-[480px] mx-auto bg-black"
+                  style={{ aspectRatio: "9 / 16" }}
+                >
+                  <video
+                    src={videoDoc.url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <div className="p-3 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Vídeo listo</span>
-                  <Button variant="outline" size="sm" onClick={removeVideo}>Reemplazar</Button>
+                  <span className="text-sm text-muted-foreground">
+                    Vídeo listo
+                  </span>
+                  <Button variant="outline" size="sm" onClick={removeVideo}>
+                    Reemplazar
+                  </Button>
                 </div>
               </div>
             )}
@@ -534,18 +653,23 @@ export default function OnboardingPage() {
           <section className="space-y-6">
             <h2 className="text-xl font-semibold">Crea tu voz</h2>
             <p className="text-sm text-muted-foreground">
-              Sube muestras o graba directamente • Máx {MAX_TOTAL_SECONDS}s en total • ≤ {MAX_SAMPLE_SECONDS}s por muestra • ≤ {MAX_SAMPLE_MB} MB
+              Sube muestras o graba directamente • Máx {MAX_TOTAL_SECONDS}s en
+              total • ≤ {MAX_SAMPLE_SECONDS}s por muestra • ≤ {MAX_SAMPLE_MB} MB
             </p>
 
             <div
               {...dropzoneAudio.getRootProps()}
               className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                dropzoneAudio.isDragActive ? "border-primary bg-muted/40" : "border-border"
+                dropzoneAudio.isDragActive
+                  ? "border-primary bg-muted/40"
+                  : "border-border"
               }`}
             >
               <input {...dropzoneAudio.getInputProps()} />
               <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
-              <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
+              <p className="text-sm font-medium">
+                Haz clic para subir o arrastra y suelta
+              </p>
               <span className="mt-2 text-xs text-muted-foreground">o</span>
               <button
                 onClick={(e) => {
@@ -559,19 +683,32 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Progress value={Math.min(100, (totalDuration / MAX_TOTAL_SECONDS) * 100)} className="flex-1" />
-              <span className="text-sm font-medium">{Math.round(totalDuration)} / {MAX_TOTAL_SECONDS}s</span>
+              <Progress
+                value={Math.min(100, (totalDuration / MAX_TOTAL_SECONDS) * 100)}
+                className="flex-1"
+              />
+              <span className="text-sm font-medium">
+                {Math.round(totalDuration)} / {MAX_TOTAL_SECONDS}s
+              </span>
             </div>
 
             {samples.length > 0 && (
               <div className="grid gap-3">
                 {samples.map((s) => (
-                  <div key={s.storagePath} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div
+                    key={s.storagePath}
+                    className="flex items-center gap-3 rounded-lg border p-3"
+                  >
                     <audio controls src={s.url} className="h-8" />
                     <span className="text-xs text-muted-foreground">
                       {s.name} — {Math.round(s.duration)}s
                     </span>
-                    <Button variant="ghost" size="icon" className="ml-auto" onClick={() => removeSample(s.storagePath)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto"
+                      onClick={() => removeSample(s.storagePath)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -579,19 +716,22 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            <div className="flex justify-end">
-              <Button
-                onClick={createVoice}
-                disabled={
-                  samples.length === 0 ||
-                  totalDuration === 0 ||
-                  totalDuration > MAX_TOTAL_SECONDS ||
-                  !videoDoc ||
-                  !validStep1
-                }
-              >
-                Crear voz y finalizar
+            <div className="flex flex-col items-end gap-2">
+              <Button onClick={createVoice} disabled={!canCreate || creating}>
+                {creating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creando voz…
+                  </>
+                ) : (
+                  "Crear voz y finalizar"
+                )}
               </Button>
+              {!creating && !canCreate && createDisabledReason && (
+                <p className="text-xs text-muted-foreground">
+                  {createDisabledReason}
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -606,7 +746,7 @@ export default function OnboardingPage() {
               Siguiente <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <div></div>
+            <div />
           )}
         </div>
       </Card>
@@ -620,7 +760,12 @@ function StepDot({
   done,
   idx,
   label,
-}: { active: boolean; done: boolean; idx: number; label: string }) {
+}: {
+  active: boolean;
+  done: boolean;
+  idx: number;
+  label: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div
@@ -635,7 +780,12 @@ function StepDot({
       >
         {done ? <Check className="h-4 w-4" /> : idx}
       </div>
-      <span className={["text-sm", active ? "font-semibold" : "text-muted-foreground"].join(" ")}>
+      <span
+        className={[
+          "text-sm",
+          active ? "font-semibold" : "text-muted-foreground",
+        ].join(" ")}
+      >
         {label}
       </span>
     </div>
