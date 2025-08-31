@@ -10,12 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
+import { CalendarFold, ScrollText, Clapperboard } from "lucide-react";
 import { es as dfnsEs, enUS as dfnsEn, fr as dfnsFr } from "date-fns/locale";
 import {
   collection,
   getDocs,
   type Timestamp,
   type CollectionReference,
+  query as fsQuery,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import { useT } from "@/lib/i18n";
 import { Locale, useLocale } from "next-intl";
@@ -44,18 +48,21 @@ type GuionDoc = {
   titulo?: string;
   contenido?: string;
   estado?: number;
-  creadoEn?: string;
+  creadoEn?: any;
+  createdAt?: any;
+  updatedAt?: any;
   lang?: Locale;
   notas?: string;
 };
-
 type Guion = GuionDoc & { id: string };
 
 type VideoDoc = {
   titulo?: string;
   url?: string;
   estado?: number | string;
-  creadoEn?: string;
+  creadoEn?: any;
+  createdAt?: any;
+  updatedAt?: any;
 };
 type Video = VideoDoc & { id: string };
 
@@ -81,11 +88,7 @@ interface DashboardStats {
     plan: string;
     renovacion: string;
   };
-  guiones: {
-    nuevos: number;
-    cambios: number;
-    aprobados: number;
-  };
+  guiones: { nuevos: number; cambios: number; aprobados: number };
   videos: number;
 }
 
@@ -104,6 +107,22 @@ function formatDateToISO(date: Date) {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+function asMillis(v: any): number {
+  if (!v) return 0;
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Date.parse(v);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  if (typeof v === "object") {
+    if (typeof v.seconds === "number") return v.seconds * 1000;
+    if (typeof v.toDate === "function") return v.toDate().getTime();
+  }
+  return 0;
+}
+function bestTime(d: { updatedAt?: any; creadoEn?: any; createdAt?: any }) {
+  return asMillis(d.updatedAt ?? d.creadoEn ?? d.createdAt);
+}
 
 // -------- Component --------
 export default function DashboardPage() {
@@ -117,6 +136,7 @@ export default function DashboardPage() {
   const langLabel = (locale || "es").toUpperCase();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
+
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Date | undefined>();
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -160,26 +180,63 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // 🔥 Último guion directo desde Firestore (con fallbacks de ordenación)
   const fetchUltimoGuion = useCallback(
     async (uid: string) => {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-        const res = await fetch(`/api/firebase/users/${uid}/scripts?limit=1&order=desc`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
+
+        const res = await fetch(
+          `/api/firebase/users/${uid}/scripts?limit=1&order=desc`,
+          { headers: { Authorization: `Bearer ${idToken}` } }
+        );
         if (!res.ok) throw new Error("Error al cargar guiones");
-        const docs: Guion[] = await res.json();
-        const useDoc = docs[0];
-        if (useDoc) {
-          setUltimoGuion({
-            id: useDoc.id,
-            titulo: useDoc.titulo ?? t("scripts.untitled"),
-            contenido: useDoc.contenido ?? "",
-            estado: useDoc.estado ?? 0,
-            createdAt: useDoc.creadoEn,
-          });
-        }
+
+        type GuionApi = {
+          id: string;
+          // posibles nombres de campos según el origen
+          title?: string; // inglés
+          titulo?: string; // español
+          description?: string; // usado como título en tu colección
+          content?: string;
+          contenido?: string;
+          script?: string; // contenido largo
+          status?: number | string;
+          estado?: number | string;
+          createdAt?: number | string;
+          creadoEn?: number | string;
+        };
+
+        const docs: GuionApi[] = await res.json();
+        const d = docs[0];
+        if (!d) return;
+
+        const titulo =
+          d.titulo ?? d.title ?? d.description ?? t("scripts.untitled");
+
+        const contenido =
+          d.contenido ?? d.script ?? d.content ?? d.description ?? "";
+
+        const estadoRaw = d.estado ?? d.status ?? 0;
+        const estado =
+          typeof estadoRaw === "string"
+            ? ["new", "nuevo"].includes(estadoRaw)
+              ? 0
+              : ["changes", "cambios"].includes(estadoRaw)
+              ? 1
+              : ["approved", "aprobado", "aprobada"].includes(estadoRaw)
+              ? 2
+              : 0
+            : Number(estadoRaw);
+
+        setUltimoGuion({
+          id: d.id,
+          titulo,
+          contenido,
+          estado,
+          createdAt: String(d.creadoEn ?? d.createdAt ?? ""),
+        });
       } catch (e) {
         console.error("Error cargando último guion:", e);
       }
@@ -187,26 +244,49 @@ export default function DashboardPage() {
     [t]
   );
 
+  // Puedes dejar este con tu API si te va bien; aquí no toco nada más.
   const fetchUltimoVideo = useCallback(
     async (uid: string) => {
       try {
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) return;
-        const res = await fetch(`/api/firebase/users/${uid}/videos?limit=1&order=desc`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
+
+        // pedimos el último por createdAt desc
+        const res = await fetch(
+          `/api/firebase/users/${uid}/videos?limit=1&order=desc`,
+          { headers: { Authorization: `Bearer ${idToken}` } }
+        );
         if (!res.ok) throw new Error("Error al cargar videos");
-        const docs: Video[] = await res.json();
-        const useDoc = docs[0];
-        if (useDoc) {
-          setUltimoVideo({
-            id: useDoc.id,
-            titulo: useDoc.titulo ?? t("videos.untitled"),
-            url: useDoc.url ?? "",
-            estado: Number(useDoc.estado ?? 0),
-            createdAt: useDoc.creadoEn,
-          });
-        }
+
+        const docs = await res.json();
+        const useDoc = docs?.[0];
+        if (!useDoc) return;
+
+        // Normalización para FIRESTORE (title, videoUrl, status) y otros formatos
+        const titulo = useDoc.titulo ?? useDoc.title ?? t("videos.untitled");
+
+        const url = useDoc.url ?? useDoc.videoUrl ?? "";
+
+        // status puede venir como string: "processing", "approved", etc.
+        const statusRaw = (useDoc.estado ?? useDoc.status ?? "processing") as
+          | string
+          | number;
+        const estado =
+          typeof statusRaw === "number"
+            ? statusRaw
+            : statusRaw === "approved"
+            ? 2
+            : statusRaw === "changes" || statusRaw === "requires_changes"
+            ? 1
+            : 0; // processing / pending -> 0
+
+        setUltimoVideo({
+          id: useDoc.id,
+          titulo,
+          url,
+          estado,
+          createdAt: useDoc.creadoEn ?? useDoc.createdAt,
+        });
       } catch (e) {
         console.error("Error cargando último video:", e);
       }
@@ -221,18 +301,23 @@ export default function DashboardPage() {
       const [resGuiones, resVideos] = await Promise.all([
         fetch(`/api/firebase/users/${uid}/scripts`, {
           headers: { Authorization: `Bearer ${idToken}` },
+          cache: "no-store",
         }),
         fetch(`/api/firebase/users/${uid}/videos`, {
           headers: { Authorization: `Bearer ${idToken}` },
+          cache: "no-store",
         }),
       ]);
-      if (!resGuiones.ok || !resVideos.ok) throw new Error("Error cargando stats");
+      if (!resGuiones.ok || !resVideos.ok)
+        throw new Error("Error cargando stats");
       const guiones: Guion[] = await resGuiones.json();
       const videos: Video[] = await resVideos.json();
 
-      let nuevos = 0, cambios = 0, aprobados = 0;
+      let nuevos = 0,
+        cambios = 0,
+        aprobados = 0;
       guiones.forEach((g) => {
-        const estado = g.estado ?? 0;
+        const estado = Number(g.estado ?? 0);
         if (estado === 0) nuevos++;
         else if (estado === 1) cambios++;
         else if (estado === 2) aprobados++;
@@ -265,7 +350,9 @@ export default function DashboardPage() {
                 status: (data.status ?? "no_active") as SubscriptionStatus,
                 plan: data.plan ?? t("dashboard.subscription.unknownPlan"),
                 renovacion: data.current_period_end
-                  ? new Date(data.current_period_end * 1000).toLocaleDateString(displayLocale)
+                  ? new Date(data.current_period_end * 1000).toLocaleDateString(
+                      displayLocale
+                    )
                   : t("dashboard.subscription.unknownRenewal"),
               },
             }));
@@ -285,7 +372,14 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [fetchEventos, fetchUltimoGuion, fetchUltimoVideo, fetchStats, t, displayLocale]
+    [
+      fetchEventos,
+      fetchUltimoGuion,
+      fetchUltimoVideo,
+      fetchStats,
+      t,
+      displayLocale,
+    ]
   );
 
   // --- Auth listener ---
@@ -317,7 +411,8 @@ export default function DashboardPage() {
       eventosPorDia[k].cantidad += 1;
       const estados: (Estado | null)[] = [eventosPorDia[k].estado, ev.estado];
       if (estados.includes("por_hacer")) eventosPorDia[k].estado = "por_hacer";
-      else if (estados.includes("en_proceso")) eventosPorDia[k].estado = "en_proceso";
+      else if (estados.includes("en_proceso"))
+        eventosPorDia[k].estado = "en_proceso";
       else eventosPorDia[k].estado = "completado";
     }
   });
@@ -341,22 +436,28 @@ export default function DashboardPage() {
     if (estado === 0)
       return <Badge className="bg-red-500 text-white">{t("status.new")}</Badge>;
     if (estado === 1)
-      return <Badge className="bg-yellow-400 text-black">{t("status.changes")}</Badge>;
+      return (
+        <Badge className="bg-yellow-400 text-black">
+          {t("status.changes")}
+        </Badge>
+      );
     if (estado === 2)
-      return <Badge className="bg-green-500 text-white">{t("status.approved")}</Badge>;
+      return (
+        <Badge className="bg-green-500 text-white">
+          {t("status.approved")}
+        </Badge>
+      );
     return <Badge variant="secondary">{t("common.unknown")}</Badge>;
   };
 
-  // -------- Spinner --------
   const SpinnerEllipsis = () => (
     <div className="flex justify-center items-center gap-1">
-      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+      <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.3s]" />
+      <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.15s]" />
+      <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" />
     </div>
   );
 
-  // -------- Render --------
   if (loading) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -368,7 +469,6 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* estilos para calendar */}
       <style>{`
         .event-day-por-hacer { background-color: #fee2e2 !important; border-radius: 0.375rem !important; }
         .event-day-en-proceso { background-color: #ffedd5 !important; border-radius: 0.375rem !important; }
@@ -388,9 +488,14 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           {/* Calendario */}
           <Card className="p-3 lg:p-4">
-            <h2 className="font-semibold text-base lg:text-lg mb-3">
-              📅 {t("dashboard.calendar.title")}
+            <h2 className="font-semibold text-base lg:text-lg mb-3 flex items-center gap-2">
+              <CalendarFold
+                className="size-5 text-muted-foreground"
+                aria-hidden
+              />
+              <span>{t("dashboard.calendar.title")}</span>
             </h2>
+
             <div className="space-y-3 lg:space-y-4">
               <DayPicker
                 mode="single"
@@ -464,9 +569,14 @@ export default function DashboardPage() {
 
           {/* Último Guion */}
           <Card className="p-3 lg:p-4">
-            <h2 className="font-semibold text-base lg:text-lg mb-3">
-              📜 {t("dashboard.latestScript.title")}
+            <h2 className="font-semibold text-base lg:text-lg mb-3 flex items-center gap-2">
+              <ScrollText
+                className="size-5 text-muted-foreground"
+                aria-hidden
+              />
+              <span>{t("dashboard.latestScript.title")}</span>
             </h2>
+
             <div className="space-y-3 lg:space-y-4">
               {ultimoGuion ? (
                 <>
@@ -477,13 +587,12 @@ export default function DashboardPage() {
                     <div className="mb-3">
                       {getEstadoBadge(ultimoGuion.estado)}
                     </div>
-                    <p className="text-sm text-gray-600 line-clamp-3 mb-4">
-                      {ultimoGuion.contenido.substring(0, 150)}
-                      {ultimoGuion.contenido.length > 150 ? "..." : ""}
+                    <p className="text-sm text-gray-600 line-clamp-5 mb-4">
+                      {ultimoGuion.contenido || "—"}
                     </p>
                   </div>
                   <Button
-                    onClick={() => router.push("/dashboard/scripts")}
+                    onClick={() => router.push("/dashboard/script")}
                     className="w-full"
                     variant="outline"
                   >
@@ -499,7 +608,7 @@ export default function DashboardPage() {
                     {t("dashboard.latestScript.emptySubtitle")}
                   </p>
                   <Button
-                    onClick={() => router.push("/dashboard/scripts")}
+                    onClick={() => router.push("/dashboard/script")}
                     className="w-full"
                     variant="outline"
                   >
@@ -512,9 +621,14 @@ export default function DashboardPage() {
 
           {/* Último Video */}
           <Card className="p-3 lg:p-4">
-            <h2 className="font-semibold text-base lg:text-lg mb-3">
-              🎬 {t("dashboard.latestVideo.title")}
+            <h2 className="font-semibold text-base lg:text-lg mb-3 flex items-center gap-2">
+              <Clapperboard
+                className="size-5 text-muted-foreground"
+                aria-hidden
+              />
+              <span>{t("dashboard.latestVideo.title")}</span>
             </h2>
+
             <div className="space-y-3 lg:space-y-4">
               {ultimoVideo ? (
                 <>
@@ -537,7 +651,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <Button
-                    onClick={() => router.push("/dashboard/videos")}
+                    onClick={() => router.push("/dashboard/edit")}
                     className="w-full"
                     variant="outline"
                   >
