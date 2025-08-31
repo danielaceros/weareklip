@@ -82,7 +82,7 @@ export function useUserPanel() {
     }
 
     const id = crypto.randomUUID();
-    const storagePath = `users/${user.uid}/clonacion/${id}`;
+    const storagePath = `users/${user.uid}/clones/${id}`;
 
     try {
       setUploading(true);
@@ -111,7 +111,7 @@ export function useUserPanel() {
 
       // 3) Persistir en tu API (CRUD)
       const token = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/clonacion`, {
+      const res = await fetch(`/api/firebase/users/${user.uid}/clones`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -147,7 +147,7 @@ export function useUserPanel() {
 
       // 1) Eliminar doc via API
       const res = await fetch(
-        `/api/firebase/users/${user.uid}/clonacion/${videoId}`,
+        `/api/firebase/users/${user.uid}/clones/${videoId}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },

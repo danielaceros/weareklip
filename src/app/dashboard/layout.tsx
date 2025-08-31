@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Sidebar aria-label="Menú lateral del dashboard" />
 
       <div className="flex flex-1 flex-col relative bg-muted">
-        <PaywallClickGuard />
+        <PaywallClickGuard>
         <Topbar />
 
         <main className="flex-1 max-w-9xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
@@ -41,6 +41,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </main>
 
         <DashboardTour />
+        </PaywallClickGuard>
       </div>
 
       <CreateReelGlobalButton />

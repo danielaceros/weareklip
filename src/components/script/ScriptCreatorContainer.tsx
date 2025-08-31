@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
+import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
+
 export default function ScriptCreatorContainer() {
   const [user, setUser] = useState<User | null>(null);
 
@@ -46,6 +49,9 @@ export default function ScriptCreatorContainer() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
+  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal
+
   // 🔑 Autenticación
   useEffect(() => {
     const auth = getAuth();
@@ -54,6 +60,12 @@ export default function ScriptCreatorContainer() {
 
   // 🚀 Generar script
   const handleGenerate = useCallback(async () => {
+    const ok = await ensureSubscribed({ feature: "script" }); // 👈 check
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("Por favor, completa todos los campos obligatorios.");
       return;
@@ -89,7 +101,6 @@ export default function ScriptCreatorContainer() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando guion");
 
-      // 👇 asegura render inmediato antes de abrir modal
       flushSync(() => {
         setScript(data.script || "");
         setShowModal(true);
@@ -112,10 +123,17 @@ export default function ScriptCreatorContainer() {
     addCTA,
     ctaText,
     user,
+    ensureSubscribed,
   ]);
 
   // 🔄 Regenerar script
   const regenerateScript = useCallback(async () => {
+    const ok = await ensureSubscribed({ feature: "script" }); // 👈 check
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
     if (scriptRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el guion 2 veces.");
       return;
@@ -167,6 +185,7 @@ export default function ScriptCreatorContainer() {
     structure,
     addCTA,
     ctaText,
+    ensureSubscribed,
   ]);
 
   // 💾 Aceptar y guardar script
@@ -376,6 +395,14 @@ export default function ScriptCreatorContainer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal checkout */}
+      <CheckoutRedirectModal
+                        open={showCheckout}
+                        onClose={() => setShowCheckout(false)}
+                        plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
+                        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+                      />
     </>
   );
 }

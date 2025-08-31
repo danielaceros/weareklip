@@ -1,37 +1,42 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useRouter, usePathname } from "next/navigation";
 
-/**
- * Intercepta clicks sobre cualquier elemento que tenga el atributo
- * data-paywall (opcionalmente data-paywall-feature="...").
- * Si el usuario no tiene suscripción: cancela el click y redirige a facturación.
- */
-export default function PaywallClickGuard() {
+export default function DashboardPaywallGuard({ children }: { children: React.ReactNode }) {
   const { ensureSubscribed } = useSubscriptionGate();
+  const [showCheckout, setShowCheckout] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const handler = async (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
+    // 👉 Solo aplicar si está en /dashboard/xxx (no exactamente /dashboard)
+    if (pathname && pathname.startsWith("/dashboard/")) {
+      (async () => {
+        const allowed = await ensureSubscribed({ feature: "dashboard", plan: "ACCESS" });
+        if (!allowed) {
+          setShowCheckout(true);
+        }
+      })();
+    }
+  }, [ensureSubscribed, pathname]);
 
-      const el = target.closest<HTMLElement>("[data-paywall]");
-      if (!el) return;
+  const handleClose = () => {
+    setShowCheckout(false);
+    router.replace("/dashboard"); // 👈 vuelve al root del dashboard
+  };
 
-      const feature = el.getAttribute("data-paywall-feature") || undefined;
-
-      const allowed = await ensureSubscribed({ feature });
-      if (!allowed) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    // en fase de captura para pillar clicks en cualquier botón/enlace
-    document.addEventListener("click", handler, true);
-    return () => document.removeEventListener("click", handler, true);
-  }, [ensureSubscribed]);
-
-  return null;
+  return (
+    <>
+      {children}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={handleClose}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para continuar."
+      />
+    </>
+  );
 }

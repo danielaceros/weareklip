@@ -29,6 +29,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 // 👇 Importar el helper de Analytics
 import { track } from "@/lib/analytics-events";
@@ -74,6 +75,7 @@ export default function CreatePipelineVideoPage({
   const [templates, setTemplates] = useState<string[]>([]);
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   // estados del botón
   const [processing, setProcessing] = useState(false);
@@ -116,10 +118,11 @@ export default function CreatePipelineVideoPage({
     flushSync(() => setProcessing(true));
 
     const ok = await ensureSubscribed({ feature: "reel" });
-    if (!ok) {
-      setProcessing(false);
-      return;
-    }
+      if (!ok) {
+        setProcessing(false);
+        setShowCheckout(true); // 👈 abre el modal
+        return;
+      }
 
     const user = auth.currentUser;
     if (!user) {
@@ -426,6 +429,12 @@ export default function CreatePipelineVideoPage({
         {buttonText}
       </Button>
     </div>
+    <CheckoutRedirectModal
+            open={showCheckout}
+            onClose={() => setShowCheckout(false)}
+            plan="ACCESS"
+            message="Necesitas una suscripción activa para generar audios."
+          />
   </div>
 );
 }

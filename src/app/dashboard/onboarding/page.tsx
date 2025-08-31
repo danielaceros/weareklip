@@ -4,13 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,13 +19,11 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Mic,
-  VolumeX,
-  CheckCircle2,
   Trash2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 /* ----------------- Constantes de límites ----------------- */
 const MAX_VIDEO_MB = 100;
@@ -60,7 +52,7 @@ async function getAudioDurationSafe(url: string): Promise<number> {
         cleanup();
         resolve(audio.duration);
       } else {
-        audio.currentTime = Number.MAX_SAFE_INTEGER; // forza calcular
+        audio.currentTime = Number.MAX_SAFE_INTEGER;
       }
     };
 
@@ -90,6 +82,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   // Paso 1
   const [name, setName] = useState("");
@@ -111,26 +104,46 @@ export default function OnboardingPage() {
 
   const { ensureSubscribed } = useSubscriptionGate();
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+   useEffect(() => {
+    let initialized = false;
+
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!initialized) {
+        initialized = true;
+      }
       setUser(u);
       if (!u) {
         toast.error("Debes iniciar sesión.");
         router.replace("/login");
+        return;
+      }
+      // 👉 Verificar subscripción al entrar
+      try {
+        const ok = await ensureSubscribed({ feature: "clone"});
+        console.log("Subscripción ok:", ok);
+        if (!ok) {
+          setShowCheckout(true);
+        }
+      } catch (err) {
+        console.error("Error al verificar subscripción:", err);
       }
     });
+
     return () => unsub();
-  }, [router]);
+  }, [router, ensureSubscribed]);
+
+
 
   /* ----------------- Paso 2 ----------------- */
   const handleVideoUpload = async (file: File) => {
+    
     if (!user) return;
 
     if (!file.type.startsWith("video/")) return toast.error("El archivo debe ser un vídeo");
     if (bytesToMB(file.size) > MAX_VIDEO_MB) return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
 
     const id = uuidv4();
-    const storagePath = `users/${user.uid}/clonacion/${id}`;
+    const storagePath = `users/${user.uid}/clones/${id}`;
     const storageRef = ref(storage, storagePath);
 
     setUploadingVideo(true);
@@ -152,7 +165,7 @@ export default function OnboardingPage() {
         const url = await getDownloadURL(task.snapshot.ref);
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) throw new Error("No autenticado");
-        const res = await fetch(`/api/firebase/users/${user.uid}/clonacion/${id}`, {
+        const res = await fetch(`/api/firebase/users/${user.uid}/clones/${id}`, {
           method: "PUT", // porque actualizas/creas un documento con ID conocido
           headers: {
             "Content-Type": "application/json",
@@ -206,6 +219,7 @@ export default function OnboardingPage() {
 
   /* ----------------- Paso 3 ----------------- */
   const uploadSample = async (file: File) => {
+
     if (!user) return;
 
     if (!(file.type.startsWith("audio/") || file.type.startsWith("video/"))) {
@@ -354,7 +368,12 @@ export default function OnboardingPage() {
     }
 
     const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
-    if (!ok) return;
+    console.log(ok)
+      if (!ok) {
+        setShowCheckout(true); // 👈 abre el modal
+        return;
+      }
+
 
     try {
       const idToken = await user.getIdToken(true);
@@ -443,7 +462,12 @@ export default function OnboardingPage() {
   const validStep2 = useMemo(() => !!videoDoc, [videoDoc]);
 
   const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
-  const goNext = () => {
+  const goNext = async () => {
+    const ok = await ensureSubscribed();
+      if (!ok) {
+        setShowCheckout(true); // 👈 abre el modal
+        return;
+      }
     if (step === 1 && !validStep1) return toast.error("Completa el nombre y acepta los términos.");
     if (step === 2 && !validStep2) return toast.error("Sube un vídeo de clonación.");
     setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
@@ -610,6 +634,13 @@ export default function OnboardingPage() {
           )}
         </div>
       </Card>
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS" // 👈 aquí eliges el plan por defecto
+        message="Para clonar tu voz necesitas activar una suscripción."
+      />
+
     </div>
   );
 }

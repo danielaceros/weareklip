@@ -29,6 +29,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 /* ---------- utilidades ---------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -85,6 +86,7 @@ export default function CreateVideoPage({
   // estados del botón
   const [processing, setProcessing] = useState(false); // inmediato
   const [submitting, setSubmitting] = useState(false); // API real
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const { ensureSubscribed } = useSubscriptionGate();
 
@@ -133,8 +135,10 @@ export default function CreateVideoPage({
     const ok = await ensureSubscribed({ feature: "submagic" });
     if (!ok) {
       setProcessing(false);
+      setShowCheckout(true); // 👈 abre el modal
       return;
     }
+
 
     const user = auth.currentUser;
     if (!user) {
@@ -501,6 +505,12 @@ export default function CreateVideoPage({
             {buttonText}
           </Button>
         </div>
+        <CheckoutRedirectModal
+                    open={showCheckout}
+                    onClose={() => setShowCheckout(false)}
+                    plan="ACCESS"
+                    message="Necesitas una suscripción activa para generar audios."
+                  />
       </div>
   );
 }

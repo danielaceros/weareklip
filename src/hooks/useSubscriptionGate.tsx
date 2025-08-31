@@ -3,8 +3,6 @@
 import { useCallback, useRef, useState } from "react";
 import { auth } from "@/lib/firebase";
 import { getIdToken } from "firebase/auth";
-import EmbeddedCheckoutModal from "@/components/user/EmbeddedCheckoutModal";
-import RenewModal from "@/components/billing/RenewModal";
 
 type Verdict = "active" | "trialing" | "none" | "unknown" | "canceled" | "unpaid";
 
@@ -18,15 +16,23 @@ type SummaryResponse = {
   payment?: {
     hasDefaultPayment: boolean;
   };
-  overdueCents?: number;  // 👈 nuevo
+  overdueCents?: number;
 };
 
 export default function useSubscriptionGate() {
-  const [showEmbed, setShowEmbed] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [showRenew, setShowRenew] = useState(false);
   const [blockedFeature, setBlockedFeature] = useState<string | null>(null);
+  const [forcedPlan, setForcedPlan] = useState<
+    "ACCESS" | "MID" | "CREATOR" | "BUSINESS" | null
+  >(null);
+  const [message, setMessage] = useState<string | undefined>(undefined);
 
-  const cacheRef = useRef<{ verdict: Verdict; ts: number; hasPayment: boolean }>({
+  const cacheRef = useRef<{
+    verdict: Verdict;
+    ts: number;
+    hasPayment: boolean;
+  }>({
     verdict: "unknown",
     ts: 0,
     hasPayment: false,
@@ -34,8 +40,13 @@ export default function useSubscriptionGate() {
 
   const readVerdict = useCallback(async (): Promise<{ verdict: Verdict; hasPayment: boolean }> => {
     const now = Date.now();
+
+    // cache: 15 segundos
     if (now - cacheRef.current.ts < 15000 && cacheRef.current.verdict !== "unknown") {
-      return { verdict: cacheRef.current.verdict, hasPayment: cacheRef.current.hasPayment };
+      return {
+        verdict: cacheRef.current.verdict,
+        hasPayment: cacheRef.current.hasPayment,
+      };
     }
 
     const user = auth.currentUser;
@@ -50,47 +61,63 @@ export default function useSubscriptionGate() {
 
       let verdict: Verdict = "none";
 
-      // 🚨 Bloqueamos si hay deuda
+      // 1. pagos pendientes
       if ((data.overdueCents ?? 0) > 0) {
         verdict = "unpaid";
-      } else if (!data?.subscription?.status) {
-        verdict = "none";
-      } else if (data.subscription.cancelAtPeriodEnd === true) {
+      }
+      // 2. cancelado al final del periodo
+      else if (data.subscription?.cancelAtPeriodEnd) {
         verdict = "canceled";
-      } else if (data.subscription.status === "active") {
-        verdict = "active";
-      } else if (data.subscription.status === "trialing") {
+      }
+      // 3. trial explícito
+      else if (data.subscription?.trialing) {
         verdict = "trialing";
-      } else if (
-        data.subscription.status === "canceled" ||
-        data.subscription.status === "incomplete_expired"
+      }
+      // 4. activo
+      else if (data.subscription?.active) {
+        verdict = "active";
+      }
+      // 5. estados cancelados explícitos
+      else if (
+        data.subscription?.status === "canceled" ||
+        data.subscription?.status === "incomplete_expired"
       ) {
         verdict = "canceled";
       }
+      // 6. sin sub
+      else {
+        verdict = "none";
+      }
+
 
       const hasPayment = data?.payment?.hasDefaultPayment === true;
-
       cacheRef.current = { verdict, ts: now, hasPayment };
+
       return { verdict, hasPayment };
-    } catch {
+    } catch (err) {
+      console.error("❌ error en readVerdict:", err);
       return { verdict: "none", hasPayment: false };
     }
   }, []);
 
   const ensureSubscribed = useCallback(
-    async (opts?: { feature?: string }) => {
+    async (opts?: {
+      feature?: string;
+      plan?: "ACCESS" | "MID" | "CREATOR" | "BUSINESS";
+    }) => {
       const { verdict, hasPayment } = await readVerdict();
+
       if (verdict === "active" || verdict === "trialing") return true;
 
       if (opts?.feature) setBlockedFeature(opts.feature);
 
       if (verdict === "none") {
-        setShowEmbed(true);
-      } else if (verdict === "canceled") {
-        if (hasPayment) setShowRenew(true);
-        else setShowEmbed(true);
-      } else if (verdict === "unpaid") {
-        // 👈 deuda → forzamos renovación/pago
+        // 👉 Mostrar checkout redirect (puede llevar trial)
+        setForcedPlan(opts?.plan ?? "ACCESS");
+        setMessage("Necesitas una suscripción para usar esta función.");
+        setShowCheckout(true);
+      } else if (verdict === "canceled" || verdict === "unpaid") {
+        // 👉 Si ya tuvo subs pero la canceló o está impaga
         setShowRenew(true);
       }
 
@@ -103,25 +130,5 @@ export default function useSubscriptionGate() {
     cacheRef.current = { verdict: "unknown", ts: 0, hasPayment: false };
   }, []);
 
-  const Modals = () => {
-    const user = auth.currentUser;
-    if (!user) return null;
-
-    return (
-      <>
-        <EmbeddedCheckoutModal
-          open={showEmbed}
-          onClose={() => setShowEmbed(false)}
-          uid={user.uid}
-        />
-        <RenewModal
-          open={showRenew}
-          onClose={() => setShowRenew(false)}
-          uid={user.uid}
-        />
-      </>
-    );
-  };
-
-  return { ensureSubscribed, invalidateSubscription, Modals };
+  return { ensureSubscribed, invalidateSubscription };
 }

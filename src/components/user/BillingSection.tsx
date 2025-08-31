@@ -6,7 +6,7 @@ import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import EmbeddedCheckoutModal from "@/components/user/EmbeddedCheckoutModal";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import {
   Table,
   TableBody,
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { startOfWeek, endOfWeek } from "date-fns";
+import { toast } from "sonner";
 
 /* ========= Tipos ========= */
 
@@ -149,9 +150,23 @@ export default function BillingSection() {
             headers: { Authorization: `Bearer ${idToken}` },
             signal: ctrl.signal,
           }),
-          fetch(`/api/stripe/email?email=${encodeURIComponent(user.email!)}`, {
-            signal: ctrl.signal,
-          }),
+          // 🔹 Ahora usamos stripeCustomerId en vez de email
+          (async () => {
+            const docResp = await fetch(`/api/firebase/users/${user.uid}`, {
+              headers: { Authorization: `Bearer ${idToken}` },
+              signal: ctrl.signal,
+            });
+            if (!docResp.ok) return null;
+            const doc = await docResp.json();
+            if (!doc?.stripeCustomerId) return null;
+
+            return fetch(
+              `/api/stripe/customer?customerId=${encodeURIComponent(
+                doc.stripeCustomerId
+              )}`,
+              { signal: ctrl.signal }
+            );
+          })(),
           fetch("/api/billing/summary", {
             headers: { Authorization: `Bearer ${idToken}` },
             signal: ctrl.signal,
@@ -160,13 +175,17 @@ export default function BillingSection() {
 
         if (!active) return;
 
-        if (userRes.status === "fulfilled" && userRes.value.ok) {
+        if (userRes.status === "fulfilled" && userRes.value?.ok) {
           setDocData(await userRes.value.json());
         }
-        if (stripeRes.status === "fulfilled" && stripeRes.value.ok) {
+        if (
+          stripeRes.status === "fulfilled" &&
+          stripeRes.value &&
+          stripeRes.value.ok
+        ) {
           setStripeData(await stripeRes.value.json());
         }
-        if (summaryRes.status === "fulfilled" && summaryRes.value.ok) {
+        if (summaryRes.status === "fulfilled" && summaryRes.value?.ok) {
           setSummary(await summaryRes.value.json());
         }
       } catch (err) {
@@ -236,7 +255,7 @@ export default function BillingSection() {
           ? new Date(stripeData.trial_start)
           : null,
         trial_end: stripeData.trial_end
-          ? new Date(stripeData.trial_end * 1000)
+          ? new Date(stripeData.trial_end)
           : null,
         cancel_at_period_end: !!stripeData.cancel_at_period_end,
         start_date: stripeData.start_date
@@ -254,7 +273,6 @@ export default function BillingSection() {
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       const d = tsToDate(t.createdAt);
-
       if (!d) return false;
 
       if (filterRange === "week") {
@@ -349,14 +367,28 @@ export default function BillingSection() {
                     Empezar prueba GRATUITA
                   </Button>
                 ) : (
-                  <Button variant="secondary" className="w-full" asChild>
-                    <a
-                      href={process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Gestionar suscripción
-                    </a>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={async () => {
+                      toast.loading("Abriendo tu portal de Cliente");
+                      const user = getAuth().currentUser;
+                      if (!user) return alert("Debes iniciar sesión");
+                      const idToken = await user.getIdToken();
+
+                      const res = await fetch("/api/stripe/portal", {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${idToken}` },
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        window.location.href = data.url;
+                      } else {
+                        alert(data.error || "Error abriendo el portal");
+                      }
+                    }}
+                  >
+                    Gestionar suscripción
                   </Button>
                 )}
               </div>
@@ -463,14 +495,12 @@ export default function BillingSection() {
         </div>
       </div>
 
-      {/* Modal Stripe Embedded */}
-      {user?.email && (
-        <EmbeddedCheckoutModal
-          open={openCheckout}
-          uid={user.uid}
-          onClose={() => setOpenCheckout(false)}
-        />
-      )}
+      {/* Modal Stripe Checkout */}
+      <CheckoutRedirectModal
+        open={openCheckout}
+        onClose={() => setOpenCheckout(false)}
+        plan="ACCESS" // 👈 aquí fijas el plan o lo determinas dinámicamente
+      />
     </section>
   );
 }
