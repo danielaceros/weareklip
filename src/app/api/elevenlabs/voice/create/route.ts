@@ -62,15 +62,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Bucket Admin (usa env si está, pero corrige dominio si viene mal)
-    const envBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET ?? null);
-    const bucket = admin.storage().bucket(envBucket);
+    const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
 
     const form = new FormData();
     form.set("name", voiceName);
 
     for (const p of paths) {
-      const gcsFile = bucket.file(p);
+      console.log(bucket)
+      console.log("Bucket:", bucket.name, "Path:", p);
+      const safePath = p.startsWith("/") ? p.slice(1) : p;
+      const gcsFile = bucket.file(safePath);
       const [exists] = await gcsFile.exists();
       if (!exists) {
         return NextResponse.json(
@@ -116,7 +117,8 @@ export async function POST(req: NextRequest) {
         ...encoder.headers, // boundary correcto
       },
       body: Readable.from(encoder) as any,
-    });
+      duplex: "half", // 👈 obligatorio en Node >=18 si el body es un stream
+    } as any);
 
     const text = await elRes.text();
     let data: any = null;

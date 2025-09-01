@@ -35,8 +35,9 @@ export default function NewVoiceContainer() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [samples, setSamples] = useState<
-    { name: string; duration: number; url: string }[]
+    { name: string; duration: number; url: string; storagePath: string }[]
   >([]);
+
   const [totalDuration, setTotalDuration] = useState(0);
   const [recording, setRecording] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -64,15 +65,21 @@ export default function NewVoiceContainer() {
   const fetchSamples = useCallback(async () => {
     if (!user) return;
     try {
-      const folderRef = ref(storage, `users/${user.uid}/voice-samples`);
+      const folderRef = ref(storage, `users/${user.uid}/voices`);
       const res = await listAll(folderRef);
       const filesData = await Promise.all(
         res.items.map(async (itemRef) => {
           const url = await getDownloadURL(itemRef);
           const duration = await getAudioDurationFromURL(url);
-          return { name: itemRef.name, duration, url };
+          return {
+            name: itemRef.name,
+            duration,
+            url,
+            storagePath: itemRef.fullPath, 
+          };
         })
       );
+
       const total = filesData.reduce((acc, s) => acc + s.duration, 0);
       setSamples(filesData);
       setTotalDuration(total);
@@ -94,9 +101,10 @@ export default function NewVoiceContainer() {
       }
       const rawExt = file.type.split("/")[1] || "webm";
       const safeExt = rawExt === "x-m4a" ? "m4a" : rawExt;
-      const fileName = `voice-sample-${Date.now()}.${safeExt}`;
+      const fileName = `sample-${Date.now()}.${safeExt}`;
 
-      const storageRef = ref(storage, `users/${user.uid}/voice-samples/${fileName}`);
+      const storagePath = `users/${user.uid}/voices/${fileName}`;
+      const storageRef = ref(storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       toast(`📤 Subiendo ${file.name}...`);
@@ -194,7 +202,7 @@ export default function NewVoiceContainer() {
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
-      await deleteObject(ref(storage, `users/${user.uid}/voice-samples/${sampleName}`));
+      await deleteObject(ref(storage, `users/${user.uid}/voices/${sampleName}`));
       toast("🗑 Muestra eliminada");
       await fetchSamples();
     } catch {
@@ -222,21 +230,7 @@ export default function NewVoiceContainer() {
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      const paths = samples
-        .map((s) => {
-          try {
-            const u = new URL(s.url);
-            const m = u.pathname.match(/\/o\/(.+)$/);
-            const p = m ? decodeURIComponent(m[1]) : "";
-            return p.split("?")[0];
-          } catch {
-            const decoded = decodeURIComponent(s.url);
-            const m = decoded.match(/\/o\/(.+?)\?/);
-            return m ? m[1] : "";
-          }
-        })
-        .filter(Boolean);
-
+      const paths = samples.map((s) => s.storagePath);
       toast.loading("Creando voz en ElevenLabs...");
 
       const res = await fetch("/api/elevenlabs/voice/create", {

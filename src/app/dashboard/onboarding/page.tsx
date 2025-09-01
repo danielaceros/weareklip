@@ -246,7 +246,7 @@ export default function OnboardingPage() {
     }
 
     const ext = (file.type.split("/")[1] || "webm").replace("x-m4a", "m4a");
-    const fileName = `voice-sample-${Date.now()}.${ext}`;
+    const fileName = `sample-${Date.now()}.${ext}`;
     const storagePath = `users/${user.uid}/voices/${fileName}`;
     const storageRef = ref(storage, storagePath);
 
