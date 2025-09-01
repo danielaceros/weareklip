@@ -6,16 +6,19 @@ import { getIdToken } from "firebase/auth";
 
 type Verdict = "active" | "trialing" | "none" | "unknown" | "canceled" | "unpaid";
 
+type SubscriptionInfo = {
+  active: boolean;
+  trialing: boolean;
+  status: string | null;
+  cancelAtPeriodEnd?: boolean;
+} | null;
+
 type SummaryResponse = {
-  subscription?: {
-    active: boolean;
-    trialing: boolean;
-    status: string | null;
-    cancelAtPeriodEnd?: boolean;
+  subscriptions?: {
+    monthly?: SubscriptionInfo;
+    usage?: SubscriptionInfo;
   };
-  payment?: {
-    hasDefaultPayment: boolean;
-  };
+  payment?: { hasDefaultPayment: boolean };
   overdueCents?: number;
 };
 
@@ -38,86 +41,90 @@ export default function useSubscriptionGate() {
     hasPayment: false,
   });
 
-  const readVerdict = useCallback(async (): Promise<{ verdict: Verdict; hasPayment: boolean }> => {
-    const now = Date.now();
+  const computeVerdict = (
+    monthly: SubscriptionInfo,
+    usage: SubscriptionInfo,
+    overdueCents?: number
+  ): Verdict => {
+    // prioridad global
+    if ((overdueCents ?? 0) > 0) return "unpaid";
 
-    // cache: 15 segundos
-    if (now - cacheRef.current.ts < 15000 && cacheRef.current.verdict !== "unknown") {
-      return {
-        verdict: cacheRef.current.verdict,
-        hasPayment: cacheRef.current.hasPayment,
-      };
+    // si cualquiera de las dos está marcada para cancelar
+    if (monthly?.cancelAtPeriodEnd || usage?.cancelAtPeriodEnd) return "canceled";
+
+    // si alguna está trial → trial
+    if (monthly?.trialing || usage?.trialing) return "trialing";
+
+    // ambas deben estar activas
+    if (monthly?.active && usage?.active) return "active";
+
+    // si alguna está explícitamente cancelada
+    if (
+      monthly?.status === "canceled" ||
+      usage?.status === "canceled" ||
+      monthly?.status === "incomplete_expired" ||
+      usage?.status === "incomplete_expired"
+    ) {
+      return "canceled";
     }
 
-    const user = auth.currentUser;
-    if (!user) return { verdict: "none", hasPayment: false };
+    return "none";
+  };
 
-    try {
-      const token = await getIdToken(user, true);
-      const res = await fetch("/api/billing/summary", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = (await res.json()) as SummaryResponse;
+  const readVerdict = useCallback(
+    async (): Promise<{ verdict: Verdict; hasPayment: boolean }> => {
+      const now = Date.now();
 
-      let verdict: Verdict = "none";
-
-      // 1. pagos pendientes
-      if ((data.overdueCents ?? 0) > 0) {
-        verdict = "unpaid";
-      }
-      // 2. cancelado al final del periodo
-      else if (data.subscription?.cancelAtPeriodEnd) {
-        verdict = "canceled";
-      }
-      // 3. trial explícito
-      else if (data.subscription?.trialing) {
-        verdict = "trialing";
-      }
-      // 4. activo
-      else if (data.subscription?.active) {
-        verdict = "active";
-      }
-      // 5. estados cancelados explícitos
-      else if (
-        data.subscription?.status === "canceled" ||
-        data.subscription?.status === "incomplete_expired"
-      ) {
-        verdict = "canceled";
-      }
-      // 6. sin sub
-      else {
-        verdict = "none";
+      if (now - cacheRef.current.ts < 15000 && cacheRef.current.verdict !== "unknown") {
+        return {
+          verdict: cacheRef.current.verdict,
+          hasPayment: cacheRef.current.hasPayment,
+        };
       }
 
+      const user = auth.currentUser;
+      if (!user) return { verdict: "none", hasPayment: false };
 
-      const hasPayment = data?.payment?.hasDefaultPayment === true;
-      cacheRef.current = { verdict, ts: now, hasPayment };
+      try {
+        const token = await getIdToken(user, true);
+        const res = await fetch("/api/billing/summary", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = (await res.json()) as SummaryResponse;
 
-      return { verdict, hasPayment };
-    } catch (err) {
-      console.error("❌ error en readVerdict:", err);
-      return { verdict: "none", hasPayment: false };
-    }
-  }, []);
+        const monthly: SubscriptionInfo = data.subscriptions?.monthly ?? null;
+        const usage: SubscriptionInfo = data.subscriptions?.usage ?? null;
+
+        const verdict = computeVerdict(monthly, usage, data.overdueCents);
+        const hasPayment = data?.payment?.hasDefaultPayment === true;
+
+        cacheRef.current = { verdict, ts: now, hasPayment };
+
+        return { verdict, hasPayment };
+      } catch (err) {
+        console.error("❌ error en readVerdict:", err);
+        return { verdict: "none", hasPayment: false };
+      }
+    },
+    []
+  );
 
   const ensureSubscribed = useCallback(
     async (opts?: {
       feature?: string;
       plan?: "ACCESS" | "MID" | "CREATOR" | "BUSINESS";
     }) => {
-      const { verdict, hasPayment } = await readVerdict();
+      const { verdict } = await readVerdict();
 
       if (verdict === "active" || verdict === "trialing") return true;
 
       if (opts?.feature) setBlockedFeature(opts.feature);
 
       if (verdict === "none") {
-        // 👉 Mostrar checkout redirect (puede llevar trial)
         setForcedPlan(opts?.plan ?? "ACCESS");
         setMessage("Necesitas una suscripción para usar esta función.");
         setShowCheckout(true);
       } else if (verdict === "canceled" || verdict === "unpaid") {
-        // 👉 Si ya tuvo subs pero la canceló o está impaga
         setShowRenew(true);
       }
 

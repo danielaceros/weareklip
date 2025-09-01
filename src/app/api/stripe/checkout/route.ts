@@ -82,17 +82,29 @@ export async function POST(req: NextRequest) {
       if (c) {
         await gaServerEvent("checkout_existing_customer", { uid, customerId, plan });
       }
+
+      // 🔎 Chequear suscripciones activas/canceladas pero en trial
+      const subs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        expand: ["data.default_payment_method"],
+        limit: 5,
+      });
+
+      const trialingSub = subs.data.find(
+        s => s.status === "trialing" && s.cancel_at_period_end === true
+      );
+
+      if (trialingSub) {
+        console.log("⚡ Cliente con sub cancelada pero en trial → Portal");
+        const portal = await stripe.billingPortal.sessions.create({
+          customer: customerId!,
+          return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(body.next ?? "/dashboard")}`,
+        });
+        return NextResponse.json({ url: portal.url }, { status: 200 });
+      }
     }
 
-    // Si no existe Customer → crearlo
-    if (!customerId) {
-      const created = await stripe.customers.create({
-        email: body.email ?? decoded.email ?? undefined,
-        metadata: { uid },
-      });
-      customerId = created.id;
-      await gaServerEvent("checkout_new_customer", { uid, customerId, plan });
-    }
 
     // Guardar flags en Firestore
     await userRef.set(
