@@ -264,7 +264,7 @@ export default function BillingSection() {
       };
     return (fromStripe as SubscriptionInfo) ?? docData?.subscription ?? null;
   }, [stripeData, docData?.subscription]);
-
+  console.log(sub)
   const periodStart = sub?.start_date ?? sub?.trial_start ?? null;
   const periodEnd =
     sub?.status === "trialing" ? sub?.trial_end ?? null : sub?.renewal ?? null;

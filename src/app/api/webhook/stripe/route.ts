@@ -268,7 +268,12 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    const webhookSecret =
+      process.env.NODE_ENV === "production"
+        ? process.env.STRIPE_WEBHOOK_SECRET_PROD
+        : process.env.STRIPE_WEBHOOK_SECRET;
+
+    event = stripe.webhooks.constructEvent(buf, sig, webhookSecret!);
   } catch (err) {
     const msg = isStripeError(err) ? err.message : "Invalid signature";
     console.error("❌ Webhook signature error:", msg);
