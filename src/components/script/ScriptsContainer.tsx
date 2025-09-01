@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { useSearchParams, usePathname, useRouter } from "next/navigation"; // 👈 NUEVO
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +74,17 @@ export default function ScriptsContainer() {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
+  // ✅ Abrir modal automáticamente si viene ?new=1
+  const searchParams = useSearchParams(); // 👈 NUEVO
+  const pathname = usePathname(); // 👈 NUEVO
+  const router = useRouter(); // 👈 NUEVO
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewOpen(true); // abre el mismo modal del botón
+      router.replace(pathname, { scroll: false }); // limpia el query para que no se reabra
+    }
+  }, [searchParams, pathname, router]);
+
   // 📥 Fetch de scripts
   const fetchScripts = useCallback(async () => {
     if (!user) return;
@@ -129,16 +141,21 @@ export default function ScriptsContainer() {
         setScripts([]); // Optimista
         await Promise.all(
           prev.map((script) =>
-            fetch(`/api/firebase/users/${user.uid}/scripts/${script.scriptId}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${idToken}` },
-            })
+            fetch(
+              `/api/firebase/users/${user.uid}/scripts/${script.scriptId}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${idToken}` },
+              }
+            )
           )
         );
         toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
         const prev = scripts;
-        setScripts((s) => s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId));
+        setScripts((s) =>
+          s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId)
+        );
         const res = await fetch(
           `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
@@ -162,18 +179,23 @@ export default function ScriptsContainer() {
     if (!user) return;
     const prev = scripts;
     setScripts((s) =>
-      s.map((sc) => (sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc))
+      s.map((sc) =>
+        sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc
+      )
     );
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ rating: newRating }),
-      });
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/scripts/${scriptId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ rating: newRating }),
+        }
+      );
       if (!res.ok) throw new Error("Error rating");
     } catch (err) {
       toast.error("No se pudo actualizar la valoración");
@@ -188,7 +210,8 @@ export default function ScriptsContainer() {
       const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
       if (sortOption === "date-desc") return dateB - dateA;
       if (sortOption === "date-asc") return dateA - dateB;
-      if (sortOption === "rating-desc") return (b.rating || 0) - (a.rating || 0);
+      if (sortOption === "rating-desc")
+        return (b.rating || 0) - (a.rating || 0);
       if (sortOption === "rating-asc") return (a.rating || 0) - (b.rating || 0);
       return 0;
     });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { AudiosList, AudioData } from "./AudiosList";
@@ -21,11 +22,24 @@ export default function AudiosContainer() {
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // --- Auth ---
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
+  // --- Auto open with ?new=1 ---
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewOpen(true); // abre modal
+      router.replace(pathname, { scroll: false }); // limpia el query
+    }
+  }, [searchParams, pathname, router]);
+
+  // --- Fetch audios ---
   const fetchAudios = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -62,9 +76,10 @@ export default function AudiosContainer() {
     fetchAudios();
   }, [fetchAudios]);
 
+  // --- Delete (single / all) ---
   const handleConfirmDelete = useCallback(async () => {
     if (!user) return;
-    if (deleting) return; // prevenir clicks dobles
+    if (deleting) return;
     setDeleting(true);
 
     try {
@@ -121,6 +136,7 @@ export default function AudiosContainer() {
     [audioToDelete, deleteAll]
   );
 
+  // --- Loading ---
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -155,10 +171,19 @@ export default function AudiosContainer() {
       </div>
 
       {/* Grid de audios */}
-      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
+      <AudiosList
+        audios={audios}
+        onDelete={(audio) => setAudioToDelete(audio)}
+      />
 
       {/* Modal crear audio */}
-      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
+      <Dialog
+        open={isNewOpen}
+        onOpenChange={(open) => {
+          setIsNewOpen(open);
+          if (!open) void fetchAudios(); // refresca al cerrar por si se creó uno nuevo
+        }}
+      >
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
           <AudioCreatorContainer />

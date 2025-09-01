@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Plus, Trash2, X } from "lucide-react";
 
 import VideoCard from "./VideoCard";
 import CreateVideoPage from "./CreateVideoPage";
+
 import {
   Pagination,
   PaginationContent,
@@ -19,6 +20,9 @@ import {
 
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 
 export interface VideoData {
   projectId: string;
@@ -46,43 +50,59 @@ export default function VideosPage() {
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Auth
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  useEffect(() => {
-    const fetchVideos = async () => {
-      if (!user) return;
-      try {
-        const idToken = await user.getIdToken();
-        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
+  // Fetch videos (reutilizable para refrescar tras cerrar modal)
+  const fetchVideos = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
 
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data = await res.json();
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
 
-        setVideos(
-          data.map(
-            (v: any) =>
-              ({
-                projectId: v.id,
-                ...v,
-              } as VideoData)
-          )
-        );
-      } catch (error) {
-        console.error("Error cargando vídeos:", error);
-        toast.error("Error cargando vídeos");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVideos();
+      setVideos(
+        data.map(
+          (v: any) =>
+            ({
+              projectId: v.id,
+              ...v,
+            } as VideoData)
+        )
+      );
+    } catch (error) {
+      console.error("Error cargando vídeos:", error);
+      toast.error("Error cargando vídeos");
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
+  useEffect(() => {
+    void fetchVideos();
+  }, [fetchVideos]);
+
+  // Abrir modal automáticamente con ?new=1 y limpiar la URL
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowCreateModal(true);
+      router.replace(pathname, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
+
+  // Borrado
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
@@ -91,7 +111,6 @@ export default function VideosPage() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // DELETE en lote
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
           method: "DELETE",
           headers: {
@@ -105,7 +124,6 @@ export default function VideosPage() {
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
-        // DELETE individual
         const res = await fetch(
           `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
           {
@@ -222,24 +240,31 @@ export default function VideosPage() {
         </>
       )}
 
-      {/* Modal crear vídeo */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowCreateModal(false)}
-          />
-          <div className="relative bg-background rounded-xl shadow-lg w-full max-w-4xl mx-auto p-6 z-50 overflow-y-auto max-h-[90vh]">
+      {/* Modal crear vídeo (Dialog controlado) */}
+      <Dialog
+        open={showCreateModal}
+        onOpenChange={async (open) => {
+          setShowCreateModal(open);
+          if (!open) await fetchVideos(); // refrescar al cerrar
+        }}
+      >
+        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
+        <DialogContent className="max-w-4xl w-full rounded-xl p-0 overflow-hidden">
+          {/* Botón cerrar extra por si lo quieres mantener */}
+          <div className="relative">
             <button
               onClick={() => setShowCreateModal(false)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+              className="absolute right-3 top-3 z-10 text-muted-foreground hover:text-foreground"
+              aria-label="Cerrar"
             >
               <X size={20} />
             </button>
-            <CreateVideoPage />
+            <div className="p-6">
+              <CreateVideoPage />
+            </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
