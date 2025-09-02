@@ -2,7 +2,6 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAudioForm } from "./useAudioForm";
@@ -293,7 +292,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
                   </div>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
-                      className="h-1 bg-white rounded-full transition-all"
                       className="h-1 bg-white rounded-full transition-all"
                       style={{
                         width: duration
