@@ -1,6 +1,7 @@
+// src/components/audio/AudioCreatorContainer.tsx
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAudioForm } from "./useAudioForm";
@@ -20,13 +21,24 @@ import { Play, Pause, Loader2 } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-type Props = {
-  onCreated?: (payload?: any) => void;
-  onCancel?: () => void;
+const MAX_SEC = 60;
+
+// Lectura aproximada para TTS ~150 wpm => 2.5 palabras/seg
+const estimateTtsSeconds = (text: string) => {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return words / 2.5;
 };
 
-export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
+interface Props {
+  /** Permite al padre cerrar su modal y refrescar lista al guardar */
+  onCreated?: () => void;
+  /** (añadido) Permite que el padre pase onCancel sin error de tipos */
+  onCancel?: () => void;
+}
+
+export default function AudioCreatorContainer({ onCreated }: Props) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const defaultText = searchParams.get("text") || "";
   const form = useAudioForm(defaultText);
 
@@ -46,26 +58,18 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch((err) => {
-        console.warn("No se pudo reproducir:", err);
-      });
-    }
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play().catch(() => {});
   }, [isPlaying]);
 
-  // 🔹 Progreso con rAF
+  // Actualizar progreso con rAF
   useEffect(() => {
     let rafId: number;
-    const updateProgress = () => {
-      if (audioRef.current) {
-        const el = audioRef.current;
-        setProgress(el.currentTime || 0);
-        rafId = requestAnimationFrame(updateProgress);
-      }
+    const loop = () => {
+      if (audioRef.current) setProgress(audioRef.current.currentTime || 0);
+      rafId = requestAnimationFrame(loop);
     };
-    if (isPlaying) rafId = requestAnimationFrame(updateProgress);
+    if (isPlaying) rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying]);
 
@@ -85,7 +89,17 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
     return `${m}:${s}`;
   };
 
-  // 👉 helper para enviar el body correcto
+  // Avisar si el audio generado excede 60s
+  useEffect(() => {
+    if (duration > MAX_SEC) {
+      toast.error(
+        `⏱️ El audio dura ${formatTime(
+          duration
+        )} y el máximo permitido es ${MAX_SEC}s. Acorta el texto o la velocidad.`
+      );
+    }
+  }, [duration]);
+
   const buildVoiceSettings = () => ({
     stability: form.stability ?? null,
     similarity_boost: form.similarityBoost ?? null,
@@ -104,6 +118,16 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
 
     if (!form.text.trim()) {
       toast.error("Debes escribir el texto a convertir.");
+      return;
+    }
+    // Estimación previa
+    const est = estimateTtsSeconds(form.text);
+    if (est > MAX_SEC) {
+      toast.error(
+        `⏱️ El texto es demasiado largo (~${Math.round(
+          est
+        )}s). Máximo ${MAX_SEC}s.`
+      );
       return;
     }
     if (!form.voiceId) {
@@ -167,6 +191,17 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
       toast.error("⚠️ Máximo 2 regeneraciones permitidas.");
       return;
     }
+    // Estimar de nuevo por si cambió el texto
+    const est = estimateTtsSeconds(form.text);
+    if (est > MAX_SEC) {
+      toast.error(
+        `⏱️ El texto es demasiado largo (~${Math.round(
+          est
+        )}s). Máximo ${MAX_SEC}s.`
+      );
+      return;
+    }
+
     setRegenCount((c) => c + 1);
     const loadingId = toast.loading("🔄 Regenerando audio...");
 
@@ -191,7 +226,6 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
       if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
       setAudioUrl(data.audioUrl);
-
       toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
       console.error(err);
@@ -201,18 +235,34 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
     }
   };
 
-  // 👉 Aceptar (guardar en biblioteca) y avisar al padre para autocerrar
-  const handleAccept = () => {
-    toast.success("📂 Audio guardado en tu biblioteca");
+  // 👇 Cerrar modal de preview + cerrar modal padre (si hay) + refrescar lista
+  const finishAndRefresh = useCallback(() => {
     setShowModal(false);
 
-    // payload opcional (el padre solo lo usa para cerrar/refrescar)
-    onCreated?.({
-      audioId,
-      audioUrl,
-      duration,
-      createdAt: Date.now(),
-    });
+    // 1) Si el padre nos pasó onCreated, lo usamos (cierra modal padre y refresca lista allí)
+    if (onCreated) {
+      onCreated();
+      return;
+    }
+
+    // 2) Fallback universal: forzar una navegación "diferente" para refrescar la página/lista
+    //    Esto cierra el modal padre controlado por la ruta y dispara tus efectos de carga.
+    const stamp = Date.now();
+    router.push(`/dashboard/audio?created=${stamp}`);
+  }, [onCreated, router]);
+
+  const handleAccept = () => {
+    if (duration > MAX_SEC) {
+      toast.error(
+        `⏱️ El audio dura ${formatTime(
+          duration
+        )} (> ${MAX_SEC}s). Por favor, acórtalo antes de guardar.`
+      );
+      return;
+    }
+
+    toast.success("📂 Audio guardado en tu biblioteca");
+    finishAndRefresh();
   };
 
   return (
@@ -242,7 +292,7 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
                   </div>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
-                      className="h-1 rounded-full transition-all bg-white"
+                      className="h-1 bg-white rounded-full transition-all"
                       style={{
                         width: duration
                           ? `${(progress / duration) * 100}%`
@@ -276,17 +326,13 @@ export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
               )}
               Regenerar ({regenCount}/2)
             </Button>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={onCancel}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAccept}>Aceptar y guardar</Button>
-            </div>
+            <Button onClick={handleAccept} disabled={duration > MAX_SEC}>
+              Aceptar y guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal paywall */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

@@ -15,6 +15,28 @@ type AudioItem = { id: string; audioUrl: string; name?: string };
 type VideoItem = { id: string; url: string; name?: string };
 
 const PAGE_SIZE = 1;
+const MAX_SEC = 60; // ⏱️ límite duro
+
+// Helpers para leer duración desde URL remota
+const getAudioDurationFromUrl = (url: string) =>
+  new Promise<number>((resolve, reject) => {
+    const a = document.createElement("audio");
+    a.preload = "metadata";
+    a.src = url;
+    a.onloadedmetadata = () => resolve(a.duration || 0);
+    a.onerror = () =>
+      reject(new Error("No se pudo leer la duración del audio"));
+  });
+
+const getVideoDurationFromUrl = (url: string) =>
+  new Promise<number>((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.src = url;
+    v.onloadedmetadata = () => resolve(v.duration || 0);
+    v.onerror = () =>
+      reject(new Error("No se pudo leer la duración del vídeo"));
+  });
 
 interface Props {
   onCreated?: () => void;
@@ -44,6 +66,10 @@ export default function LipsyncCreatePage({ onCreated, onCancel }: Props) {
   // 🔘 botón de cierre oculto (DialogClose)
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
+  // ⏱️ estados de duración de lo seleccionado (cache simple)
+  const [audioSec, setAudioSec] = useState<number | null>(null);
+  const [videoSec, setVideoSec] = useState<number | null>(null);
+
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, async (currentUser) => {
@@ -67,6 +93,60 @@ export default function LipsyncCreatePage({ onCreated, onCancel }: Props) {
         setSelectedAudioId(current.id);
     }
   }, [audioPage, audios, selectedAudioId]);
+
+  // ⏱️ medir duración cuando cambia el audio seleccionado
+  useEffect(() => {
+    const a = audios.find((x) => x.id === selectedAudioId);
+    if (!a?.audioUrl) {
+      setAudioSec(null);
+      return;
+    }
+    let cancelled = false;
+    getAudioDurationFromUrl(a.audioUrl)
+      .then((sec) => {
+        if (!cancelled) {
+          setAudioSec(sec || 0);
+          if (sec > MAX_SEC) {
+            toast.error(
+              `⏱️ El audio dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+            );
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAudioSec(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAudioId, audios]);
+
+  // ⏱️ medir duración cuando cambia el vídeo seleccionado
+  useEffect(() => {
+    const v = videos.find((x) => x.id === selectedVideoId);
+    if (!v?.url) {
+      setVideoSec(null);
+      return;
+    }
+    let cancelled = false;
+    getVideoDurationFromUrl(v.url)
+      .then((sec) => {
+        if (!cancelled) {
+          setVideoSec(sec || 0);
+          if (sec > MAX_SEC) {
+            toast.error(
+              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+            );
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVideoSec(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVideoId, videos]);
 
   async function loadMedia(uid: string) {
     try {
@@ -139,6 +219,44 @@ export default function LipsyncCreatePage({ onCreated, onCancel }: Props) {
 
     if (!title.trim()) {
       toast.error("Debes escribir un título para el vídeo.");
+      setProcessing(false);
+      return;
+    }
+
+    // ⏱️ Validación dura de duración (audio + vídeo)
+    try {
+      const aSec =
+        audioSec ??
+        (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
+      const vSec =
+        videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
+
+      if (!aSec) {
+        toast.error("No se pudo leer la duración del audio.");
+        setProcessing(false);
+        return;
+      }
+      if (!vSec) {
+        toast.error("No se pudo leer la duración del vídeo.");
+        setProcessing(false);
+        return;
+      }
+      if (aSec > MAX_SEC) {
+        toast.error(
+          `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
+        );
+        setProcessing(false);
+        return;
+      }
+      if (vSec > MAX_SEC) {
+        toast.error(
+          `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
+        );
+        setProcessing(false);
+        return;
+      }
+    } catch {
+      toast.error("No se pudo validar la duración de los medios.");
       setProcessing(false);
       return;
     }
