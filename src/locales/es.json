@@ -155,7 +155,7 @@
   },
   "dashboard": {
     "title": "Bienvenido a tu Panel",
-    "subtitle": "Consulta aquí el estado de tu proyecto y las fechas de entrega. ¡Mantente al día!",
+    "subtitle": "Crea algo nuevo o consulta tus últimas creaciones. ¡Mantente al día!",
     "loading": "Cargando tu panel...",
     "authError": {
       "title": "No autenticado",
