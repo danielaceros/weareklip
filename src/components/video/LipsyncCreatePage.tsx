@@ -3,19 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  Play,
-  Pause,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Loader2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { Card } from "@/components/ui/card";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { DialogClose } from "@/components/ui/dialog"; // ✅ para cerrar el modal desde dentro
 
 type AudioItem = { id: string; audioUrl: string; name?: string };
 type VideoItem = { id: string; url: string; name?: string };
@@ -23,10 +17,11 @@ type VideoItem = { id: string; url: string; name?: string };
 const PAGE_SIZE = 1;
 
 interface Props {
-  onClose?: () => void; // 👈 opcional, si está en modal
+  onCreated?: () => void;
+  onCancel?: () => void;
 }
 
-export default function LipsyncCreatePage({ onClose }: Props) {
+export default function LipsyncCreatePage({ onCreated, onCancel }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [audios, setAudios] = useState<AudioItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -42,10 +37,12 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 modal
+  const [showCheckout, setShowCheckout] = useState(false);
 
-  const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
+
+  // 🔘 botón de cierre oculto (DialogClose)
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const auth = getAuth();
@@ -58,18 +55,16 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   useEffect(() => {
     if (videos.length > 0) {
       const current = videos[videoPage * PAGE_SIZE];
-      if (current && current.id !== selectedVideoId) {
+      if (current && current.id !== selectedVideoId)
         setSelectedVideoId(current.id);
-      }
     }
   }, [videoPage, videos, selectedVideoId]);
 
   useEffect(() => {
     if (audios.length > 0) {
       const current = audios[audioPage * PAGE_SIZE];
-      if (current && current.id !== selectedAudioId) {
+      if (current && current.id !== selectedAudioId)
         setSelectedAudioId(current.id);
-      }
     }
   }, [audioPage, audios, selectedAudioId]);
 
@@ -78,37 +73,33 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       const auth = getAuth();
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("No autenticado");
-
       const idToken = await currentUser.getIdToken();
 
-      // 🔹 Fetch audios
       const resAudios = await fetch(`/api/firebase/users/${uid}/audios`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!resAudios.ok) throw new Error("Error cargando audios");
-      const audios: any[] = await resAudios.json();
+      const audiosJson: any[] = await resAudios.json();
 
-      // 🔹 Fetch clones
       const resClones = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!resClones.ok) throw new Error("Error cargando vídeos");
-      const clones: any[] = await resClones.json();
+      const clonesJson: any[] = await resClones.json();
 
       setAudios(
-        audios.map((a) => ({
+        audiosJson.map((a) => ({
           id: a.id,
           audioUrl: a.audioUrl ?? "",
           name: a.name || a.id,
-        })) as AudioItem[]
+        }))
       );
-
       setVideos(
-        clones.map((v) => ({
+        clonesJson.map((v) => ({
           id: v.id,
           url: v.url ?? "",
           name: v.titulo || v.id,
-        })) as VideoItem[]
+        }))
       );
     } catch (err) {
       console.error("loadMedia error:", err);
@@ -119,10 +110,10 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   async function handleGenerate() {
     flushSync(() => setProcessing(true));
 
-    const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
+    const ok = await ensureSubscribed({ feature: "lipsync" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       return;
     }
 
@@ -152,7 +143,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       return;
     }
 
-    toast.info(`Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`);
+    toast.info(`Generando vídeo: "${title}"`);
 
     setLoading(true);
     try {
@@ -174,11 +165,16 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       if (!res.ok) throw new Error(data.error || "Error creando vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-      onClose?.();
-      router.push("/dashboard/video");
+
+      // ✅ Notifica al padre y CIERRA el modal (forzado)
+      onCreated?.();
+      // cierra el <Dialog> del padre usando Radix
+      closeRef.current?.click();
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo crear el lipsync"
+      );
     } finally {
       setLoading(false);
       setProcessing(false);
@@ -186,7 +182,11 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   }
 
   const isLoading = processing || loading;
-  const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar video";
+  const buttonText = processing
+    ? "Procesando..."
+    : loading
+    ? "Generando..."
+    : "Generar video";
 
   const togglePlay = (id: string) => {
     const current = audioRefs.current[id];
@@ -204,13 +204,29 @@ export default function LipsyncCreatePage({ onClose }: Props) {
     }
   };
 
-  const paginatedVideos = videos.slice(videoPage * PAGE_SIZE, (videoPage + 1) * PAGE_SIZE);
-  const paginatedAudios = audios.slice(audioPage * PAGE_SIZE, (audioPage + 1) * PAGE_SIZE);
+  const paginatedVideos = videos.slice(
+    videoPage * PAGE_SIZE,
+    (videoPage + 1) * PAGE_SIZE
+  );
+  const paginatedAudios = audios.slice(
+    audioPage * PAGE_SIZE,
+    (audioPage + 1) * PAGE_SIZE
+  );
 
   return (
     <>
       <div className="w-full max-w-6xl mx-auto rounded-2xl space-y-8 p-4 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-bold">Videos clonados</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl sm:text-2xl font-bold">Videos clonados</h2>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
+        </div>
+
+        {/* Botón de cierre oculto para Radix/Dialog */}
+        <DialogClose asChild>
+          <button ref={closeRef} className="hidden" aria-hidden="true" />
+        </DialogClose>
 
         {/* Carrusel de videos */}
         <div className="relative">
@@ -219,15 +235,20 @@ export default function LipsyncCreatePage({ onClose }: Props) {
               <Card
                 key={v.id}
                 className={`flex-shrink-0 w-32 h-48 sm:w-40 sm:h-60 rounded-lg cursor-pointer border-2 ${
-                  selectedVideoId === v.id ? "border-primary" : "border-transparent"
+                  selectedVideoId === v.id
+                    ? "border-primary"
+                    : "border-transparent"
                 }`}
                 onClick={() => setSelectedVideoId(v.id)}
               >
-                <video src={v.url} className="w-full h-full object-cover rounded-md" muted />
+                <video
+                  src={v.url}
+                  className="w-full h-full object-cover rounded-md"
+                  muted
+                />
               </Card>
             ))}
           </div>
-          {/* Botones navegación video */}
           <div className="absolute inset-y-0 left-0 flex items-center">
             <Button
               size="icon"
@@ -245,7 +266,9 @@ export default function LipsyncCreatePage({ onClose }: Props) {
               variant="ghost"
               className="bg-background/70 sm:bg-transparent"
               onClick={() =>
-                setVideoPage((p) => ((p + 1) * PAGE_SIZE < videos.length ? p + 1 : p))
+                setVideoPage((p) =>
+                  (p + 1) * PAGE_SIZE < videos.length ? p + 1 : p
+                )
               }
               disabled={(videoPage + 1) * PAGE_SIZE >= videos.length}
             >
@@ -261,12 +284,16 @@ export default function LipsyncCreatePage({ onClose }: Props) {
               <Card
                 key={a.id}
                 className={`flex-shrink-0 w-36 sm:w-48 p-3 rounded-lg cursor-pointer border-2 ${
-                  selectedAudioId === a.id ? "border-primary" : "border-transparent"
+                  selectedAudioId === a.id
+                    ? "border-primary"
+                    : "border-transparent"
                 }`}
                 onClick={() => a.audioUrl && setSelectedAudioId(a.id)}
               >
                 <div className="flex flex-col gap-2">
-                  <span className="font-medium text-xs sm:text-sm truncate">{a.name}</span>
+                  <span className="font-medium text-xs sm:text-sm truncate">
+                    {a.name}
+                  </span>
                   {a.audioUrl ? (
                     <>
                       <button
@@ -276,7 +303,11 @@ export default function LipsyncCreatePage({ onClose }: Props) {
                         }}
                         className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border hover:bg-muted"
                       >
-                        {playing === a.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        {playing === a.id ? (
+                          <Pause className="w-4 h-4" />
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
                       </button>
                       <audio
                         ref={(el) => {
@@ -284,17 +315,20 @@ export default function LipsyncCreatePage({ onClose }: Props) {
                         }}
                         src={a.audioUrl || undefined}
                         onEnded={() => setPlaying(null)}
-                        onPause={() => setPlaying((prev) => (prev === a.id ? null : prev))}
+                        onPause={() =>
+                          setPlaying((prev) => (prev === a.id ? null : prev))
+                        }
                       />
                     </>
                   ) : (
-                    <div className="text-xs text-muted-foreground">Sin audio</div>
+                    <div className="text-xs text-muted-foreground">
+                      Sin audio
+                    </div>
                   )}
                 </div>
               </Card>
             ))}
           </div>
-          {/* Botones navegación audio */}
           <div className="absolute inset-y-0 left-0 flex items-center">
             <Button
               size="icon"
@@ -312,7 +346,9 @@ export default function LipsyncCreatePage({ onClose }: Props) {
               variant="ghost"
               className="bg-background/70 sm:bg-transparent"
               onClick={() =>
-                setAudioPage((p) => ((p + 1) * PAGE_SIZE < audios.length ? p + 1 : p))
+                setAudioPage((p) =>
+                  (p + 1) * PAGE_SIZE < audios.length ? p + 1 : p
+                )
               }
               disabled={(audioPage + 1) * PAGE_SIZE >= audios.length}
             >
@@ -343,11 +379,11 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
       {/* Modal checkout */}
       <CheckoutRedirectModal
-                          open={showCheckout}
-                          onClose={() => setShowCheckout(false)}
-                          plan="ACCESS"
-                          message="Necesitas una suscripción activa para generar audios."
-                        />
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar audios."
+      />
     </>
   );
 }

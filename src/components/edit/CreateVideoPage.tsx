@@ -53,11 +53,14 @@ interface Props {
     magicBrolls: boolean;
     magicBrollsPercentage: number;
   }) => void;
+  /** 👇 NUEVO: cuando la creación finaliza correctamente dentro de /edit */
+  onCreated?: () => void;
 }
 
 export default function CreateVideoPage({
   preloadedVideos = [],
   onComplete,
+  onCreated,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,8 +113,6 @@ export default function CreateVideoPage({
 
   /* ---- Autoselección de vídeo ---- */
   useEffect(() => {
-    // Si aún no hay selección ni archivo y tenemos vídeos pre-cargados,
-    // seleccionamos automáticamente el primero (asumimos ordenado por más reciente)
     if (!videoUrl && !file) {
       if (preloadedVideoUrl) {
         setVideoUrl(preloadedVideoUrl);
@@ -247,6 +248,14 @@ export default function CreateVideoPage({
       toast.success(
         `🎬 Vídeo creado correctamente${projectId ? ` (ID: ${projectId})` : ""}`
       );
+
+      // 👉 autocierre si el padre pasó onCreated
+      if (onCreated) {
+        onCreated();
+        return; // no navegamos
+      }
+
+      // fallback: navegación clásica
       setFile(null);
       setUploadProgress(0);
       router.push("/dashboard/edit");
@@ -440,12 +449,14 @@ export default function CreateVideoPage({
 
           {/* Descripción */}
           <div>
-            <Label className="mb-2 block">Describe en 3-4 palabras el vídeo</Label>
+            <Label className="mb-2 block">
+              Describe en 3-4 palabras el vídeo
+            </Label>
             <TagsInput
-                value={dictionary}
-                onChange={setDictionary}
-                placeholder="Escribe un tag y pulsa Enter o coma..."
-              />
+              value={dictionary}
+              onChange={setDictionary}
+              placeholder="Escribe un tag y pulsa Enter o coma..."
+            />
           </div>
 
           {/* Opciones mágicas */}

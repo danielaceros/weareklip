@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
-import { AudiosList, AudioData } from "./AudiosList";
+import { AudiosList, type AudioData } from "./AudiosList";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
@@ -34,8 +34,8 @@ export default function AudiosContainer() {
   const router = useRouter();
   useEffect(() => {
     if (searchParams.get("new") === "1") {
-      setIsNewOpen(true); // abre modal
-      router.replace(pathname, { scroll: false }); // limpia el query
+      setIsNewOpen(true);
+      router.replace(pathname, { scroll: false });
     }
   }, [searchParams, pathname, router]);
 
@@ -136,6 +136,16 @@ export default function AudiosContainer() {
     [audioToDelete, deleteAll]
   );
 
+  // --- Cuando el hijo confirma creación ---
+  const handleCreated = useCallback(
+    (_created?: any) => {
+      setIsNewOpen(false); // cierra el modal padre automáticamente
+      fetchAudios(); // refresca la lista
+      // el toast lo dispara el hijo (para evitar duplicados)
+    },
+    [fetchAudios]
+  );
+
   // --- Loading ---
   if (loading) {
     return (
@@ -177,16 +187,13 @@ export default function AudiosContainer() {
       />
 
       {/* Modal crear audio */}
-      <Dialog
-        open={isNewOpen}
-        onOpenChange={(open) => {
-          setIsNewOpen(open);
-          if (!open) void fetchAudios(); // refresca al cerrar por si se creó uno nuevo
-        }}
-      >
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
-          <AudioCreatorContainer />
+          <AudioCreatorContainer
+            onCreated={handleCreated}
+            onCancel={() => setIsNewOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 

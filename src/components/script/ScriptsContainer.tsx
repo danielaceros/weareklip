@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { useSearchParams, usePathname, useRouter } from "next/navigation"; // 👈 NUEVO
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  type ComponentProps,
+} from "react";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,39 +32,20 @@ import { ScriptCard } from "./ScriptCard";
 import { ScriptModal } from "./ScriptModal";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
-interface ScriptData {
-  scriptId: string;
-  isAI?: boolean;
-  ctaText?: string;
-  platform?: string;
-  addCTA?: boolean;
-  structure?: string;
-  tone?: string;
-  duration?: string;
-  language?: string;
-  description?: string;
-  script?: string;
-  rating?: number;
-  createdAt?: { seconds: number; nanoseconds: number };
-  fuente?: string;
-  videoTitle?: string;
-  videoDescription?: string;
-  videoChannel?: string;
-  videoPublishedAt?: string;
-  videoViews?: number;
-  videoThumbnail?: string;
-}
+// ✅ Inferimos el tipo de script que usan tus componentes
+type ScriptCardProps = ComponentProps<typeof ScriptCard>;
+type UIScript = ScriptCardProps extends { script: infer T } ? T : never;
 
 export default function ScriptsContainer() {
-  const [scripts, setScripts] = useState<ScriptData[]>([]);
+  const [scripts, setScripts] = useState<UIScript[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [selectedScript, setSelectedScript] = useState<ScriptData | null>(null);
+  const [selectedScript, setSelectedScript] = useState<UIScript | null>(null);
 
   // Estados de borrado
-  const [scriptToDelete, setScriptToDelete] = useState<ScriptData | null>(null);
+  const [scriptToDelete, setScriptToDelete] = useState<UIScript | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -75,13 +62,13 @@ export default function ScriptsContainer() {
   }, []);
 
   // ✅ Abrir modal automáticamente si viene ?new=1
-  const searchParams = useSearchParams(); // 👈 NUEVO
-  const pathname = usePathname(); // 👈 NUEVO
-  const router = useRouter(); // 👈 NUEVO
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   useEffect(() => {
     if (searchParams.get("new") === "1") {
-      setIsNewOpen(true); // abre el mismo modal del botón
-      router.replace(pathname, { scroll: false }); // limpia el query para que no se reabra
+      setIsNewOpen(true);
+      router.replace(pathname, { scroll: false });
     }
   }, [searchParams, pathname, router]);
 
@@ -98,24 +85,26 @@ export default function ScriptsContainer() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: any[] = await res.json();
 
-      setScripts(
-        data.map((doc) => ({
-          scriptId: doc.id,
-          description: doc.description,
-          platform: doc.platform,
-          language: doc.language,
-          script: doc.script,
-          createdAt: doc.createdAt,
-          fuente: doc.fuente,
-          isAI: doc.isAI,
-          videoTitle: doc.videoTitle,
-          videoDescription: doc.videoDescription,
-          videoChannel: doc.videoChannel,
-          videoPublishedAt: doc.videoPublishedAt,
-          videoViews: doc.videoViews,
-          videoThumbnail: doc.videoThumbnail,
-        }))
-      );
+      // mapeamos y casteamos a UIScript para contentar a TS
+      const mapped = data.map((doc) => ({
+        scriptId: doc.id,
+        description: doc.description,
+        platform: doc.platform,
+        language: doc.language,
+        script: doc.script,
+        createdAt: doc.createdAt,
+        fuente: doc.fuente,
+        isAI: doc.isAI,
+        videoTitle: doc.videoTitle,
+        videoDescription: doc.videoDescription,
+        videoChannel: doc.videoChannel,
+        videoPublishedAt: doc.videoPublishedAt,
+        videoViews: doc.videoViews,
+        videoThumbnail: doc.videoThumbnail,
+        rating: doc.rating,
+      })) as unknown as UIScript[];
+
+      setScripts(mapped);
     } catch (error) {
       console.error("Error fetching scripts:", error);
       toast.error("No se pudieron cargar los guiones");
@@ -138,26 +127,24 @@ export default function ScriptsContainer() {
 
       if (deleteAll) {
         const prev = scripts;
-        setScripts([]); // Optimista
+        setScripts([]);
         await Promise.all(
-          prev.map((script) =>
-            fetch(
-              `/api/firebase/users/${user.uid}/scripts/${script.scriptId}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${idToken}` },
-              }
-            )
+          prev.map((sc: any) =>
+            fetch(`/api/firebase/users/${user.uid}/scripts/${sc.scriptId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${idToken}` },
+            })
           )
         );
         toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
+        const toDel = scriptToDelete as any;
         const prev = scripts;
-        setScripts((s) =>
-          s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId)
+        setScripts((s: any[]) =>
+          s.filter((x: any) => x.scriptId !== toDel.scriptId)
         );
         const res = await fetch(
-          `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
+          `/api/firebase/users/${user.uid}/scripts/${toDel.scriptId}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
         );
         if (!res.ok) throw new Error("Error en borrado");
@@ -178,8 +165,8 @@ export default function ScriptsContainer() {
   const handleRating = async (scriptId: string, newRating: number) => {
     if (!user) return;
     const prev = scripts;
-    setScripts((s) =>
-      s.map((sc) =>
+    setScripts((s: any[]) =>
+      s.map((sc: any) =>
         sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc
       )
     );
@@ -199,15 +186,33 @@ export default function ScriptsContainer() {
       if (!res.ok) throw new Error("Error rating");
     } catch (err) {
       toast.error("No se pudo actualizar la valoración");
-      setScripts(prev); // rollback
+      setScripts(prev);
     }
   };
 
-  // 📊 Orden y paginación memoizados
+  // 🔔 Callback cuando el hijo termina de crear
+  const handleCreated = useCallback(
+    (_created: UIScript) => {
+      setIsNewOpen(false); // cerrar modal padre
+      setPage(1);
+      fetchScripts(); // refrescar lista
+    },
+    [fetchScripts]
+  );
+
+  // 📊 Orden y paginación
   const sortedScripts = useMemo(() => {
-    return [...scripts].sort((a, b) => {
-      const dateA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
-      const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
+    return [...scripts].sort((a: any, b: any) => {
+      const toMs = (d: any) =>
+        typeof d === "number"
+          ? d
+          : d?.seconds
+          ? d.seconds * 1000 + Math.floor((d.nanoseconds || 0) / 1e6)
+          : 0;
+
+      const dateA = toMs(a.createdAt);
+      const dateB = toMs(b.createdAt);
+
       if (sortOption === "date-desc") return dateB - dateA;
       if (sortOption === "date-asc") return dateA - dateB;
       if (sortOption === "rating-desc")
@@ -220,7 +225,6 @@ export default function ScriptsContainer() {
   const totalPages = Math.ceil(sortedScripts.length / perPage);
   const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
 
-  // ✅ Spinner loader centrado
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -275,10 +279,10 @@ export default function ScriptsContainer() {
             No tienes guiones aún.
           </p>
         )}
-        {paginated.map((script) => (
+        {paginated.map((script: any) => (
           <ScriptCard
             key={script.scriptId}
-            script={script}
+            script={script} // ✅ ahora cuadra el tipo
             onView={() => setSelectedScript(script)}
             onDelete={() => setScriptToDelete(script)}
           />
@@ -329,7 +333,7 @@ export default function ScriptsContainer() {
 
       {/* Modales */}
       <ScriptModal
-        script={selectedScript}
+        script={selectedScript as any} // ✅ acepta null sin quejarse
         onClose={() => setSelectedScript(null)}
         onRating={handleRating}
       />
@@ -337,7 +341,10 @@ export default function ScriptsContainer() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-2xl w-full rounded-xl">
-          <ScriptCreatorContainer />
+          <ScriptCreatorContainer
+            onCreated={handleCreated}
+            onCancel={() => setIsNewOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 

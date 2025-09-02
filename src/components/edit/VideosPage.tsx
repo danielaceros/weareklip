@@ -60,7 +60,7 @@ export default function VideosPage() {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // Fetch videos (reutilizable para refrescar tras cerrar modal)
+  // Fetch videos
   const fetchVideos = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -94,7 +94,7 @@ export default function VideosPage() {
     void fetchVideos();
   }, [fetchVideos]);
 
-  // Abrir modal automáticamente con ?new=1 y limpiar la URL
+  // Abrir modal automáticamente con ?new=1
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setShowCreateModal(true);
@@ -147,6 +147,12 @@ export default function VideosPage() {
       setDeleteAll(false);
     }
   }
+
+  // Cierre y refresh desde el hijo
+  const handleCreated = useCallback(() => {
+    setShowCreateModal(false);
+    setTimeout(() => void fetchVideos(), 50);
+  }, [fetchVideos]);
 
   if (loading) {
     return (
@@ -240,18 +246,26 @@ export default function VideosPage() {
         </>
       )}
 
-      {/* Modal crear vídeo (Dialog controlado) */}
+      {/* Modal crear vídeo */}
       <Dialog
         open={showCreateModal}
-        onOpenChange={async (open) => {
+        onOpenChange={(open) => {
           setShowCreateModal(open);
-          if (!open) await fetchVideos(); // refrescar al cerrar
+          if (!open) void fetchVideos();
         }}
       >
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
-        <DialogContent className="max-w-4xl w-full rounded-xl p-0 overflow-hidden">
-          {/* Botón cerrar extra por si lo quieres mantener */}
-          <div className="relative">
+        <DialogContent
+          className="max-w-4xl w-[95vw] md:w-[80vw] p-0"
+          // 👇 Altura y scroll FORZADOS dentro del modal
+          style={{
+            height: "92dvh", // mejor en móviles
+            maxHeight: "92vh", // fallback desktop
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <div className="relative h-full">
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute right-3 top-3 z-10 text-muted-foreground hover:text-foreground"
@@ -259,8 +273,12 @@ export default function VideosPage() {
             >
               <X size={20} />
             </button>
-            <div className="p-6">
-              <CreateVideoPage />
+
+            {/* 👇 El contenido ocupa todo y scrollea */}
+            <div className="h-full overflow-y-auto overscroll-contain">
+              <div className="p-6 pb-8">
+                <CreateVideoPage onCreated={handleCreated} />
+              </div>
             </div>
           </div>
         </DialogContent>
