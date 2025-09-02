@@ -33,7 +33,7 @@ export default function CreateReelGlobalButton() {
 
       {/* 📱 MÓVIL: Speed Dial */}
       <div
-        id="btn-dial"
+        id="btn-menu-dial"
         className="fixed bottom-20 right-6 z-50 flex flex-col items-end gap-3 md:hidden"
       >
         <AnimatePresence>
