@@ -77,34 +77,39 @@ export async function POST(req: NextRequest) {
     let customerId: string | undefined = data.stripeCustomerId;
     let hasTrialUsed: boolean = data.hasTrialUsed ?? false;
 
+    let subs: Stripe.Subscription[] = [];
     if (customerId) {
       const c = await safeRetrieveCustomer(customerId);
       if (c) {
         await gaServerEvent("checkout_existing_customer", { uid, customerId, plan });
       }
 
-      // 🔎 Chequear suscripciones activas/canceladas pero en trial
-      const subs = await stripe.subscriptions.list({
+      const resp = await stripe.subscriptions.list({
         customer: customerId,
         status: "all",
         expand: ["data.default_payment_method"],
-        limit: 5,
+        limit: 10,
       });
+      subs = resp.data;
 
-      const trialingSub = subs.data.find(
+      // ⚡ Evaluar estado de las suscripciones
+      const hasActive = subs.some(s => s.status === "active");
+      const hasTrialing = subs.some(s => s.status === "trialing");
+      const hasTrialingCanceled = subs.some(
         s => s.status === "trialing" && s.cancel_at_period_end === true
       );
 
-      if (trialingSub) {
-        console.log("⚡ Cliente con sub cancelada pero en trial → Portal");
+      if (hasActive || hasTrialing || hasTrialingCanceled) {
+        // Si puede reactivarse → Portal
         const portal = await stripe.billingPortal.sessions.create({
           customer: customerId!,
-          return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(body.next ?? "/dashboard")}`,
+          return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(
+            body.next ?? "/dashboard"
+          )}`,
         });
         return NextResponse.json({ url: portal.url }, { status: 200 });
       }
     }
-
 
     // Guardar flags en Firestore
     await userRef.set(
@@ -115,23 +120,14 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // 4) Decidir trial SOLO según Firestore
+    // 4) Trial solo si no lo usó nunca
     const trialDays = hasTrialUsed ? undefined : 7;
-
     const next = body.next ?? "/dashboard";
-    // ⚡ Si ya usó trial antes → llevar directamente al Portal en lugar de crear otra sesión
-    if (hasTrialUsed) {
-      const portal = await stripe.billingPortal.sessions.create({
-        customer: customerId!,
-        return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(next)}`,
-      });
-      return NextResponse.json({ url: portal.url }, { status: 200 });
-    }
 
-    // 5) Crear Checkout Session solo si no ha usado trial nunca
+    // 5) Crear Checkout Session si no hay subs activas/trial
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer: customerId,
+      ...(customerId ? { customer: customerId } : { customer_email: body.email }),
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { uid, plan },
@@ -155,6 +151,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ url: session.url }, { status: 200 });
+
 
   } catch (e: any) {
     const msg = e?.message || "Internal error creating checkout session";
