@@ -161,9 +161,17 @@ export default function AudiosContainer() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
-          <AudioCreatorContainer />
+          <AudioCreatorContainer
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload(); // 👈 recarga igual que con guiones
+              }, 300);
+            }}
+          />
         </DialogContent>
       </Dialog>
+
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog

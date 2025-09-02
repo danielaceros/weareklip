@@ -314,9 +314,18 @@ export default function ScriptsContainer() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-2xl w-full rounded-xl">
-          <ScriptCreatorContainer />
+          <ScriptCreatorContainer
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload();
+              }, 300);
+            }}
+          />
         </DialogContent>
       </Dialog>
+
+
 
       {/* Confirmación eliminar */}
       <ConfirmDeleteDialog

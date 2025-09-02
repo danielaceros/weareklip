@@ -23,10 +23,11 @@ type VideoItem = { id: string; url: string; name?: string };
 const PAGE_SIZE = 1;
 
 interface Props {
-  onClose?: () => void; // 👈 opcional, si está en modal
+  onClose?: () => void;
+  onCreated?: () => void;
 }
 
-export default function LipsyncCreatePage({ onClose }: Props) {
+export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [audios, setAudios] = useState<AudioItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -170,12 +171,25 @@ export default function LipsyncCreatePage({ onClose }: Props) {
         }),
       });
 
-      const data = (await res.json()) as { id?: string; error?: string };
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error creando vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
+
+      // 1️⃣ cerrar modal secundario
       onClose?.();
-      router.push("/dashboard/video");
+
+      // 2️⃣ refrescar lista en el padre
+      if (typeof onCreated === "function") {
+        onCreated();
+      } else {
+        // fallback
+        if (window.location.pathname === "/dashboard/video") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/video");
+        }
+      }
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");

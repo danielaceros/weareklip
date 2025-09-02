@@ -20,7 +20,13 @@ import { Play, Pause, Loader2 } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
 
-export default function AudioCreatorContainer() {
+export default function AudioCreatorContainer({
+      onClose,
+      onCreated,
+    }: {
+      onClose?: () => void;
+      onCreated?: () => void;
+    }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const defaultText = searchParams.get("text") || "";
@@ -202,10 +208,29 @@ export default function AudioCreatorContainer() {
   };
 
   const handleAccept = () => {
-    toast.success("📂 Audio guardado en tu biblioteca");
-    setShowModal(false);
-    router.push("/dashboard/audio");
-  };
+      toast.success("📂 Audio guardado en tu biblioteca");
+
+      // 1️⃣ cerrar modal secundario
+      setShowModal(false);
+
+      // 2️⃣ cerrar modal padre
+      if (typeof onClose === "function") {
+        onClose();
+      }
+
+      // 3️⃣ refrescar/recargar
+      if (typeof onCreated === "function") {
+        onCreated();
+      } else {
+        // fallback
+        if (window.location.pathname === "/dashboard/audio") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/audio");
+        }
+      }
+    };
+
 
   return (
     <>

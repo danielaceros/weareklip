@@ -7,14 +7,28 @@ import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
-import { ScriptForm } from "./ScriptForm"; // 👈 tu formulario modular
+import { ScriptForm } from "./ScriptForm";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-export default function ScriptCreatorContainer() {
+interface ScriptCreatorContainerProps {
+  onClose?: () => void; // 👈 para cerrar el modal padre también
+  onCreated?: () => void; // 👈 nuevo
+}
+
+export default function ScriptCreatorContainer({
+  onClose,
+  onCreated
+}: ScriptCreatorContainerProps) {
   const [user, setUser] = useState<User | null>(null);
 
   // Campos del formulario
@@ -27,7 +41,7 @@ export default function ScriptCreatorContainer() {
   const [addCTA, setAddCTA] = useState(false);
   const [ctaText, setCtaText] = useState("");
 
-  // Script generado / modal
+  // Script generado / modal secundario
   const [script, setScript] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [scriptRegens, setScriptRegens] = useState(0);
@@ -163,9 +177,6 @@ export default function ScriptCreatorContainer() {
   const acceptScript = useCallback(async () => {
     if (!user) return;
 
-    flushSync(() => {
-      setShowModal(false);
-    });
     const toastId = toast.loading("💾 Guardando guion...");
 
     try {
@@ -204,7 +215,28 @@ export default function ScriptCreatorContainer() {
       }
 
       toast.success("✅ Guion guardado correctamente", { id: toastId });
-      router.push("/dashboard/script");
+
+        // 1️⃣ Cerrar modal secundario
+        setShowModal(false);
+
+        // 2️⃣ Notificar al padre que se creó un guion
+        if (typeof onCreated === "function") {
+          onCreated();
+        }
+
+        // 3️⃣ Cerrar modal principal si hay `onClose`
+        if (typeof onClose === "function") {
+          onClose();
+        }
+
+      // 3️⃣ Refrescar/navegar después de un pequeño delay
+      setTimeout(() => {
+        if (window.location.pathname === "/dashboard/script") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/script");
+        }
+      }, 300);
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.", { id: toastId });
@@ -222,6 +254,7 @@ export default function ScriptCreatorContainer() {
     script,
     scriptRegens,
     router,
+    onClose,
   ]);
 
   return (

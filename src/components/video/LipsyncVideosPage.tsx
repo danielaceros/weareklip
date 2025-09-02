@@ -196,9 +196,17 @@ export default function LipsyncVideosPage() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
-          <LipsyncCreatePage onClose={() => setIsNewOpen(false)} />
+          <LipsyncCreatePage
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload(); // 👈 recarga igual que en scripts/audios
+              }, 300);
+            }}
+          />
         </DialogContent>
       </Dialog>
+
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog

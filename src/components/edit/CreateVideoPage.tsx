@@ -53,11 +53,13 @@ interface Props {
     magicBrolls: boolean;
     magicBrollsPercentage: number;
   }) => void;
+  onCreated?: () => void; // 👈 añadida
 }
 
 export default function CreateVideoPage({
   preloadedVideos = [],
   onComplete,
+  onCreated,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -247,9 +249,20 @@ export default function CreateVideoPage({
       toast.success(
         `🎬 Vídeo creado correctamente${projectId ? ` (ID: ${projectId})` : ""}`
       );
+
       setFile(null);
       setUploadProgress(0);
-      router.push("/dashboard/edit");
+
+      // ✅ cerrar modal padre y refrescar lista
+      if (typeof onCreated === "function") {
+        onCreated();
+      } else {
+        if (window.location.pathname === "/dashboard/edit") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/edit");
+        }
+      }
     } catch (error) {
       console.error(error);
       toast.error("❌ Error subiendo o procesando el vídeo");
@@ -258,6 +271,7 @@ export default function CreateVideoPage({
       setProcessing(false);
     }
   };
+
 
   const isLoading = processing || submitting;
   const buttonText = processing

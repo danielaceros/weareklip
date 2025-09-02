@@ -236,10 +236,18 @@ export default function VideosPage() {
             >
               <X size={20} />
             </button>
-            <CreateVideoPage />
+            <CreateVideoPage
+              onCreated={() => {
+                setShowCreateModal(false); // 👈 cierra modal
+                setTimeout(() => {
+                  window.location.reload(); // 👈 recarga la página
+                }, 300);
+              }}
+            />
           </div>
         </div>
       )}
+
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
