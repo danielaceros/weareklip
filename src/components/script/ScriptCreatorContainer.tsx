@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { flushSync } from "react-dom";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
@@ -19,12 +20,15 @@ import { Button } from "@/components/ui/button";
 import { ScriptForm } from "./ScriptForm";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-interface Props {
-  onCreated?: (script: any) => void;
-  onCancel?: () => void;
+interface ScriptCreatorContainerProps {
+  onClose?: () => void; // 👈 para cerrar el modal padre también
+  onCreated?: () => void; // 👈 nuevo
 }
 
-export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
+export default function ScriptCreatorContainer({
+  onClose,
+  onCreated
+}: ScriptCreatorContainerProps) {
   const [user, setUser] = useState<User | null>(null);
 
   // Campos del formulario
@@ -37,20 +41,23 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
   const [addCTA, setAddCTA] = useState(false);
   const [ctaText, setCtaText] = useState("");
 
-  // Script generado / modal
+  // Script generado / modal secundario
   const [script, setScript] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [scriptRegens, setScriptRegens] = useState(0);
 
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
+  const router = useRouter();
+
+  // 🔑 Autenticación
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
+  // 🚀 Generar script
   const handleGenerate = useCallback(async () => {
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
@@ -64,6 +71,7 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
     setLoading(true);
     try {
       const idToken = await user.getIdToken();
+
       const res = await fetch("/api/chatgpt/scripts/create", {
         method: "POST",
         headers: {
@@ -110,6 +118,7 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
     user,
   ]);
 
+  // 🔄 Regenerar script
   const regenerateScript = useCallback(async () => {
     if (scriptRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el guion 2 veces.");
@@ -164,12 +173,11 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
     ctaText,
   ]);
 
+  // 💾 Aceptar y guardar script
   const acceptScript = useCallback(async () => {
     if (!user) return;
 
-    flushSync(() => setShowModal(false));
     const toastId = toast.loading("💾 Guardando guion...");
-    setSaving(true);
 
     try {
       const idToken = await user.getIdToken();
@@ -206,32 +214,32 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
         throw new Error(err.error || `Error ${res.status}`);
       }
 
-      const createdAtMs = Date.now();
-      const created = {
-        scriptId,
-        description,
-        tone,
-        platform,
-        duration,
-        language,
-        structure,
-        addCTA,
-        ctaText,
-        script,
-        isAI: true,
-        createdAt: {
-          seconds: Math.floor(createdAtMs / 1000),
-          nanoseconds: (createdAtMs % 1000) * 1_000_000,
-        },
-      };
-
       toast.success("✅ Guion guardado correctamente", { id: toastId });
-      onCreated?.(created); // 👉 cierra el modal padre y refresca lista
+
+        // 1️⃣ Cerrar modal secundario
+        setShowModal(false);
+
+        // 2️⃣ Notificar al padre que se creó un guion
+        if (typeof onCreated === "function") {
+          onCreated();
+        }
+
+        // 3️⃣ Cerrar modal principal si hay `onClose`
+        if (typeof onClose === "function") {
+          onClose();
+        }
+
+      // 3️⃣ Refrescar/navegar después de un pequeño delay
+      setTimeout(() => {
+        if (window.location.pathname === "/dashboard/script") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/script");
+        }
+      }, 300);
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.", { id: toastId });
-    } finally {
-      setSaving(false);
     }
   }, [
     user,
@@ -245,11 +253,13 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
     ctaText,
     script,
     scriptRegens,
-    onCreated,
+    router,
+    onClose,
   ]);
 
   return (
     <>
+      {/* Formulario */}
       <ScriptForm
         description={description}
         tone={tone}
@@ -259,7 +269,7 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
         structure={structure}
         addCTA={addCTA}
         ctaText={ctaText}
-        loading={loading || saving}
+        loading={loading}
         setDescription={setDescription}
         setTone={setTone}
         setPlatform={setPlatform}
@@ -271,38 +281,31 @@ export default function ScriptCreatorContainer({ onCreated, onCancel }: Props) {
         onSubmit={handleGenerate}
       />
 
+      {/* Modal guion generado */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Guion generado</DialogTitle>
           </DialogHeader>
-
           <Textarea
             value={script}
             onChange={(e) => setScript(e.target.value)}
             className="min-h-[200px] w-full resize-none"
           />
-
           <DialogFooter className="flex justify-between">
             <Button
               variant="outline"
               onClick={regenerateScript}
-              disabled={scriptRegens >= 2 || saving}
+              disabled={scriptRegens >= 2}
             >
               Regenerar ({scriptRegens}/2)
             </Button>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={onCancel} disabled={saving}>
-                Cancelar
-              </Button>
-              <Button onClick={acceptScript} disabled={saving}>
-                {saving ? "Guardando..." : "Aceptar y guardar"}
-              </Button>
-            </div>
+            <Button onClick={acceptScript}>Aceptar y guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Modal checkout */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

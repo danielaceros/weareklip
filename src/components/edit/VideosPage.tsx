@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Plus, Trash2, X } from "lucide-react";
 
 import VideoCard from "./VideoCard";
 import CreateVideoPage from "./CreateVideoPage";
-
 import {
   Pagination,
   PaginationContent,
@@ -20,9 +19,6 @@ import {
 
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
-
-import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
 
 export interface VideoData {
   projectId: string;
@@ -50,59 +46,43 @@ export default function VideosPage() {
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-
-  // Auth
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // Fetch videos
-  const fetchVideos = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+  useEffect(() => {
+    const fetchVideos = async () => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
 
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      const data = await res.json();
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
 
-      setVideos(
-        data.map(
-          (v: any) =>
-            ({
-              projectId: v.id,
-              ...v,
-            } as VideoData)
-        )
-      );
-    } catch (error) {
-      console.error("Error cargando vídeos:", error);
-      toast.error("Error cargando vídeos");
-    } finally {
-      setLoading(false);
-    }
+        setVideos(
+          data.map(
+            (v: any) =>
+              ({
+                projectId: v.id,
+                ...v,
+              } as VideoData)
+          )
+        );
+      } catch (error) {
+        console.error("Error cargando vídeos:", error);
+        toast.error("Error cargando vídeos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
   }, [user]);
 
-  useEffect(() => {
-    void fetchVideos();
-  }, [fetchVideos]);
-
-  // Abrir modal automáticamente con ?new=1
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setShowCreateModal(true);
-      router.replace(pathname, { scroll: false });
-    }
-  }, [searchParams, pathname, router]);
-
-  // Borrado
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
@@ -111,6 +91,7 @@ export default function VideosPage() {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
+        // DELETE en lote
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
           method: "DELETE",
           headers: {
@@ -124,6 +105,7 @@ export default function VideosPage() {
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
+        // DELETE individual
         const res = await fetch(
           `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
           {
@@ -147,12 +129,6 @@ export default function VideosPage() {
       setDeleteAll(false);
     }
   }
-
-  // Cierre y refresh desde el hijo
-  const handleCreated = useCallback(() => {
-    setShowCreateModal(false);
-    setTimeout(() => void fetchVideos(), 50);
-  }, [fetchVideos]);
 
   if (loading) {
     return (
@@ -247,42 +223,31 @@ export default function VideosPage() {
       )}
 
       {/* Modal crear vídeo */}
-      <Dialog
-        open={showCreateModal}
-        onOpenChange={(open) => {
-          setShowCreateModal(open);
-          if (!open) void fetchVideos();
-        }}
-      >
-        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
-        <DialogContent
-          className="max-w-4xl w-[95vw] md:w-[80vw] p-0"
-          // 👇 Altura y scroll FORZADOS dentro del modal
-          style={{
-            height: "92dvh", // mejor en móviles
-            maxHeight: "92vh", // fallback desktop
-            overflowY: "auto",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          <div className="relative h-full">
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowCreateModal(false)}
+          />
+          <div className="relative bg-background rounded-xl shadow-lg w-full max-w-4xl mx-auto p-6 z-50 overflow-y-auto max-h-[90vh]">
             <button
               onClick={() => setShowCreateModal(false)}
-              className="absolute right-3 top-3 z-10 text-muted-foreground hover:text-foreground"
-              aria-label="Cerrar"
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
             >
               <X size={20} />
             </button>
-
-            {/* 👇 El contenido ocupa todo y scrollea */}
-            <div className="h-full overflow-y-auto overscroll-contain">
-              <div className="p-6 pb-8">
-                <CreateVideoPage onCreated={handleCreated} />
-              </div>
-            </div>
+            <CreateVideoPage
+              onCreated={() => {
+                setShowCreateModal(false); // 👈 cierra modal
+                setTimeout(() => {
+                  window.location.reload(); // 👈 recarga la página
+                }, 300);
+              }}
+            />
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog

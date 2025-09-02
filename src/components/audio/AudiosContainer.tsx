@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
-import { AudiosList, type AudioData } from "./AudiosList";
+import { AudiosList, AudioData } from "./AudiosList";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import AudioCreatorContainer from "./AudioCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
@@ -22,24 +21,11 @@ export default function AudiosContainer() {
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // --- Auth ---
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // --- Auto open with ?new=1 ---
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsNewOpen(true);
-      router.replace(pathname, { scroll: false });
-    }
-  }, [searchParams, pathname, router]);
-
-  // --- Fetch audios ---
   const fetchAudios = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -76,10 +62,9 @@ export default function AudiosContainer() {
     fetchAudios();
   }, [fetchAudios]);
 
-  // --- Delete (single / all) ---
   const handleConfirmDelete = useCallback(async () => {
     if (!user) return;
-    if (deleting) return;
+    if (deleting) return; // prevenir clicks dobles
     setDeleting(true);
 
     try {
@@ -136,17 +121,6 @@ export default function AudiosContainer() {
     [audioToDelete, deleteAll]
   );
 
-  // --- Cuando el hijo confirma creación ---
-  const handleCreated = useCallback(
-    (_created?: any) => {
-      setIsNewOpen(false); // cierra el modal padre automáticamente
-      fetchAudios(); // refresca la lista
-      // el toast lo dispara el hijo (para evitar duplicados)
-    },
-    [fetchAudios]
-  );
-
-  // --- Loading ---
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -181,21 +155,23 @@ export default function AudiosContainer() {
       </div>
 
       {/* Grid de audios */}
-      <AudiosList
-        audios={audios}
-        onDelete={(audio) => setAudioToDelete(audio)}
-      />
+      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
 
       {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
           <AudioCreatorContainer
-            onCreated={handleCreated}
-            onCancel={() => setIsNewOpen(false)}
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload(); // 👈 recarga igual que con guiones
+              }, 300);
+            }}
           />
         </DialogContent>
       </Dialog>
+
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog

@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  type ComponentProps,
-} from "react";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,20 +25,39 @@ import { ScriptCard } from "./ScriptCard";
 import { ScriptModal } from "./ScriptModal";
 import ScriptCreatorContainer from "./ScriptCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
-// ✅ Inferimos el tipo de script que usan tus componentes
-type ScriptCardProps = ComponentProps<typeof ScriptCard>;
-type UIScript = ScriptCardProps extends { script: infer T } ? T : never;
+interface ScriptData {
+  scriptId: string;
+  isAI?: boolean;
+  ctaText?: string;
+  platform?: string;
+  addCTA?: boolean;
+  structure?: string;
+  tone?: string;
+  duration?: string;
+  language?: string;
+  description?: string;
+  script?: string;
+  rating?: number;
+  createdAt?: { seconds: number; nanoseconds: number };
+  fuente?: string;
+  videoTitle?: string;
+  videoDescription?: string;
+  videoChannel?: string;
+  videoPublishedAt?: string;
+  videoViews?: number;
+  videoThumbnail?: string;
+}
 
 export default function ScriptsContainer() {
-  const [scripts, setScripts] = useState<UIScript[]>([]);
+  const [scripts, setScripts] = useState<ScriptData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [selectedScript, setSelectedScript] = useState<UIScript | null>(null);
+  const [selectedScript, setSelectedScript] = useState<ScriptData | null>(null);
 
   // Estados de borrado
-  const [scriptToDelete, setScriptToDelete] = useState<UIScript | null>(null);
+  const [scriptToDelete, setScriptToDelete] = useState<ScriptData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -61,17 +73,6 @@ export default function ScriptsContainer() {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // ✅ Abrir modal automáticamente si viene ?new=1
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsNewOpen(true);
-      router.replace(pathname, { scroll: false });
-    }
-  }, [searchParams, pathname, router]);
-
   // 📥 Fetch de scripts
   const fetchScripts = useCallback(async () => {
     if (!user) return;
@@ -85,26 +86,24 @@ export default function ScriptsContainer() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data: any[] = await res.json();
 
-      // mapeamos y casteamos a UIScript para contentar a TS
-      const mapped = data.map((doc) => ({
-        scriptId: doc.id,
-        description: doc.description,
-        platform: doc.platform,
-        language: doc.language,
-        script: doc.script,
-        createdAt: doc.createdAt,
-        fuente: doc.fuente,
-        isAI: doc.isAI,
-        videoTitle: doc.videoTitle,
-        videoDescription: doc.videoDescription,
-        videoChannel: doc.videoChannel,
-        videoPublishedAt: doc.videoPublishedAt,
-        videoViews: doc.videoViews,
-        videoThumbnail: doc.videoThumbnail,
-        rating: doc.rating,
-      })) as unknown as UIScript[];
-
-      setScripts(mapped);
+      setScripts(
+        data.map((doc) => ({
+          scriptId: doc.id,
+          description: doc.description,
+          platform: doc.platform,
+          language: doc.language,
+          script: doc.script,
+          createdAt: doc.createdAt,
+          fuente: doc.fuente,
+          isAI: doc.isAI,
+          videoTitle: doc.videoTitle,
+          videoDescription: doc.videoDescription,
+          videoChannel: doc.videoChannel,
+          videoPublishedAt: doc.videoPublishedAt,
+          videoViews: doc.videoViews,
+          videoThumbnail: doc.videoThumbnail,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching scripts:", error);
       toast.error("No se pudieron cargar los guiones");
@@ -127,10 +126,10 @@ export default function ScriptsContainer() {
 
       if (deleteAll) {
         const prev = scripts;
-        setScripts([]);
+        setScripts([]); // Optimista
         await Promise.all(
-          prev.map((sc: any) =>
-            fetch(`/api/firebase/users/${user.uid}/scripts/${sc.scriptId}`, {
+          prev.map((script) =>
+            fetch(`/api/firebase/users/${user.uid}/scripts/${script.scriptId}`, {
               method: "DELETE",
               headers: { Authorization: `Bearer ${idToken}` },
             })
@@ -138,13 +137,10 @@ export default function ScriptsContainer() {
         );
         toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
-        const toDel = scriptToDelete as any;
         const prev = scripts;
-        setScripts((s: any[]) =>
-          s.filter((x: any) => x.scriptId !== toDel.scriptId)
-        );
+        setScripts((s) => s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId));
         const res = await fetch(
-          `/api/firebase/users/${user.uid}/scripts/${toDel.scriptId}`,
+          `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
         );
         if (!res.ok) throw new Error("Error en borrado");
@@ -165,58 +161,34 @@ export default function ScriptsContainer() {
   const handleRating = async (scriptId: string, newRating: number) => {
     if (!user) return;
     const prev = scripts;
-    setScripts((s: any[]) =>
-      s.map((sc: any) =>
-        sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc
-      )
+    setScripts((s) =>
+      s.map((sc) => (sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc))
     );
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(
-        `/api/firebase/users/${user.uid}/scripts/${scriptId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ rating: newRating }),
-        }
-      );
+      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ rating: newRating }),
+      });
       if (!res.ok) throw new Error("Error rating");
     } catch (err) {
       toast.error("No se pudo actualizar la valoración");
-      setScripts(prev);
+      setScripts(prev); // rollback
     }
   };
 
-  // 🔔 Callback cuando el hijo termina de crear
-  const handleCreated = useCallback(
-    (_created: UIScript) => {
-      setIsNewOpen(false); // cerrar modal padre
-      setPage(1);
-      fetchScripts(); // refrescar lista
-    },
-    [fetchScripts]
-  );
-
-  // 📊 Orden y paginación
+  // 📊 Orden y paginación memoizados
   const sortedScripts = useMemo(() => {
-    return [...scripts].sort((a: any, b: any) => {
-      const toMs = (d: any) =>
-        typeof d === "number"
-          ? d
-          : d?.seconds
-          ? d.seconds * 1000 + Math.floor((d.nanoseconds || 0) / 1e6)
-          : 0;
-
-      const dateA = toMs(a.createdAt);
-      const dateB = toMs(b.createdAt);
-
+    return [...scripts].sort((a, b) => {
+      const dateA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
+      const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
       if (sortOption === "date-desc") return dateB - dateA;
       if (sortOption === "date-asc") return dateA - dateB;
-      if (sortOption === "rating-desc")
-        return (b.rating || 0) - (a.rating || 0);
+      if (sortOption === "rating-desc") return (b.rating || 0) - (a.rating || 0);
       if (sortOption === "rating-asc") return (a.rating || 0) - (b.rating || 0);
       return 0;
     });
@@ -225,6 +197,7 @@ export default function ScriptsContainer() {
   const totalPages = Math.ceil(sortedScripts.length / perPage);
   const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
 
+  // ✅ Spinner loader centrado
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -279,10 +252,10 @@ export default function ScriptsContainer() {
             No tienes guiones aún.
           </p>
         )}
-        {paginated.map((script: any) => (
+        {paginated.map((script) => (
           <ScriptCard
             key={script.scriptId}
-            script={script} // ✅ ahora cuadra el tipo
+            script={script}
             onView={() => setSelectedScript(script)}
             onDelete={() => setScriptToDelete(script)}
           />
@@ -333,7 +306,7 @@ export default function ScriptsContainer() {
 
       {/* Modales */}
       <ScriptModal
-        script={selectedScript as any} // ✅ acepta null sin quejarse
+        script={selectedScript}
         onClose={() => setSelectedScript(null)}
         onRating={handleRating}
       />
@@ -342,11 +315,17 @@ export default function ScriptsContainer() {
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-2xl w-full rounded-xl">
           <ScriptCreatorContainer
-            onCreated={handleCreated}
-            onCancel={() => setIsNewOpen(false)}
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload();
+              }, 300);
+            }}
           />
         </DialogContent>
       </Dialog>
+
+
 
       {/* Confirmación eliminar */}
       <ConfirmDeleteDialog

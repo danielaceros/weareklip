@@ -53,8 +53,7 @@ interface Props {
     magicBrolls: boolean;
     magicBrollsPercentage: number;
   }) => void;
-  /** 👇 NUEVO: cuando la creación finaliza correctamente dentro de /edit */
-  onCreated?: () => void;
+  onCreated?: () => void; // 👈 añadida
 }
 
 export default function CreateVideoPage({
@@ -113,6 +112,8 @@ export default function CreateVideoPage({
 
   /* ---- Autoselección de vídeo ---- */
   useEffect(() => {
+    // Si aún no hay selección ni archivo y tenemos vídeos pre-cargados,
+    // seleccionamos automáticamente el primero (asumimos ordenado por más reciente)
     if (!videoUrl && !file) {
       if (preloadedVideoUrl) {
         setVideoUrl(preloadedVideoUrl);
@@ -249,16 +250,19 @@ export default function CreateVideoPage({
         `🎬 Vídeo creado correctamente${projectId ? ` (ID: ${projectId})` : ""}`
       );
 
-      // 👉 autocierre si el padre pasó onCreated
-      if (onCreated) {
-        onCreated();
-        return; // no navegamos
-      }
-
-      // fallback: navegación clásica
       setFile(null);
       setUploadProgress(0);
-      router.push("/dashboard/edit");
+
+      // ✅ cerrar modal padre y refrescar lista
+      if (typeof onCreated === "function") {
+        onCreated();
+      } else {
+        if (window.location.pathname === "/dashboard/edit") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/edit");
+        }
+      }
     } catch (error) {
       console.error(error);
       toast.error("❌ Error subiendo o procesando el vídeo");
@@ -267,6 +271,7 @@ export default function CreateVideoPage({
       setProcessing(false);
     }
   };
+
 
   const isLoading = processing || submitting;
   const buttonText = processing
@@ -449,14 +454,12 @@ export default function CreateVideoPage({
 
           {/* Descripción */}
           <div>
-            <Label className="mb-2 block">
-              Describe en 3-4 palabras el vídeo
-            </Label>
+            <Label className="mb-2 block">Describe en 3-4 palabras el vídeo</Label>
             <TagsInput
-              value={dictionary}
-              onChange={setDictionary}
-              placeholder="Escribe un tag y pulsa Enter o coma..."
-            />
+                value={dictionary}
+                onChange={setDictionary}
+                placeholder="Escribe un tag y pulsa Enter o coma..."
+              />
           </div>
 
           {/* Opciones mágicas */}
