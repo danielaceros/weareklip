@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
@@ -11,8 +11,7 @@ import LipsyncCreatePage from "./LipsyncCreatePage";
 import { toast } from "sonner";
 import { ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface VideoData {
   projectId: string;
@@ -28,62 +27,59 @@ export default function LipsyncVideosPage() {
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
 
+  // Estado para eliminar
   const [videoToDelete, setVideoToDelete] = useState<VideoData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const fetchVideos = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/lipsync`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (!res.ok) throw new Error("Error cargando lipsync");
+  useEffect(() => {
+    const fetchVideos = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/lipsync`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
 
-      const data = await res.json();
-      const mapped: VideoData[] = data.map((d: any) => ({
-        projectId: d.id,
-        ...(d as Omit<VideoData, "projectId">),
-      }));
+        if (!res.ok) throw new Error("Error cargando lipsync");
 
-      setVideos(mapped);
-    } catch (error) {
-      console.error("Error fetching lipsync videos:", error);
-      toast.error("❌ No se pudieron cargar los vídeos");
-    } finally {
-      setLoading(false);
-    }
+        const data = await res.json();
+
+        const mapped: VideoData[] = data.map((d: any) => ({
+          projectId: d.id,
+          ...(d as Omit<VideoData, "projectId">),
+        }));
+
+        setVideos(mapped);
+      } catch (error) {
+        console.error("Error fetching lipsync videos:", error);
+        toast.error("❌ No se pudieron cargar los vídeos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
   }, [user]);
-
-  useEffect(() => {
-    void fetchVideos();
-  }, [fetchVideos]);
-
-  // Abrir con ?new=1
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsNewOpen(true);
-      router.replace(pathname, { scroll: false });
-    }
-  }, [searchParams, pathname, router]);
 
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
+
     try {
       const token = await user.getIdToken();
 
       if (deleteAll) {
+        // 🟥 Borrar todos via API
         await Promise.all(
           videos.map(async (video) => {
             const res = await fetch(
@@ -93,15 +89,13 @@ export default function LipsyncVideosPage() {
                 headers: { Authorization: `Bearer ${token}` },
               }
             );
-            if (!res.ok)
-              throw new Error(`Error borrando doc ${video.projectId}`);
+            if (!res.ok) throw new Error(`Error borrando doc ${video.projectId}`);
 
+            // Borrar en Storage si aplica
             if (video.downloadUrl?.includes("firebasestorage")) {
               try {
                 const path = decodeURIComponent(
-                  new URL(video.downloadUrl).pathname
-                    .split("/o/")[1]
-                    ?.split("?")[0] ?? ""
+                  new URL(video.downloadUrl).pathname.split("/o/")[1]?.split("?")[0] ?? ""
                 );
                 if (path) await deleteObject(ref(storage, path));
               } catch (err) {
@@ -110,22 +104,23 @@ export default function LipsyncVideosPage() {
             }
           })
         );
+
         setVideos([]);
         toast.success("Todos los vídeos han sido eliminados ✅");
       } else if (videoToDelete) {
         const res = await fetch(
           `/api/firebase/users/${user.uid}/lipsync/${videoToDelete.projectId}`,
-          { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
-        if (!res.ok)
-          throw new Error(`Error borrando doc ${videoToDelete.projectId}`);
+        if (!res.ok) throw new Error(`Error borrando doc ${videoToDelete.projectId}`);
 
         if (videoToDelete.downloadUrl?.includes("firebasestorage")) {
           try {
             const path = decodeURIComponent(
-              new URL(videoToDelete.downloadUrl).pathname
-                .split("/o/")[1]
-                ?.split("?")[0] ?? ""
+              new URL(videoToDelete.downloadUrl).pathname.split("/o/")[1]?.split("?")[0] ?? ""
             );
             if (path) await deleteObject(ref(storage, path));
           } catch (err) {
@@ -133,9 +128,7 @@ export default function LipsyncVideosPage() {
           }
         }
 
-        setVideos((prev) =>
-          prev.filter((v) => v.projectId !== videoToDelete.projectId)
-        );
+        setVideos((prev) => prev.filter((v) => v.projectId !== videoToDelete.projectId));
         toast.success("Vídeo eliminado correctamente ✅");
       }
     } catch (err) {
@@ -148,36 +141,32 @@ export default function LipsyncVideosPage() {
     }
   }
 
-  // 👉 Recibe la señal del hijo: cerrar + refrescar
-  const handleCreated = useCallback(() => {
-    // 1) cierra el modal (controlado por el padre)
-    setIsNewOpen(false);
-    // 2) refresca (ligero retraso para evitar carreras con animación del modal)
-    setTimeout(() => void fetchVideos(), 50);
-  }, [fetchVideos]);
-
+  // ✅ Spinner loader
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
-        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
+        <Spinner className="h-12 w-12 text-primary" variant="ellipsis"/>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Header con título y botones */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold">Clones</h1>
         <div className="flex gap-3">
+          <div className="flex gap-3 justify-end">
           <Button
             variant="destructive"
             className="rounded-lg"
             onClick={() => setDeleteAll(true)}
-            disabled={videos.length === 0 || deleting}
+            disabled={videos.length === 0}
           >
             <Trash2 size={18} className="mr-2" />
-            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
+            Borrar todos
           </Button>
+
           <Button
             className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
             onClick={() => setIsNewOpen(true)}
@@ -185,9 +174,11 @@ export default function LipsyncVideosPage() {
             <Plus size={18} className="mr-2" />
             Crear vídeo
           </Button>
+          </div>
         </div>
       </div>
 
+      {/* Lista de vídeos */}
       <LipsyncVideoList
         videos={videos}
         onDelete={(id, url) =>
@@ -202,23 +193,22 @@ export default function LipsyncVideosPage() {
       />
 
       {/* Modal crear */}
-      <Dialog
-        open={isNewOpen}
-        onOpenChange={(open) => {
-          setIsNewOpen(open);
-          // si se cierra manualmente, refrescamos
-          if (!open) void fetchVideos();
-        }}
-      >
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
           <LipsyncCreatePage
-            onCreated={handleCreated}
-            onCancel={() => setIsNewOpen(false)}
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload(); // 👈 recarga igual que en scripts/audios
+              }, 300);
+            }}
           />
         </DialogContent>
       </Dialog>
 
+
+      {/* Modal eliminar */}
       <ConfirmDeleteDialog
         open={!!videoToDelete || deleteAll}
         onClose={() => {
@@ -227,9 +217,7 @@ export default function LipsyncVideosPage() {
         }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
-        title={
-          deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo Lipsync"
-        }
+        title={deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo Lipsync"}
         description={
           deleteAll
             ? "¿Seguro que quieres eliminar TODOS los vídeos? Esta acción no se puede deshacer."

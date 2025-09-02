@@ -28,7 +28,7 @@ interface ScriptFormProps {
   structure: string;
   addCTA: boolean;
   ctaText: string;
-  loading: boolean; // viene del padre
+  loading: boolean;
   setDescription: (val: string) => void;
   setTone: (val: string) => void;
   setPlatform: (val: string) => void;
@@ -38,6 +38,7 @@ interface ScriptFormProps {
   setAddCTA: (val: boolean) => void;
   setCtaText: (val: string) => void;
   onSubmit: () => void | Promise<void>;
+  onClose?: () => void; // 👈 nuevo: para cerrar modal padre
 }
 
 export function ScriptForm({
@@ -59,6 +60,7 @@ export function ScriptForm({
   setAddCTA,
   setCtaText,
   onSubmit,
+  onClose, // 👈 recibimos
 }: ScriptFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
@@ -72,11 +74,9 @@ export function ScriptForm({
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre el modal
+      setShowCheckout(true);
       return;
     }
-
-
 
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
@@ -86,6 +86,11 @@ export function ScriptForm({
 
     try {
       await onSubmit();
+
+      // 👇 opcional: cerrar modal padre justo después de generar
+      if (typeof onClose === "function") {
+        onClose();
+      }
     } finally {
       setProcessing(false);
     }
@@ -97,6 +102,7 @@ export function ScriptForm({
     duration,
     structure,
     onSubmit,
+    onClose,
   ]);
 
   const isLoading = processing || loading;
@@ -106,7 +112,7 @@ export function ScriptForm({
     ? "Generando..."
     : "Generar guion";
 
-  // ✅ Memoizar las opciones de Select para evitar recreación
+  // Opciones memoizadas
   const toneOptions = useMemo(
     () => [
       { value: "motivador", label: "Motivador" },
@@ -303,12 +309,14 @@ export function ScriptForm({
           {buttonText}
         </Button>
       </div>
+
+      {/* Modal paywall */}
       <CheckoutRedirectModal
-                          open={showCheckout}
-                          onClose={() => setShowCheckout(false)}
-                          plan="ACCESS"
-                          message="Necesitas una suscripción activa para generar audios."
-                        />
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar audios."
+      />
     </div>
   );
 }

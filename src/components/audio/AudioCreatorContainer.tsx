@@ -2,6 +2,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAudioForm } from "./useAudioForm";
@@ -53,8 +54,8 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const { ensureSubscribed } = useSubscriptionGate();
-  const [showCheckout, setShowCheckout] = useState(false);
+  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
+  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal checkout
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -110,9 +111,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
   // 👉 Generar audio inicial
   const handleGenerate = async () => {
-    const ok = await ensureSubscribed({ feature: "audio" });
+    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check
     if (!ok) {
-      setShowCheckout(true);
+      setShowCheckout(true); // 👈 abre modal
       return;
     }
 
@@ -177,7 +178,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
   // 👉 Regenerar audio
   const handleRegenerate = async () => {
-    const ok = await ensureSubscribed({ feature: "audio" });
+    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check también aquí
     if (!ok) {
       setShowCheckout(true);
       return;
@@ -293,6 +294,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
                       className="h-1 bg-white rounded-full transition-all"
+                      className="h-1 bg-white rounded-full transition-all"
                       style={{
                         width: duration
                           ? `${(progress / duration) * 100}%`
@@ -336,7 +338,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
-        plan="ACCESS"
+        plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
         message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
       />
     </>
