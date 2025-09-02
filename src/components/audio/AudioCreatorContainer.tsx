@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useAudioForm } from "./useAudioForm";
@@ -17,12 +17,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2 } from "lucide-react";
 
-import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-export default function AudioCreatorContainer() {
+type Props = {
+  onCreated?: (payload?: any) => void;
+  onCancel?: () => void;
+};
+
+export default function AudioCreatorContainer({ onCreated, onCancel }: Props) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const defaultText = searchParams.get("text") || "";
   const form = useAudioForm(defaultText);
 
@@ -37,8 +41,8 @@ export default function AudioCreatorContainer() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal checkout
+  const { ensureSubscribed } = useSubscriptionGate();
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -51,21 +55,17 @@ export default function AudioCreatorContainer() {
     }
   }, [isPlaying]);
 
-  // 🔹 Actualizar progreso fluido con requestAnimationFrame
+  // 🔹 Progreso con rAF
   useEffect(() => {
     let rafId: number;
     const updateProgress = () => {
       if (audioRef.current) {
         const el = audioRef.current;
-        const p = el.currentTime;
-        setProgress(p || 0);
+        setProgress(el.currentTime || 0);
         rafId = requestAnimationFrame(updateProgress);
       }
     };
-
-    if (isPlaying) {
-      rafId = requestAnimationFrame(updateProgress);
-    }
+    if (isPlaying) rafId = requestAnimationFrame(updateProgress);
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying]);
 
@@ -96,9 +96,9 @@ export default function AudioCreatorContainer() {
 
   // 👉 Generar audio inicial
   const handleGenerate = async () => {
-    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check
+    const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       return;
     }
 
@@ -153,7 +153,7 @@ export default function AudioCreatorContainer() {
 
   // 👉 Regenerar audio
   const handleRegenerate = async () => {
-    const ok = await ensureSubscribed({ feature: "audio" }); // 👈 check también aquí
+    const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
       setShowCheckout(true);
       return;
@@ -201,10 +201,18 @@ export default function AudioCreatorContainer() {
     }
   };
 
+  // 👉 Aceptar (guardar en biblioteca) y avisar al padre para autocerrar
   const handleAccept = () => {
     toast.success("📂 Audio guardado en tu biblioteca");
     setShowModal(false);
-    router.push("/dashboard/audio");
+
+    // payload opcional (el padre solo lo usa para cerrar/refrescar)
+    onCreated?.({
+      audioId,
+      audioUrl,
+      duration,
+      createdAt: Date.now(),
+    });
   };
 
   return (
@@ -234,7 +242,7 @@ export default function AudioCreatorContainer() {
                   </div>
                   <div className="w-full h-1 bg-neutral-700 rounded-full">
                     <div
-                      className="h-1 bg-white rounded-full transition-all"
+                      className="h-1 rounded-full transition-all bg-white"
                       style={{
                         width: duration
                           ? `${(progress / duration) * 100}%`
@@ -268,18 +276,23 @@ export default function AudioCreatorContainer() {
               )}
               Regenerar ({regenCount}/2)
             </Button>
-            <Button onClick={handleAccept}>Aceptar y guardar</Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onCancel}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAccept}>Aceptar y guardar</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Modal paywall */}
       <CheckoutRedirectModal
-                  open={showCheckout}
-                  onClose={() => setShowCheckout(false)}
-                  plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
-                  message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
-                />
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+      />
     </>
   );
 }
