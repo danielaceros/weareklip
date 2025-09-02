@@ -43,12 +43,36 @@ function hasString(v: unknown, key: string): v is Record<string, string> {
 }
 /* -------------------------------- */
 
+/* ---------- límite 60s ---------- */
+const MAX_SEC = 60;
+
+const getVideoDurationFromUrl = (url: string) =>
+  new Promise<number>((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.src = url;
+    v.onloadedmetadata = () => resolve(v.duration || 0);
+    v.onerror = () =>
+      reject(new Error("No se pudo leer la duración del vídeo"));
+  });
+
+const getVideoDurationFromFile = async (file: File) => {
+  const url = URL.createObjectURL(file);
+  try {
+    const sec = await getVideoDurationFromUrl(url);
+    return sec;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+/* -------------------------------- */
+
 type VideoOption = { id: string; name: string; url: string };
 
 interface Props {
   preloadedVideos?: VideoOption[];
   audioUrl: string; // 👈 obligatorio para el pipeline
-  onComplete?: () => void; // callback opcional para autocerrar en el padre
+  onComplete?: () => void; // callback opcional
 }
 
 export default function CreatePipelineVideoPage({
@@ -62,6 +86,7 @@ export default function CreatePipelineVideoPage({
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [videoSec, setVideoSec] = useState<number | null>(null); // ⏱️
 
   // parámetros de edición
   const [language, setLanguage] = useState("");
@@ -86,12 +111,32 @@ export default function CreatePipelineVideoPage({
   const { ensureSubscribed } = useSubscriptionGate();
 
   /* ---- Dropzone ---- */
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles[0]) {
-      setFile(acceptedFiles[0]);
-      setVideoUrl(null);
-      toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
-      track("video_uploaded", { fileName: acceptedFiles[0].name });
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const f = acceptedFiles[0];
+    if (!f) return;
+
+    // ⏱️ validar duración del archivo
+    try {
+      const sec = await getVideoDurationFromFile(f);
+      if (!sec) {
+        toast.error("No se pudo leer la duración del vídeo.");
+        return;
+      }
+      if (sec > MAX_SEC) {
+        toast.error(
+          `⏱️ El vídeo dura ${Math.round(
+            sec
+          )}s y el máximo permitido es ${MAX_SEC}s.`
+        );
+        return;
+      }
+      setFile(f);
+      setVideoSec(sec); // guardamos duración
+      setVideoUrl(null); // mantenemos tu UI tal cual
+      toast.success(`📹 Vídeo "${f.name}" cargado`);
+      track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
+    } catch {
+      toast.error("❌ No se pudo analizar el vídeo.");
     }
   }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -140,6 +185,35 @@ export default function CreatePipelineVideoPage({
     }
     if (!language) {
       toast.error("⚠️ Debes seleccionar un idioma");
+      setProcessing(false);
+      return;
+    }
+
+    // ⏱️ validación dura ANTES de subir/enviar
+    try {
+      let sec = videoSec;
+
+      if (sec == null) {
+        if (videoUrl) {
+          sec = await getVideoDurationFromUrl(videoUrl).catch(() => 0);
+        } else if (file) {
+          sec = await getVideoDurationFromFile(file).catch(() => 0);
+        }
+      }
+      if (!sec) {
+        toast.error("No se pudo leer la duración del vídeo.");
+        setProcessing(false);
+        return;
+      }
+      if (sec > MAX_SEC) {
+        toast.error(
+          `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
+        );
+        setProcessing(false);
+        return;
+      }
+    } catch {
+      toast.error("No se pudo validar la duración del vídeo.");
       setProcessing(false);
       return;
     }
@@ -204,6 +278,8 @@ export default function CreatePipelineVideoPage({
       }
 
       toast.success("🎬 Reel enviado al pipeline correctamente");
+
+      // 📊 Evento GA: reel enviado
       track("pipeline_reel_submitted", {
         language,
         template,
@@ -212,12 +288,7 @@ export default function CreatePipelineVideoPage({
         magicBrollsPercentage,
       });
 
-      // 👉 autocierre si el padre pasó onComplete
-      if (onComplete) {
-        onComplete();
-        return; // no navegamos
-      }
-
+      if (onComplete) onComplete();
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
@@ -252,10 +323,32 @@ export default function CreatePipelineVideoPage({
             {preloadedVideos.map((v) => (
               <div
                 key={v.id}
-                onClick={() => {
-                  setVideoUrl(v.url);
-                  toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
-                  track("video_selected", { name: v.name });
+                onClick={async () => {
+                  // ⏱️ validar duración de preloaded antes de seleccionar
+                  try {
+                    const sec = await getVideoDurationFromUrl(v.url);
+                    if (!sec) {
+                      toast.error("No se pudo leer la duración del vídeo.");
+                      return;
+                    }
+                    if (sec > MAX_SEC) {
+                      toast.error(
+                        `⏱️ El vídeo dura ${Math.round(
+                          sec
+                        )}s y el máximo permitido es ${MAX_SEC}s.`
+                      );
+                      return;
+                    }
+                    setVideoUrl(v.url);
+                    setVideoSec(sec);
+                    toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    track("video_selected", {
+                      name: v.name,
+                      seconds: Math.round(sec),
+                    });
+                  } catch {
+                    toast.error("❌ No se pudo analizar el vídeo.");
+                  }
                 }}
                 className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
                   videoUrl === v.url ? "ring-2 ring-blue-500" : ""
@@ -453,7 +546,6 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
-
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
