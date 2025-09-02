@@ -89,7 +89,22 @@ export default function VoicesListContainer({
     try {
       const idToken = await user.getIdToken();
 
-      const res = await fetch(
+      // 1️⃣ Eliminar en ElevenLabs (POST con body)
+      const resEleven = await fetch(`/api/elevenlabs/voice/delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ voiceId: deleteTarget }),
+      });
+
+      if (!resEleven.ok) {
+        const errText = await resEleven.text();
+        throw new Error(`Error eliminando en ElevenLabs: ${errText}`);
+      }
+
+      // 2️⃣ Eliminar en Firebase
+      const resFirebase = await fetch(
         `/api/firebase/users/${user.uid}/voices/${deleteTarget}`,
         {
           method: "DELETE",
@@ -99,19 +114,22 @@ export default function VoicesListContainer({
         }
       );
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Error eliminando voz: ${errText}`);
+      if (!resFirebase.ok) {
+        const errText = await resFirebase.text();
+        throw new Error(`Error eliminando en Firebase: ${errText}`);
       }
 
+      // 3️⃣ Actualizar estado local
       setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
       setDeleteTarget(null);
     } catch (err) {
-      console.error("Error eliminando voz:", err);
+      console.error("❌ Error eliminando voz:", err);
     } finally {
       setDeleting(false);
     }
   };
+
+
 
   const totalPages = Math.ceil(voices.length / perPage);
   const paginated = voices.slice((page - 1) * perPage, page * perPage);
