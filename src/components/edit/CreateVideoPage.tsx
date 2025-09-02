@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { flushSync } from "react-dom"; // 👈 añadido
+import { flushSync } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +27,6 @@ import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-  TooltipProvider,
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
@@ -61,6 +60,8 @@ export default function CreateVideoPage({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Si viene un vídeo por query (?videoUrl=...) lo respetamos
   const preloadedVideoUrl = searchParams.get("videoUrl");
 
   // estado de archivo y video
@@ -91,22 +92,33 @@ export default function CreateVideoPage({
   const { ensureSubscribed } = useSubscriptionGate();
 
   /* ---- Dropzone ---- */
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles[0]) {
-        setFile(acceptedFiles[0]);
-        setVideoUrl(null);
-        toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
-      }
-    },
-    [setFile, setVideoUrl]
-  );
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles[0]) {
+      setFile(acceptedFiles[0]);
+      setVideoUrl(null);
+      toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
+    }
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
     multiple: false,
     disabled: !!videoUrl,
   });
+
+  /* ---- Autoselección de vídeo ---- */
+  useEffect(() => {
+    // Si aún no hay selección ni archivo y tenemos vídeos pre-cargados,
+    // seleccionamos automáticamente el primero (asumimos ordenado por más reciente)
+    if (!videoUrl && !file) {
+      if (preloadedVideoUrl) {
+        setVideoUrl(preloadedVideoUrl);
+      } else if (preloadedVideos.length > 0) {
+        setVideoUrl(preloadedVideos[0].url);
+      }
+    }
+  }, [preloadedVideoUrl, preloadedVideos, videoUrl, file]);
 
   /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
@@ -130,15 +142,14 @@ export default function CreateVideoPage({
   }, []);
 
   const handleSubmit = async () => {
-    flushSync(() => setProcessing(true)); // 👈 cambio inmediato
+    flushSync(() => setProcessing(true)); // feedback inmediato
 
     const ok = await ensureSubscribed({ feature: "submagic" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre el modal
+      setShowCheckout(true);
       return;
     }
-
 
     const user = auth.currentUser;
     if (!user) {
@@ -175,7 +186,7 @@ export default function CreateVideoPage({
       return;
     }
 
-    setSubmitting(true); // 👈 ahora ya está en “Generando...”
+    setSubmitting(true);
     setUploadProgress(0);
 
     try {
@@ -189,7 +200,8 @@ export default function CreateVideoPage({
         );
         finalVideoUrl = downloadURL;
       }
-      if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl)
+        throw new Error("No se pudo obtener la URL del vídeo");
 
       toast("⚙️ Procesando tu vídeo...");
       const idToken = await user.getIdToken(true);
@@ -233,9 +245,7 @@ export default function CreateVideoPage({
 
       const projectId = hasString(parsed, "id") ? parsed.id : undefined;
       toast.success(
-        `🎬 Vídeo creado correctamente${
-          projectId ? ` (ID: ${projectId})` : ""
-        }`
+        `🎬 Vídeo creado correctamente${projectId ? ` (ID: ${projectId})` : ""}`
       );
       setFile(null);
       setUploadProgress(0);
@@ -292,7 +302,9 @@ export default function CreateVideoPage({
                     loop
                     playsInline
                   />
-                  <div className="p-2 text-sm font-medium truncate">{v.name}</div>
+                  <div className="p-2 text-sm font-medium truncate">
+                    {v.name}
+                  </div>
                 </div>
               ))}
             </div>
@@ -306,12 +318,15 @@ export default function CreateVideoPage({
             </div>
           ) : (
             <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer 
-                  w-full max-w-[280px] sm:max-w-sm aspect-[9/16] max-h-[10vh] transition
-                  ${isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"}`}
-              >
-
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer 
+                w-full max-w-[280px] sm:max-w-sm aspect-[9/16] max-h-[10vh] transition
+                ${
+                  isDragActive
+                    ? "border-primary bg-muted"
+                    : "border-muted-foreground/50"
+                }`}
+            >
               <input {...getInputProps()} />
               {file ? (
                 <>
@@ -342,27 +357,30 @@ export default function CreateVideoPage({
             <Label className="mb-2 block">Template</Label>
             {loadingTpl ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
+                <Loader2 className="animate-spin h-4 w-4" /> Cargando
+                templates...
               </div>
             ) : (
               <>
                 {/* Mobile: 3 filas + toggle */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
-                    {(showTemplates ? templates : templates.slice(0, 6)).map((t) => (
-                      <Button
-                        key={t}
-                        type="button"
-                        variant={t === template ? "default" : "secondary"}
-                        className="w-full"
-                        onClick={() => {
-                          setTemplate(t);
-                          toast.success(`📑 Template "${t}" seleccionado`);
-                        }}
-                      >
-                        {t}
-                      </Button>
-                    ))}
+                    {(showTemplates ? templates : templates.slice(0, 6)).map(
+                      (t) => (
+                        <Button
+                          key={t}
+                          type="button"
+                          variant={t === template ? "default" : "secondary"}
+                          className="w-full"
+                          onClick={() => {
+                            setTemplate(t);
+                            toast.success(`📑 Template "${t}" seleccionado`);
+                          }}
+                        >
+                          {t}
+                        </Button>
+                      )
+                    )}
                   </div>
                   {templates.length > 6 && (
                     <Button
@@ -396,9 +414,6 @@ export default function CreateVideoPage({
               </>
             )}
           </div>
-        </div>
-
-
 
           {/* Idioma */}
           <div>
@@ -423,7 +438,7 @@ export default function CreateVideoPage({
             )}
           </div>
 
-          {/* Diccionario */}
+          {/* Descripción */}
           <div>
             <Label className="mb-2 block">Descripción breve</Label>
             <Input
@@ -500,17 +515,24 @@ export default function CreateVideoPage({
           </div>
 
           {/* Botón final */}
-          <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            className="w-full"
+          >
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             {buttonText}
           </Button>
         </div>
-        <CheckoutRedirectModal
-                    open={showCheckout}
-                    onClose={() => setShowCheckout(false)}
-                    plan="ACCESS"
-                    message="Necesitas una suscripción activa para generar audios."
-                  />
       </div>
+
+      {/* Modal Paywall */}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar audios."
+      />
+    </div>
   );
 }
