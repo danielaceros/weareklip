@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { useSearchParams, useRouter } from "next/navigation";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,11 +23,12 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
-import { ScriptCard } from "./ScriptCard";
-import { ScriptModal } from "./ScriptModal";
-import ScriptCreatorContainer from "./ScriptCreatorContainer";
+
+import { ScriptCard } from "@/components/script/ScriptCard";
+import { ScriptModal } from "@/components/script/ScriptModal";
+import ScriptCreatorContainer from "@/components/script/ScriptCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface ScriptData {
   scriptId: string;
@@ -51,6 +54,9 @@ interface ScriptData {
 }
 
 export default function ScriptsContainer() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [scripts, setScripts] = useState<ScriptData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -116,6 +122,17 @@ export default function ScriptsContainer() {
     fetchScripts();
   }, [fetchScripts]);
 
+  // ✅ Abrir modal si venimos con ?new=1 y limpiar la URL
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewOpen(true);
+      // limpiamos el query param sin recargar
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
+
   // 🟠 Borrado con UI optimista
   const handleConfirmDelete = async () => {
     if (!user) return;
@@ -129,16 +146,21 @@ export default function ScriptsContainer() {
         setScripts([]); // Optimista
         await Promise.all(
           prev.map((script) =>
-            fetch(`/api/firebase/users/${user.uid}/scripts/${script.scriptId}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${idToken}` },
-            })
+            fetch(
+              `/api/firebase/users/${user.uid}/scripts/${script.scriptId}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${idToken}` },
+              }
+            )
           )
         );
         toast.success("Todos los guiones han sido eliminados ✅");
       } else if (scriptToDelete) {
         const prev = scripts;
-        setScripts((s) => s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId));
+        setScripts((s) =>
+          s.filter((sc) => sc.scriptId !== scriptToDelete.scriptId)
+        );
         const res = await fetch(
           `/api/firebase/users/${user.uid}/scripts/${scriptToDelete.scriptId}`,
           { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
@@ -162,18 +184,23 @@ export default function ScriptsContainer() {
     if (!user) return;
     const prev = scripts;
     setScripts((s) =>
-      s.map((sc) => (sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc))
+      s.map((sc) =>
+        sc.scriptId === scriptId ? { ...sc, rating: newRating } : sc
+      )
     );
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/scripts/${scriptId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ rating: newRating }),
-      });
+      const res = await fetch(
+        `/api/firebase/users/${user.uid}/scripts/${scriptId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ rating: newRating }),
+        }
+      );
       if (!res.ok) throw new Error("Error rating");
     } catch (err) {
       toast.error("No se pudo actualizar la valoración");
@@ -188,7 +215,8 @@ export default function ScriptsContainer() {
       const dateB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
       if (sortOption === "date-desc") return dateB - dateA;
       if (sortOption === "date-asc") return dateA - dateB;
-      if (sortOption === "rating-desc") return (b.rating || 0) - (a.rating || 0);
+      if (sortOption === "rating-desc")
+        return (b.rating || 0) - (a.rating || 0);
       if (sortOption === "rating-asc") return (a.rating || 0) - (b.rating || 0);
       return 0;
     });
@@ -317,15 +345,12 @@ export default function ScriptsContainer() {
           <ScriptCreatorContainer
             onClose={() => setIsNewOpen(false)}
             onCreated={() => {
-              setTimeout(() => {
-                window.location.reload();
-              }, 300);
+              // si prefieres, usa fetchScripts() en lugar de recargar
+              setTimeout(() => window.location.reload(), 300);
             }}
           />
         </DialogContent>
       </Dialog>
-
-
 
       {/* Confirmación eliminar */}
       <ConfirmDeleteDialog

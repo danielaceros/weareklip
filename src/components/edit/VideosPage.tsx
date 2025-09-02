@@ -20,6 +20,9 @@ import {
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
+// 👇 añadido para abrir el modal con ?new=1 y limpiar la URL
+import { useSearchParams, useRouter } from "next/navigation";
+
 export interface VideoData {
   projectId: string;
   title: string;
@@ -45,6 +48,9 @@ export default function VideosPage() {
   const perPage = 5;
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
+
+  const searchParams = useSearchParams(); // 👈 añadido
+  const router = useRouter(); // 👈 añadido
 
   useEffect(() => {
     const auth = getAuth();
@@ -82,6 +88,21 @@ export default function VideosPage() {
 
     fetchVideos();
   }, [user]);
+
+  // 👇 Auto-abrir modal si venimos con ?new=1 y limpiar la URL
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowCreateModal(true);
+      // limpiar el query param sin hacer scroll
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("new");
+        router.replace(url.pathname + (url.search ? url.search : ""), {
+          scroll: false,
+        });
+      }
+    }
+  }, [searchParams, router]);
 
   async function handleConfirmDelete() {
     if (!user) return;
@@ -238,16 +259,15 @@ export default function VideosPage() {
             </button>
             <CreateVideoPage
               onCreated={() => {
-                setShowCreateModal(false); // 👈 cierra modal
+                setShowCreateModal(false); // cierra modal
                 setTimeout(() => {
-                  window.location.reload(); // 👈 recarga la página
+                  window.location.reload(); // recarga la página
                 }, 300);
               }}
             />
           </div>
         </div>
       )}
-
 
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
