@@ -6,27 +6,13 @@ import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 
-import useSubscriptionGate from "@/hooks/useSubscriptionGate"; // 👈 añadido
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
+import { ScriptForm } from "./ScriptForm"; // 👈 tu formulario modular
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 export default function ScriptCreatorContainer() {
   const [user, setUser] = useState<User | null>(null);
@@ -47,10 +33,9 @@ export default function ScriptCreatorContainer() {
   const [scriptRegens, setScriptRegens] = useState(0);
 
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [showCheckout, setShowCheckout] = useState(false);
 
-  const { ensureSubscribed } = useSubscriptionGate(); // 👈 hook
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado modal
+  const router = useRouter();
 
   // 🔑 Autenticación
   useEffect(() => {
@@ -60,14 +45,8 @@ export default function ScriptCreatorContainer() {
 
   // 🚀 Generar script
   const handleGenerate = useCallback(async () => {
-    const ok = await ensureSubscribed({ feature: "script" }); // 👈 check
-    if (!ok) {
-      setShowCheckout(true);
-      return;
-    }
-
     if (!description || !tone || !platform || !duration || !structure) {
-      toast.error("Por favor, completa todos los campos obligatorios.");
+      toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
       return;
     }
     if (!user) {
@@ -123,17 +102,10 @@ export default function ScriptCreatorContainer() {
     addCTA,
     ctaText,
     user,
-    ensureSubscribed,
   ]);
 
   // 🔄 Regenerar script
   const regenerateScript = useCallback(async () => {
-    const ok = await ensureSubscribed({ feature: "script" }); // 👈 check
-    if (!ok) {
-      setShowCheckout(true);
-      return;
-    }
-
     if (scriptRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el guion 2 veces.");
       return;
@@ -185,7 +157,6 @@ export default function ScriptCreatorContainer() {
     structure,
     addCTA,
     ctaText,
-    ensureSubscribed,
   ]);
 
   // 💾 Aceptar y guardar script
@@ -255,122 +226,27 @@ export default function ScriptCreatorContainer() {
 
   return (
     <>
-      <div className="space-y-6 p-6 rounded-xl">
-        <h2 className="text-xl font-bold">Generación de guion</h2>
-
-        {/* Descripción */}
-        <div className="space-y-2">
-          <Label>Descripción breve</Label>
-          <Textarea
-            placeholder="Escribe una breve descripción..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="resize-none"
-          />
-        </div>
-
-        {/* Filtros */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Tono</Label>
-            <Select value={tone} onValueChange={setTone}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar un tono" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="informal">Informal</SelectItem>
-                <SelectItem value="profesional">Profesional</SelectItem>
-                <SelectItem value="emocional">Emocional</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Plataforma</Label>
-            <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una plataforma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="instagram">Instagram</SelectItem>
-                <SelectItem value="tiktok">TikTok</SelectItem>
-                <SelectItem value="youtube">YouTube</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Duración</Label>
-            <Select value={duration} onValueChange={setDuration}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una duración" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30s">30 segundos</SelectItem>
-                <SelectItem value="60s">1 minuto</SelectItem>
-                <SelectItem value="120s">2 minutos</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Idioma</Label>
-            <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar un idioma" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="en">Inglés</SelectItem>
-                <SelectItem value="fr">Francés</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Estructura</Label>
-            <Select value={structure} onValueChange={setStructure}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una estructura" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="problema-solucion">Problema → Solución</SelectItem>
-                <SelectItem value="historia">Historia</SelectItem>
-                <SelectItem value="tutorial">Tutorial</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* CTA */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={addCTA}
-            onCheckedChange={(v) => setAddCTA(v as boolean)}
-          />
-          <Label>Añadir llamada a la acción (CTA)</Label>
-        </div>
-
-        {addCTA && (
-          <div className="space-y-2">
-            <Label>Texto del CTA</Label>
-            <Textarea
-              placeholder="Escribe tu CTA..."
-              value={ctaText}
-              onChange={(e) => setCtaText(e.target.value)}
-              className="resize-none"
-            />
-          </div>
-        )}
-
-        <Button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="w-full"
-        >
-          {loading ? "Generando..." : "Generar guion"}
-        </Button>
-      </div>
+      {/* Formulario */}
+      <ScriptForm
+        description={description}
+        tone={tone}
+        platform={platform}
+        duration={duration}
+        language={language}
+        structure={structure}
+        addCTA={addCTA}
+        ctaText={ctaText}
+        loading={loading}
+        setDescription={setDescription}
+        setTone={setTone}
+        setPlatform={setPlatform}
+        setDuration={setDuration}
+        setLanguage={setLanguage}
+        setStructure={setStructure}
+        setAddCTA={setAddCTA}
+        setCtaText={setCtaText}
+        onSubmit={handleGenerate}
+      />
 
       {/* Modal guion generado */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -398,11 +274,11 @@ export default function ScriptCreatorContainer() {
 
       {/* Modal checkout */}
       <CheckoutRedirectModal
-                        open={showCheckout}
-                        onClose={() => setShowCheckout(false)}
-                        plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
-                        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
-                      />
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar guiones. Empieza tu prueba GRATUITA de 7 días."
+      />
     </>
   );
 }

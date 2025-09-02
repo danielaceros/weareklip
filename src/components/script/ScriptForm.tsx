@@ -132,10 +132,10 @@ export function ScriptForm({
 
   const durationOptions = useMemo(
     () => [
+      { value: "0-15", label: "0–15 segundos" },
       { value: "15-30", label: "15–30 segundos" },
       { value: "30-45", label: "30–45 segundos" },
       { value: "45-60", label: "45–60 segundos" },
-      { value: "60-90", label: "60–90 segundos" },
     ],
     []
   );

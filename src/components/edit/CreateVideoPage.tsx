@@ -29,6 +29,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { TagsInput } from "../shared/TagsInput";
 
 /* ---------- utilidades ---------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -47,7 +48,7 @@ interface Props {
     selectedVideo: string;
     subLang: string;
     template: string;
-    dictionary: string;
+    dictionary: string[];
     magicZooms: boolean;
     magicBrolls: boolean;
     magicBrollsPercentage: number;
@@ -72,7 +73,7 @@ export default function CreateVideoPage({
   // parámetros de edición
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
-  const [dictionary, setDictionary] = useState("");
+  const [dictionary, setDictionary] = useState<string[]>([]);
   const [magicZooms, setMagicZooms] = useState(false);
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
@@ -143,7 +144,6 @@ export default function CreateVideoPage({
 
   const handleSubmit = async () => {
     flushSync(() => setProcessing(true)); // feedback inmediato
-
     const ok = await ensureSubscribed({ feature: "submagic" });
     if (!ok) {
       setProcessing(false);
@@ -440,12 +440,12 @@ export default function CreateVideoPage({
 
           {/* Descripción */}
           <div>
-            <Label className="mb-2 block">Descripción breve</Label>
-            <Input
-              value={dictionary}
-              onChange={(e) => setDictionary(e.target.value)}
-              placeholder="Escribe una breve descripción..."
-            />
+            <Label className="mb-2 block">Describe en 3-4 palabras el vídeo</Label>
+            <TagsInput
+                value={dictionary}
+                onChange={setDictionary}
+                placeholder="Escribe un tag y pulsa Enter o coma..."
+              />
           </div>
 
           {/* Opciones mágicas */}
