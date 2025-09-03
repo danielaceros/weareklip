@@ -69,7 +69,10 @@ export default function UserPanel() {
           handleUpload={userPanel.handleUpload}
           handleDelete={(id) => {
             const video = userPanel.clonacionVideos.find((v) => v.id === id);
-            return userPanel.handleDelete(id, (video as any)?.storagePath ?? "");
+            return userPanel.handleDelete(
+              id,
+              (video as any)?.storagePath ?? ""
+            );
           }}
           uploading={userPanel.uploading}
           progress={userPanel.progress}
