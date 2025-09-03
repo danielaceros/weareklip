@@ -102,6 +102,8 @@ export default function OnboardingPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptAup, setAcceptAup] = useState(false);
   const { ensureSubscribed } = useSubscriptionGate();
 
    useEffect(() => {
@@ -458,20 +460,51 @@ export default function OnboardingPage() {
 
 
   /* ----------------- Validaciones ----------------- */
-  const validStep1 = useMemo(() => name.trim().length > 1 && accept, [name, accept]);
+  const validStep1 = useMemo(() => acceptTerms && acceptAup, [acceptTerms, acceptAup]);
   const validStep2 = useMemo(() => !!videoDoc, [videoDoc]);
 
   const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
   const goNext = async () => {
     const ok = await ensureSubscribed();
-      if (!ok) {
-        setShowCheckout(true); // 👈 abre el modal
-        return;
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
+    // ✅ Validación Step 1
+    if (step === 1) {
+      if (!validStep1) {
+        return toast.error("Debes aceptar los Términos y la Política de Uso Aceptable.");
       }
-    if (step === 1 && !validStep1) return toast.error("Completa el nombre y acepta los términos.");
-    if (step === 2 && !validStep2) return toast.error("Sube un vídeo de clonación.");
+
+      // Solo si ambas casillas están marcadas → guardar en Firestore
+      if (user && acceptTerms && acceptAup) {
+        try {
+          const idToken = await user.getIdToken(true);
+          await fetch(`/api/firebase/users/${user.uid}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ isTermsAccepted: true }),
+          });
+          console.log("✅ Flag isTermsAccepted actualizado en Firestore");
+        } catch (err) {
+          console.error("Error al actualizar isTermsAccepted:", err);
+        }
+      }
+    }
+
+    if (step === 2 && !validStep2) {
+      return toast.error("Sube un vídeo de clonación.");
+    }
+
+    // Avanzar de paso
     setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
   };
+
+
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -488,36 +521,127 @@ export default function OnboardingPage() {
 
       <Card className="p-6 space-y-8">
         {step === 1 && (
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h2 className="text-2xl font-semibold mb-2">Tu primer clon</h2>
-              <p className="text-sm text-muted-foreground">
-                Ponle nombre y una breve descripción. Acepta los términos para continuar.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre *</label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <section className="space-y-6">
+            <h2 className="text-xl font-semibold">Términos y uso responsable</h2>
+            <p className="text-sm text-muted-foreground">
+              Lee y acepta los documentos antes de continuar con tu onboarding.
+            </p>
+
+            {/* 📜 Preview deslizable */}
+            <Card className="border rounded-md">
+              <div className="h-64 overflow-y-auto p-4 text-sm leading-relaxed space-y-6 bg-muted/40">
+                {/* --- Extracto de Términos --- */}
+                <div>
+                  <h3 className="font-medium mb-2">Términos y Condiciones</h3>
+                  <p>
+                    El acceso y uso de la Plataforma implica la aceptación íntegra de los
+                    Términos y Condiciones. KLIP podrá modificarlos en cualquier momento; el
+                    uso continuado supone la aceptación de los Términos vigentes.
+                  </p>
+                  <p>
+                    KLIP es una plataforma SaaS que automatiza la creación de contenidos
+                    audiovisuales mediante IA (guiones, voces sintéticas, lip-sync, subtitulado).
+                    El servicio se presta “tal cual” y “según disponibilidad”.
+                  </p>
+                  <p>
+                    El Usuario ostenta los derechos sobre los contenidos generados, salvo
+                    licencias de terceros. KLIP no usará tus outputs con fines promocionales sin
+                    consentimiento expreso...
+                  </p>
+                </div>
+
+                {/* --- Extracto de AUP --- */}
+                <div>
+                  <h3 className="font-medium mb-2">Política de Uso Aceptable (AUP)</h3>
+                  <p>
+                    Esta AUP define las reglas de uso de la Plataforma KLIP. Se prohíben
+                    contenidos ilegales o dañinos (CSAM, incitación al odio, violencia extrema),
+                    la infracción de propiedad intelectual, la clonación de voces o rostros sin
+                    consentimiento y la difusión de desinformación maliciosa.
+                  </p>
+                  <p>
+                    También se prohíben fraudes, estafas, abuso técnico (scraping, ingeniería
+                    inversa, sobrecarga de infraestructura) y automatización no autorizada.
+                  </p>
+                  <p>
+                    KLIP podrá suspender o terminar cuentas ante incumplimientos y cooperará con
+                    las autoridades competentes cuando sea necesario...
+                  </p>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Consulta los textos completos en{" "}
+                  <a
+                    href="https://weareklip.com/viralizaloai/terms"
+                    target="_blank"
+                    className="underline text-primary"
+                  >
+                    Términos y Condiciones
+                  </a>{" "}
+                  y{" "}
+                  <a
+                    href="https://weareklip.com/viralizaloai/aup"
+                    target="_blank"
+                    className="underline text-primary"
+                  >
+                    Política de Uso Aceptable
+                  </a>
+                  .
+                </p>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Categoría</label>
-                <Input value={category} onChange={(e) => setCategory(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Descripción breve</label>
-                <Textarea rows={4} value={shortDesc} onChange={(e) => setShortDesc(e.target.value)} />
-              </div>
-              <div className="flex items-start gap-2 pt-2">
-                <Checkbox id="terms" checked={accept} onCheckedChange={(v) => setAccept(Boolean(v))} />
-                <label htmlFor="terms" className="text-sm text-muted-foreground">
+            </Card>
+
+            {/* ✅ Checkboxes */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="terms"
+                  checked={acceptTerms}
+                  onCheckedChange={(v) => setAcceptTerms(Boolean(v))}
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground leading-snug"
+                >
                   Acepto los{" "}
-                  <a className="underline" href="/legal/terminos" target="_blank">términos y condiciones</a>.
+                  <a
+                    href="https://weareklip.com/viralizaloai/terms"
+                    target="_blank"
+                    className="underline text-primary"
+                  >
+                    Términos y Condiciones
+                  </a>
+                  {" "}y la{" "}
+                  <a
+                    href="https://weareklip.com/viralizaloai/aup"
+                    target="_blank"
+                    className="underline text-primary"
+                  >
+                    Política de Uso Aceptable
+                  </a>
+                </label>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="aup"
+                  checked={acceptAup}
+                  onCheckedChange={(v) => setAcceptAup(Boolean(v))}
+                />
+                <label
+                  htmlFor="aup"
+                  className="text-sm text-muted-foreground leading-snug"
+                >
+                  Declaro que soy titular o tengo autorización de la voz/imagen que subo y autorizo su clonación/uso para generar contenido; no suplantaré a terceros.
                 </label>
               </div>
             </div>
           </section>
         )}
+
+
+
+
 
         {step === 2 && (
           <section className="space-y-5">

@@ -10,6 +10,7 @@ import DashboardTour from "@/components/onboarding/OnboardingTour";
 import FcmInit from "@/components/shared/FcmInit";
 import ApiErrorHandler from "@/components/shared/ApiErrorComponent";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import DashboardTermsGuard from "@/components/shared/DashboardTermsGuard";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
+    <DashboardTermsGuard>
       <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
         {/* Sidebar fijo */}
         <div className="hidden md:block fixed inset-y-0 left-0 w-20 border-r bg-sidebar border-sidebar-border z-40">
@@ -57,6 +58,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <CreateReelGlobalButtonPortal />
       <FcmInit />
       <ApiErrorHandler />
-    </>
+    </DashboardTermsGuard>
   );
 }
