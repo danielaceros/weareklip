@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { onAuthStateChanged, getAuth, type User } from "firebase/auth";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/pagination";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-/* ✅ límites: forzamos "audio" (10 MB) aunque el file sea video */
+/* ✅ límites: forzamos "audio" (10 MB) aunque el archivo sea video */
 import { validateFileSizeAs } from "@/lib/fileLimits";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
@@ -48,17 +48,17 @@ export default function NewVoiceContainer() {
   );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
-  const storage = getStorage();
+
+  /* ✅ memoizamos la referencia de storage (evita recrear callbacks) */
+  const storage = useMemo(() => getStorage(), []);
 
   const { ensureSubscribed } = useSubscriptionGate();
   const [showCheckout, setShowCheckout] = useState(false);
 
+  /* ---- auth listener ---- */
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
-  useEffect(() => {
-    if (user) void fetchSamples();
-  }, [user]);
-
+  /* ---- helpers ---- */
   const getAudioDurationFromURL = (url: string): Promise<number> =>
     new Promise((resolve, reject) => {
       const audio = document.createElement("audio");
@@ -67,6 +67,7 @@ export default function NewVoiceContainer() {
       audio.addEventListener("error", (e) => reject(e));
     });
 
+  /* ---- fetchSamples con dependencias correctas ---- */
   const fetchSamples = useCallback(async () => {
     if (!user) return;
     try {
@@ -100,6 +101,12 @@ export default function NewVoiceContainer() {
     }
   }, [user, storage]);
 
+  /* ✅ efecto depende de la función (sin warning ni closures viejos) */
+  useEffect(() => {
+    void fetchSamples();
+  }, [fetchSamples]);
+
+  /* ---- subida a Firebase con tope 10 MB ---- */
   const uploadToFirebase = useCallback(
     async (file: File) => {
       if (!user) {
@@ -155,9 +162,10 @@ export default function NewVoiceContainer() {
         );
       });
     },
-    [user, fetchSamples, storage]
+    [user, storage, fetchSamples]
   );
 
+  /* ---- dropzone ---- */
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (!user) {
@@ -202,6 +210,7 @@ export default function NewVoiceContainer() {
     validator, // 👈 fuerza 10 MB para todo lo que entre aquí
   });
 
+  /* ---- grabación de micrófono (con tope 10 MB) ---- */
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -248,6 +257,7 @@ export default function NewVoiceContainer() {
     }
   };
 
+  /* ---- acciones ---- */
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
@@ -359,11 +369,13 @@ export default function NewVoiceContainer() {
     }
   };
 
+  /* ---- paginación ---- */
   const [page, setPage] = useState(1);
   const perPage = 1;
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
 
+  /* ---- UI ---- */
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
@@ -424,7 +436,7 @@ export default function NewVoiceContainer() {
             </button>
           </div>
 
-          {/* Progreso */}
+          {/* Progreso total minutos (visual) */}
           <div className="flex items-center gap-4">
             <Progress value={(totalDuration / 120) * 100} className="flex-1" />
             <span className="text-sm font-medium whitespace-nowrap">

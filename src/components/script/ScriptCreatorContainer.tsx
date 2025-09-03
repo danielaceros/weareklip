@@ -17,8 +17,38 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+
 import { ScriptForm } from "./ScriptForm";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+
+/* Opciones (puedes alinearlas con las del <ScriptForm>) */
+const TONE_OPTIONS = [
+  "Motivador",
+  "Educativo",
+  "Humorístico",
+  "Serio",
+  "Inspirador",
+  "Emocional",
+  "Provocador",
+];
+
+const STRUCTURE_OPTIONS = [
+  "Gancho – Desarrollo – Cierre",
+  "Storytelling",
+  "Lista de tips",
+  "Pregunta retórica",
+  "Comparativa antes/después",
+  "Mito vs realidad",
+  "Problema – Solución",
+  "Testimonio",
+];
 
 interface ScriptCreatorContainerProps {
   onClose?: () => void; // 👈 para cerrar el modal padre también
@@ -27,7 +57,7 @@ interface ScriptCreatorContainerProps {
 
 export default function ScriptCreatorContainer({
   onClose,
-  onCreated
+  onCreated,
 }: ScriptCreatorContainerProps) {
   const [user, setUser] = useState<User | null>(null);
 
@@ -45,6 +75,11 @@ export default function ScriptCreatorContainer({
   const [script, setScript] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [scriptRegens, setScriptRegens] = useState(0);
+
+  // Mini-diálogo para regeneración
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
+  const [regenTone, setRegenTone] = useState("");
+  const [regenStructure, setRegenStructure] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -118,60 +153,73 @@ export default function ScriptCreatorContainer({
     user,
   ]);
 
-  // 🔄 Regenerar script
-  const regenerateScript = useCallback(async () => {
-    if (scriptRegens >= 2) {
-      toast.error("⚠️ Ya has regenerado el guion 2 veces.");
-      return;
-    }
-    setScriptRegens((c) => c + 1);
+  // 🔄 Regenerar script (acepta overrides desde el mini-diálogo)
+  const regenerateScript = useCallback(
+    async (overrides?: { tone?: string; structure?: string }) => {
+      if (scriptRegens >= 2) {
+        toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+        return;
+      }
 
-    const loadingId = toast.loading("🔄 Regenerando guion...");
-    try {
-      if (!user) throw new Error("No autenticado");
-      const idToken = await user.getIdToken();
+      const toneToSend = overrides?.tone ?? tone;
+      const structToSend = overrides?.structure ?? structure;
 
-      const res = await fetch("/api/chatgpt/scripts/regenerate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          description,
-          tone,
-          platform,
-          duration,
-          language,
-          structure,
-          addCTA,
-          ctaText,
-        }),
-      });
+      const loadingId = toast.loading("🔄 Regenerando guion...");
+      try {
+        if (!user) throw new Error("No autenticado");
+        const idToken = await user.getIdToken();
 
-      const parsed = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
+        const res = await fetch("/api/chatgpt/scripts/regenerate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+            "X-Idempotency-Key": uuidv4(),
+          },
+          body: JSON.stringify({
+            description,
+            tone: toneToSend,
+            platform,
+            duration,
+            language,
+            structure: structToSend,
+            addCTA,
+            ctaText,
+          }),
+        });
 
-      setScript(parsed.script || "");
-      toast.success("✅ Guion regenerado", { id: loadingId });
-    } catch (err) {
-      console.error(err);
-      toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
-    } finally {
-      toast.dismiss(loadingId);
-    }
-  }, [
-    user,
-    scriptRegens,
-    description,
-    tone,
-    platform,
-    duration,
-    language,
-    structure,
-    addCTA,
-    ctaText,
-  ]);
+        const parsed = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
+
+        setScript(parsed.script || "");
+        setScriptRegens((c) => c + 1); // ✅ cuenta solo si salió bien
+        setTone(toneToSend); // ✅ reflejamos cambios en el form
+        setStructure(structToSend);
+
+        toast.success(
+          `✅ Guion regenerado (${Math.min(scriptRegens + 1, 2)}/2)`,
+          { id: loadingId }
+        );
+      } catch (err) {
+        console.error(err);
+        toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
+      } finally {
+        toast.dismiss(loadingId);
+      }
+    },
+    [
+      user,
+      scriptRegens,
+      description,
+      tone,
+      platform,
+      duration,
+      language,
+      structure,
+      addCTA,
+      ctaText,
+    ]
+  );
 
   // 💾 Aceptar y guardar script
   const acceptScript = useCallback(async () => {
@@ -216,20 +264,20 @@ export default function ScriptCreatorContainer({
 
       toast.success("✅ Guion guardado correctamente", { id: toastId });
 
-        // 1️⃣ Cerrar modal secundario
-        setShowModal(false);
+      // 1️⃣ Cerrar modal secundario
+      setShowModal(false);
 
-        // 2️⃣ Notificar al padre que se creó un guion
-        if (typeof onCreated === "function") {
-          onCreated();
-        }
+      // 2️⃣ Notificar al padre que se creó un guion
+      if (typeof onCreated === "function") {
+        onCreated();
+      }
 
-        // 3️⃣ Cerrar modal principal si hay `onClose`
-        if (typeof onClose === "function") {
-          onClose();
-        }
+      // 3️⃣ Cerrar modal principal si hay `onClose`
+      if (typeof onClose === "function") {
+        onClose();
+      }
 
-      // 3️⃣ Refrescar/navegar después de un pequeño delay
+      // 4️⃣ Refrescar/navegar
       setTimeout(() => {
         if (window.location.pathname === "/dashboard/script") {
           router.refresh();
@@ -256,6 +304,17 @@ export default function ScriptCreatorContainer({
     router,
     onClose,
   ]);
+
+  /* Abre el mini-diálogo con los valores actuales */
+  const openRegenDialog = () => {
+    if (scriptRegens >= 2) {
+      toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+      return;
+    }
+    setRegenTone(tone || TONE_OPTIONS[0]);
+    setRegenStructure(structure || STRUCTURE_OPTIONS[0]);
+    setRegenDialogOpen(true);
+  };
 
   return (
     <>
@@ -295,12 +354,72 @@ export default function ScriptCreatorContainer({
           <DialogFooter className="flex justify-between">
             <Button
               variant="outline"
-              onClick={regenerateScript}
+              onClick={openRegenDialog}
               disabled={scriptRegens >= 2}
             >
               Regenerar ({scriptRegens}/2)
             </Button>
             <Button onClick={acceptScript}>Aceptar y guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mini-diálogo para cambiar Tono y Estructura */}
+      <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modificar antes de regenerar</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div className="text-sm font-medium mb-1">Tono</div>
+              <Select value={regenTone} onValueChange={setRegenTone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona tono" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TONE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium mb-1">Estructura</div>
+              <Select value={regenStructure} onValueChange={setRegenStructure}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona estructura" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STRUCTURE_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                setRegenDialogOpen(false);
+                await regenerateScript({
+                  tone: regenTone,
+                  structure: regenStructure,
+                });
+              }}
+            >
+              Aceptar y regenerar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
