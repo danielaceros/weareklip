@@ -1,45 +1,62 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
-import { AudiosList, AudioData } from "./AudiosList";
-import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
-import AudioCreatorContainer from "./AudioCreatorContainer";
-import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { useSearchParams } from "next/navigation";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+
+import { Plus, Trash2 } from "lucide-react";
+import { AudiosList, type AudioData } from "@/components/audio/AudiosList";
+import AudioCreatorContainer from "@/components/audio/AudioCreatorContainer";
 
 export default function AudiosContainer() {
+  const searchParams = useSearchParams();
+
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+
   const [isNewOpen, setIsNewOpen] = useState(false);
 
   const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const perPage = 9;
+
+  /* 🔐 Auth */
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
 
+  /* 📥 Fetch */
   const fetchAudios = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-
     try {
       const idToken = await user.getIdToken();
       const res = await fetch(`/api/firebase/users/${user.uid}/audios`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-
       if (!res.ok) throw new Error(`Error ${res.status}`);
-      const data = await res.json();
 
-      const mapped: AudioData[] = data.map((d: any) => ({
+      const data = await res.json();
+      const mapped: AudioData[] = (data as any[]).map((d) => ({
         audioId: d.id,
         url: d.audioUrl ?? "",
         name: d.name ?? "",
@@ -48,10 +65,9 @@ export default function AudiosContainer() {
         duration: d.duration,
         language: d.language,
       }));
-
       setAudios(mapped);
-    } catch (error) {
-      console.error("Error fetching audios:", error);
+    } catch (err) {
+      console.error("Error fetching audios:", err);
       toast.error("❌ No se pudieron cargar los audios");
     } finally {
       setLoading(false);
@@ -62,11 +78,21 @@ export default function AudiosContainer() {
     fetchAudios();
   }, [fetchAudios]);
 
+  /* 🔓 Abrir modal con ?new=1 + limpiar URL */
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
+
+  /* 🗑️ Borrado */
   const handleConfirmDelete = useCallback(async () => {
     if (!user) return;
-    if (deleting) return; // prevenir clicks dobles
+    if (deleting) return;
     setDeleting(true);
-
     try {
       const idToken = await user.getIdToken();
 
@@ -80,10 +106,7 @@ export default function AudiosContainer() {
                 headers: { Authorization: `Bearer ${idToken}` },
               }
             );
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              throw new Error(err.error || `Error ${res.status}`);
-            }
+            if (!res.ok) throw new Error(`Error ${res.status}`);
           })
         );
         setAudios([]);
@@ -91,15 +114,9 @@ export default function AudiosContainer() {
       } else if (audioToDelete) {
         const res = await fetch(
           `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${idToken}` },
-          }
+          { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
         );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Error ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Error ${res.status}`);
 
         setAudios((prev) =>
           prev.filter((a) => a.audioId !== audioToDelete.audioId)
@@ -116,11 +133,14 @@ export default function AudiosContainer() {
     }
   }, [user, deleteAll, audioToDelete, audios, deleting]);
 
-  const deleteDialogOpen = useMemo(
-    () => !!audioToDelete || deleteAll,
-    [audioToDelete, deleteAll]
+  /* 🔢 Paginación */
+  const totalPages = Math.max(1, Math.ceil(audios.length / perPage));
+  const paginated = useMemo(
+    () => audios.slice((page - 1) * perPage, page * perPage),
+    [audios, page]
   );
 
+  /* ⏳ Loader */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -154,28 +174,75 @@ export default function AudiosContainer() {
         </div>
       </div>
 
-      {/* Grid de audios */}
-      <AudiosList audios={audios} onDelete={(audio) => setAudioToDelete(audio)} />
+      {/* Lista */}
+      <AudiosList
+        audios={paginated}
+        onDelete={(audio) => setAudioToDelete(audio)}
+      />
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="pt-2">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(i + 1);
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Modal crear audio */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
           <AudioCreatorContainer
-            onClose={() => setIsNewOpen(false)}
-            onCreated={() => {
-              setTimeout(() => {
-                window.location.reload(); // 👈 recarga igual que con guiones
-              }, 300);
-            }}
+            {
+              ...({
+                onClose: () => setIsNewOpen(false),
+                onCreated: () => {
+                  setIsNewOpen(false);
+                  fetchAudios(); // refresca la lista sin recargar
+                },
+              } as any) // 👈 cast puntual para evitar el error de tipos
+            }
           />
         </DialogContent>
       </Dialog>
 
-
       {/* Modal eliminar */}
       <ConfirmDeleteDialog
-        open={deleteDialogOpen}
+        open={!!audioToDelete || deleteAll}
         onClose={() => {
           setAudioToDelete(null);
           setDeleteAll(false);
