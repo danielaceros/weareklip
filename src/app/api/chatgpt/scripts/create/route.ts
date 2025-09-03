@@ -4,6 +4,13 @@ import OpenAI from "openai";
 import { adminAuth, adminDB, adminTimestamp } from "@/lib/firebase-admin";
 import { sendEventPush } from "@/lib/sendEventPush";
 
+// ✅ límites y utilidades centralizadas
+import {
+  MAX_AUDIO_SECONDS as MAX_SEC,
+  WPS,
+  estimateTtsSeconds,
+} from "@/lib/limits";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -20,6 +27,22 @@ function sanitize(input: unknown, max = 200): string {
   return typeof input === "string"
     ? input.replace(/[\r\n]+/g, " ").slice(0, max).trim()
     : "";
+}
+
+function parseDurationRange(range: string): [number, number] | null {
+  // "0-15" -> [0, 15]
+  const m = range?.match?.(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
+function truncateToWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+  return words.slice(0, maxWords).join(" ").replace(/\s+([,.!?;:])/g, "$1").trim();
 }
 
 async function billingCheck(
@@ -80,7 +103,7 @@ export async function POST(req: NextRequest) {
     uid = decoded?.uid;
     if (!uid) return NextResponse.json({ error: "No uid" }, { status: 401 });
 
-    // 2) Idempotencia (evitar dobles cargos)
+    // 2) Idempotencia
     const logRef = adminDB
       .collection("users")
       .doc(uid)
@@ -107,8 +130,8 @@ export async function POST(req: NextRequest) {
     const description = sanitize(body.description, 300);
     const tone = sanitize(body.tone, 100);
     const platform = sanitize(body.platform, 50);
-    const duration = sanitize(body.duration, 10);
-    const language = sanitize(body.language, 50);
+    const duration = sanitize(body.duration, 10); // ej. "45-60"
+    const language = sanitize(body.language, 50) || "es";
     const structure = sanitize(body.structure, 100);
     const addCTA = Boolean(body.addCTA);
     const ctaText = sanitize(body.ctaText, 100);
@@ -120,7 +143,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4) Billing check (antes de gastar tokens reales)
+    // 3.1) Calcular segundos objetivo (tope 60) y presupuesto de palabras
+    const range = parseDurationRange(duration) ?? [0, MAX_SEC];
+    const secondsCap = Math.min(range[1], MAX_SEC); // usamos el extremo superior del rango, capped a 60
+    const wps = WPS[language] ?? 2.5;
+    const wordBudget = Math.max(1, Math.floor(wps * secondsCap));
+
+    // 4) Billing check
     const check = await billingCheck(req, idToken, idem);
     if (!check.ok) {
       await logRef.set({ status: "denied", reason: check.error }, { merge: true });
@@ -131,28 +160,23 @@ export async function POST(req: NextRequest) {
 
     // 🔁 RAMA A: Simulación
     if (simulate) {
-      script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y CTA "${ctaText || "Invita a seguir"}` : ""}.`;
+      script = `Guion simulado (${secondsCap}s, ~${wordBudget} palabras): Tema "${description}", tono ${tone}, plataforma ${platform}, idioma ${language}, estructura ${structure}${addCTA ? `, CTA "${ctaText || "Invita a seguir"}"` : ""}.`;
     } else {
       // 🔁 RAMA B: Real
       const prompt = `
-Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
-Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
-
+Eres un copywriter profesional de vídeos cortos. Genera un GUION ORIGINAL en ${language} para la plataforma ${platform}.
+Parámetros:
 - Tema: ${description}
 - Tono: ${tone}
-- Plataforma: ${platform}
-- Duración estimada: ${duration} segundos
-- Idioma: ${language}
 - Estructura: ${structure}
-${addCTA ? `- Incluir llamada a la acción: "${ctaText || "Invita a seguir"}"` : ""}
+- CTA: ${addCTA ? `"${ctaText || "Invita a seguir"}"` : "No incluir si no aporta"}
 
-Reglas estrictas:
-1. No mencionar que eres una IA.
-2. Mantener un estilo humano y natural.
-3. Usar frases cortas y claras.
-4. Separar el guion en frases o líneas pensadas para ser leídas en voz alta.
-5. Optimizar para captar la atención en los primeros 3 segundos.
-6. Devuelve únicamente el guion, sin explicaciones, títulos ni comillas.
+CONSTRAINTS (OBLIGATORIAS):
+- Duración objetivo ≈ ${secondsCap} segundos. Máximo absoluto ${MAX_SEC} s.
+- Presupuesto de palabras: NO SUPERE ${wordBudget} palabras.
+- Frases cortas, naturales, en líneas pensadas para locución.
+- Gancho fuerte en las primeras 1–2 líneas.
+- No menciones que eres IA. No incluyas títulos, notas ni comillas. Devuelve SOLO el guion.
 `.trim();
 
       const completion = await openai.chat.completions.create({
@@ -167,6 +191,19 @@ Reglas estrictas:
           ?.replace(/^["'\s]+|["'\s]+$/g, "")
           .replace(/^(Aquí.*?:\s*)/i, "")
           .trim() || "";
+
+      // 4.1) Post-procesado defensivo: recortar a presupuesto si se excede
+      if (script) {
+        script = truncateToWords(script, wordBudget).trim();
+
+        // 4.2) Validación de duración estimada (velocidad 1x)
+        const estSec = estimateTtsSeconds(script, language, 1);
+        if (estSec > MAX_SEC) {
+          // Reintento de recorte conservador
+          const hardBudget = Math.max(1, Math.floor(wps * MAX_SEC));
+          script = truncateToWords(script, hardBudget).trim();
+        }
+      }
     }
 
     // 5) Confirmar facturación (solo si hay script válido)
@@ -182,6 +219,8 @@ Reglas estrictas:
         status: "success",
         simulated: simulate,
         script,
+        secondsCap,
+        wordBudget,
         completedAt: adminTimestamp.now(),
       },
       { merge: true }

@@ -1,217 +1,343 @@
+// src/components/audio/AudioCreatorContainer.tsx
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
-import { AudiosList, AudioData } from "./AudiosList";
-import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
-import AudioCreatorContainer from "./AudioCreatorContainer";
-import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import { useAudioForm } from "./useAudioForm";
+import { AudioForm } from "./AudioForm";
+import { v4 as uuidv4 } from "uuid";
 
-export default function AudiosContainer() {
-  const [audios, setAudios] = useState<AudioData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [isNewOpen, setIsNewOpen] = useState(false);
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Play, Pause, Loader2 } from "lucide-react";
 
-  const [audioToDelete, setAudioToDelete] = useState<AudioData | null>(null);
-  const [deleteAll, setDeleteAll] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+import useSubscriptionGate from "@/hooks/useSubscriptionGate";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-  // --- Auth ---
-  useEffect(() => {
-    const auth = getAuth();
-    return onAuthStateChanged(auth, setUser);
-  }, []);
+// ✅ usa límites y estimación centralizados (soporta idioma + velocidad)
+import {
+  estimateTtsSeconds,
+  MAX_AUDIO_SECONDS as MAX_SEC,
+} from "@/lib/limits";
 
-  // --- Auto open with ?new=1 ---
+interface Props {
+  /** Permite al padre cerrar su modal y refrescar lista al guardar */
+  onCreated?: () => void;
+  /** Permite que el padre pase onCancel sin error de tipos */
+  onCancel?: () => void;
+}
+
+export default function AudioCreatorContainer({ onCreated }: Props) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
   const router = useRouter();
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsNewOpen(true); // abre modal
-      router.replace(pathname, { scroll: false }); // limpia el query
-    }
-  }, [searchParams, pathname, router]);
+  const defaultText = searchParams.get("text") || "";
+  const form = useAudioForm(defaultText);
 
-  // --- Fetch audios ---
-  const fetchAudios = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [audioId, setAudioId] = useState("");
+  const [regenCount, setRegenCount] = useState(0);
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  // 🎵 Control de audio
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const { ensureSubscribed } = useSubscriptionGate();
+  const [showCheckout, setShowCheckout] = useState(false);
+
+  const togglePlay = useCallback(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play().catch(() => {});
+  }, [isPlaying]);
+
+  // Actualizar progreso con rAF
+  useEffect(() => {
+    let rafId: number;
+    const loop = () => {
+      if (audioRef.current) setProgress(audioRef.current.currentTime || 0);
+      rafId = requestAnimationFrame(loop);
+    };
+    if (isPlaying) rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying]);
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setProgress(0);
+  };
+
+  const formatTime = (time: number) => {
+    if (!time || isNaN(time)) return "00:00";
+    const m = Math.floor(time / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = Math.floor(time % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  // Avisar si el audio generado excede 60s
+  useEffect(() => {
+    if (duration > MAX_SEC) {
+      toast.error(
+        `⏱️ El audio dura ${formatTime(
+          duration
+        )} y el máximo permitido es ${MAX_SEC}s. Acorta el texto o sube la velocidad.`
+      );
+    }
+  }, [duration]);
+
+  const buildVoiceSettings = () => ({
+    stability: form.stability ?? null,
+    similarity_boost: form.similarityBoost ?? null,
+    style: form.style ?? null,
+    speed: form.speed ?? 1,
+    use_speaker_boost: form.speakerBoost ?? null,
+  });
+
+  // 👉 Generar audio inicial
+  const handleGenerate = async () => {
+    const ok = await ensureSubscribed({ feature: "audio" });
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
+
+    if (!form.text.trim()) {
+      toast.error("Debes escribir el texto a convertir.");
+      return;
+    }
+
+    // ✅ Estimación previa considerando idioma + velocidad
+    const est = estimateTtsSeconds(form.text, form.languageCode, form.speed);
+    if (est > MAX_SEC) {
+      toast.error(
+        `⏱️ El texto es demasiado largo (~${Math.round(
+          est
+        )}s). Máximo ${MAX_SEC}s.`
+      );
+      return;
+    }
+    if (!form.voiceId) {
+      toast.error("Debes seleccionar una voz.");
+      return;
+    }
+    if (!form.user) {
+      toast.error("Debes iniciar sesión para generar audios.");
+      return;
+    }
+
+    form.setLoading(true);
+    const loadingId = toast.loading("🎙️ Generando audio...");
 
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/audios`, {
-        headers: { Authorization: `Bearer ${idToken}` },
+      const token = await form.user.getIdToken();
+      const res = await fetch("/api/elevenlabs/audio/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-Idempotency-Key": uuidv4(),
+        },
+        body: JSON.stringify({
+          text: form.text,
+          languageCode: form.languageCode,
+          voiceId: form.voiceId,
+          voice_settings: buildVoiceSettings(),
+        }),
       });
 
-      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error generando audio");
 
-      const mapped: AudioData[] = data.map((d: any) => ({
-        audioId: d.id,
-        url: d.audioUrl ?? "",
-        name: d.name ?? "",
-        description: d.description ?? "",
-        createdAt: d.createdAt,
-        duration: d.duration,
-        language: d.language,
-      }));
+      setAudioUrl(data.audioUrl);
+      setAudioId(data.audioId);
+      setShowModal(true);
+      setRegenCount(0);
 
-      setAudios(mapped);
-    } catch (error) {
-      console.error("Error fetching audios:", error);
-      toast.error("❌ No se pudieron cargar los audios");
+      toast.success("✅ Audio generado", { id: loadingId });
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ No se pudo generar el audio", { id: loadingId });
     } finally {
-      setLoading(false);
+      form.setLoading(false);
     }
-  }, [user]);
+  };
 
-  useEffect(() => {
-    fetchAudios();
-  }, [fetchAudios]);
+  // 👉 Regenerar audio
+  const handleRegenerate = async () => {
+    const ok = await ensureSubscribed({ feature: "audio" });
+    if (!ok) {
+      setShowCheckout(true);
+      return;
+    }
 
-  // --- Delete (single / all) ---
-  const handleConfirmDelete = useCallback(async () => {
-    if (!user) return;
-    if (deleting) return;
-    setDeleting(true);
+    if (!audioId) {
+      toast.error("No hay audio base para regenerar.");
+      return;
+    }
+    if (regenCount >= 2) {
+      toast.error("⚠️ Máximo 2 regeneraciones permitidas.");
+      return;
+    }
+
+    // ✅ Estimar por si cambió texto/velocidad/idioma
+    const est = estimateTtsSeconds(form.text, form.languageCode, form.speed);
+    if (est > MAX_SEC) {
+      toast.error(
+        `⏱️ El texto es demasiado largo (~${Math.round(
+          est
+        )}s). Máximo ${MAX_SEC}s.`
+      );
+      return;
+    }
+
+    setRegenLoading(true);
+    const loadingId = toast.loading("🔄 Regenerando audio...");
 
     try {
-      const idToken = await user.getIdToken();
+      const token = await form.user?.getIdToken();
+      const res = await fetch("/api/elevenlabs/audio/regenerate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-Idempotency-Key": uuidv4(),
+        },
+        body: JSON.stringify({
+          parentAudioId: audioId,
+          text: form.text,
+          languageCode: form.languageCode,
+          voiceId: form.voiceId,
+          voice_settings: buildVoiceSettings(),
+        }),
+      });
 
-      if (deleteAll) {
-        await Promise.all(
-          audios.map(async (audio) => {
-            const res = await fetch(
-              `/api/firebase/users/${user.uid}/audios/${audio.audioId}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${idToken}` },
-              }
-            );
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              throw new Error(err.error || `Error ${res.status}`);
-            }
-          })
-        );
-        setAudios([]);
-        toast.success("🗑️ Todos los audios eliminados");
-      } else if (audioToDelete) {
-        const res = await fetch(
-          `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${idToken}` },
-          }
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Error ${res.status}`);
-        }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
-        setAudios((prev) =>
-          prev.filter((a) => a.audioId !== audioToDelete.audioId)
-        );
-        toast.success("Audio eliminado ✅");
-      }
+      setAudioUrl(data.audioUrl);
+      setRegenCount((c) => c + 1);
+      toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
-      console.error("Error eliminando audio:", err);
-      toast.error("❌ No se pudo eliminar el audio");
+      console.error(err);
+      toast.error("❌ No se pudo regenerar", { id: loadingId });
     } finally {
-      setDeleting(false);
-      setAudioToDelete(null);
-      setDeleteAll(false);
+      setRegenLoading(false);
     }
-  }, [user, deleteAll, audioToDelete, audios, deleting]);
+  };
 
-  const deleteDialogOpen = useMemo(
-    () => !!audioToDelete || deleteAll,
-    [audioToDelete, deleteAll]
-  );
+  // 👇 Cerrar modal de preview + cerrar modal padre (si hay) + refrescar lista
+  const finishAndRefresh = useCallback(() => {
+    setShowModal(false);
 
-  // --- Loading ---
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh] w-full">
-        <Spinner className="h-12 w-12 text-primary" variant="ellipsis" />
-      </div>
-    );
-  }
+    if (onCreated) {
+      onCreated();
+      return;
+    }
+
+    const stamp = Date.now();
+    router.push(`/dashboard/audio?created=${stamp}`);
+  }, [onCreated, router]);
+
+  const handleAccept = () => {
+    if (duration > MAX_SEC) {
+      toast.error(
+        `⏱️ El audio dura ${formatTime(
+          duration
+        )} (> ${MAX_SEC}s). Por favor, acórtalo antes de guardar.`
+      );
+      return;
+    }
+
+    toast.success("📂 Audio guardado en tu biblioteca");
+    finishAndRefresh();
+  };
 
   return (
-    <div className="flex flex-col h-full space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Mis Audios</h1>
-        <div className="flex gap-3">
-          <Button
-            variant="destructive"
-            className="rounded-lg"
-            onClick={() => setDeleteAll(true)}
-            disabled={audios.length === 0 || deleting}
-          >
-            <Trash2 size={18} className="mr-2" />
-            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
-          </Button>
-          <Button
-            onClick={() => setIsNewOpen(true)}
-            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-          >
-            <Plus size={18} className="mr-2" />
-            Nuevo audio
-          </Button>
-        </div>
-      </div>
+    <>
+      <AudioForm {...form} onGenerate={handleGenerate} />
 
-      {/* Grid de audios */}
-      {user && (
-        <AudiosList
-          audios={audios}
-          onDelete={(audio) => setAudioToDelete(audio)}
-          uid={user.uid}
-          getIdToken={() => user.getIdToken()}
-        />
-      )}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-md space-y-4">
+          <DialogHeader>
+            <DialogTitle>🎧 Audio generado</DialogTitle>
+          </DialogHeader>
 
+          {audioUrl && (
+            <div className="bg-neutral-900 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={togglePlay}
+                  aria-label={isPlaying ? "Pausar audio" : "Reproducir audio"}
+                  className="p-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white transition"
+                >
+                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                </button>
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>{formatTime(progress)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                  <div className="w-full h-1 bg-neutral-700 rounded-full">
+                    <div
+                      className="h-1 bg-white rounded-full transition-all"
+                      style={{
+                        width: duration
+                          ? `${(progress / duration) * 100}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
 
-      {/* Modal crear audio */}
-      <Dialog
-        open={isNewOpen}
-        onOpenChange={(open) => {
-          setIsNewOpen(open);
-          if (!open) void fetchAudios(); // refresca al cerrar por si se creó uno nuevo
-        }}
-      >
-        <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
-        <DialogContent className="max-w-3xl w-full rounded-xl">
-          <AudioCreatorContainer />
+              <audio
+                ref={audioRef}
+                src={audioUrl}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                onEnded={handleEnded}
+                hidden
+              />
+            </div>
+          )}
+
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={handleRegenerate}
+              disabled={regenCount >= 2 || regenLoading}
+            >
+              {regenLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Regenerar ({regenCount}/2)
+            </Button>
+            <Button onClick={handleAccept} disabled={duration > MAX_SEC}>
+              Aceptar y guardar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal eliminar */}
-      <ConfirmDeleteDialog
-        open={deleteDialogOpen}
-        onClose={() => {
-          setAudioToDelete(null);
-          setDeleteAll(false);
-        }}
-        onConfirm={handleConfirmDelete}
-        deleting={deleting}
-        title={deleteAll ? "Eliminar todos los audios" : "Eliminar audio"}
-        description={
-          deleteAll
-            ? "¿Seguro que quieres eliminar TODOS los audios? Esta acción no se puede deshacer."
-            : "¿Seguro que quieres eliminar este audio? Esta acción no se puede deshacer."
-        }
-        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
       />
-    </div>
+    </>
   );
 }

@@ -1,3 +1,4 @@
+// src/components/audio/AudioForm.tsx
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
@@ -22,7 +23,15 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 import
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+
+// ✅ Centralizado (mismo que usa AudioCreatorContainer)
+import {
+  estimateTtsSeconds,
+  MAX_AUDIO_SECONDS as MAX_SEC,
+  wordCount,
+  maxWordsFor,
+} from "@/lib/limits";
 
 interface Voice {
   id: string;
@@ -74,30 +83,50 @@ export function AudioForm({
 }: AudioFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado para modal
+  const [showCheckout, setShowCheckout] = useState(false);
   const isLoading = processing || loading;
+
+  // 🧮 Estimación y métricas (dinámicas por idioma + velocidad)
+  const words = useMemo(() => wordCount(text), [text]);
+  const estSeconds = useMemo(
+    () => estimateTtsSeconds(text, languageCode, speed),
+    [text, languageCode, speed]
+  );
+  const maxWords = useMemo(
+    () => maxWordsFor(languageCode, speed),
+    [languageCode, speed]
+  );
+  const tooLong = estSeconds > MAX_SEC || words > maxWords;
+  const overWords = Math.max(0, words - maxWords);
+
   const buttonText = useMemo(
-    () =>
-      processing
-        ? "Procesando..."
-        : loading
-        ? "Generando audio..."
-        : "Generar audio",
+    () => (processing ? "Procesando..." : loading ? "Generando audio..." : "Generar audio"),
     [processing, loading]
   );
 
   const handleGenerateClick = async () => {
     setProcessing(true);
 
-     const ok = await ensureSubscribed({ feature: "audio" });
+    const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
-      setShowCheckout(true); // 👈 abre modal en vez de toast
+      setShowCheckout(true);
       setProcessing(false);
       return;
     }
 
     if (!text.trim() || !voiceId || !languageCode) {
       toast.error("⚠️ Completa todos los campos obligatorios.");
+      setProcessing(false);
+      return;
+    }
+
+    // ⛔️ Tope duro en UI (60 s)
+    if (tooLong) {
+      toast.error(
+        `El texto supera 60s (~${Math.round(estSeconds)}s). ` +
+          `A ${speed.toFixed(2)}x y “${languageCode}” caben ~${maxWords} palabras; ` +
+          (overWords > 0 ? `te pasas en ${overWords}.` : "acorta el texto o sube la velocidad.")
+      );
       setProcessing(false);
       return;
     }
@@ -109,18 +138,17 @@ export function AudioForm({
     }
   };
 
-  // 🔹 Memorizar handlers
+  // Handlers sliders
   const handleStability = useCallback((v: number[]) => setStability(v[0]), [setStability]);
   const handleSimilarity = useCallback((v: number[]) => setSimilarityBoost(v[0]), [setSimilarityBoost]);
   const handleStyle = useCallback((v: number[]) => setStyle(v[0]), [setStyle]);
   const handleSpeed = useCallback((v: number[]) => setSpeed(v[0]), [setSpeed]);
 
-  const disableButton = !text.trim() || !voiceId || !languageCode || isLoading;
+  const disableButton = !text.trim() || !voiceId || !languageCode || isLoading || tooLong;
 
   return (
     <TooltipProvider>
       <div className="w-full max-w-2xl mx-auto rounded-2xl space-y-6">
-        {/* Título */}
         <h2 className="text-xl font-semibold">Generación de audio</h2>
 
         {/* Texto */}
@@ -132,6 +160,19 @@ export function AudioForm({
             placeholder="Escribe el texto..."
             className="mt-2"
           />
+          {/* Indicadores */}
+          <div className="mt-2 text-xs">
+            <span className="text-muted-foreground">
+              Palabras: {words} / ≈{maxWords} · Estimación: ~{Math.max(0, Math.round(estSeconds))}s / {MAX_SEC}s
+            </span>
+            {tooLong && (
+              <span className="text-destructive ml-2">
+                {overWords > 0
+                  ? `Reduce ${overWords} palabra${overWords === 1 ? "" : "s"} o incrementa la velocidad.`
+                  : "Reduce el texto o incrementa la velocidad."}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Voz + Idioma */}
@@ -267,7 +308,7 @@ export function AudioForm({
           </Tooltip>
         </div>
 
-        {/* Checkbox Speaker Boost */}
+        {/* Speaker Boost */}
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2">
@@ -292,9 +333,10 @@ export function AudioForm({
           className="w-full rounded-lg"
         >
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-          {buttonText}
+          {tooLong ? "Texto supera 60s" : buttonText}
         </Button>
       </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
