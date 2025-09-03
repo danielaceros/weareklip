@@ -634,13 +634,6 @@ export default function OnboardingPage() {
           )}
         </div>
       </Card>
-      <CheckoutRedirectModal
-        open={showCheckout}
-        onClose={() => setShowCheckout(false)}
-        plan="ACCESS" // 👈 aquí eliges el plan por defecto
-        message="Para clonar tu voz necesitas activar una suscripción."
-      />
-
     </div>
   );
 }
