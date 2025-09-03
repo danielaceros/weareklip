@@ -1,7 +1,8 @@
+// src/components/audio/AudiosList.tsx
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Trash2, Play, Pause } from "lucide-react";
+import { Trash2, Play, Pause, Download } from "lucide-react";
 import {
   useRef,
   useState,
@@ -18,6 +19,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { toast } from "sonner";
+import { getAuth } from "firebase/auth";
 
 export interface AudioData {
   audioId: string;
@@ -33,9 +36,19 @@ interface AudiosListProps {
   audios: AudioData[];
   onDelete: (audio: AudioData) => void;
   perPage?: number;
+  /** uid del usuario autenticado (para construir la URL de descarga) */
+  uid: string;
+  /** función que retorna el idToken actual (inyectada desde el contenedor). Opcional. */
+  getIdToken?: () => Promise<string>;
 }
 
-export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) {
+export function AudiosList({
+  audios,
+  onDelete,
+  perPage = 16,
+  uid,
+  getIdToken,
+}: AudiosListProps) {
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(audios.length / perPage);
@@ -58,6 +71,8 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
             key={audio.audioId}
             audio={audio}
             onDelete={onDelete}
+            uid={uid}
+            getIdToken={getIdToken}
           />
         ))}
       </div>
@@ -110,9 +125,13 @@ export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) 
 function AudioCard({
   audio,
   onDelete,
+  uid,
+  getIdToken,
 }: {
   audio: AudioData;
   onDelete: (a: AudioData) => void;
+  uid: string;
+  getIdToken?: () => Promise<string>;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
@@ -154,6 +173,75 @@ function AudioCard({
     };
   }, [isPlaying]);
 
+  const downloadAudio = useCallback(async () => {
+    try {
+      // Fallbacks: uid y token desde Firebase Auth si no llegan por props
+      const auth = getAuth();
+      const realUid = uid || auth.currentUser?.uid || "";
+      if (!realUid) {
+        toast.error("Vuelve a iniciar sesión para descargar el audio");
+        return;
+      }
+
+      const tokenFn =
+        typeof getIdToken === "function"
+          ? getIdToken
+          : async () => {
+              const u = auth.currentUser;
+              if (!u) throw new Error("No hay sesión");
+              return u.getIdToken();
+            };
+
+      const token = await tokenFn();
+
+      const res = await fetch(
+        `/api/firebase/users/${realUid}/audios/${audio.audioId}?download=1`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Error ${res.status}`);
+      }
+      const blob = await res.blob();
+
+      // Nombre de archivo
+      const cd = res.headers.get("content-disposition") || "";
+      const match = /filename="([^"]+)"/i.exec(cd);
+      const fallback =
+        (audio.name?.trim() ? audio.name.trim() : `audio-${audio.audioId}`) +
+        guessExt(res.headers.get("content-type"));
+      const filename = (match?.[1] || fallback).replace(/[\\/:*?"<>|]+/g, "_");
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      console.error("Download failed:", e);
+      toast.error("❌ No se pudo descargar el audio");
+    }
+  }, [audio.audioId, audio.name, getIdToken, uid]);
+
+  function guessExt(ct: string | null) {
+    if (!ct) return ".mp3";
+    const map: Record<string, string> = {
+      "audio/mpeg": ".mp3",
+      "audio/mp3": ".mp3",
+      "audio/wav": ".wav",
+      "audio/x-wav": ".wav",
+      "audio/ogg": ".ogg",
+      "audio/webm": ".webm",
+      "audio/aac": ".aac",
+      "audio/mp4": ".m4a",
+      "audio/x-m4a": ".m4a",
+    };
+    return map[ct.toLowerCase()] ?? ".mp3";
+  }
+
   return (
     <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm h-full">
       {/* Header */}
@@ -168,13 +256,24 @@ function AudioCard({
             </p>
           )}
         </div>
-        <button
-          aria-label="Eliminar audio"
-          onClick={() => onDelete(audio)}
-          className="p-2 rounded-full hover:bg-muted transition"
-        >
-          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            aria-label="Descargar audio"
+            onClick={downloadAudio}
+            className="p-2 rounded-full hover:bg-muted transition"
+            title="Descargar"
+          >
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            aria-label="Eliminar audio"
+            onClick={() => onDelete(audio)}
+            className="p-2 rounded-full hover:bg-muted transition"
+            title="Eliminar"
+          >
+            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+          </button>
+        </div>
       </div>
 
       {/* Player */}
