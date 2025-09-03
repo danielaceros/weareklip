@@ -6,7 +6,6 @@ import {
   adminAuth,
   adminDB,
   adminTimestamp,
-  adminFieldValue,
 } from "@/lib/firebase-admin";
 import { gaServerEvent } from "@/lib/ga-server";
 
@@ -29,29 +28,6 @@ const METER_EVENT_BY_KIND: Record<UsageKind, string> = {
   voice: process.env.STRIPE_METER_EVENT_VOICE ?? "",
   lipsync: process.env.STRIPE_METER_EVENT_LIPSYNC ?? "",
   edit: process.env.STRIPE_METER_EVENT_EDIT ?? "",
-};
-
-/** Crédito trial por defecto (50€) si no viene en .env */
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS || "5000");
-/** Tope duro de consumo antes de bloquear (por defecto 150€) */
-const DAILY_CAP_CENTS = Number(process.env.DAILY_CAP_CENTS || "15000");
-
-/* ================= Tipos mínimos para Meter Events ================= */
-type MeterEventCreateParams = {
-  event_name: string;
-  payload: {
-    value: number;
-    stripe_customer_id: string;
-  };
-  identifier?: string;
-  timestamp?: number;
-};
-type MeterEvent = { id: string };
-type MeterEventsAPI = {
-  create: (
-    params: MeterEventCreateParams,
-    options?: { idempotencyKey?: string }
-  ) => Promise<MeterEvent>;
 };
 
 /* ================= helpers ================= */
@@ -168,39 +144,6 @@ async function createBillingPortalUrl(customerId: string): Promise<string> {
   return session.url;
 }
 
-/** Si encontramos una invoice pagada posterior al último reset, reseteamos acumulado local */
-async function maybeResetAfterPaidInvoice(args: {
-  userRef: FirebaseFirestore.DocumentReference;
-  user: any;
-  customerId: string;
-  usageSubId: string;
-}) {
-  const { userRef, user, customerId, usageSubId } = args;
-
-  const list = await stripe.invoices.list({
-    customer: customerId,
-    subscription: usageSubId,
-    limit: 5,
-  });
-
-  const paid = list.data.find((i) => i.status === "paid");
-  const paidPeriodEnd = typeof paid?.period_end === "number" ? paid!.period_end : undefined;
-
-  if (paid && typeof paidPeriodEnd === "number") {
-    const already = user.pendingLocalResetAt?.seconds;
-    if (!already || already !== paidPeriodEnd) {
-      await userRef.set(
-        {
-          pendingLocalCents: 0,
-          pendingLocalResetAt: adminTimestamp.fromMillis(paidPeriodEnd * 1000),
-          lastUpdated: adminTimestamp.now(),
-        },
-        { merge: true }
-      );
-    }
-  }
-}
-
 /* ================= handler ================= */
 
 export async function POST(req: NextRequest) {
@@ -260,12 +203,12 @@ export async function POST(req: NextRequest) {
     }
 
     const userRef = adminDB.collection("users").doc(uid);
-    let snap = await userRef.get();
+    const snap = await userRef.get();
     if (!snap.exists) {
       await gaServerEvent("usage_failed", { uid, kind, reason: "user_doc_not_found" });
       return bad("User doc not found", 404);
     }
-    let user = snap.data() as any;
+    const user = snap.data() as any;
     const customerId = user.stripeCustomerId;
     if (!customerId) {
       await gaServerEvent("usage_failed", { uid, kind, reason: "no_stripe_customer" });
@@ -324,43 +267,10 @@ export async function POST(req: NextRequest) {
     // Sub de consumo
     const usageSub = await getOrCreateUsageSubscription(customerId, uid);
     await ensureSubscriptionHasAllPrices(usageSub.id);
-    await maybeResetAfterPaidInvoice({ userRef, user, customerId, usageSubId: usageSub.id });
-    snap = await userRef.get();
-    user = snap.data();
 
     const unitCents = await getUnitAmountCents(priceId);
     const price = await stripe.prices.retrieve(priceId);
     const currency = price.currency!;
-
-    let credit = typeof user.trialCreditCents === "number" ? Math.max(0, user.trialCreditCents) : undefined;
-    if (accessStatus === "trialing" && credit == null) {
-      credit = DEFAULT_TRIAL_CENTS;
-      await userRef.set({ trialCreditCents: credit, lastUpdated: adminTimestamp.now() }, { merge: true });
-    }
-    const creditNow = typeof credit === "number" ? credit : 0;
-
-    const freeQty = creditNow > 0 ? Math.min(quantity, Math.floor(creditNow / unitCents)) : 0;
-    const paidQty = quantity - freeQty;
-    const chargedCentsThisCall = paidQty * unitCents;
-
-    const pendingLocal = typeof user.pendingLocalCents === "number" ? user.pendingLocalCents : 0;
-    const willBe = pendingLocal + chargedCentsThisCall;
-    if (pendingLocal >= DAILY_CAP_CENTS || willBe > DAILY_CAP_CENTS) {
-      const portalUrl = await createBillingPortalUrl(customerId);
-      await gaServerEvent("usage_cap_reached", { uid, kind, pendingLocal });
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "CAP_REACHED",
-          message: "Has alcanzado el límite de consumo.",
-          capCents: DAILY_CAP_CENTS,
-          pendingLocalCents: pendingLocal,
-          remainingCents: Math.max(0, DAILY_CAP_CENTS - pendingLocal),
-          portalUrl,
-        },
-        { status: 402 }
-      );
-    }
 
     // === Si solo es PREVIEW: devolver validación y salir ===
     if (preview) {
@@ -370,76 +280,41 @@ export async function POST(req: NextRequest) {
         quantity,
         unitCents,
         currency,
-        freeQty,
-        paidQty,
-        chargedCents: chargedCentsThisCall,
-        capCents: DAILY_CAP_CENTS,
         preview: true,
       });
     }
 
-    // === Ejecución real ===
-    if (freeQty > 0) {
-      await userRef.update({
-        trialCreditCents: adminFieldValue.increment(-freeQty * unitCents),
-        lastUpdated: adminTimestamp.now(),
-      });
-      await gaServerEvent("usage_trial_consumed", { uid, kind, freeQty, unitCents });
+    // === Registrar evento en Stripe ===
+    const idemHeader = req.headers.get("x-idempotency-key");
+    const idemBody = typeof body.idem === "string" ? (body.idem as string) : undefined;
+    const idem = idemHeader || idemBody || String(Date.now());
+    const ident = `${uid}:${kind}:${idem}`;
+
+    const meter = (stripe as unknown as { billing?: { meterEvents?: any } }).billing?.meterEvents;
+    if (!meter) {
+      throw new Error("Stripe Metered Billing no disponible");
     }
+    const evt = await meter.create(
+      {
+        event_name: meterEventName,
+        payload: { value: quantity, stripe_customer_id: customerId },
+        identifier: ident,
+      },
+      { idempotencyKey: ident }
+    );
 
-    let usageEventId: null | string = null;
-    if (paidQty > 0) {
-      const idemHeader = req.headers.get("x-idempotency-key");
-      const idemBody = typeof body.idem === "string" ? (body.idem as string) : undefined;
-      const idem = idemHeader || idemBody || String(Date.now());
-      const ident = `${uid}:${kind}:${idem}`;
-
-      const meter = (stripe as unknown as { billing?: { meterEvents?: MeterEventsAPI } }).billing?.meterEvents;
-      if (!meter) {
-        throw new Error("Stripe Metered Billing no disponible");
-      }
-      const evt = await meter.create(
-        {
-          event_name: meterEventName,
-          payload: { value: paidQty, stripe_customer_id: customerId },
-          identifier: ident,
-        },
-        { idempotencyKey: ident }
-      );
-      usageEventId = evt.id;
-
-      if (chargedCentsThisCall > 0) {
-        await userRef.update({
-          pendingLocalCents: adminFieldValue.increment(chargedCentsThisCall),
-          lastUpdated: adminTimestamp.now(),
-        });
-      }
-      await gaServerEvent("usage_paid_recorded", { uid, kind, paidQty, chargedCents: chargedCentsThisCall });
-    }
-
-// aquí continua el handler sin cambios previos
-    await userRef.update({
-      [`usage.${kind}`]: adminFieldValue.increment(quantity),
-      lastUpdated: adminTimestamp.now(),
-    });
-
-    const creditedCents = freeQty * unitCents;
-
+    // Guardar log en Firestore
     const taskRef = adminDB.collection("users").doc(uid).collection("tasks").doc();
     await taskRef.set({
       kind,
       quantity,
-      freeQty,
-      paidQty,
       unitCents,
-      creditedCents,
-      chargedCents: chargedCentsThisCall,
       currency,
-      usageEventId,
+      usageEventId: evt.id,
       createdAt: adminTimestamp.now(),
     });
 
-    await gaServerEvent("usage_success", { uid, kind, quantity, freeQty, paidQty });
+    await gaServerEvent("usage_success", { uid, kind, quantity });
 
     return NextResponse.json(
       {
@@ -447,13 +322,8 @@ export async function POST(req: NextRequest) {
         kind,
         quantity,
         unitCents,
-        creditedCents,
-        chargedCents: chargedCentsThisCall,
         currency,
-        freeQty,
-        paidQty,
-        usageEventId,
-        capCents: DAILY_CAP_CENTS,
+        usageEventId: evt.id,
       },
       { status: 200 }
     );

@@ -11,23 +11,44 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton"; // 👈 importa tu componente
+import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
+import { Gift } from "lucide-react";
 
 type Summary = {
-  subscription: { status: string | null; active: boolean; plan: string | null };
-  trialCreditCents: number;
+  subscriptions: {
+    monthly: {
+      id: string | null;
+      status: string | null;
+      active: boolean;
+      plan: string | null;
+      renewalAt: number | null;
+      trialing: boolean;
+      cancelAtPeriodEnd: boolean;
+    } | null;
+    usage: {
+      id: string | null;
+      status: string | null;
+      active: boolean;
+      plan: string | null;
+      renewalAt: number | null;
+      trialing: boolean;
+      cancelAtPeriodEnd: boolean;
+    } | null;
+  };
   usage: { script: number; voice: number; lipsync: number; edit: number };
   pendingUsageCents: number;
-  overdueCents?: number;
-  hasOverdue?: boolean;
+  credits: { availableCents: number; currency: string | null };
+  payment: { hasDefaultPayment: boolean };
+  hasOverdue: boolean;
+  overdueCents: number;
+  trial?: { available: boolean; used: boolean };
+  debug: { customerId: string | null; reconciled: boolean };
 };
-
-const euro = (cents: number | undefined | null) =>
-  (Math.max(0, cents ?? 0) / 100).toFixed(2);
 
 export function Topbar() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
@@ -35,39 +56,108 @@ export function Topbar() {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
+  const loadSummary = async (force = false) => {
     if (!user) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const token = await getIdToken(user, true);
-        const res = await fetch("/api/billing/summary", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setSummary(data);
-        } else {
-          console.error("Summary error:", data.error);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      const token = await getIdToken(user, force);
+      const res = await fetch("/api/billing/summary", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSummary(data);
+      } else {
+        console.error("Summary error:", data.error);
       }
-    };
-    load();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSummary(true);
   }, [user]);
+
+  // 🧮 Conversiones
+  const toCredits = (cents?: number | null) =>
+    Math.floor(Math.max(0, cents ?? 0) / 10);
+  const availableCredits = toCredits(summary?.credits?.availableCents);
+  const pendingCredits = toCredits(summary?.pendingUsageCents);
+  const overdueCredits = toCredits(summary?.overdueCents);
+
+  // 🔁 Fechas de ciclo
+  const fmtDate = (ts: number | null | undefined) =>
+    ts
+      ? new Date(ts * 1000).toLocaleDateString(undefined, {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        })
+      : "—";
+
+  const monthly = summary?.subscriptions?.monthly;
+  const periodEnd = monthly?.renewalAt;
+  const periodStart = monthly?.renewalAt
+    ? new Date(
+        new Date(monthly.renewalAt * 1000).setMonth(
+          new Date(monthly.renewalAt * 1000).getMonth() - 1
+        )
+      ).getTime() / 1000
+    : null;
+
+  // ⚡ Handler para reclamar créditos regalo
+  const claimTrial = async () => {
+    if (!user) return;
+    setClaiming(true);
+    try {
+      const token = await getIdToken(user, true);
+      const res = await fetch("/api/trial/grant", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        // 🔄 Recargar toda la app para reflejar cambios globales
+        window.location.reload();
+      } else {
+        const err = await res.json();
+        console.error("Error claimTrial:", err);
+      }
+    } catch (e) {
+      console.error("Error claimTrial:", e);
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   return (
     <>
+      {/* 🎁 Banner si hay créditos regalo disponibles */}
+      {summary?.trial?.available && !summary?.trial?.used && (
+        <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
+          <span>
+Tienes créditos de prueba disponibles. Reclámalos para empezar a
+            usar la plataforma sin coste.
+          </span>
+          <button
+            onClick={claimTrial}
+            disabled={claiming}
+            className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {claiming ? "Reclamando..." : "Reclamar créditos"}
+          </button>
+        </div>
+      )}
+
       {/* 🔴 Banner si hay deuda */}
       {summary?.hasOverdue && (
-        <div className="w-full bg-red-100 text-red-800 text-sm py-2 px-4 flex justify-between items-center font-medium">
+        <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
           <span>
             ⚠️ Tienes una deuda pendiente de{" "}
-            <b> {euro(summary.overdueCents ?? 0)}€ </b>
-            Por favor regulariza tu pago para seguir usando la plataforma.
+            <b>{overdueCredits} créditos</b>. Por favor regulariza tu pago para
+            seguir usando la plataforma.
           </span>
           <a
             href={process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL}
@@ -82,12 +172,10 @@ export function Topbar() {
 
       {/* Topbar */}
       <header className="flex h-14 w-full items-center justify-between border-b border-border bg-card px-4 sm:px-6">
-        {/* 📌 Izquierda: en mobile mostramos los botones de CreateReelGlobalButton */}
         <div className="md:hidden">
           <CreateReelGlobalButton />
         </div>
 
-        {/* 📌 Derecha: consumo + user */}
         <div className="flex items-center gap-4 ml-auto">
           {loading ? (
             <Skeleton className="h-6 w-28 rounded-md" />
@@ -104,45 +192,50 @@ export function Topbar() {
                   }`}
                 >
                   {summary.hasOverdue
-                    ? `Deuda: € ${euro(summary.overdueCents)}`
-                    : `Consumo: € ${euro(summary.pendingUsageCents ?? 0)}`}
+                    ? `Deuda: ${overdueCredits} créditos`
+                    : `Consumo: ${pendingCredits} créditos`}
                 </Badge>
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="w-80 rounded-xl border bg-popover p-4 shadow-lg"
+                className="w-80 rounded-2xl border border-neutral-800 bg-black text-white p-6 shadow-lg space-y-6"
               >
-                <h4 className="font-medium mb-3">Detalle de consumo</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Crédito de prueba</span>
-                    <span>€ {euro(summary.trialCreditCents)}</span>
+                <div>
+                  <h4 className="text-sm text-neutral-400">
+                    Consumo del mes ({fmtDate(periodStart)} – {fmtDate(periodEnd)})
+                  </h4>
+                  <div className="text-4xl font-semibold mt-1">
+                    {pendingCredits}{" "}
+                    <span className="text-lg font-normal">créditos</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Pendiente a liquidar</span>
-                    <span>€ {euro(summary.pendingUsageCents)}</span>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-neutral-400 text-sm">Créditos disponibles</p>
+                  <div className="text-2xl font-semibold">
+                    {availableCredits}{" "}
+                    <span className="text-lg font-normal">créditos</span>
                   </div>
-                  {summary.hasOverdue && (
-                    <div className="flex justify-between text-red-600 font-medium">
-                      <span>Deuda vencida</span>
-                      <span>€ {euro(summary.overdueCents)}</span>
-                    </div>
+                  {monthly?.trialing && (
+                    <p className="text-xs text-neutral-500">
+                      Créditos de prueba hasta {fmtDate(monthly.renewalAt)}
+                    </p>
                   )}
-                  <div className="flex flex-col gap-1 mt-2">
-                    <span className="text-muted-foreground">
-                      Operaciones (periodo actual):
-                    </span>
-                    <span>
-                      Guiones: {summary.usage.script ?? 0} · Voz:{" "}
-                      {summary.usage.voice ?? 0} · LipSync:{" "}
-                      {summary.usage.lipsync ?? 0} · Edición:{" "}
-                      {summary.usage.edit ?? 0}
-                    </span>
+                </div>
+
+                <div className="space-y-1 pt-2 border-t border-neutral-800">
+                  <p className="text-neutral-400 text-sm">Hoy</p>
+                  <p className="text-sm text-neutral-500">
+                    Cargo hoy a las 23:59 (Europa/Madrid)
+                  </p>
+                  <div className="text-lg font-medium mt-1">
+                    {(summary?.pendingUsageCents ?? 0) / 100}€ · {pendingCredits} créditos
                   </div>
                 </div>
               </PopoverContent>
             </Popover>
           ) : null}
+
 
           {user && (
             <div id="user-dropdown">
