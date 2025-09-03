@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
@@ -30,6 +29,9 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
+
+/* ✅ límite de tamaño (100 MB vídeo) */
+import { validateFileSizeAs } from "@/lib/fileLimits";
 
 const MAX_SEC = 60; // ⏱️ límite duro
 
@@ -100,8 +102,20 @@ export default function CreateVideoPage({
 
   /* ---- Dropzone ---- */
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!acceptedFiles[0]) return;
-    const url = URL.createObjectURL(acceptedFiles[0]);
+    const f = acceptedFiles[0];
+    if (!f) return;
+
+    // ⛔️ 1) Tamaño (100 MB vídeo)
+    const sizeCheck = validateFileSizeAs(f, "video");
+    if (!sizeCheck.ok) {
+      toast.error("Archivo demasiado grande", {
+        description: sizeCheck.message,
+      });
+      return;
+    }
+
+    // ⏱️ 2) Duración (60 s)
+    const url = URL.createObjectURL(f);
     try {
       const sec = await getVideoDurationFromUrl(url);
       if (sec > MAX_SEC) {
@@ -111,7 +125,7 @@ export default function CreateVideoPage({
         URL.revokeObjectURL(url);
         return;
       }
-      setFile(acceptedFiles[0]);
+      setFile(f);
       setVideoUrl(url);
       setVideoSec(sec);
       toast.success("📹 Vídeo cargado");
@@ -121,11 +135,24 @@ export default function CreateVideoPage({
     }
   }, []);
 
+  // ✅ Validator del drop (rechaza antes de onDrop)
+  const validator = (f: File) => {
+    const r = validateFileSizeAs(f, "video"); // 100 MB
+    return r.ok ? null : { code: "file-too-large", message: r.message };
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: (rejs) =>
+      rejs.forEach((r) =>
+        toast.error("Archivo demasiado grande", {
+          description: r.errors?.[0]?.message,
+        })
+      ),
     accept: { "video/*": [] },
     multiple: false,
     disabled: !!videoUrl,
+    validator,
   });
 
   /* ---- Autoselección de vídeo + medir duración ---- */
@@ -215,6 +242,18 @@ export default function CreateVideoPage({
       );
       setProcessing(false);
       return;
+    }
+
+    // ⛔️ Validación dura de tamaño (por si llega por otro camino)
+    if (file) {
+      const sizeCheck = validateFileSizeAs(file, "video");
+      if (!sizeCheck.ok) {
+        toast.error("Archivo demasiado grande", {
+          description: sizeCheck.message,
+        });
+        setProcessing(false);
+        return;
+      }
     }
 
     if (!language) {
@@ -318,7 +357,7 @@ export default function CreateVideoPage({
     ? "Crear vídeo"
     : "Generar edición de vídeo";
 
-  /* --------- TU UI ORIGINAL (sin cambios visuales) --------- */
+  /* --------- UI --------- */
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 pb-8">
       {/* Título */}
@@ -372,7 +411,7 @@ export default function CreateVideoPage({
               ))}
             </div>
           ) : videoUrl ? (
-            <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
+            <div className="rounded-xl overflow-hidden border w/full max-w-sm aspect-[9/16]">
               <video
                 src={videoUrl}
                 controls
@@ -404,6 +443,9 @@ export default function CreateVideoPage({
                       ? "Suelta el vídeo aquí..."
                       : "Arrastra un vídeo o haz click"}
                   </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Hasta 60s y 100&nbsp;MB
+                  </p>
                 </>
               )}
             </div>
@@ -425,7 +467,7 @@ export default function CreateVideoPage({
               </div>
             ) : (
               <>
-                {/* Mobile: 3 filas + toggle */}
+                {/* Mobile */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
                     {(showTemplates ? templates : templates.slice(0, 6)).map(
@@ -457,7 +499,7 @@ export default function CreateVideoPage({
                   )}
                 </div>
 
-                {/* Desktop: todos */}
+                {/* Desktop */}
                 <div className="hidden sm:grid sm:grid-cols-3 gap-3">
                   {templates.map((t) => (
                     <Button
@@ -521,9 +563,7 @@ export default function CreateVideoPage({
                   <div className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={magicZooms}
-                      onCheckedChange={(c) => {
-                        setMagicZooms(!!c);
-                      }}
+                      onCheckedChange={(c) => setMagicZooms(!!c)}
                     />
                     <Label>Magic Zooms</Label>
                   </div>
@@ -538,9 +578,7 @@ export default function CreateVideoPage({
                   <div className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={magicBrolls}
-                      onCheckedChange={(c) => {
-                        setMagicBrolls(!!c);
-                      }}
+                      onCheckedChange={(c) => setMagicBrolls(!!c)}
                     />
                     <Label>Magic B-rolls</Label>
                   </div>
@@ -573,7 +611,13 @@ export default function CreateVideoPage({
             className="w-full"
           >
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            {buttonText}
+            {processing
+              ? "Procesando..."
+              : submitting
+              ? "Generando..."
+              : onComplete
+              ? "Crear vídeo"
+              : "Generar edición de vídeo"}
           </Button>
         </div>
       </div>
