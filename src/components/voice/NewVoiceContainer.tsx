@@ -1,3 +1,4 @@
+// src/app/dashboard/clones/NewVoiceContainer.tsx
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -27,6 +28,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { Input } from "@/components/ui/input"; // ⬅️ nuevo
+import { Label } from "@/components/ui/label"; // ⬅️ nuevo
 
 /* ✅ límites: forzamos "audio" (10 MB) aunque el archivo sea video */
 import { validateFileSizeAs } from "@/lib/fileLimits";
@@ -48,6 +51,9 @@ export default function NewVoiceContainer() {
   );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
+
+  /* 🏷️ nombre de la voz (opcional) */
+  const [voiceTitle, setVoiceTitle] = useState(""); // ⬅️ nuevo
 
   /* ✅ memoizamos la referencia de storage (evita recrear callbacks) */
   const storage = useMemo(() => getStorage(), []);
@@ -190,7 +196,6 @@ export default function NewVoiceContainer() {
     [user, storage]
   );
 
-
   /* ---- dropzone ---- */
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -318,8 +323,14 @@ export default function NewVoiceContainer() {
       const idem = uuidv4();
 
       const paths = samples.map((s) => s.storagePath);
+
+      // 🏷️ nombre final (fallback si lo dejan vacío)
+      const fallback = `Voz-${Date.now()}`;
+      const finalName = (voiceTitle || "").trim() || fallback;
+
       toast.loading("Creando voz en ElevenLabs...");
 
+      // 1) Crear voz en ElevenLabs (si tu route usa voiceName, lo mandamos)
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
@@ -329,7 +340,7 @@ export default function NewVoiceContainer() {
         },
         body: JSON.stringify({
           paths,
-          voiceName: `Voz-${Date.now()}`,
+          voiceName: finalName, // ⬅️ usamos el nombre elegido
         }),
       });
 
@@ -357,6 +368,7 @@ export default function NewVoiceContainer() {
         return;
       }
 
+      // 2) Guardar en Firestore el NOMBRE elegido
       const saveRes = await fetch(
         `/api/firebase/users/${user.uid}/voices/${data.voice_id}`,
         {
@@ -371,7 +383,8 @@ export default function NewVoiceContainer() {
               "requires_verification" in data
                 ? data.requires_verification
                 : undefined,
-            name: `Voz-${Date.now()}`,
+            name: finalName, // ⬅️ guardamos el nombre
+            title: finalName, // ⬅️ compat si tu UI lee `title`
             paths,
             createdAt: Date.now(),
             idem,
@@ -385,7 +398,7 @@ export default function NewVoiceContainer() {
       }
 
       toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
-      router.push("/dashboard/clones  ");
+      router.push("/dashboard/clones");
     } catch (err) {
       console.error(err);
       toast.dismiss();
@@ -407,6 +420,21 @@ export default function NewVoiceContainer() {
       <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
         Clonación de voz
       </h1>
+
+      {/* 🏷️ Nombre de la voz */}
+      <div className="mb-6">
+        <Label className="text-sm font-medium" htmlFor="voice-title">
+          Nombre de la voz (opcional)
+        </Label>
+        <Input
+          id="voice-title"
+          value={voiceTitle}
+          onChange={(e) => setVoiceTitle(e.target.value)}
+          placeholder="Ej: Voz Eneko – iPhone mic"
+          className="mt-2"
+          maxLength={80}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-8">
         {/* Columna izquierda */}

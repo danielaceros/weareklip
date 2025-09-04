@@ -52,7 +52,7 @@ const STRUCTURE_OPTIONS = [
 
 interface ScriptCreatorContainerProps {
   onClose?: () => void; // 👈 para cerrar el modal padre también
-   onCreated?: (newScript: any) => void; // 👈 pasa el objeto creado
+  onCreated?: (newScript: any) => void; // 👈 pasa el objeto creado
 }
 
 export default function ScriptCreatorContainer({
@@ -297,7 +297,6 @@ export default function ScriptCreatorContainer({
       } else {
         router.push("/dashboard/script");
       }
-
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.", { id: toastId });

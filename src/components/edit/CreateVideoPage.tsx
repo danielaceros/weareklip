@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/CreateVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
+import { Input } from "@/components/ui/input"; // ⬅️ nuevo
 
 /* ✅ límite de tamaño (100 MB vídeo) */
 import { validateFileSizeAs } from "@/lib/fileLimits";
@@ -81,6 +83,9 @@ export default function CreateVideoPage({
   const [videoSec, setVideoSec] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // 🏷️ título del vídeo (opcional)
+  const [videoTitle, setVideoTitle] = useState<string>(""); // ⬅️ nuevo
+
   // parámetros de edición
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
@@ -104,39 +109,46 @@ export default function CreateVideoPage({
   const { ensureSubscribed } = useSubscriptionGate();
 
   /* ---- Dropzone ---- */
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const f = acceptedFiles[0];
-    if (!f) return;
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      const f = acceptedFiles[0];
+      if (!f) return;
 
-    // ⛔️ 1) Tamaño (100 MB vídeo)
-    const sizeCheck = validateFileSizeAs(f, "video");
-    if (!sizeCheck.ok) {
-      toast.error("Archivo demasiado grande", {
-        description: sizeCheck.message,
-      });
-      return;
-    }
-
-    // ⏱️ 2) Duración (60 s)
-    const url = URL.createObjectURL(f);
-    try {
-      const sec = await getVideoDurationFromUrl(url);
-      if (sec > MAX_SEC) {
-        toast.error(
-          `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        URL.revokeObjectURL(url);
+      // ⛔️ 1) Tamaño (100 MB vídeo)
+      const sizeCheck = validateFileSizeAs(f, "video");
+      if (!sizeCheck.ok) {
+        toast.error("Archivo demasiado grande", {
+          description: sizeCheck.message,
+        });
         return;
       }
-      setFile(f);
-      setVideoUrl(url);
-      setVideoSec(sec);
-      toast.success("📹 Vídeo cargado");
-    } catch {
-      toast.error("No se pudo analizar el vídeo.");
-      URL.revokeObjectURL(url);
-    }
-  }, []);
+
+      // ⏱️ 2) Duración (60 s)
+      const url = URL.createObjectURL(f);
+      try {
+        const sec = await getVideoDurationFromUrl(url);
+        if (sec > MAX_SEC) {
+          toast.error(
+            `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+          );
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setFile(f);
+        setVideoUrl(url);
+        setVideoSec(sec);
+        // si no hay título aún, proponemos el nombre del archivo (sin extender)
+        if (!videoTitle.trim()) {
+          setVideoTitle(f.name.replace(/\.[^/.]+$/, "")); // sin extensión
+        }
+        toast.success("📹 Vídeo cargado");
+      } catch {
+        toast.error("No se pudo analizar el vídeo.");
+        URL.revokeObjectURL(url);
+      }
+    },
+    [videoTitle]
+  );
 
   // ✅ Validator del drop (rechaza antes de onDrop)
   const validator = (f: File) => {
@@ -174,10 +186,11 @@ export default function CreateVideoPage({
             );
           }
         } else if (preloadedVideos.length > 0) {
-          const url = preloadedVideos[0].url;
-          setVideoUrl(url);
-          const sec = await getVideoDurationFromUrl(url).catch(() => 0);
+          const first = preloadedVideos[0];
+          setVideoUrl(first.url);
+          const sec = await getVideoDurationFromUrl(first.url).catch(() => 0);
           setVideoSec(sec);
+          if (!videoTitle.trim() && first.name) setVideoTitle(first.name); // ⬅️ sugerir
           if (sec > MAX_SEC) {
             toast.error(
               `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
@@ -230,22 +243,25 @@ export default function CreateVideoPage({
       return;
     }
 
-    // ... validaciones de duración/tamaño/idioma (sin cambios)
-
     setSubmitting(true);
     setUploadProgress(0);
 
-    // 🔹 Construimos un id temporal para optimistic
+    // 🏷️ título final (respeta lo que haya escrito el usuario)
+    const finalTitle =
+      videoTitle.trim() ||
+      file?.name?.replace(/\.[^/.]+$/, "") ||
+      "video-preloaded";
+
+    // 🔹 Optimistic
     const tempId = uuidv4();
     const tempVideo = {
       projectId: tempId,
-      title: file?.name || "video-temp",
+      title: finalTitle, // ⬅️ usamos tu título
       status: "processing",
       downloadUrl: videoUrl || undefined,
       _optimistic: true,
     };
 
-    // 🟢 Optimistic: agregamos a la lista padre
     if (typeof onCreated === "function") {
       onCreated(tempVideo as any);
     }
@@ -276,7 +292,7 @@ export default function CreateVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: file?.name || "video-preloaded",
+          title: finalTitle, // ⬅️ lo mandamos al backend
           language,
           videoUrl: finalVideoUrl,
           templateName: template || undefined,
@@ -297,9 +313,8 @@ export default function CreateVideoPage({
       setFile(null);
       setUploadProgress(0);
 
-      // 🔄 Refrescar o notificar al padre
       if (typeof onCreated === "function") {
-        onCreated(); // el padre puede hacer un refetch real
+        onCreated(); // el padre puede refetchear
       } else {
         if (window.location.pathname === "/dashboard/edit") {
           router.refresh();
@@ -311,7 +326,6 @@ export default function CreateVideoPage({
       console.error(error);
       toast.error("❌ Error subiendo o procesando el vídeo");
 
-      // 🔙 Rollback: quitamos el optimista
       if (typeof onCreated === "function") {
         onCreated({ ...tempVideo, _rollback: true } as any);
       }
@@ -320,7 +334,6 @@ export default function CreateVideoPage({
       setProcessing(false);
     }
   };
-
 
   const isLoading = processing || submitting;
   const buttonText = processing
@@ -357,6 +370,7 @@ export default function CreateVideoPage({
                       () => 0
                     );
                     setVideoSec(sec);
+                    if (!videoTitle.trim() && v.name) setVideoTitle(v.name); // ⬅️ sugerir nombre
                     if (sec > MAX_SEC) {
                       toast.error(
                         `⏱️ El vídeo dura ${Math.round(
@@ -431,6 +445,21 @@ export default function CreateVideoPage({
 
         {/* DERECHA */}
         <div className="space-y-6">
+          {/* 🏷️ Campo título */}
+          <div>
+            <Label className="mb-2 block">Título (opcional)</Label>
+            <Input
+              value={videoTitle}
+              onChange={(e) => setVideoTitle(e.target.value)}
+              placeholder="Ej: Lanzamiento producto – vertical"
+              maxLength={80}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Si lo dejas vacío, usaremos el nombre del archivo o
+              “video-preloaded”.
+            </p>
+          </div>
+
           {/* Templates */}
           <div>
             <Label className="mb-2 block">Template</Label>
@@ -585,13 +614,7 @@ export default function CreateVideoPage({
             className="w-full"
           >
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            {processing
-              ? "Procesando..."
-              : submitting
-              ? "Generando..."
-              : onComplete
-              ? "Crear vídeo"
-              : "Generar edición de vídeo"}
+            {buttonText}
           </Button>
         </div>
       </div>

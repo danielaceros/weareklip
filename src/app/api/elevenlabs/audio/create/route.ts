@@ -12,6 +12,9 @@ type Body = {
   text: string;
   modelId?: string;
   format?: string;
+  // ⬇️ NUEVO: permitimos recibir título/nombre
+  name?: string;
+  title?: string;
   voice_settings?: {
     stability?: number;
     similarity_boost?: number;
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
     // 2) Body validation and sanitization
-    const { voiceId, text, modelId, format, voice_settings } =
+    const { voiceId, text, modelId, format, voice_settings, name, title } =
       (await req.json()) as Body;
 
     if (!voiceId || !text) {
@@ -53,6 +56,10 @@ export async function POST(req: Request) {
     }
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
+
+    // Normalizamos nombre (máx 80 chars)
+    const rawTitle = (title ?? name ?? "").trim();
+    const safeTitle = rawTitle ? rawTitle.slice(0, 80) : "";
 
     // 🔔 Evento: inicio de generación de audio
     await gaServerEvent(
@@ -78,6 +85,9 @@ export async function POST(req: Request) {
           text,
           voice_settings: safeVoiceSettings,
           audioUrl: fakeUrl,
+          // ⬇️ guardamos el nombre/título si vino
+          name: safeTitle,
+          title: safeTitle,
           createdAt: new Date(),
           simulated: true,
         });
@@ -102,14 +112,12 @@ export async function POST(req: Request) {
         console.error("❌ Error registrando uso voice (simulado):", usage);
       }
 
-      // 🔔 Evento: audio generado (simulado)
       await gaServerEvent(
         "voice_generation_completed",
         { simulate: true, audioId, voiceId, text_length: text.length },
         { userId: uid }
       );
 
-      // ✅ Notificación in-app (preview disponible)
       try {
         await sendEventPush(uid, "voice_preview", {
           audioId,
@@ -162,7 +170,6 @@ export async function POST(req: Request) {
         { userId: uid }
       );
 
-      // ❗ Notificación de error
       try {
         await sendEventPush(uid, "voice_error", { voiceId, error: err });
       } catch {}
@@ -193,7 +200,7 @@ export async function POST(req: Request) {
       adminBucket.name
     }/o/${encodeURIComponent(filePath)}?alt=media&token=${audioId}`;
 
-    // 5) Guardar en Firestore
+    // 5) Guardar en Firestore (incluyendo nombre/título)
     await adminDB
       .collection("users")
       .doc(uid)
@@ -206,6 +213,8 @@ export async function POST(req: Request) {
         text,
         voice_settings: safeVoiceSettings,
         audioUrl,
+        name: safeTitle,
+        title: safeTitle,
         createdAt: new Date(),
       });
 
@@ -229,14 +238,12 @@ export async function POST(req: Request) {
       console.error("❌ Error registrando uso voice:", usage);
     }
 
-    // 🔔 Evento: audio generado (real)
     await gaServerEvent(
       "voice_generation_completed",
       { simulate: false, audioId, voiceId, text_length: text.length },
       { userId: uid }
     );
 
-    // ✅ Notificación in-app (preview disponible)
     try {
       await sendEventPush(uid, "voice_preview", {
         audioId,
@@ -254,7 +261,6 @@ export async function POST(req: Request) {
   } catch (e: any) {
     console.error("❌ Error en /api/elevenlabs/audio/create:", e?.message, e);
 
-    // Evento de error
     const authHeader = req.headers.get("Authorization");
     let uid: string | undefined;
     if (authHeader?.startsWith("Bearer ")) {
@@ -269,7 +275,6 @@ export async function POST(req: Request) {
       uid ? { userId: uid } : undefined
     );
 
-    // ❗ Notificación de error
     if (uid) {
       try {
         await sendEventPush(uid, "voice_error", { error: e?.message || String(e) });

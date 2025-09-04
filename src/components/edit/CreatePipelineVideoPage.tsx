@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -38,8 +39,9 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function hasString(v: unknown, key: string): v is Record<string, string> {
   return isRecord(v) && typeof v[key] === "string";
 }
-// -----------------------------
+const stripExt = (name?: string) => (name || "").replace(/\.[^/.]+$/, "");
 
+// -----------------------------
 const MAX_SEC = 60;
 
 const getVideoDurationFromUrl = (url: string) =>
@@ -74,13 +76,16 @@ export interface VideoData {
   completedAt?: string;
 }
 
-type OptimisticVideoData = VideoData & { _optimistic?: boolean; _rollback?: boolean };
+type OptimisticVideoData = VideoData & {
+  _optimistic?: boolean;
+  _rollback?: boolean;
+};
 
 interface Props {
   preloadedVideos?: VideoOption[];
   audioUrl: string; // obligatorio
   onComplete?: () => void;
-  onCreated?: (video?: OptimisticVideoData) => void; // ✅ corregido para aceptar optimistic
+  onCreated?: (video?: OptimisticVideoData) => void;
 }
 
 export default function CreatePipelineVideoPage({
@@ -96,6 +101,9 @@ export default function CreatePipelineVideoPage({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoSec, setVideoSec] = useState<number | null>(null);
 
+  // 🏷️ TÍTULO DEL REEL (opcional)
+  const [videoTitle, setVideoTitle] = useState("");
+
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
   const [dictionary, setDictionary] = useState("");
@@ -103,7 +111,9 @@ export default function CreatePipelineVideoPage({
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
 
-  const [languages, setLanguages] = useState<{ name: string; code: string }[]>([]);
+  const [languages, setLanguages] = useState<{ name: string; code: string }[]>(
+    []
+  );
   const [templates, setTemplates] = useState<string[]>([]);
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
@@ -115,28 +125,35 @@ export default function CreatePipelineVideoPage({
   const { ensureSubscribed } = useSubscriptionGate();
 
   /* ---- Dropzone ---- */
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const f = acceptedFiles[0];
-    if (!f) return;
-    try {
-      const sec = await getVideoDurationFromFile(f);
-      if (!sec) {
-        toast.error("No se pudo leer la duración del vídeo.");
-        return;
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      const f = acceptedFiles[0];
+      if (!f) return;
+      try {
+        const sec = await getVideoDurationFromFile(f);
+        if (!sec) {
+          toast.error("No se pudo leer la duración del vídeo.");
+          return;
+        }
+        if (sec > MAX_SEC) {
+          toast.error(
+            `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+          );
+          return;
+        }
+        setFile(f);
+        setVideoSec(sec);
+        setVideoUrl(null);
+        // sugerimos título si está vacío
+        if (!videoTitle.trim()) setVideoTitle(stripExt(f.name));
+        toast.success(`📹 Vídeo "${f.name}" cargado`);
+        track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
+      } catch {
+        toast.error("❌ No se pudo analizar el vídeo.");
       }
-      if (sec > MAX_SEC) {
-        toast.error(`⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`);
-        return;
-      }
-      setFile(f);
-      setVideoSec(sec);
-      setVideoUrl(null);
-      toast.success(`📹 Vídeo "${f.name}" cargado`);
-      track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
-    } catch {
-      toast.error("❌ No se pudo analizar el vídeo.");
-    }
-  }, []);
+    },
+    [videoTitle]
+  );
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
@@ -203,7 +220,9 @@ export default function CreatePipelineVideoPage({
         return;
       }
       if (sec > MAX_SEC) {
-        toast.error(`⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`);
+        toast.error(
+          `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
+        );
         setProcessing(false);
         return;
       }
@@ -213,11 +232,18 @@ export default function CreatePipelineVideoPage({
       return;
     }
 
+    // 🏷️ Título final
+    const finalTitle =
+      videoTitle.trim() ||
+      stripExt(file?.name) ||
+      preloadedVideos[0]?.name ||
+      "video-preloaded";
+
     // ---- Optimistic UI ----
     if (onCreated) {
       const tempVideo: OptimisticVideoData = {
         projectId: uuidv4(),
-        title: file?.name || "video-preloaded",
+        title: finalTitle,
         status: "processing",
         downloadUrl: videoUrl || preloadedVideos[0]?.url,
         _optimistic: true,
@@ -240,7 +266,8 @@ export default function CreatePipelineVideoPage({
         finalVideoUrl = downloadURL;
         track("video_uploaded_cloud", { url: downloadURL });
       }
-      if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl)
+        throw new Error("No se pudo obtener la URL del vídeo");
 
       toast("⚙️ Procesando tu reel...");
       const idToken = await user.getIdToken(true);
@@ -254,6 +281,7 @@ export default function CreatePipelineVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
+          title: finalTitle, // ⬅️ enviamos el título
           audioUrl,
           videoUrl: finalVideoUrl,
           subLang: language,
@@ -273,6 +301,7 @@ export default function CreatePipelineVideoPage({
 
       toast.success("🎬 Reel enviado al pipeline correctamente");
       track("pipeline_reel_submitted", {
+        title: finalTitle,
         language,
         template,
         magicZooms,
@@ -299,9 +328,12 @@ export default function CreatePipelineVideoPage({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto p-4 sm:p-6">
       {/* Título */}
       <div className="lg:col-span-2 mb-2 sm:mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold">🎬 Crear Reel con Pipeline</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">
+          🎬 Crear Reel con Pipeline
+        </h2>
         <p className="text-muted-foreground text-xs sm:text-sm">
-          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al pipeline.
+          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al
+          pipeline.
         </p>
       </div>
 
@@ -320,13 +352,22 @@ export default function CreatePipelineVideoPage({
                       return;
                     }
                     if (sec > MAX_SEC) {
-                      toast.error(`⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`);
+                      toast.error(
+                        `⏱️ El vídeo dura ${Math.round(
+                          sec
+                        )}s y el máximo es ${MAX_SEC}s.`
+                      );
                       return;
                     }
                     setVideoUrl(v.url);
                     setVideoSec(sec);
+                    // sugerimos título si no hay
+                    if (!videoTitle.trim()) setVideoTitle(v.name);
                     toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
-                    track("video_selected", { name: v.name, seconds: Math.round(sec) });
+                    track("video_selected", {
+                      name: v.name,
+                      seconds: Math.round(sec),
+                    });
                   } catch {
                     toast.error("❌ No se pudo analizar el vídeo.");
                   }
@@ -335,45 +376,83 @@ export default function CreatePipelineVideoPage({
                   videoUrl === v.url ? "ring-2 ring-blue-500" : ""
                 }`}
               >
-                <video src={v.url} className="w-full h-32 sm:h-40 object-cover" muted loop playsInline />
-                <div className="p-2 text-xs sm:text-sm font-medium truncate">{v.name}</div>
+                <video
+                  src={v.url}
+                  className="w-full h-32 sm:h-40 object-cover"
+                  muted
+                  loop
+                  playsInline
+                />
+                <div className="p-2 text-xs sm:text-sm font-medium truncate">
+                  {v.name}
+                </div>
               </div>
             ))}
           </div>
         ) : videoUrl ? (
           <div className="rounded-xl overflow-hidden border w-full max-w-[260px] sm:max-w-sm aspect-[9/16]">
-            <video src={videoUrl} controls className="w-full h-full object-cover" />
+            <video
+              src={videoUrl}
+              controls
+              className="w-full h-full object-cover"
+            />
           </div>
         ) : (
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer w-full max-w-[260px] sm:max-w-sm aspect-[9/16] transition ${
-              isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
+              isDragActive
+                ? "border-primary bg-muted"
+                : "border-muted-foreground/50"
             }`}
           >
             <input {...getInputProps()} />
             {file ? (
               <>
                 <VideoIcon className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-primary" />
-                <p className="text-xs sm:text-sm font-medium text-center">{file.name}</p>
+                <p className="text-xs sm:text-sm font-medium text-center">
+                  {file.name}
+                </p>
               </>
             ) : (
               <>
                 <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-muted-foreground" />
                 <p className="text-xs sm:text-sm text-muted-foreground text-center">
-                  {isDragActive ? "Suelta el vídeo aquí..." : "Arrastra un vídeo o haz click"}
+                  {isDragActive
+                    ? "Suelta el vídeo aquí..."
+                    : "Arrastra un vídeo o haz click"}
                 </p>
               </>
             )}
           </div>
         )}
         {uploadProgress > 0 && (
-          <Progress value={uploadProgress} className="w-full max-w-[260px] sm:max-w-sm" />
+          <Progress
+            value={uploadProgress}
+            className="w-full max-w-[260px] sm:max-w-sm"
+          />
         )}
       </div>
 
       {/* DERECHA */}
       <div className="space-y-4 sm:space-y-6">
+        {/* 🏷️ Título del reel */}
+        <div>
+          <Label className="mb-1 sm:mb-2 block text-sm">
+            Título (opcional)
+          </Label>
+          <Input
+            value={videoTitle}
+            onChange={(e) => setVideoTitle(e.target.value)}
+            placeholder="Ej: Demo features – vertical"
+            maxLength={80}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Si lo dejas vacío usaremos el nombre del archivo o
+            “video-preloaded”.
+          </p>
+        </div>
+
         {/* Templates */}
         <div>
           <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
@@ -425,9 +504,11 @@ export default function CreatePipelineVideoPage({
           )}
         </div>
 
-        {/* Diccionario */}
+        {/* Descripción breve */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Descripción breve</Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">
+            Descripción breve
+          </Label>
           <Input
             value={dictionary}
             onChange={(e) => {
@@ -504,6 +585,7 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

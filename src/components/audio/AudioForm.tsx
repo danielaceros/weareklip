@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -22,7 +23,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 import
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 interface Voice {
   id: string;
@@ -30,6 +31,10 @@ interface Voice {
 }
 
 interface AudioFormProps {
+  // ⬇️ NUEVO: título opcional (si el padre lo pasa, mostramos el input)
+  title?: string;
+  setTitle?: (v: string) => void;
+
   text: string;
   setText: (val: string) => void;
   voices: Voice[];
@@ -52,6 +57,8 @@ interface AudioFormProps {
 }
 
 export function AudioForm({
+  title,
+  setTitle,
   text,
   setText,
   voices,
@@ -74,7 +81,8 @@ export function AudioForm({
 }: AudioFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 estado para modal
+  const [showCheckout, setShowCheckout] = useState(false);
+
   const isLoading = processing || loading;
   const buttonText = useMemo(
     () =>
@@ -89,15 +97,15 @@ export function AudioForm({
   const handleGenerateClick = async () => {
     setProcessing(true);
 
-     const ok = await ensureSubscribed({ feature: "audio" });
+    const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
-      setShowCheckout(true); // 👈 abre modal en vez de toast
+      setShowCheckout(true);
       setProcessing(false);
       return;
     }
 
     if (!text.trim() || !voiceId || !languageCode) {
-      toast.error("⚠️ Completa todos los campos obligatorios.");
+      toast.error("⚠️ Completa texto, voz e idioma.");
       setProcessing(false);
       return;
     }
@@ -109,9 +117,14 @@ export function AudioForm({
     }
   };
 
-  // 🔹 Memorizar handlers
-  const handleStability = useCallback((v: number[]) => setStability(v[0]), [setStability]);
-  const handleSimilarity = useCallback((v: number[]) => setSimilarityBoost(v[0]), [setSimilarityBoost]);
+  const handleStability = useCallback(
+    (v: number[]) => setStability(v[0]),
+    [setStability]
+  );
+  const handleSimilarity = useCallback(
+    (v: number[]) => setSimilarityBoost(v[0]),
+    [setSimilarityBoost]
+  );
   const handleStyle = useCallback((v: number[]) => setStyle(v[0]), [setStyle]);
   const handleSpeed = useCallback((v: number[]) => setSpeed(v[0]), [setSpeed]);
 
@@ -120,53 +133,65 @@ export function AudioForm({
   return (
     <TooltipProvider>
       <div className="w-full max-w-2xl mx-auto rounded-2xl space-y-6">
-        {/* Título */}
         <h2 className="text-xl font-semibold">Generación de audio</h2>
+
+        {/* Título opcional */}
+        {typeof title === "string" && typeof setTitle === "function" && (
+          <div>
+            <Label className="text-sm font-medium" htmlFor="audio-title">
+              Nombre (opcional)
+            </Label>
+            <Input
+              id="audio-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ej: Intro vídeo landing ES"
+              className="mt-2"
+              maxLength={80}
+            />
+          </div>
+        )}
 
         {/* Texto */}
         <div>
-          <Label className="text-sm font-medium">Texto *</Label>
+          <Label className="text-sm font-medium" htmlFor="audio-text">
+            Texto *
+          </Label>
           <Textarea
+            id="audio-text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Escribe el texto..."
-            className="mt-2"
+            className="mt-2 min-h-[120px]"
           />
         </div>
 
-        {/* Voz + Idioma */}
+        {/* Voz / Idioma */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label className="text-sm font-medium">Voz *</Label>
-            <Select onValueChange={setVoiceId} value={voiceId}>
+            <Select value={voiceId} onValueChange={setVoiceId}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Seleccionar una voz" />
+                <SelectValue placeholder="Selecciona una voz" />
               </SelectTrigger>
               <SelectContent>
-                {voices.length > 0 ? (
-                  voices.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-voices" disabled>
-                    No tienes voces guardadas
+                {voices.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
                   </SelectItem>
-                )}
+                ))}
               </SelectContent>
             </Select>
           </div>
+
           <div>
             <Label className="text-sm font-medium">Idioma *</Label>
-            <Select onValueChange={setLanguageCode} value={languageCode}>
+            <Select value={languageCode} onValueChange={setLanguageCode}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Seleccionar un idioma" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="en">Inglés</SelectItem>
-                <SelectItem value="fr">Francés</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -176,14 +201,13 @@ export function AudioForm({
         <div className="space-y-4">
           <Tooltip>
             <TooltipTrigger asChild>
-              <label htmlFor="stability-slider">
+              <label htmlFor="stability">
                 <div className="flex justify-between text-sm font-medium">
                   <span>Estabilidad</span>
                   <span>{stability.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
-                  id="stability-slider"
-                  aria-label="Control de estabilidad"
+                  id="stability"
                   value={[stability]}
                   min={0}
                   max={1}
@@ -193,20 +217,19 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Consistencia de la voz. Más alto = más estable y menos variación.</p>
+              <p>Consistencia de la voz.</p>
             </TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <label htmlFor="similarity-slider">
+              <label htmlFor="similarity">
                 <div className="flex justify-between text-sm font-medium">
                   <span>Similaridad</span>
                   <span>{similarityBoost.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
-                  id="similarity-slider"
-                  aria-label="Control de similaridad"
+                  id="similarity"
                   value={[similarityBoost]}
                   min={0}
                   max={1}
@@ -216,20 +239,19 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Qué tan parecido suena el resultado a tu voz original.</p>
+              <p>Parecido con la voz base.</p>
             </TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <label htmlFor="style-slider">
+              <label htmlFor="style">
                 <div className="flex justify-between text-sm font-medium">
                   <span>Estilo</span>
                   <span>{style.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
-                  id="style-slider"
-                  aria-label="Control de estilo"
+                  id="style"
                   value={[style]}
                   min={0}
                   max={1}
@@ -239,20 +261,19 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Ajusta la expresividad de la voz (0 = plano, 1 = expresivo).</p>
+              <p>Expresividad.</p>
             </TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <label htmlFor="speed-slider">
+              <label htmlFor="speed">
                 <div className="flex justify-between text-sm font-medium">
                   <span>Velocidad</span>
                   <span>{speed.toFixed(2)} / 2.00</span>
                 </div>
                 <Slider
-                  id="speed-slider"
-                  aria-label="Control de velocidad"
+                  id="speed"
                   value={[speed]}
                   min={0.5}
                   max={2.0}
@@ -262,30 +283,21 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Rapidez de la locución (0.5x lento, 2x muy rápido).</p>
+              <p>Rapidez de la locución.</p>
             </TooltipContent>
           </Tooltip>
         </div>
 
-        {/* Checkbox Speaker Boost */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="speaker-boost"
-                checked={speakerBoost}
-                onCheckedChange={(c) => setSpeakerBoost(!!c)}
-                aria-label="Activar Speaker Boost"
-              />
-              <Label htmlFor="speaker-boost">Usar Speaker Boost</Label>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Mejora la claridad y potencia de la voz automáticamente.</p>
-          </TooltipContent>
-        </Tooltip>
+        {/* Speaker Boost */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="speaker-boost"
+            checked={speakerBoost}
+            onCheckedChange={(c) => setSpeakerBoost(!!c)}
+          />
+          <Label htmlFor="speaker-boost">Usar Speaker Boost</Label>
+        </div>
 
-        {/* Botón */}
         <Button
           onClick={handleGenerateClick}
           disabled={disableButton}
@@ -295,6 +307,7 @@ export function AudioForm({
           {buttonText}
         </Button>
       </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

@@ -88,6 +88,9 @@ export default function CreateReelWizard({
     "main"
   );
 
+  // 🏷️ SOLO PARA EL AUDIO DEL WIZARD
+  const [audioTitle, setAudioTitle] = useState(""); // ⬅️ NUEVO
+
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
   const [tone, setTone] = useState("");
@@ -325,6 +328,9 @@ export default function CreateReelWizard({
               speed: clampSpeed(audioForm.speed),
               use_speaker_boost: audioForm.speakerBoost,
             },
+            // ⬇️ GUARDAR NOMBRE DEL AUDIO (SOLO ESTO)
+            name: audioTitle?.trim() || undefined,
+            title: audioTitle?.trim() || undefined,
           }),
         })
       );
@@ -562,7 +568,13 @@ export default function CreateReelWizard({
       {/* Paso 2 */}
       {modalType === "main" && step === 2 && (
         <>
-          <AudioForm {...audioForm} onGenerate={generateAudio} />
+          {/* mostramos input de nombre reutilizando AudioForm */}
+          <AudioForm
+            {...audioForm}
+            title={audioTitle}
+            setTitle={setAudioTitle}
+            onGenerate={generateAudio}
+          />
           <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
             <Button
               variant="outline"

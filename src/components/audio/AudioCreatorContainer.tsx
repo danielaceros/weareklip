@@ -33,15 +33,12 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 const MAX_SEC = 60;
-
-// ✅ límites oficiales de speed para ElevenLabs v2
 const MIN_SPEED = 0.7;
 const MAX_SPEED = 1.2;
 
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
-// Lectura aproximada para TTS ~150 wpm => 2.5 palabras/seg
 const estimateTtsSeconds = (text: string) => {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return words / 2.5;
@@ -63,24 +60,14 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
   const [regenCount, setRegenCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // 🎵 Control de audio
+  // 🎵 player
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // 🔄 Mini-diálogo para regeneración con TODOS los campos
-  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
-  const [regenText, setRegenText] = useState("");
-  const [regenVoiceId, setRegenVoiceId] = useState("");
-  const [regenStability, setRegenStability] = useState(0.5);
-  const [regenSimilarityBoost, setRegenSimilarityBoost] = useState(0.75);
-  const [regenStyle, setRegenStyle] = useState(0);
-  const [regenSpeed, setRegenSpeed] = useState(1);
-  const [regenSpeakerBoost, setRegenSpeakerBoost] = useState(true);
-
-  const { ensureSubscribed } = useSubscriptionGate();
-  const [showCheckout, setShowCheckout] = useState(false);
+  // 🏷️ título del audio (persistirá en Firestore vía create)
+  const [title, setTitle] = useState("");
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -88,7 +75,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     else audioRef.current.play().catch(() => {});
   }, [isPlaying]);
 
-  // Actualizar progreso con rAF
+  // RAF progreso
   useEffect(() => {
     let rafId: number;
     const loop = () => {
@@ -115,13 +102,12 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     return `${m}:${s}`;
   };
 
-  // Avisar si el audio generado excede 60s
   useEffect(() => {
     if (duration > MAX_SEC) {
       toast.error(
         `⏱️ El audio dura ${formatTime(
           duration
-        )} y el máximo permitido es ${MAX_SEC}s. Acorta el texto o la velocidad.`
+        )} y el máximo permitido es ${MAX_SEC}s.`
       );
     }
   }, [duration]);
@@ -135,8 +121,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
   }) => {
     const rawSpeed = overrides?.speed ?? form.speed ?? 1;
     const safeSpeed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED);
-
-    const vs = {
+    return {
       stability: overrides?.stability ?? form.stability ?? null,
       similarity_boost:
         overrides?.similarity_boost ?? form.similarityBoost ?? null,
@@ -145,10 +130,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       use_speaker_boost:
         overrides?.use_speaker_boost ?? form.speakerBoost ?? null,
     };
-    return vs;
   };
 
-  // 👉 Generar audio inicial
+  // 👉 Generar audio
   const handleGenerate = async () => {
     const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
@@ -194,6 +178,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
           text: form.text,
           voiceId: form.voiceId,
           voice_settings: buildVoiceSettings(),
+          // ⬇️ enviamos el nombre para persistirlo en Firestore
+          name: title?.trim() || undefined,
+          title: title?.trim() || undefined,
         }),
       });
 
@@ -214,7 +201,19 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     }
   };
 
-  // 🔄 Abrir diálogo de regeneración con valores actuales
+  // 🔄 abrir diálogo de regeneración
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
+  const [regenText, setRegenText] = useState("");
+  const [regenVoiceId, setRegenVoiceId] = useState("");
+  const [regenStability, setRegenStability] = useState(0.5);
+  const [regenSimilarityBoost, setRegenSimilarityBoost] = useState(0.75);
+  const [regenStyle, setRegenStyle] = useState(0);
+  const [regenSpeed, setRegenSpeed] = useState(1);
+  const [regenSpeakerBoost, setRegenSpeakerBoost] = useState(true);
+
+  const { ensureSubscribed } = useSubscriptionGate();
+  const [showCheckout, setShowCheckout] = useState(false);
+
   const openRegenDialog = () => {
     if (regenCount >= 2) {
       toast.error("⚠️ Ya has regenerado el audio 2 veces.");
@@ -230,7 +229,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     setRegenDialogOpen(true);
   };
 
-  // 👉 Regenerar audio
   const handleRegenerate = async (overrides?: {
     text?: string;
     voiceId?: string;
@@ -315,12 +313,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     }
   };
 
-  // 👇 Cerrar modal + refrescar
   const finishAndRefresh = useCallback(() => {
     setShowModal(false);
-    if (onCreated) {
-      return;
-    }
+    if (onCreated) return;
     const stamp = Date.now();
     router.push(`/dashboard/audio?created=${stamp}`);
   }, [onCreated, router]);
@@ -335,19 +330,19 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       return;
     }
 
+    const finalName = (title || "").trim() || form.text.slice(0, 30) + "...";
+
     const optimisticAudio: AudioData = {
       audioId: audioId || uuidv4(),
       url: audioUrl,
-      name: form.text.slice(0, 30) + "...",
+      name: finalName, // la tarjeta verá este nombre
       description: form.text,
       createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-      duration: duration,
+      duration,
       language: "es",
     };
 
-    if (onCreated) {
-      onCreated(optimisticAudio);
-    }
+    if (onCreated) onCreated(optimisticAudio);
 
     toast.success("📂 Audio guardado en tu biblioteca");
     finishAndRefresh();
@@ -355,7 +350,13 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
   return (
     <>
-      <AudioForm {...form} onGenerate={handleGenerate} />
+      {/* Pasamos title para que el formulario muestre el input */}
+      <AudioForm
+        {...form}
+        title={title}
+        setTitle={setTitle}
+        onGenerate={handleGenerate}
+      />
 
       {/* Preview modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -422,7 +423,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Regen dialog */}
+      {/* Regen dialog (sin cambios visuales) */}
       <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -584,7 +585,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Checkout modal */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
