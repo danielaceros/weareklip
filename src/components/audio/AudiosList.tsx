@@ -2,14 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Trash2, Play, Pause } from "lucide-react";
-import {
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  memo,
-} from "react";
+import { useRef, useState, useCallback, useMemo, useEffect, memo } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -25,10 +18,9 @@ export interface AudioData {
   description?: string;
   createdAt?: { seconds: number; nanoseconds: number };
   url: string;
-  duration?: number;  // 👈 ahora es number
+  duration?: number; // 👈 ahora es number
   language?: string;
 }
-
 
 interface AudiosListProps {
   audios: AudioData[];
@@ -36,7 +28,11 @@ interface AudiosListProps {
   perPage?: number;
 }
 
-export function AudiosList({ audios, onDelete, perPage = 16 }: AudiosListProps) {
+export function AudiosList({
+  audios,
+  onDelete,
+  perPage = 16,
+}: AudiosListProps) {
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(audios.length / perPage);
@@ -185,7 +181,11 @@ function AudioCard({
           onClick={togglePlay}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {isPlaying ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
         </button>
 
         <div className="flex-1">
