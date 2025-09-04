@@ -144,7 +144,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
     try {
       const token = await form.user.getIdToken();
-      const res = await fetch("/api/elevenlabs/audio/create", {
+      const res = await fetch("/api/audio/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -209,7 +209,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
     try {
       const token = await form.user?.getIdToken();
-      const res = await fetch("/api/elevenlabs/audio/regenerate", {
+      const res = await fetch("/api/audio/regenerate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -341,3 +341,4 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     </>
   );
 }
+

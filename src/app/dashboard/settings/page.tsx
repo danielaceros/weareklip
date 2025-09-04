@@ -270,7 +270,7 @@ export default function SettingsPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => toast.info("Conectar Metricool...")}
+            onClick={() => toast.info("Conectar herramienta de publicaciones...")}
             className="w-full sm:w-auto"
           >
             📊 {t("settings.connectMetricool")}
@@ -328,3 +328,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

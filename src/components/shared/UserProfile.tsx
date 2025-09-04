@@ -227,3 +227,4 @@ export default function UserProfile({ userId, userData, setUserData }: Props) {
     </section>
   );
 }
+

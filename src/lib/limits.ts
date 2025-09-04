@@ -27,3 +27,4 @@ export const maxWordsFor = (lang = "es", speed = 1) => {
   const s = clamp(speed || 1, 0.5, 2.0);
   return Math.floor(wps * s * MAX_AUDIO_SECONDS);
 };
+

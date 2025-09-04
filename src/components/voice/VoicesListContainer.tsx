@@ -16,7 +16,7 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface VoiceData {
   voiceId: string;
@@ -39,7 +39,6 @@ export default function VoicesListContainer({
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
-  // estado para borrar
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -137,7 +136,6 @@ export default function VoicesListContainer({
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
-          {/* Grid responsive */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {paginated.map((voice) => (
               <VoiceCard
@@ -148,7 +146,6 @@ export default function VoicesListContainer({
             ))}
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-auto">
               <Pagination>
@@ -192,14 +189,12 @@ export default function VoicesListContainer({
         </div>
       )}
 
-      {/* Modal Crear Voz */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-6xl w-full">
           <NewVoiceContainer />
         </DialogContent>
       </Dialog>
 
-      {/* Modal Confirmación de borrado */}
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -212,7 +207,6 @@ export default function VoicesListContainer({
   );
 }
 
-/* ---------- Voice Card ---------- */
 function VoiceCard({
   voice,
   onDelete,
@@ -232,15 +226,13 @@ function VoiceCard({
     if (!previewUrl && voice.voiceId) {
       const fetchPreview = async () => {
         try {
-          const res = await fetch(
-            `/api/elevenlabs/voice/get?voiceId=${voice.voiceId}`
-          );
+          const res = await fetch(`/api/voice/get?voiceId=${voice.voiceId}`);
           const data = await res.json();
           if (res.ok && data.preview_url) {
             setPreviewUrl(data.preview_url);
           }
         } catch (err) {
-          console.error("❌ Error cargando preview de ElevenLabs:", err);
+          console.error("❌ Error cargando preview de la voz:", err);
         } finally {
           setLoadingPreview(false);
         }
@@ -264,7 +256,6 @@ function VoiceCard({
 
   return (
     <Card className="p-4 flex flex-col rounded-2xl bg-card border border-border shadow-sm">
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold truncate">
           {voice.name || "Sin nombre"}
@@ -277,7 +268,6 @@ function VoiceCard({
         </button>
       </div>
 
-      {/* Player */}
       {loadingPreview ? (
         <div className="flex justify-center items-center h-20">
           <Spinner size="sm" variant="ellipsis" />
@@ -323,3 +313,4 @@ function VoiceCard({
     </Card>
   );
 }
+

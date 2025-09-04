@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
     // 3) Webhook
     const base = appBaseUrl().replace(/\/$/, "");
-    const webhookUrl = `${base}/api/webhook/submagic?uid=${encodeURIComponent(
+    const webhookUrl = `${base}/api/webhook/klipcap?uid=${encodeURIComponent(
       uid
     )}&email=${encodeURIComponent(email)}`;
 
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
     if (simulate) {
       projectId = crypto.randomUUID();
       responseData = { id: projectId, simulated: true };
-      console.log("⚡ Simulación Submagic activada, projectId:", projectId);
+      console.log("⚡ Simulación klipcap activada, projectId:", projectId);
 
       await gaServerEvent("submagic_created_simulated", {
         uid,
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
         templateName: templateName ?? null,
       });
     } else {
-      const subRes = await fetch("https://api.submagic.co/v1/projects", {
+      const subRes = await fetch("https://api.klipcap.co/v1/projects", {
         method: "POST",
         headers: {
           "x-api-key": process.env.SUBMAGIC_API_KEY ?? "",
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
       try {
         responseData = JSON.parse(raw);
       } catch {
-        responseData = { error: "Invalid JSON response from Submagic", raw };
+        responseData = { error: "Invalid JSON response from klipcap", raw };
       }
 
       if (!subRes.ok) {
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
           details: responseData,
         });
         return NextResponse.json(
-          { error: (responseData as { error?: string }).error || "Error en Submagic", details: responseData },
+          { error: (responseData as { error?: string }).error || "Error en klipcap", details: responseData },
           { status: subRes.status || 500 }
         );
       }
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
         .collection("videos")
         .doc(projectId)
         .set({
-          provider: "submagic",
+          provider: "klipcap",
           title,
           language,
           videoUrl,
@@ -194,13 +194,13 @@ export async function POST(req: Request) {
       });
       await gaServerEvent("usage_recorded", { uid, kind: "edit", projectId });
     } catch (e) {
-      console.warn("[submagic/create] usage meter falló:", e);
+      console.warn("[klipcap/create] usage meter falló:", e);
       await gaServerEvent("usage_failed", { uid, kind: "edit", reason: "usage_meter_failed" });
     }
 
     return NextResponse.json(responseData, { status: 200 });
   } catch (e: any) {
-    console.error("Error /api/submagic/create:", e);
+    console.error("Error /api/klipcap/create:", e);
     await gaServerEvent("submagic_failed", { reason: e?.message || "internal_error" });
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

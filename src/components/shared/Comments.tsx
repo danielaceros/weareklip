@@ -139,3 +139,4 @@ function formatTimeAgo(ms: number) {
   const d = Math.round(hr / 24);
   return `hace ${d} d`;
 }
+

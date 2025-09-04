@@ -1,3 +1,4 @@
+// app/components/wizard/CreateReelWizard.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,12 +9,11 @@ import { AudioForm } from "@/components/audio/AudioForm";
 import { useAudioForm } from "@/components/audio/useAudioForm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, getDocs, getFirestore } from "firebase/firestore";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { useRouter } from "next/navigation";
-import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
+import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage"; // OK
 import { track, withTiming } from "@/lib/analytics-events";
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal"; // 👈 añadido
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 type ReelData = {
   script: string;
@@ -27,7 +27,7 @@ type ReelData = {
   magicBrollsPercentage?: number;
 };
 
-type CreateReelWizardProps = { onComplete: (data: ReelData) => void; };
+type CreateReelWizardProps = { onComplete: (data: ReelData) => void };
 
 export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) {
   const [user, setUser] = useState<User | null>(null);
@@ -77,7 +77,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const generateScript = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       track("subscription_gate_blocked", { feature: "reel", step: "script" });
       return;
     }
@@ -98,7 +98,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     try {
       const token = await user.getIdToken();
       const res = await withTiming("script_generate", async () =>
-        fetch("/api/chatgpt/scripts/create", {
+        fetch("/api/ai/scripts/create", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
@@ -131,7 +131,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     try {
       const token = await user?.getIdToken();
       const res = await withTiming("script_regenerate", async () =>
-        fetch("/api/chatgpt/scripts/regenerate", {
+        fetch("/api/ai/scripts/regenerate", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
@@ -161,7 +161,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const generateAudio = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       track("subscription_gate_blocked", { feature: "reel", step: "audio" });
       return;
     }
@@ -189,7 +189,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     try {
       const token = await user.getIdToken();
       const res = await withTiming("audio_generate", async () =>
-        fetch("/api/elevenlabs/audio/create", {
+        fetch("/api/audio/create", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -239,7 +239,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     try {
       const token = await user?.getIdToken();
       const res = await withTiming("audio_regenerate", async () =>
-        fetch("/api/elevenlabs/audio/regenerate", {
+        fetch("/api/audio/regenerate", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -309,168 +309,170 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     }
   };
 
-
   const steps = ["Guion", "Audio", "Video"];
 
   return (
-  <div className="w-full max-w-4xl mx-auto rounded-xl shadow p-4 sm:p-6 bg-white dark:bg-neutral-900 transition-colors overflow-y-auto">
-    {/* Stepper */}
-    <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-      {steps.map((label, i) => {
-        const current = i + 1 === step;
-        const completed = i + 1 < step;
-        return (
-          <div key={label} className="flex items-center flex-1 min-w-[100px]">
-            <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
+    <div className="w-full max-w-4xl mx-auto rounded-xl shadow p-4 sm:p-6 bg-white dark:bg-neutral-900 transition-colors overflow-y-auto">
+      {/* Stepper */}
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+        {steps.map((label, i) => {
+          const current = i + 1 === step;
+          const completed = i + 1 < step;
+          return (
+            <div key={label} className="flex items-center flex-1 min-w-[100px]">
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
               ${completed || current
-                ? "bg-primary text-white"
-                : "bg-gray-300 dark:bg-neutral-700 text-gray-600 dark:text-gray-300"
-              }`}
-            >
-              {i + 1}
+                    ? "bg-primary text-white"
+                    : "bg-gray-300 dark:bg-neutral-700 text-gray-600 dark:text-gray-300"
+                  }`}
+              >
+                {i + 1}
+              </div>
+              <span
+                className={`ml-2 text-sm truncate ${
+                  current
+                    ? "font-semibold text-gray-900 dark:text-white"
+                    : "text-gray-500 dark:text-gray-400"
+                }`}
+              >
+                {label}
+              </span>
+              {i < steps.length - 1 && (
+                <div className="hidden sm:flex flex-1 h-0.5 mx-2 sm:mx-4 bg-gray-300 dark:bg-neutral-700" />
+              )}
             </div>
-            <span
-              className={`ml-2 text-sm truncate ${
-                current
-                  ? "font-semibold text-gray-900 dark:text-white"
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {label}
-            </span>
-            {i < steps.length - 1 && (
-              <div className="hidden sm:flex flex-1 h-0.5 mx-2 sm:mx-4 bg-gray-300 dark:bg-neutral-700" />
-            )}
+          );
+        })}
+      </div>
+
+      {/* Paso 1 */}
+      {modalType === "main" && step === 1 && (
+        <>
+          <ScriptForm
+            description={description}
+            tone={tone}
+            platform={platform}
+            duration={duration}
+            language={language}
+            structure={structure}
+            addCTA={addCTA}
+            ctaText={ctaText}
+            loading={loading}
+            setDescription={(v) => { setDescription(v); track("script_description_changed"); }}
+            setTone={(v) => { setTone(v); track("script_tone_changed", { tone: v }); }}
+            setPlatform={(v) => { setPlatform(v); track("script_platform_changed", { platform: v }); }}
+            setDuration={(v) => { setDuration(v); track("script_duration_changed", { duration: v }); }}
+            setLanguage={(v) => { setLanguage(v); track("script_language_changed", { language: v }); }}
+            setStructure={(v) => { setStructure(v); track("script_structure_changed", { structure: v }); }}
+            setAddCTA={(v) => { setAddCTA(v); track("script_cta_toggled", { enabled: v }); }}
+            setCtaText={(v) => { setCtaText(v); track("script_cta_text_changed"); }}
+            onSubmit={generateScript}
+          />
+          <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
+            <Button variant="outline" disabled onClick={() => track("wizard_back_disabled")}>
+              Atrás
+            </Button>
           </div>
-        );
-      })}
+        </>
+      )}
+
+      {/* Paso 2 */}
+      {modalType === "main" && step === 2 && (
+        <>
+          <AudioForm {...audioForm} onGenerate={generateAudio} />
+          <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
+            <Button variant="outline" onClick={() => { setStep(1); track("wizard_back_clicked", { to: 1 }); }}>
+              Atrás
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Paso 3 */}
+      {modalType === "main" && step === 3 && (
+        <>
+          {loadingVideos ? (
+            <p className="text-gray-600 dark:text-gray-300">Cargando vídeos...</p>
+          ) : (
+            <CreatePipelineVideoPage
+              preloadedVideos={videos}
+              audioUrl={audioUrl!}
+              onComplete={() => {
+                track("wizard_completed");
+                toast.success("🎬 Reel enviado al pipeline");
+                router.push("/dashboard/edit");
+              }}
+            />
+          )}
+          <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
+            <Button variant="outline" onClick={() => { setStep(2); track("wizard_back_clicked", { to: 2 }); }}>
+              Atrás
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* Guion generado */}
+      {modalType === "script" && (
+        <div>
+          <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Guion generado</h2>
+          <Textarea
+            value={script}
+            onChange={(e) => { setScript(e.target.value); track("script_edited_manual"); }}
+            className="min-h-[200px] w-full resize-none"
+          />
+          <div className="flex flex-col sm:flex-row justify-between mt-4 gap-2">
+            <Button variant="outline" onClick={() => { setModalType("main"); track("script_modal_back"); }}>
+              Atrás
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={regenerateScript} disabled={scriptRegens >= 2}>
+                Regenerar ({scriptRegens}/2)
+              </Button>
+              <Button onClick={acceptScript}>Aceptar guion</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audio generado */}
+      {modalType === "audio" && (
+        <div>
+          <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Audio generado</h2>
+          {audioUrl ? (
+            <audio
+              controls
+              src={audioUrl}
+              className="w-full my-4"
+              onPlay={() => track("audio_preview_play")}
+              onEnded={() => track("audio_preview_end")}
+            />
+          ) : (
+            <p className="text-gray-600 dark:text-gray-300">No se ha generado audio.</p>
+          )}
+          <div className="flex flex-col sm:flex-row justify-between mt-4 gap-2">
+            <Button variant="outline" onClick={() => { setModalType("main"); track("audio_modal_back"); }}>
+              Atrás
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={regenerateAudio} disabled={audioRegens >= 2}>
+                Regenerar ({audioRegens}/2)
+              </Button>
+              <Button onClick={acceptAudio}>Aceptar audio</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall */}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para continuar."
+      />
     </div>
-
-    {/* Paso 1 */}
-    {modalType === "main" && step === 1 && (
-      <>
-        <ScriptForm
-          description={description}
-          tone={tone}
-          platform={platform}
-          duration={duration}
-          language={language}
-          structure={structure}
-          addCTA={addCTA}
-          ctaText={ctaText}
-          loading={loading}
-          setDescription={(v) => { setDescription(v); track("script_description_changed"); }}
-          setTone={(v) => { setTone(v); track("script_tone_changed", { tone: v }); }}
-          setPlatform={(v) => { setPlatform(v); track("script_platform_changed", { platform: v }); }}
-          setDuration={(v) => { setDuration(v); track("script_duration_changed", { duration: v }); }}
-          setLanguage={(v) => { setLanguage(v); track("script_language_changed", { language: v }); }}
-          setStructure={(v) => { setStructure(v); track("script_structure_changed", { structure: v }); }}
-          setAddCTA={(v) => { setAddCTA(v); track("script_cta_toggled", { enabled: v }); }}
-          setCtaText={(v) => { setCtaText(v); track("script_cta_text_changed"); }}
-          onSubmit={generateScript}
-        />
-        <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
-          <Button variant="outline" disabled onClick={() => track("wizard_back_disabled")}>
-            Atrás
-          </Button>
-        </div>
-      </>
-    )}
-
-    {/* Paso 2 */}
-    {modalType === "main" && step === 2 && (
-      <>
-        <AudioForm {...audioForm} onGenerate={generateAudio} />
-        <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
-          <Button variant="outline" onClick={() => { setStep(1); track("wizard_back_clicked", { to: 1 }); }}>
-            Atrás
-          </Button>
-        </div>
-      </>
-    )}
-
-    {/* Paso 3 */}
-    {modalType === "main" && step === 3 && (
-      <>
-        {loadingVideos ? (
-          <p className="text-gray-600 dark:text-gray-300">Cargando vídeos...</p>
-        ) : (
-          <CreatePipelineVideoPage
-            preloadedVideos={videos}
-            audioUrl={audioUrl!}
-            onComplete={() => {
-              track("wizard_completed");
-              toast.success("🎬 Reel enviado al pipeline");
-              router.push("/dashboard/edit");
-            }}
-          />
-        )}
-        <div className="flex flex-col sm:flex-row justify-start mt-6 gap-2">
-          <Button variant="outline" onClick={() => { setStep(2); track("wizard_back_clicked", { to: 2 }); }}>
-            Atrás
-          </Button>
-        </div>
-      </>
-    )}
-
-    {/* Guion generado */}
-    {modalType === "script" && (
-      <div>
-        <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Guion generado</h2>
-        <Textarea
-          value={script}
-          onChange={(e) => { setScript(e.target.value); track("script_edited_manual"); }}
-          className="min-h-[200px] w-full resize-none"
-        />
-        <div className="flex flex-col sm:flex-row justify-between mt-4 gap-2">
-          <Button variant="outline" onClick={() => { setModalType("main"); track("script_modal_back"); }}>
-            Atrás
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={regenerateScript} disabled={scriptRegens >= 2}>
-              Regenerar ({scriptRegens}/2)
-            </Button>
-            <Button onClick={acceptScript}>Aceptar guion</Button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Audio generado */}
-    {modalType === "audio" && (
-      <div>
-        <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Audio generado</h2>
-        {audioUrl ? (
-          <audio
-            controls
-            src={audioUrl}
-            className="w-full my-4"
-            onPlay={() => track("audio_preview_play")}
-            onEnded={() => track("audio_preview_end")}
-          />
-        ) : (
-          <p className="text-gray-600 dark:text-gray-300">No se ha generado audio.</p>
-        )}
-        <div className="flex flex-col sm:flex-row justify-between mt-4 gap-2">
-          <Button variant="outline" onClick={() => { setModalType("main"); track("audio_modal_back"); }}>
-            Atrás
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={regenerateAudio} disabled={audioRegens >= 2}>
-              Regenerar ({audioRegens}/2)
-            </Button>
-            <Button onClick={acceptAudio}>Aceptar audio</Button>
-          </div>
-        </div>
-      </div>
-    )}
-    <CheckoutRedirectModal
-            open={showCheckout}
-            onClose={() => setShowCheckout(false)}
-            plan="ACCESS" // 👈 el plan que quieras promocionar por defecto
-            message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
-          />
-  </div>
-);
+  );
 }
+

@@ -115,3 +115,4 @@ export default function NotificationFloatingPanel({ onClose }: Props) {
     </>
   );
 }
+

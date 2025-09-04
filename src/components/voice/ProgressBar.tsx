@@ -15,3 +15,4 @@ export function ProgressBar({ totalDuration }: { totalDuration: number }) {
     </div>
   );
 }
+

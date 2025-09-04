@@ -1,3 +1,4 @@
+// src/components/audio/AudiosContainer.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -172,6 +173,7 @@ export default function AudiosContainer() {
 
       {/* Grid de audios */}
       <AudiosList
+        uid={user?.uid ?? ""}
         audios={audios}
         onDelete={(audio) => setAudioToDelete(audio)}
       />

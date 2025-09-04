@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
@@ -31,14 +30,12 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
 
-/* ---------- utilidades ---------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 function hasString(v: unknown, key: string): v is Record<string, string> {
   return isRecord(v) && typeof v[key] === "string";
 }
-/* -------------------------------- */
 
 type VideoOption = { id: string; name: string; url: string };
 
@@ -62,15 +59,12 @@ export default function CreateVideoPage({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Si viene un vídeo por query (?videoUrl=...) lo respetamos
   const preloadedVideoUrl = searchParams.get("videoUrl");
 
-  // estado de archivo y video
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(preloadedVideoUrl);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // parámetros de edición
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
   const [dictionary, setDictionary] = useState<string[]>([]);
@@ -85,14 +79,12 @@ export default function CreateVideoPage({
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
 
-  // estados del botón
-  const [processing, setProcessing] = useState(false); // inmediato
-  const [submitting, setSubmitting] = useState(false); // API real
+  const [processing, setProcessing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
   const { ensureSubscribed } = useSubscriptionGate();
 
-  /* ---- Dropzone ---- */
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles[0]) {
       setFile(acceptedFiles[0]);
@@ -108,10 +100,7 @@ export default function CreateVideoPage({
     disabled: !!videoUrl,
   });
 
-  /* ---- Autoselección de vídeo ---- */
   useEffect(() => {
-    // Si aún no hay selección ni archivo y tenemos vídeos pre-cargados,
-    // seleccionamos automáticamente el primero (asumimos ordenado por más reciente)
     if (!videoUrl && !file) {
       if (preloadedVideoUrl) {
         setVideoUrl(preloadedVideoUrl);
@@ -121,9 +110,8 @@ export default function CreateVideoPage({
     }
   }, [preloadedVideoUrl, preloadedVideos, videoUrl, file]);
 
-  /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
-    fetch("/api/submagic/languages")
+    fetch("/api/captions/languages")
       .then((res) => res.json())
       .then((data) => {
         setLanguages(data.languages || []);
@@ -132,7 +120,7 @@ export default function CreateVideoPage({
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
 
-    fetch("/api/submagic/templates")
+    fetch("/api/captions/templates")
       .then((res) => res.json())
       .then((data) => {
         setTemplates(data.templates || []);
@@ -143,8 +131,8 @@ export default function CreateVideoPage({
   }, []);
 
   const handleSubmit = async () => {
-    flushSync(() => setProcessing(true)); // feedback inmediato
-    const ok = await ensureSubscribed({ feature: "submagic" });
+    flushSync(() => setProcessing(true));
+    const ok = await ensureSubscribed({ feature: "subtitles" });
     if (!ok) {
       setProcessing(false);
       setShowCheckout(true);
@@ -169,7 +157,6 @@ export default function CreateVideoPage({
       return;
     }
 
-    // Si viene desde wizard → devolvemos datos en vez de llamar API
     if (onComplete) {
       const selectedVideo = videoUrl || preloadedVideos[0]?.url || "";
       toast.success("✅ Selección guardada correctamente");
@@ -200,14 +187,13 @@ export default function CreateVideoPage({
         );
         finalVideoUrl = downloadURL;
       }
-      if (!finalVideoUrl)
-        throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
 
       toast("⚙️ Procesando tu vídeo...");
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      const res = await fetch("/api/submagic/create", {
+      const res = await fetch("/api/captions/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -270,7 +256,6 @@ export default function CreateVideoPage({
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6">
-      {/* Título */}
       <div className="lg:col-span-2 mb-4">
         <h2 className="text-2xl font-bold">🎥 Edición de Vídeo IA</h2>
         <p className="text-muted-foreground text-sm">
@@ -278,9 +263,7 @@ export default function CreateVideoPage({
         </p>
       </div>
 
-      {/* Layout responsive */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* IZQUIERDA */}
         <div className="flex flex-col gap-4 items-center">
           {preloadedVideos.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
@@ -350,9 +333,7 @@ export default function CreateVideoPage({
           )}
         </div>
 
-        {/* DERECHA */}
         <div className="space-y-6">
-          {/* Templates */}
           <div>
             <Label className="mb-2 block">Template</Label>
             {loadingTpl ? (
@@ -362,7 +343,6 @@ export default function CreateVideoPage({
               </div>
             ) : (
               <>
-                {/* Mobile: 3 filas + toggle */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
                     {(showTemplates ? templates : templates.slice(0, 6)).map(
@@ -394,7 +374,6 @@ export default function CreateVideoPage({
                   )}
                 </div>
 
-                {/* Desktop: todos */}
                 <div className="hidden sm:grid sm:grid-cols-3 gap-3">
                   {templates.map((t) => (
                     <Button
@@ -415,7 +394,6 @@ export default function CreateVideoPage({
             )}
           </div>
 
-          {/* Idioma */}
           <div>
             <Label className="mb-2 block">Idioma</Label>
             {loadingLang ? (
@@ -438,17 +416,15 @@ export default function CreateVideoPage({
             )}
           </div>
 
-          {/* Descripción */}
           <div>
             <Label className="mb-2 block">Describe en 3-4 palabras el vídeo</Label>
             <TagsInput
-                value={dictionary}
-                onChange={setDictionary}
-                placeholder="Escribe un tag y pulsa Enter o coma..."
-              />
+              value={dictionary}
+              onChange={setDictionary}
+              placeholder="Escribe un tag y pulsa Enter o coma..."
+            />
           </div>
 
-          {/* Opciones mágicas */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
               <Tooltip>
@@ -514,19 +490,13 @@ export default function CreateVideoPage({
             )}
           </div>
 
-          {/* Botón final */}
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="w-full"
-          >
+          <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             {buttonText}
           </Button>
         </div>
       </div>
 
-      {/* Modal Paywall */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
@@ -536,3 +506,4 @@ export default function CreateVideoPage({
     </div>
   );
 }
+

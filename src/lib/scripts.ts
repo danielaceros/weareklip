@@ -95,3 +95,4 @@ export async function ensureScriptLang(user: User, scriptId: string, fallback: L
     await updateScript(user, scriptId, { lang: fallback });
   }
 }
+

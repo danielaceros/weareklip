@@ -24,3 +24,4 @@ export function usePageTracking() {
     console.log("📊 GA4 page_view:", pathname);
   }, [pathname, searchParams]);
 }
+

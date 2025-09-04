@@ -81,3 +81,4 @@ export async function recordUsage(kind: UsageKind, quantity = 1): Promise<UsageA
 export async function settleNowDev(): Promise<void> {
   await api<{ ok: true }>("/api/billing/settle", { method: "POST" });
 }
+

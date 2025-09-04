@@ -62,3 +62,4 @@ export async function setUserLang(next: Locale, uid?: string) {
 
   return true;
 }
+

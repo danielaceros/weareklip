@@ -14,3 +14,4 @@ export const getStatusBadge = (status: string) => {
       return <Badge className="bg-gray-500">Desconocido</Badge>;
   }
 };
+

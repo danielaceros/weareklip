@@ -230,3 +230,4 @@ export default function TaskInbox({ adminId }: Props) {
     </>
   );
 }
+

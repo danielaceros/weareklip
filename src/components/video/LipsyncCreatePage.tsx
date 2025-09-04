@@ -23,7 +23,7 @@ type VideoItem = { id: string; url: string; name?: string };
 const PAGE_SIZE = 1;
 
 interface Props {
-  onClose?: () => void; // 👈 opcional, si está en modal
+  onClose?: () => void; // opcional, si está en modal
 }
 
 export default function LipsyncCreatePage({ onClose }: Props) {
@@ -42,7 +42,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 modal
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
@@ -81,14 +81,14 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
       const idToken = await currentUser.getIdToken();
 
-      // 🔹 Fetch audios
+      // Audios
       const resAudios = await fetch(`/api/firebase/users/${uid}/audios`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!resAudios.ok) throw new Error("Error cargando audios");
       const audios: any[] = await resAudios.json();
 
-      // 🔹 Fetch clones
+      // Vídeos (clones)
       const resClones = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
@@ -119,10 +119,10 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   async function handleGenerate() {
     flushSync(() => setProcessing(true));
 
-    const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
+    const ok = await ensureSubscribed({ feature: "lipsync" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       return;
     }
 
@@ -157,7 +157,8 @@ export default function LipsyncCreatePage({ onClose }: Props) {
     setLoading(true);
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/sync/create", {
+      // 👉 Ruta genérica sin "sync" visible
+      const res = await fetch("/api/jobs/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -171,14 +172,14 @@ export default function LipsyncCreatePage({ onClose }: Props) {
       });
 
       const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Error creando vídeo");
+      if (!res.ok) throw new Error(data.error || "Error creando el vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
       onClose?.();
       router.push("/dashboard/video");
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "No se pudo crear el lipsync");
+      toast.error(err instanceof Error ? err.message : "No se pudo crear el vídeo");
     } finally {
       setLoading(false);
       setProcessing(false);
@@ -186,7 +187,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
   }
 
   const isLoading = processing || loading;
-  const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar video";
+  const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar vídeo";
 
   const togglePlay = (id: string) => {
     const current = audioRefs.current[id];
@@ -327,7 +328,7 @@ export default function LipsyncCreatePage({ onClose }: Props) {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título del video"
+            placeholder="Título del vídeo"
             className="flex-1 px-3 py-2 sm:px-4 sm:py-2 rounded-lg border border-border bg-background text-sm sm:text-base"
           />
           <Button
@@ -343,11 +344,12 @@ export default function LipsyncCreatePage({ onClose }: Props) {
 
       {/* Modal checkout */}
       <CheckoutRedirectModal
-                          open={showCheckout}
-                          onClose={() => setShowCheckout(false)}
-                          plan="ACCESS"
-                          message="Necesitas una suscripción activa para generar audios."
-                        />
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar vídeos."
+      />
     </>
   );
 }
+

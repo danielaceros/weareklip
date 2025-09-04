@@ -32,3 +32,4 @@ export function initTheme(): "light" | "dark" {
   setTheme(theme);
   return theme;
 }
+

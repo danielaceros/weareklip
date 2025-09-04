@@ -46,3 +46,4 @@ export async function onForegroundPush(cb: (payload: any) => void) {
   if (!messaging) messaging = getMessaging(app);
   onMessage(messaging, (payload) => cb(payload));
 }
+

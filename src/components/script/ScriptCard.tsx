@@ -146,3 +146,4 @@ export function ScriptCard({ script, onView, onDelete }: ScriptCardProps) {
     </Card>
   );
 }
+

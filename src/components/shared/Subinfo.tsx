@@ -90,3 +90,4 @@ export default function SubscriptionInfo({ loading, subscription }: Subscription
     </section>
   );
 }
+

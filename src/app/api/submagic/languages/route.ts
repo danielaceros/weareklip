@@ -17,8 +17,8 @@ export async function GET() {
   }
 
   try {
-    // Solicitar las lenguas desde la API de Submagic
-    const r = await fetch("https://api.submagic.co/v1/languages", {
+    // Solicitar las lenguas desde la API de klipcap
+    const r = await fetch("https://api.klipcap.co/v1/languages", {
       headers: { "x-api-key": process.env.SUBMAGIC_API_KEY! },
     });
 
@@ -45,7 +45,7 @@ export async function GET() {
     return NextResponse.json({ languages: cachedLanguages });
   } catch (e: any) {
     // Manejo de errores generales
-    console.error("❌ Error fetching Submagic languages:", e);
+    console.error("❌ Error fetching klipcap languages:", e);
     await gaServerEvent("submagic_languages_failed", {
       reason: e?.message || "internal_error",
     });

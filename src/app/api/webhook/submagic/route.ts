@@ -1,4 +1,4 @@
-// src/app/api/webhook/submagic/route.ts
+// src/app/api/webhook/klipcap/route.ts
 import { NextResponse } from "next/server";
 import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
 import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
           {
             submagicProjectId: fakeId,
             submagicStatus: "completed",
-            submagicDownloadUrl: "https://fake.local/video-submagic.mp4",
+            submagicDownloadUrl: "https://fake.local/video-klipcap.mp4",
             submagicDuration: 30,
             submagicCompletedAt: now,
             submagicUpdatedAt: now,
@@ -51,9 +51,9 @@ export async function POST(req: Request) {
         .set(
           {
             projectId: fakeId,
-            title: "Simulated Submagic Video",
+            title: "Simulated klipcap Video",
             status: "completed",
-            downloadUrl: "https://fake.local/video-submagic.mp4",
+            downloadUrl: "https://fake.local/video-klipcap.mp4",
             duration: 30,
             completedAt: now,
             createdAt: now,
@@ -63,14 +63,14 @@ export async function POST(req: Request) {
           { merge: true }
         );
 
-      console.log("🟢 Webhook Submagic simulado guardado en lipsync y videos:", fakeId);
+      console.log("🟢 Webhook klipcap simulado guardado en lipsync y videos:", fakeId);
       await gaServerEvent("submagic_webhook_simulated", { uid, projectId: fakeId }); // 👈 evento
       return NextResponse.json({ ok: true, simulated: true });
     }
 
     // 🔁 Rama real
     const body = await req.json();
-    console.log("📩 Webhook recibido de Submagic:", JSON.stringify(body, null, 2));
+    console.log("📩 Webhook recibido de klipcap:", JSON.stringify(body, null, 2));
     await gaServerEvent("submagic_webhook_received", { uid, body }); // 👈 evento
 
     const {
@@ -173,7 +173,7 @@ export async function POST(req: Request) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: userEmail,
-          subject: "🎬 Tu vídeo de Submagic está listo",
+          subject: "🎬 Tu vídeo de klipcap está listo",
           content: `Hola,<br><br>
             Tu vídeo ya está procesado y listo para descargar:<br><br>
             <a href="${downloadUrl}" target="_blank">${downloadUrl}</a><br><br>
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("❌ Error processing Submagic webhook:", error);
+    console.error("❌ Error processing klipcap webhook:", error);
     await gaServerEvent("submagic_webhook_failed", { error: String(error) }); // 👈 evento
     return NextResponse.json(
       { error: "Internal server error" },

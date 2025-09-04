@@ -1,3 +1,4 @@
+// src/components/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -27,11 +28,10 @@ import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-  TooltipProvider,
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-// 👇 Importar el helper de Analytics
+// Analytics
 import { track } from "@/lib/analytics-events";
 
 /* ---------- utilidades ---------- */
@@ -47,7 +47,7 @@ type VideoOption = { id: string; name: string; url: string };
 
 interface Props {
   preloadedVideos?: VideoOption[];
-  audioUrl: string; // 👈 obligatorio para el pipeline
+  audioUrl: string; // obligatorio para el pipeline
   onComplete?: () => void; // callback opcional
 }
 
@@ -71,7 +71,9 @@ export default function CreatePipelineVideoPage({
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
 
-  const [languages, setLanguages] = useState<{ name: string; code: string }[]>([]);
+  const [languages, setLanguages] = useState<{ name: string; code: string }[]>(
+    []
+  );
   const [templates, setTemplates] = useState<string[]>([]);
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
@@ -101,13 +103,13 @@ export default function CreatePipelineVideoPage({
 
   /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
-    fetch("/api/submagic/languages")
+    fetch("/api/captions/languages")
       .then((res) => res.json())
       .then((data) => setLanguages(data.languages || []))
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
 
-    fetch("/api/submagic/templates")
+    fetch("/api/captions/templates")
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
       .catch(() => toast.error("❌ Error cargando templates"))
@@ -118,11 +120,11 @@ export default function CreatePipelineVideoPage({
     flushSync(() => setProcessing(true));
 
     const ok = await ensureSubscribed({ feature: "reel" });
-      if (!ok) {
-        setProcessing(false);
-        setShowCheckout(true); // 👈 abre el modal
-        return;
-      }
+    if (!ok) {
+      setProcessing(false);
+      setShowCheckout(true);
+      return;
+    }
 
     const user = auth.currentUser;
     if (!user) {
@@ -155,11 +157,11 @@ export default function CreatePipelineVideoPage({
       }
       if (!finalVideoUrl) throw new Error("No se pudo obtener la URL del vídeo");
 
-      toast("⚙️ Procesando tu reel...");
+      toast("⚙️ Procesando tu vídeo...");
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      const res = await fetch("/api/sync/pipeline", {
+      const res = await fetch("/api/jobs/pipeline", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,9 +198,8 @@ export default function CreatePipelineVideoPage({
         return;
       }
 
-      toast.success("🎬 Reel enviado al pipeline correctamente");
+      toast.success("🎬 Vídeo enviado correctamente");
 
-      // 📊 Evento GA: reel enviado
       track("pipeline_reel_submitted", {
         language,
         template,
@@ -211,7 +212,7 @@ export default function CreatePipelineVideoPage({
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
-      toast.error("❌ Error en el pipeline");
+      toast.error("❌ Error en el proceso");
       track("pipeline_error", { error: String(error) });
     } finally {
       setSubmitting(false);
@@ -223,218 +224,221 @@ export default function CreatePipelineVideoPage({
   const buttonText = isLoading ? "Generando..." : "Crear Reel";
 
   return (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto p-4 sm:p-6">
-    {/* Título */}
-    <div className="lg:col-span-2 mb-2 sm:mb-4">
-      <h2 className="text-xl sm:text-2xl font-bold">🎬 Crear Reel con Pipeline</h2>
-      <p className="text-muted-foreground text-xs sm:text-sm">
-        Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al pipeline.
-      </p>
-    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto p-4 sm:p-6">
+      {/* Título */}
+      <div className="lg:col-span-2 mb-2 sm:mb-4">
+        <h2 className="text-xl sm:text-2xl font-bold">🎬 Crear Reel con Pipeline</h2>
+        <p className="text-muted-foreground text-xs sm:text-sm">
+          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al pipeline.
+        </p>
+      </div>
 
-    {/* IZQUIERDA */}
-    <div className="flex flex-col gap-3 sm:gap-4 items-center">
-      {preloadedVideos.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 w-full">
-          {preloadedVideos.map((v) => (
-            <div
-              key={v.id}
-              onClick={() => {
-                setVideoUrl(v.url);
-                toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
-                track("video_selected", { name: v.name });
-              }}
-              className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
-                videoUrl === v.url ? "ring-2 ring-blue-500" : ""
-              }`}
-            >
-              <video
-                src={v.url}
-                className="w-full h-32 sm:h-40 object-cover"
-                muted
-                loop
-                playsInline
-              />
-              <div className="p-2 text-xs sm:text-sm font-medium truncate">
-                {v.name}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : videoUrl ? (
-        <div className="rounded-xl overflow-hidden border w-full max-w-[260px] sm:max-w-sm aspect-[9/16]">
-          <video src={videoUrl} controls className="w-full h-full object-cover" />
-        </div>
-      ) : (
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer w-full max-w-[260px] sm:max-w-sm aspect-[9/16] transition ${
-            isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
-          }`}
-        >
-          <input {...getInputProps()} />
-          {file ? (
-            <>
-              <VideoIcon className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-primary" />
-              <p className="text-xs sm:text-sm font-medium text-center">
-                {file.name}
-              </p>
-            </>
-          ) : (
-            <>
-              <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-muted-foreground" />
-              <p className="text-xs sm:text-sm text-muted-foreground text-center">
-                {isDragActive
-                  ? "Suelta el vídeo aquí..."
-                  : "Arrastra un vídeo o haz click"}
-              </p>
-            </>
-          )}
-        </div>
-      )}
-      {uploadProgress > 0 && (
-        <Progress value={uploadProgress} className="w-full max-w-[260px] sm:max-w-sm" />
-      )}
-    </div>
-
-    {/* DERECHA */}
-    <div className="space-y-4 sm:space-y-6">
-      {/* Templates */}
-      <div>
-        <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
-        {loadingTpl ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-            {templates.map((t) => (
-              <Button
-                key={t}
-                type="button"
-                variant={t === template ? "default" : "secondary"}
-                className="w-full text-xs sm:text-sm"
+      {/* IZQUIERDA */}
+      <div className="flex flex-col gap-3 sm:gap-4 items-center">
+        {preloadedVideos.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 w-full">
+            {preloadedVideos.map((v) => (
+              <div
+                key={v.id}
                 onClick={() => {
-                  setTemplate(t);
-                  toast.success(`📑 Template "${t}" seleccionado`);
-                  track("template_selected", { template: t });
+                  setVideoUrl(v.url);
+                  toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                  track("video_selected", { name: v.name });
                 }}
+                className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
+                  videoUrl === v.url ? "ring-2 ring-blue-500" : ""
+                }`}
               >
-                {t}
-              </Button>
+                <video
+                  src={v.url}
+                  className="w-full h-32 sm:h-40 object-cover"
+                  muted
+                  loop
+                  playsInline
+                />
+                <div className="p-2 text-xs sm:text-sm font-medium truncate">
+                  {v.name}
+                </div>
+              </div>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* Idioma */}
-      <div>
-        <Label className="mb-1 sm:mb-2 block text-sm">Idioma</Label>
-        {loadingLang ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+        ) : videoUrl ? (
+          <div className="rounded-xl overflow-hidden border w-full max-w-[260px] sm:max-w-sm aspect-[9/16]">
+            <video src={videoUrl} controls className="w-full h-full object-cover" />
           </div>
         ) : (
-          <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger className="text-sm">
-              <SelectValue placeholder="Seleccionar un idioma" />
-            </SelectTrigger>
-            <SelectContent>
-              {languages.map((l) => (
-                <SelectItem key={l.code} value={l.code}>
-                  {l.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Diccionario */}
-      <div>
-        <Label className="mb-1 sm:mb-2 block text-sm">Descripción breve</Label>
-        <Input
-          value={dictionary}
-          onChange={(e) => {
-            setDictionary(e.target.value);
-            track("dictionary_updated");
-          }}
-          placeholder="Escribe una breve descripción..."
-          className="text-sm"
-        />
-      </div>
-
-      {/* Opciones mágicas */}
-      <div className="space-y-3 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center space-x-2 cursor-pointer">
-                <Checkbox
-                  checked={magicZooms}
-                  onCheckedChange={(c) => {
-                    setMagicZooms(!!c);
-                    track("magic_zooms_toggled", { enabled: !!c });
-                  }}
-                />
-                <Label className="text-sm">Magic Zooms</Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Agrega acercamientos automáticos para más dinamismo.</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center space-x-2 cursor-pointer">
-                <Checkbox
-                  checked={magicBrolls}
-                  onCheckedChange={(c) => {
-                    setMagicBrolls(!!c);
-                    track("magic_brolls_toggled", { enabled: !!c });
-                  }}
-                />
-                <Label className="text-sm">Magic B-rolls</Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        {magicBrolls && (
-          <div>
-            <Label className="mb-1 block text-sm">
-              Porcentaje de B-rolls: {magicBrollsPercentage}%
-            </Label>
-            <Slider
-              defaultValue={[magicBrollsPercentage]}
-              max={100}
-              step={1}
-              onValueChange={(v) => setMagicBrollsPercentage(v[0])}
-            />
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer w-full max-w-[260px] sm:max-w-sm aspect-[9/16] transition ${
+              isDragActive ? "border-primary bg-muted" : "border-muted-foreground/50"
+            }`}
+          >
+            <input {...getInputProps()} />
+            {file ? (
+              <>
+                <VideoIcon className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-primary" />
+                <p className="text-xs sm:text-sm font-medium text-center">
+                  {file.name}
+                </p>
+              </>
+            ) : (
+              <>
+                <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-muted-foreground" />
+                <p className="text-xs sm:text-sm text-muted-foreground text-center">
+                  {isDragActive
+                    ? "Suelta el vídeo aquí..."
+                    : "Arrastra un vídeo o haz click"}
+                </p>
+              </>
+            )}
           </div>
         )}
+        {uploadProgress > 0 && (
+          <Progress value={uploadProgress} className="w-full max-w-[260px] sm:max-w-sm" />
+        )}
       </div>
 
-      {/* Botón final */}
-      <Button
-        onClick={handleSubmit}
-        disabled={isLoading}
-        className="w-full text-sm sm:text-base py-2 sm:py-3"
-      >
-        {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-        {buttonText}
-      </Button>
-    </div>
-    <CheckoutRedirectModal
-            open={showCheckout}
-            onClose={() => setShowCheckout(false)}
-            plan="ACCESS"
-            message="Necesitas una suscripción activa para generar audios."
+      {/* DERECHA */}
+      <div className="space-y-4 sm:space-y-6">
+        {/* Templates */}
+        <div>
+          <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
+          {loadingTpl ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+              {templates.map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant={t === template ? "default" : "secondary"}
+                  className="w-full text-xs sm:text-sm"
+                  onClick={() => {
+                    setTemplate(t);
+                    toast.success(`📑 Template "${t}" seleccionado`);
+                    track("template_selected", { template: t });
+                  }}
+                >
+                  {t}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Idioma */}
+        <div>
+          <Label className="mb-1 sm:mb-2 block text-sm">Idioma</Label>
+          {loadingLang ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+            </div>
+          ) : (
+            <Select value={language} onValueChange={setLanguage}>
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="Seleccionar un idioma" />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map((l) => (
+                  <SelectItem key={l.code} value={l.code}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Diccionario */}
+        <div>
+          <Label className="mb-1 sm:mb-2 block text-sm">Descripción breve</Label>
+          <Input
+            value={dictionary}
+            onChange={(e) => {
+              setDictionary(e.target.value);
+              track("dictionary_updated");
+            }}
+            placeholder="Escribe una breve descripción..."
+            className="text-sm"
           />
-  </div>
-);
+        </div>
+
+        {/* Opciones mágicas */}
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={magicZooms}
+                    onCheckedChange={(c) => {
+                      setMagicZooms(!!c);
+                      track("magic_zooms_toggled", { enabled: !!c });
+                    }}
+                  />
+                  <Label className="text-sm">Magic Zooms</Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Agrega acercamientos automáticos para más dinamismo.</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={magicBrolls}
+                    onCheckedChange={(c) => {
+                      setMagicBrolls(!!c);
+                      track("magic_brolls_toggled", { enabled: !!c });
+                    }}
+                  />
+                  <Label className="text-sm">Magic B-rolls</Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {magicBrolls && (
+            <div>
+              <Label className="mb-1 block text-sm">
+                Porcentaje de B-rolls: {magicBrollsPercentage}%
+              </Label>
+              <Slider
+                defaultValue={[magicBrollsPercentage]}
+                max={100}
+                step={1}
+                onValueChange={(v) => setMagicBrollsPercentage(v[0])}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Botón final */}
+        <Button
+          onClick={handleSubmit}
+          disabled={isLoading}
+          className="w-full text-sm sm:text-base py-2 sm:py-3"
+        >
+          {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+          {buttonText}
+        </Button>
+      </div>
+
+      {/* Modal Paywall */}
+      <CheckoutRedirectModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        plan="ACCESS"
+        message="Necesitas una suscripción activa para generar vídeos."
+      />
+    </div>
+  );
 }
+

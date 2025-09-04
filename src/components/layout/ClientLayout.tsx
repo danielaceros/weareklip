@@ -7,3 +7,4 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   usePageTracking();
   return <>{children}</>;
 }
+

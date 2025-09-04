@@ -335,7 +335,7 @@
 
 @font-face {
     font-family: Apple Color Emoji;
-    src: local("Apple Color Emoji"),url(https://submagic.b-cdn.net/appleemoji.ttf) format("truetype")
+    src: local("Apple Color Emoji"),url(/fonts/appleemoji.ttf) format("truetype")
 }
 .luke {
     text-align: center;
@@ -20316,14 +20316,14 @@ input[type=number],input[type=text]:not(.unstyled) {
     bottom: 0
 }
 
-.submagic_business {
+.klip_business {
     text-align: center;
     text-transform: uppercase;
     color: var(--font-color);
     text-shadow: 0 5px 0 #000
 }
 
-.submagic_business.subtitle {
+.klip_business.subtitle {
     font-family: Rubik,sans-serif;
     font-weight: 900;
     line-height: 1.1;
@@ -20333,36 +20333,36 @@ input[type=number],input[type=text]:not(.unstyled) {
     letter-spacing: .02em
 }
 
-.submagic_business.portrait.animation-mode-updown.text-rotate-left,.submagic_business.portrait.animation-mode-updown.text-rotate-left.emoji-bottom {
+.klip_business.portrait.animation-mode-updown.text-rotate-left,.klip_business.portrait.animation-mode-updown.text-rotate-left.emoji-bottom {
     rotate: 0deg
 }
 
-.submagic_business.portrait.animation-mode-updown.text-rotate-left.emoji-left,.submagic_business.portrait.animation-mode-updown.text-rotate-left.emoji-right,.submagic_business.portrait.animation-mode-updown.text-rotate-left.emoji-top-behind {
+.klip_business.portrait.animation-mode-updown.text-rotate-left.emoji-left,.klip_business.portrait.animation-mode-updown.text-rotate-left.emoji-right,.klip_business.portrait.animation-mode-updown.text-rotate-left.emoji-top-behind {
     rotate: -8deg
 }
 
-.submagic_business.portrait.animation-mode-updown.text-rotate-right,.submagic_business.portrait.animation-mode-updown.text-rotate-right.emoji-bottom {
+.klip_business.portrait.animation-mode-updown.text-rotate-right,.klip_business.portrait.animation-mode-updown.text-rotate-right.emoji-bottom {
     rotate: 0deg
 }
 
-.submagic_business.portrait.animation-mode-updown.text-rotate-right.emoji-left,.submagic_business.portrait.animation-mode-updown.text-rotate-right.emoji-right,.submagic_business.portrait.animation-mode-updown.text-rotate-right.emoji-top-behind {
+.klip_business.portrait.animation-mode-updown.text-rotate-right.emoji-left,.klip_business.portrait.animation-mode-updown.text-rotate-right.emoji-right,.klip_business.portrait.animation-mode-updown.text-rotate-right.emoji-top-behind {
     rotate: 8deg
 }
 
-.submagic_business.emoji-mode-none .emoji {
+.klip_business.emoji-mode-none .emoji {
     display: none
 }
 
-.submagic_business.emoji-mode-top.subtitle {
+.klip_business.emoji-mode-top.subtitle {
     padding-top: 2.4em
 }
 
-.submagic_business.emoji-mode-auto.subtitle {
+.klip_business.emoji-mode-auto.subtitle {
     padding-top: 2.4em;
     padding-bottom: 2.4em
 }
 
-.submagic_business.emoji-mode-auto .emoji,.submagic_business.emoji-mode-auto.emoji-top-behind .emoji,.submagic_business.emoji-mode-top .emoji {
+.klip_business.emoji-mode-auto .emoji,.klip_business.emoji-mode-auto.emoji-top-behind .emoji,.klip_business.emoji-mode-top .emoji {
     position: absolute;
     font-size: 1.6em;
     width: 100%;
@@ -20370,159 +20370,159 @@ input[type=number],input[type=text]:not(.unstyled) {
     left: 0
 }
 
-.submagic_business.emoji-mode-auto.emoji-bottom .emoji,.submagic_business.emoji-mode-auto.emoji-left .emoji,.submagic_business.emoji-mode-auto.emoji-right .emoji {
+.klip_business.emoji-mode-auto.emoji-bottom .emoji,.klip_business.emoji-mode-auto.emoji-left .emoji,.klip_business.emoji-mode-auto.emoji-right .emoji {
     bottom: .2em;
     left: 0;
     top: auto
 }
 
-.submagic_business.highlight-mode.subtitle .mainColor {
+.klip_business.highlight-mode.subtitle .mainColor {
     color: var(--main-color);
     text-shadow: 0 0 2px var(--main-color),0 0 3px var(--main-color),0 0 6px var(--main-color)
 }
 
-.submagic_business.highlight-mode.subtitle .secondColor {
+.klip_business.highlight-mode.subtitle .secondColor {
     color: var(--second-color);
     text-shadow: 0 0 2px var(--second-color),0 0 3px var(--second-color),0 0 6px var(--second-color)
 }
 
-.submagic_business.highlight-mode.subtitle .thirdColor {
+.klip_business.highlight-mode.subtitle .thirdColor {
     color: var(--third-color);
     text-shadow: 0 0 2px var(--third-color),0 0 3px var(--third-color),0 0 6px var(--third-color)
 }
 
-.submagic_business.highlight-mode .computedHighlightStyle.important {
+.klip_business.highlight-mode .computedHighlightStyle.important {
     font-size: 1.04em
 }
 
-.submagic_business.animation-mode-updown.text-rotate-horizontal .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-horizontal.emoji-bottom .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-horizontal.emoji-left .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-horizontal.emoji-right .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-horizontal.emoji-top-behind .computedHighlightLineStyle {
+.klip_business.animation-mode-updown.text-rotate-horizontal .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-horizontal.emoji-bottom .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-horizontal.emoji-left .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-horizontal.emoji-right .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-horizontal.emoji-top-behind .computedHighlightLineStyle {
     color: var(--main-color);
     font-size: 1.04em
 }
 
-.submagic_business.animation-mode-updown.text-rotate-left .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-left.emoji-bottom .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-left.emoji-left .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-left.emoji-right .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-left.emoji-top-behind .computedHighlightStyle {
+.klip_business.animation-mode-updown.text-rotate-left .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-left.emoji-bottom .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-left.emoji-left .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-left.emoji-right .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-left.emoji-top-behind .computedHighlightStyle {
     color: var(--second-color);
     font-size: 1.04em
 }
 
-.submagic_business.animation-mode-updown.text-rotate-right .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-right.emoji-bottom .computedHighlightStyle,.submagic_business.animation-mode-updown.text-rotate-right.emoji-left .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-right.emoji-right .computedHighlightLineStyle,.submagic_business.animation-mode-updown.text-rotate-right.emoji-top-behind .computedHighlightStyle {
+.klip_business.animation-mode-updown.text-rotate-right .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-right.emoji-bottom .computedHighlightStyle,.klip_business.animation-mode-updown.text-rotate-right.emoji-left .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-right.emoji-right .computedHighlightLineStyle,.klip_business.animation-mode-updown.text-rotate-right.emoji-top-behind .computedHighlightStyle {
     color: var(--third-color);
     font-size: 1.04em
 }
 
-.submagic_business.animation-mode-updown.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.submagic_business.animation-mode-updown.text-rotate-left.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.submagic_business.animation-mode-updown.text-rotate-right.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.submagic_business.font-shadow-none .sb-text-shadow-sm {
+.klip_business.animation-mode-updown.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.klip_business.animation-mode-updown.text-rotate-left.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.klip_business.animation-mode-updown.text-rotate-right.font-shadow-none .computedHighlightLineStyle.sb-text-shadow-sm,.klip_business.font-shadow-none .sb-text-shadow-sm {
     text-shadow: none
 }
 
-.submagic_business.animation-mode-updown.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.animation-mode-updown.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 30px var(--main-color)
 }
 
-.submagic_business.animation-mode-updown.text-rotate-left.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.animation-mode-updown.text-rotate-left.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 30px var(--second-color)
 }
 
-.submagic_business.animation-mode-updown.text-rotate-right.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.animation-mode-updown.text-rotate-right.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 30px var(--third-color)
 }
 
-.submagic_business.font-shadow-s .sb-text-shadow-sm {
+.klip_business.font-shadow-s .sb-text-shadow-sm {
     text-shadow: 0 0 30px var(--font-color)
 }
 
-.submagic_business.font-shadow-m .sb-text-shadow-sm {
+.klip_business.font-shadow-m .sb-text-shadow-sm {
     text-shadow: 0 0 40px var(--font-color)
 }
 
-.submagic_business.font-shadow-m.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-m.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 40px var(--main-color)
 }
 
-.submagic_business.font-shadow-m.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-m.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 40px var(--second-color)
 }
 
-.submagic_business.font-shadow-m.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-m.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 40px var(--third-color)
 }
 
-.submagic_business.font-shadow-l .sb-text-shadow-sm {
+.klip_business.font-shadow-l .sb-text-shadow-sm {
     text-shadow: 0 0 70px var(--font-color)
 }
 
-.submagic_business.font-shadow-l.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-l.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 70px var(--main-color)
 }
 
-.submagic_business.font-shadow-l.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-l.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 70px var(--second-color)
 }
 
-.submagic_business.font-shadow-l.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
+.klip_business.font-shadow-l.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
     text-shadow: 0 0 70px var(--third-color)
 }
 
-.safari.submagic_business.animation-mode-updown.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.animation-mode-updown.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--main-color) 50%,transparent);
     text-shadow: 0 0 10px var(--shadow-color)
 }
 
-.safari.submagic_business.animation-mode-updown.text-rotate-left.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.animation-mode-updown.text-rotate-left.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--second-color) 50%,transparent);
     text-shadow: 0 0 10px var(--shadow-color)
 }
 
-.safari.submagic_business.animation-mode-updown.text-rotate-right.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.animation-mode-updown.text-rotate-right.font-shadow-s .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--third-color) 50%,transparent);
     text-shadow: 0 0 10px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-s .sb-text-shadow-sm {
+.safari.klip_business.font-shadow-s .sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--font-color) 50%,transparent);
     text-shadow: 0 0 10px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-m .sb-text-shadow-sm {
+.safari.klip_business.font-shadow-m .sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--font-color) 50%,transparent);
     text-shadow: 0 0 20px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-m.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-m.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--main-color) 50%,transparent);
     text-shadow: 0 0 20px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-m.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-m.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--second-color) 50%,transparent);
     text-shadow: 0 0 20px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-m.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-m.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--third-color) 50%,transparent);
     text-shadow: 0 0 20px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-l .sb-text-shadow-sm {
+.safari.klip_business.font-shadow-l .sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--font-color) 50%,transparent);
     text-shadow: 0 0 40px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-l.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-l.animation-mode-updown .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--main-color) 50%,transparent);
     text-shadow: 0 0 40px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-l.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-l.animation-mode-updown.text-rotate-left .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--second-color) 50%,transparent);
     text-shadow: 0 0 40px var(--shadow-color)
 }
 
-.safari.submagic_business.font-shadow-l.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
+.safari.klip_business.font-shadow-l.animation-mode-updown.text-rotate-right .computedHighlightLineStyle.sb-text-shadow-sm {
     --shadow-color: color-mix(in srgb,var(--third-color) 50%,transparent);
     text-shadow: 0 0 40px var(--shadow-color)
 }
 
-.submagic_business.text-stroke-mode-l .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-l .sb-text-shadow-sm:before,.submagic_business.text-stroke-mode-m .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-m .sb-text-shadow-sm:before,.submagic_business.text-stroke-mode-s .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-s .sb-text-shadow-sm:before {
+.klip_business.text-stroke-mode-l .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-l .sb-text-shadow-sm:before,.klip_business.text-stroke-mode-m .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-m .sb-text-shadow-sm:before,.klip_business.text-stroke-mode-s .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-s .sb-text-shadow-sm:before {
     content: attr(data-text);
     position: absolute;
     height: 100%;
@@ -20531,19 +20531,19 @@ input[type=number],input[type=text]:not(.unstyled) {
     color: var(--stroke-color)
 }
 
-.submagic_business.text-stroke-mode-s .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-s .sb-text-shadow-sm:before {
+.klip_business.text-stroke-mode-s .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-s .sb-text-shadow-sm:before {
     -webkit-text-stroke: .1em var(--stroke-color)
 }
 
-.submagic_business.text-stroke-mode-m .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-m .sb-text-shadow-sm:before {
+.klip_business.text-stroke-mode-m .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-m .sb-text-shadow-sm:before {
     -webkit-text-stroke: .15em var(--stroke-color)
 }
 
-.submagic_business.text-stroke-mode-l .sb-text-shadow-sm:after,.submagic_business.text-stroke-mode-l .sb-text-shadow-sm:before {
+.klip_business.text-stroke-mode-l .sb-text-shadow-sm:after,.klip_business.text-stroke-mode-l .sb-text-shadow-sm:before {
     -webkit-text-stroke: .2em var(--stroke-color)
 }
 
-.button-template-submagic_business {
+.button-template-klip_business {
     font-family: Rubik,sans-serif;
     font-weight: 900;
     line-height: 1.2;
@@ -20551,7 +20551,7 @@ input[type=number],input[type=text]:not(.unstyled) {
     text-transform: uppercase
 }
 
-.button-template-submagic_business .button-template-name:before {
+.button-template-klip_business .button-template-name:before {
     content: attr(data-text);
     position: absolute;
     height: 100%;
@@ -20563,30 +20563,30 @@ input[type=number],input[type=text]:not(.unstyled) {
     left: 0
 }
 
-.submagic_business.captions-title {
+.klip_business.captions-title {
     font-size: 6rem;
     line-height: 1;
     text-shadow: 0 0 18px var(--font-color);
     white-space: break-spaces
 }
 
-.submagic_business.captions-title.captions-title-lg {
+.klip_business.captions-title.captions-title-lg {
     font-size: 8rem
 }
 
-.submagic_business.captions-title.caption-title-s {
+.klip_business.captions-title.caption-title-s {
     font-size: 5rem
 }
 
-.submagic_business.captions-title.caption-title-m {
+.klip_business.captions-title.caption-title-m {
     font-size: 7rem
 }
 
-.submagic_business.captions-title.caption-title-l {
+.klip_business.captions-title.caption-title-l {
     font-size: 8rem
 }
 
-.submagic_business .captions-title-backdrop {
+.klip_business .captions-title-backdrop {
     background-color: rgba(0,0,0,.7);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -20878,14 +20878,14 @@ input[type=number],input[type=text]:not(.unstyled) {
     display: none
 }
 
-.submagic {
+.klipcap {
     text-align: center;
     text-transform: uppercase;
     color: #ffffff;
     background-color: transparent
 }
 
-.submagic.subtitle {
+.klipcap.subtitle {
     font-family: Montserrat,sans-serif;
     font-weight: 900;
     line-height: 1;
@@ -20896,33 +20896,33 @@ input[type=number],input[type=text]:not(.unstyled) {
     letter-spacing: .02em
 }
 
-.submagic.text-rotate-left {
+.klipcap.text-rotate-left {
     color: var(--main-color)!important
 }
 
-.submagic.text-rotate-left .row-container-2 .row:first-of-type {
+.klipcap.text-rotate-left .row-container-2 .row:first-of-type {
     font-size: .5em;
     color: var(--font-color)
 }
 
-.submagic.text-rotate-right .row-container-2 .row:first-of-type {
+.klipcap.text-rotate-right .row-container-2 .row:first-of-type {
     font-size: .5em
 }
 
-.submagic.emoji-mode-none .emoji {
+.klipcap.emoji-mode-none .emoji {
     display: none
 }
 
-.submagic.emoji-mode-auto.subtitle,.submagic.emoji-mode-top.subtitle {
+.klipcap.emoji-mode-auto.subtitle,.klipcap.emoji-mode-top.subtitle {
     padding-top: 2.4em!important;
     transform: scale(1)
 }
 
-.submagic.emoji-mode-auto.subtitle {
+.klipcap.emoji-mode-auto.subtitle {
     padding-bottom: 2.4em!important
 }
 
-.submagic.emoji-mode-top .emoji {
+.klipcap.emoji-mode-top .emoji {
     position: absolute;
     font-size: 1.3em;
     width: 100%;
@@ -20931,7 +20931,7 @@ input[type=number],input[type=text]:not(.unstyled) {
     text-shadow: 0 5px 0 #000
 }
 
-.submagic.emoji-mode-auto .emoji,.submagic.emoji-mode-auto.emoji-bottom .emoji,.submagic.emoji-mode-auto.emoji-left .emoji,.submagic.emoji-mode-auto.emoji-right .emoji,.submagic.emoji-mode-auto.emoji-top-behind .emoji {
+.klipcap.emoji-mode-auto .emoji,.klipcap.emoji-mode-auto.emoji-bottom .emoji,.klipcap.emoji-mode-auto.emoji-left .emoji,.klipcap.emoji-mode-auto.emoji-right .emoji,.klipcap.emoji-mode-auto.emoji-top-behind .emoji {
     position: absolute;
     font-size: 1.3em;
     width: 100%;
@@ -20940,35 +20940,35 @@ input[type=number],input[type=text]:not(.unstyled) {
     text-shadow: 0 5px 0 #000
 }
 
-.submagic.highlight-mode.subtitle .mainColor {
+.klipcap.highlight-mode.subtitle .mainColor {
     color: var(--main-color)
 }
 
-.submagic.highlight-mode.subtitle .secondColor {
+.klipcap.highlight-mode.subtitle .secondColor {
     color: var(--second-color)
 }
 
-.submagic.highlight-mode.subtitle .thirdColor {
+.klipcap.highlight-mode.subtitle .thirdColor {
     color: var(--third-color)
 }
 
-.submagic.font-shadow-s .sb-text-shadow-sm {
+.klipcap.font-shadow-s .sb-text-shadow-sm {
     text-shadow: 0 5px 15px #000000
 }
 
-.submagic.font-shadow-m .sb-text-shadow-sm {
+.klipcap.font-shadow-m .sb-text-shadow-sm {
     text-shadow: 0 0 4px #000000,0 0 5px #000000,0 0 6px #000000,0 0 7px #000000,0 0 8px #000000,0 0 9px #000000,0 0 10px #000000,0 0 11px #000000,0 0 12px #000000,0 0 13px #000000
 }
 
-.submagic.font-shadow-l .sb-text-shadow-sm,.submagic.font-shadow-m .sb-text-shadow-lg {
+.klipcap.font-shadow-l .sb-text-shadow-sm,.klipcap.font-shadow-m .sb-text-shadow-lg {
     text-shadow: 0 0 8px #000000,0 0 9px #000000,0 0 10px #000000,0 0 11px #000000,0 0 12px #000000,0 0 13px #000000,0 0 14px #000000,0 0 15px #000000,0 0 16px #000000,0 0 17px #000000
 }
 
-.submagic.font-shadow-l .sb-text-shadow-lg {
+.klipcap.font-shadow-l .sb-text-shadow-lg {
     text-shadow: 0 0 20px #000000,0 0 21px #000000,0 0 22px #000000,0 0 23px #000000,0 0 24px #000000,0 0 25px #000000,0 0 26px #000000,0 0 27px #000000,0 0 28px #000000,0 0 29px #000000
 }
 
-.button-template-submagic {
+.button-template-klipcap {
     font-family: Roboto,sans-serif;
     font-weight: 900;
     line-height: 1.2;
@@ -20976,16 +20976,16 @@ input[type=number],input[type=text]:not(.unstyled) {
     text-transform: uppercase
 }
 
-.button-template-submagic .button-template-name {
+.button-template-klipcap .button-template-name {
     background-color: #ffda18;
     padding: .2em .4em
 }
 
-.submagic.background-typewriter.text-rotate-left .row-container-2 .row:first-of-type {
+.klipcap.background-typewriter.text-rotate-left .row-container-2 .row:first-of-type {
     color: var(--second-color)
 }
 
-.submagic.text-stroke-mode-l .sb-text-shadow-sm:after,.submagic.text-stroke-mode-l .sb-text-shadow-sm:before,.submagic.text-stroke-mode-m .sb-text-shadow-sm:after,.submagic.text-stroke-mode-m .sb-text-shadow-sm:before,.submagic.text-stroke-mode-s .sb-text-shadow-sm:after,.submagic.text-stroke-mode-s .sb-text-shadow-sm:before {
+.klipcap.text-stroke-mode-l .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-l .sb-text-shadow-sm:before,.klipcap.text-stroke-mode-m .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-m .sb-text-shadow-sm:before,.klipcap.text-stroke-mode-s .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-s .sb-text-shadow-sm:before {
     content: attr(data-text);
     position: absolute;
     height: 100%;
@@ -20994,19 +20994,19 @@ input[type=number],input[type=text]:not(.unstyled) {
     color: var(--stroke-color)
 }
 
-.submagic.text-stroke-mode-s .sb-text-shadow-sm:after,.submagic.text-stroke-mode-s .sb-text-shadow-sm:before {
+.klipcap.text-stroke-mode-s .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-s .sb-text-shadow-sm:before {
     -webkit-text-stroke: .1em var(--stroke-color)
 }
 
-.submagic.text-stroke-mode-m .sb-text-shadow-sm:after,.submagic.text-stroke-mode-m .sb-text-shadow-sm:before {
+.klipcap.text-stroke-mode-m .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-m .sb-text-shadow-sm:before {
     -webkit-text-stroke: .15em var(--stroke-color)
 }
 
-.submagic.text-stroke-mode-l .sb-text-shadow-sm:after,.submagic.text-stroke-mode-l .sb-text-shadow-sm:before {
+.klipcap.text-stroke-mode-l .sb-text-shadow-sm:after,.klipcap.text-stroke-mode-l .sb-text-shadow-sm:before {
     -webkit-text-stroke: .2em var(--stroke-color)
 }
 
-.submagic.background-typewriter .row {
+.klipcap.background-typewriter .row {
     display: inline;
     padding: .1em .3em;
     color: var(--second-color);
@@ -21015,47 +21015,47 @@ input[type=number],input[type=text]:not(.unstyled) {
     font-size: .8em
 }
 
-.submagic.background-typewriter .row-container-2 .row {
+.klipcap.background-typewriter .row-container-2 .row {
     display: block;
     margin: 0 auto;
     width: -moz-max-content;
     width: max-content
 }
 
-.submagic.background-typewriter .sb-text-shadow-sm {
+.klipcap.background-typewriter .sb-text-shadow-sm {
     text-shadow: none
 }
 
-.submagic.captions-title {
+.klipcap.captions-title {
     font-size: 6rem;
     line-height: 1.2em;
     text-shadow: 0 8px 8px #000000;
     white-space: break-spaces
 }
 
-.submagic.captions-title.captions-title-lg {
+.klipcap.captions-title.captions-title-lg {
     font-size: 8rem
 }
 
-.submagic.captions-title.caption-title-s {
+.klipcap.captions-title.caption-title-s {
     font-size: 5rem
 }
 
-.submagic.captions-title.caption-title-m {
+.klipcap.captions-title.caption-title-m {
     font-size: 7rem
 }
 
-.submagic.captions-title.caption-title-l {
+.klipcap.captions-title.caption-title-l {
     font-size: 8rem
 }
 
-.submagic.captions-title .sb-text-shadow-sm {
+.klipcap.captions-title .sb-text-shadow-sm {
     width: 100%;
     align-items: center;
     justify-content: center
 }
 
-.submagic .captions-title-backdrop {
+.klipcap .captions-title-backdrop {
     background-color: rgba(0,0,0,.7);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
@@ -21066,7 +21066,7 @@ input[type=number],input[type=text]:not(.unstyled) {
     bottom: 0
 }
 
-.submagic.captions-title .wordDisplayed,.submagic.captions-title .wordDisplayed+br {
+.klipcap.captions-title .wordDisplayed,.klipcap.captions-title .wordDisplayed+br {
     display: none
 }
 
