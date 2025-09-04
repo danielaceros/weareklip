@@ -77,6 +77,48 @@ const SPEED_MAX = 1.2;
 const clampSpeed = (x: number) =>
   Math.min(SPEED_MAX, Math.max(SPEED_MIN, Number.isFinite(x) ? x : 1));
 
+/* ---------------------------------------------------------
+   Helpers de “nombres bonitos” para los vídeos de clonación
+   - Evita mostrar rutas tipo "users/xxx/archivo.mp4"
+   - Si no hay título humano, muestra fecha de subida
+   - Si tampoco hay fecha, muestra "Vídeo #N"
+--------------------------------------------------------- */
+function looksLikeStoragePath(s?: string) {
+  if (!s) return false;
+  return /(^users\/|^gs:\/\/|\/)/i.test(s); // contiene rutas o separadores
+}
+function toDate(v: any): Date | null {
+  if (!v) return null;
+  // Firestore Timestamp
+  if (typeof v === "object" && typeof v.seconds === "number") {
+    return new Date(v.seconds * 1000);
+  }
+  // ISO string / millis
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+function displayCloneName(d: any, index: number) {
+  const human =
+    d?.titulo || d?.title || d?.name || d?.displayName || d?.filename;
+  if (typeof human === "string" && human.trim() && !looksLikeStoragePath(human))
+    return human.trim();
+
+  const dts =
+    toDate(d?.createdAt) ||
+    toDate(d?.uploadedAt) ||
+    toDate(d?.timestamp) ||
+    null;
+  if (dts) {
+    // fecha corta legible
+    return dts.toLocaleString("es-ES", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  }
+
+  return `Vídeo #${index + 1}`;
+}
+
 export default function CreateReelWizard({
   onComplete,
 }: CreateReelWizardProps) {
@@ -89,7 +131,7 @@ export default function CreateReelWizard({
   );
 
   // 🏷️ SOLO PARA EL AUDIO DEL WIZARD
-  const [audioTitle, setAudioTitle] = useState(""); // ⬅️ NUEVO
+  const [audioTitle, setAudioTitle] = useState("");
 
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
@@ -259,7 +301,7 @@ export default function CreateReelWizard({
       setScript(parsed.script || "");
       setTone(toneOverride);
       setStructure(structureOverride);
-      setScriptRegens((c) => c + 1); // ✅ solo en éxito
+      setScriptRegens((c) => c + 1);
       toast.success(`✅ Guion regenerado`, { id: loadingId });
       track("script_regenerate_succeeded", {
         length: (parsed.script || "").length,
@@ -328,7 +370,7 @@ export default function CreateReelWizard({
               speed: clampSpeed(audioForm.speed),
               use_speaker_boost: audioForm.speakerBoost,
             },
-            // ⬇️ GUARDAR NOMBRE DEL AUDIO (SOLO ESTO)
+            // nombre del audio en ElevenLabs/Firebase
             name: audioTitle?.trim() || undefined,
             title: audioTitle?.trim() || undefined,
           }),
@@ -378,12 +420,9 @@ export default function CreateReelWizard({
     const token = await user?.getIdToken();
     const loadingId = toast.loading("🔄 Regenerando audio...");
 
-    // clamp
     const clamped = clampSpeed(rSpeed);
     if (clamped !== rSpeed) {
-      toast.message(
-        "⚙️ Ajustamos la velocidad a un valor permitido por ElevenLabs (0.7–1.2)."
-      );
+      toast.message("⚙️ Ajustamos la velocidad a 0.7–1.2 (límite ElevenLabs).");
       setRSpeed(clamped);
     }
 
@@ -413,7 +452,7 @@ export default function CreateReelWizard({
       if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
       setAudioUrl(parsed.audioUrl || null);
 
-      // Reflejamos cambios en el form principal
+      // Reflejar cambios en el form principal
       audioForm.setText(rText);
       audioForm.setVoiceId(rVoiceId);
       audioForm.setStability(rStability);
@@ -422,7 +461,7 @@ export default function CreateReelWizard({
       audioForm.setSpeed(clamped);
       audioForm.setSpeakerBoost(rSpeakerBoost);
 
-      setAudioRegens((c) => c + 1); // ✅ solo en éxito
+      setAudioRegens((c) => c + 1);
       toast.success("✅ Audio regenerado", { id: loadingId });
       track("audio_regenerate_succeeded");
     } catch (err: any) {
@@ -452,11 +491,14 @@ export default function CreateReelWizard({
       });
       if (!res.ok) throw new Error("Error al cargar vídeos de clonación");
       const data = await res.json();
-      const list = data.map((d: any) => ({
+
+      // 👉 nombres limpios (fecha o #n si no hay título)
+      const list = (data || []).map((d: any, i: number) => ({
         id: d.id,
-        name: d.titulo ?? d.id,
-        url: d.url ?? "",
+        name: displayCloneName(d, i),
+        url: d.url ?? d.downloadUrl ?? "",
       }));
+
       setVideos(list);
       track("clonacion_videos_loaded", { count: list.length });
     } catch (err) {
@@ -568,7 +610,6 @@ export default function CreateReelWizard({
       {/* Paso 2 */}
       {modalType === "main" && step === 2 && (
         <>
-          {/* mostramos input de nombre reutilizando AudioForm */}
           <AudioForm
             {...audioForm}
             title={audioTitle}

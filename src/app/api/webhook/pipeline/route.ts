@@ -1,7 +1,7 @@
 // src/app/api/webhook/pipeline/route.ts
 import { NextResponse } from "next/server";
 import { adminDB, adminTimestamp } from "@/lib/firebase-admin";
-import { gaServerEvent } from "@/lib/ga-server"; // 👈 añadido
+import { gaServerEvent } from "@/lib/ga-server";
 
 interface WebhookBody {
   id?: string;
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "UID requerido" }, { status: 400 });
     }
 
-    const authHeader = req.headers.get("authorization") || ""; 
+    const authHeader = req.headers.get("authorization") || "";
     const body = (await req.json()) as WebhookBody;
     console.log("🎤 Webhook lipsync recibido:", body);
 
@@ -105,13 +105,24 @@ export async function POST(req: Request) {
         const usage = await usageRes.json().catch(() => ({}));
         if (!usageRes.ok || usage.ok !== true) {
           console.error("❌ Error registrando uso edit (simulado):", usage);
-          await gaServerEvent("billing_edit_failed", { uid, simulated: true, usage });
+          await gaServerEvent("billing_edit_failed", {
+            uid,
+            simulated: true,
+            usage,
+          });
         } else {
-          await gaServerEvent("billing_edit_success", { uid, simulated: true });
+          await gaServerEvent("billing_edit_success", {
+            uid,
+            simulated: true,
+          });
         }
       } catch (err) {
         console.error("⚠️ Error llamando a /api/billing/usage (sim):", err);
-        await gaServerEvent("billing_edit_failed", { uid, simulated: true, reason: String(err) });
+        await gaServerEvent("billing_edit_failed", {
+          uid,
+          simulated: true,
+          reason: String(err),
+        });
       }
 
       // 👉 Encadenar simulación de Submagic
@@ -134,10 +145,17 @@ export async function POST(req: Request) {
         body: JSON.stringify(submagicPayload),
       }).catch((err) => {
         console.error("❌ Error disparando webhook submagic simulado:", err);
-        gaServerEvent("submagic_error_from_pipeline", { uid, simulated: true, reason: String(err) });
+        gaServerEvent("submagic_error_from_pipeline", {
+          uid,
+          simulated: true,
+          reason: String(err),
+        });
       });
 
-      await gaServerEvent("submagic_triggered_from_pipeline", { uid, simulated: true });
+      await gaServerEvent("submagic_triggered_from_pipeline", {
+        uid,
+        simulated: true,
+      });
 
       return NextResponse.json({ ok: true, simulated: true });
     }
@@ -164,7 +182,12 @@ export async function POST(req: Request) {
       const snap = await lipsyncRef.get();
       if (snap.exists) {
         const docData = snap.data() || {};
-        const { subLang, template, email } = docData;
+        const {
+          subLang,
+          template,
+          email,
+          title: storedTitle, // ⬅️ tomamos el título guardado
+        } = docData as any;
 
         if (email) {
           try {
@@ -180,7 +203,12 @@ export async function POST(req: Request) {
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  title: `Lipsync Edit - ${new Date().toLocaleString()}`,
+                  // ⬅️ PRIORIDAD: el título que guardamos en la creación
+                  title:
+                    (typeof storedTitle === "string" &&
+                      storedTitle.trim().length > 0 &&
+                      storedTitle.trim()) ||
+                    `Lipsync Edit - ${new Date().toLocaleString()}`,
                   language: subLang || "es",
                   videoUrl: body.outputUrl,
                   templateName: template || undefined,
@@ -223,27 +251,46 @@ export async function POST(req: Request) {
                 const usage = await usageRes.json().catch(() => ({}));
                 if (!usageRes.ok || usage.ok !== true) {
                   console.error("❌ Error registrando uso edit:", usage);
-                  await gaServerEvent("billing_edit_failed", { uid, simulated: false, usage });
+                  await gaServerEvent("billing_edit_failed", {
+                    uid,
+                    simulated: false,
+                    usage,
+                  });
                 } else {
-                  await gaServerEvent("billing_edit_success", { uid, simulated: false });
+                  await gaServerEvent("billing_edit_success", {
+                    uid,
+                    simulated: false,
+                  });
                 }
               } catch (err) {
                 console.error("⚠️ Error llamando a /api/billing/usage (real):", err);
-                await gaServerEvent("billing_edit_failed", { uid, simulated: false, reason: String(err) });
+                await gaServerEvent("billing_edit_failed", {
+                  uid,
+                  simulated: false,
+                  reason: String(err),
+                });
               }
             } else {
               console.error("❌ Error en Submagic:", submagicData);
-              await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, response: submagicData });
+              await gaServerEvent("submagic_error_from_pipeline", {
+                uid,
+                simulated: false,
+                response: submagicData,
+              });
             }
           } catch (err) {
             console.error("⚠️ Error interno llamando a Submagic:", err);
-            await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, reason: String(err) });
+            await gaServerEvent("submagic_error_from_pipeline", {
+              uid,
+              simulated: false,
+              reason: String(err),
+            });
           }
         }
       }
     }
 
-    await lipsyncRef.set(updateData, { merge: true });
+    await lipsyncRef.set(updateData, { merge: true }); // ⬅️ no sobrescribe 'title'
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error("💥 Error en webhook lipsync:", err);
