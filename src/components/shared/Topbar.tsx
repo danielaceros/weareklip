@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { getIdToken } from "firebase/auth";
 import UserDropdown from "@/components/layout/UserDropdown";
@@ -50,6 +51,8 @@ export function Topbar() {
   const [claiming, setClaiming] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(setUser);
     return () => unsub();
@@ -90,13 +93,19 @@ export function Topbar() {
   // ⚡ Uso total del mes (excluye prueba)
   const monthly = summary?.subscriptions?.monthly;
   const usageCredits =
-    monthly?.trialing ? 0 : toCredits(summary?.pendingUsageCents);
+    summary?.trial && summary.trial.available && !summary.trial.used
+      ? 0
+      : toCredits(summary?.pendingUsageCents);
 
   // ⚡ Cargo diario real (solo si no está en trial)
-  const dailyChargeEuros = monthly?.trialing
-    ? 0
-    : (summary?.pendingUsageCents ?? 0) / 100;
-  const dailyChargeCredits = monthly?.trialing ? 0 : usageCredits;
+  const dailyChargeEuros =
+    summary?.trial && summary.trial.available && !summary.trial.used
+      ? 0
+      : (summary?.pendingUsageCents ?? 0) / 100;
+  const dailyChargeCredits =
+    summary?.trial && summary.trial.available && !summary.trial.used
+      ? 0
+      : usageCredits;
 
   // ⚡ Handler para reclamar créditos regalo
   const claimTrial = async () => {
@@ -121,24 +130,28 @@ export function Topbar() {
     }
   };
 
+  const isOnboarding = pathname?.startsWith("/dashboard/onboarding");
+
   return (
     <>
-      {/* 🎁 Banner si hay créditos regalo disponibles */}
-      {summary?.trial?.available && !summary?.trial?.used && (
-        <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
-          <span>
-            Tienes créditos de prueba disponibles. Reclámalos para empezar a usar la
-            plataforma sin coste.
-          </span>
-          <button
-            onClick={claimTrial}
-            disabled={claiming}
-            className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {claiming ? "Reclamando..." : "Reclamar créditos"}
-          </button>
-        </div>
-      )}
+      {/* 🎁 Banner si hay créditos regalo disponibles (no en /dashboard/onboarding) */}
+      {!isOnboarding &&
+        summary?.trial?.available &&
+        !summary?.trial?.used && (
+          <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
+            <span>
+              Tienes créditos de prueba disponibles. Reclámalos para empezar a usar
+              la plataforma sin coste.
+            </span>
+            <button
+              onClick={claimTrial}
+              disabled={claiming}
+              className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {claiming ? "Reclamando..." : "Reclamar créditos"}
+            </button>
+          </div>
+        )}
 
       {/* 🔴 Banner si hay deuda */}
       {summary?.hasOverdue && (
@@ -206,15 +219,16 @@ export function Topbar() {
                     <span className="text-lg font-normal">créditos</span>
                   </div>
                 </div>
-                  <div className="space-y-1 pt-2 border-t border-neutral-800">
-                    <p className="text-neutral-400 text-sm">Hoy</p>
-                    <p className="text-sm text-neutral-500">
-                      Cargo hoy a las 23:59 (Europa/Madrid)
-                    </p>
-                    <div className="text-lg font-medium mt-1">
-                      {dailyChargeEuros}€ · {dailyChargeCredits} créditos
-                    </div>
+
+                <div className="space-y-1 pt-2 border-t border-neutral-800">
+                  <p className="text-neutral-400 text-sm">Hoy</p>
+                  <p className="text-sm text-neutral-500">
+                    Cargo hoy a las 23:59 (Europa/Madrid)
+                  </p>
+                  <div className="text-lg font-medium mt-1">
+                    {dailyChargeEuros}€ · {dailyChargeCredits} créditos
                   </div>
+                </div>
               </PopoverContent>
             </Popover>
           ) : null}

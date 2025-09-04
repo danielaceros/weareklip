@@ -26,10 +26,10 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 /* ----------------- Constantes de límites ----------------- */
-const MAX_VIDEO_MB = 200;
-const MAX_SAMPLE_MB = 10;
-const MAX_SAMPLE_SECONDS = 30;
-const MAX_TOTAL_SECONDS = 120;
+const MAX_VIDEO_MB = 1000;
+const MAX_SAMPLE_MB = 100;
+const MAX_SAMPLE_SECONDS = 300;
+const MAX_TOTAL_SECONDS = 300;
 
 function bytesToMB(bytes: number) {
   return bytes / (1024 * 1024);

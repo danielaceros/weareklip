@@ -15,9 +15,12 @@ async function verifyAuth(req: NextRequest, expectedUid: string) {
 }
 
 // 🔹 Obtener un clone
-export async function GET(req: NextRequest, context: any) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
+) {
   try {
-    const { uid, cloneId } = context.params;
+    const { uid, cloneId } = await params;
     await verifyAuth(req, uid);
 
     const docSnap = await adminDB
@@ -45,9 +48,12 @@ export async function GET(req: NextRequest, context: any) {
 }
 
 // 🔹 Crear o actualizar un clone
-export async function PUT(req: NextRequest, context: any) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
+) {
   try {
-    const { uid, cloneId } = context.params;
+    const { uid, cloneId } = await params;
     await verifyAuth(req, uid);
 
     const body = await req.json();
@@ -79,9 +85,12 @@ export async function PUT(req: NextRequest, context: any) {
 }
 
 // 🔹 Eliminar un clone
-export async function DELETE(req: NextRequest, context: any) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ uid: string; cloneId: string }> }
+) {
   try {
-    const { uid, cloneId } = context.params;
+    const { uid, cloneId } = await params;
     await verifyAuth(req, uid);
 
     await adminDB
