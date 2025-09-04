@@ -200,61 +200,44 @@ export async function POST(req: NextRequest) {
     const { messages } = await req.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: "Invalid messages format" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return NextResponse.json(
+        { error: "Invalid messages format" },
+        { status: 400 }
+      );
     }
 
-    const safeMessages = [
-      { role: "system" as const, content: VIRALIA_PROMPT },
-      ...messages.map((m: any) => ({
-        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-        content: String(m.content || "").slice(0, 2000),
-      })),
+    // Sanitizamos mensajes
+    const safeMessages: ChatCompletionMessageParam[] = [
+      { role: "system", content: VIRALIA_PROMPT },
+      ...messages.map(
+        (m: any): ChatCompletionMessageParam => ({
+          role: (m.role === "user" ? "user" : "assistant") as
+            | "system"
+            | "user"
+            | "assistant",
+          content: String(m.content || "").slice(0, 2000),
+        })
+      ),
     ];
 
-    // 🚀 Aquí usamos stream
-    const response = await client.chat.completions.create({
+    // 🚀 Respuesta completa (sin streaming)
+    const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
       max_tokens: 300,
       messages: safeMessages,
-      stream: true, // <--- habilitamos streaming
     });
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
+    const content =
+      completion.choices[0]?.message?.content?.trim() ||
+      "⚠️ No se pudo generar respuesta";
 
-        try {
-          for await (const chunk of response) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) {
-              controller.enqueue(encoder.encode(delta));
-            }
-          }
-        } catch (err) {
-          controller.error(err);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "Transfer-Encoding": "chunked",
-      },
-    });
+    return NextResponse.json({ content });
   } catch (err) {
     console.error("❌ Chatbot API error:", err);
-    return new Response(JSON.stringify({ error: "Error interno en el chatbot" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Error interno en el chatbot" },
+      { status: 500 }
+    );
   }
 }
