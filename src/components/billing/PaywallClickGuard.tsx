@@ -40,3 +40,4 @@ export default function DashboardPaywallGuard({ children }: { children: React.Re
     </>
   );
 }
+

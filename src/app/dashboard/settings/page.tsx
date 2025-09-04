@@ -194,9 +194,12 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
+          {/* Guardar perfil */}
           <Button className="w-full sm:w-auto" onClick={handleSaveProfile}>
             {t("settings.save")}
           </Button>
+
+          {/* Resetear contraseña */}
           <Button
             className="w-full sm:w-auto"
             variant="outline"
@@ -236,3 +239,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

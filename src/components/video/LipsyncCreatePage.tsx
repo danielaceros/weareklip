@@ -59,13 +59,10 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
 
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 modal
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
-
-  // 🔘 botón de cierre oculto (DialogClose)
-  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   // ⏱️ estados de duración de lo seleccionado (cache simple)
   const [audioSec, setAudioSec] = useState<number | null>(null);
@@ -159,14 +156,14 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
 
       const idToken = await currentUser.getIdToken();
 
-      // 🔹 Fetch audios
+      // Audios
       const resAudios = await fetch(`/api/firebase/users/${uid}/audios`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!resAudios.ok) throw new Error("Error cargando audios");
       const audios: any[] = await resAudios.json();
 
-      // 🔹 Fetch clones
+      // Vídeos (clones)
       const resClones = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
@@ -197,10 +194,10 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   async function handleGenerate() {
     flushSync(() => setProcessing(true));
 
-    const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
+    const ok = await ensureSubscribed({ feature: "lipsync" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre modal
+      setShowCheckout(true);
       return;
     }
 
@@ -268,44 +265,6 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
       return;
     }
 
-    // ⏱️ Validación dura de duración (audio + vídeo)
-    try {
-      const aSec =
-        audioSec ??
-        (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
-      const vSec =
-        videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
-
-      if (!aSec) {
-        toast.error("No se pudo leer la duración del audio.");
-        setProcessing(false);
-        return;
-      }
-      if (!vSec) {
-        toast.error("No se pudo leer la duración del vídeo.");
-        setProcessing(false);
-        return;
-      }
-      if (aSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-      if (vSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-    } catch {
-      toast.error("No se pudo validar la duración de los medios.");
-      setProcessing(false);
-      return;
-    }
-
     toast.info(
       `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
     );
@@ -313,7 +272,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     setLoading(true);
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/sync/create", {
+      const res = await fetch("/api/jobs/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -326,19 +285,16 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error creando vídeo");
+      const data = (await res.json()) as { id?: string; error?: string };
+      if (!res.ok) throw new Error(data.error || "Error creando el vídeo");
 
       toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
 
-      // 1️⃣ cerrar modal secundario
       onClose?.();
 
-      // 2️⃣ refrescar lista en el padre
       if (typeof onCreated === "function") {
         onCreated();
       } else {
-        // fallback
         if (window.location.pathname === "/dashboard/video") {
           router.refresh();
         } else {
@@ -347,9 +303,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
       }
     } catch (err) {
       console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "No se pudo crear el lipsync"
-      );
+      toast.error(err instanceof Error ? err.message : "No se pudo crear el vídeo");
     } finally {
       setLoading(false);
       setProcessing(false);
@@ -361,7 +315,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     ? "Procesando..."
     : loading
     ? "Generando..."
-    : "Generar video";
+    : "Generar vídeo";
 
   const togglePlay = (id: string) => {
     const current = audioRefs.current[id];
@@ -530,7 +484,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título del video"
+            placeholder="Título del vídeo"
             className="flex-1 px-3 py-2 sm:px-4 sm:py-2 rounded-lg border border-border bg-background text-sm sm:text-base"
           />
           <Button
@@ -549,7 +503,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message="Necesitas una suscripción activa para generar vídeos."
       />
     </>
   );

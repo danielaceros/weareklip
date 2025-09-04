@@ -1,3 +1,4 @@
+// src/components/audio/AudiosContainer.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -176,6 +177,7 @@ export default function AudiosContainer() {
 
       {/* Lista */}
       <AudiosList
+        uid={user?.uid ?? ""}
         audios={paginated}
         onDelete={(audio) => setAudioToDelete(audio)}
       />
@@ -234,7 +236,7 @@ export default function AudiosContainer() {
                   setIsNewOpen(false);
                   fetchAudios(); // refresca la lista sin recargar
                 },
-              } as any) // 👈 cast puntual para evitar el error de tipos
+              } as any)
             }
           />
         </DialogContent>

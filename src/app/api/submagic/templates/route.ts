@@ -18,7 +18,7 @@ export async function GET() {
 
   try {
     // Realizar la solicitud a la API externa
-    const r = await fetch("https://api.submagic.co/v1/templates", {
+    const r = await fetch("https://api.klipcap.co/v1/templates", {
       headers: { "x-api-key": process.env.SUBMAGIC_API_KEY! },
     });
 
@@ -43,7 +43,7 @@ export async function GET() {
     return NextResponse.json({ templates: cachedTemplates });
   } catch (e: any) {
     // En caso de error, registrar y devolver error
-    console.error("❌ Error fetching Submagic templates:", e);
+    console.error("❌ Error fetching klipcap templates:", e);
     await gaServerEvent("submagic_templates_failed", {
       reason: e?.message || "internal_error",
     });

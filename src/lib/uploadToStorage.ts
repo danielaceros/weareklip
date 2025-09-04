@@ -7,3 +7,4 @@ export const uploadFile = async (file: File, path: string) => {
   const url = await getDownloadURL(storageRef);
   return url;
 };
+

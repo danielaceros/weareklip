@@ -1,3 +1,4 @@
+// src/components/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -27,11 +28,10 @@ import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-  TooltipProvider,
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-// 👇 Importar el helper de Analytics
+// Analytics
 import { track } from "@/lib/analytics-events";
 
 /* ---------- utilidades ---------- */
@@ -71,7 +71,7 @@ type VideoOption = { id: string; name: string; url: string };
 
 interface Props {
   preloadedVideos?: VideoOption[];
-  audioUrl: string; // 👈 obligatorio para el pipeline
+  audioUrl: string; // obligatorio para el pipeline
   onComplete?: () => void; // callback opcional
 }
 
@@ -132,7 +132,7 @@ export default function CreatePipelineVideoPage({
       }
       setFile(f);
       setVideoSec(sec); // guardamos duración
-      setVideoUrl(null); // mantenemos tu UI tal cual
+      setVideoUrl(null);
       toast.success(`📹 Vídeo "${f.name}" cargado`);
       track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
     } catch {
@@ -148,13 +148,13 @@ export default function CreatePipelineVideoPage({
 
   /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
-    fetch("/api/submagic/languages")
+    fetch("/api/captions/languages")
       .then((res) => res.json())
       .then((data) => setLanguages(data.languages || []))
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
 
-    fetch("/api/submagic/templates")
+    fetch("/api/captions/templates")
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
       .catch(() => toast.error("❌ Error cargando templates"))
@@ -167,7 +167,7 @@ export default function CreatePipelineVideoPage({
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
       setProcessing(false);
-      setShowCheckout(true); // 👈 abre el modal
+      setShowCheckout(true);
       return;
     }
 
@@ -236,11 +236,11 @@ export default function CreatePipelineVideoPage({
       if (!finalVideoUrl)
         throw new Error("No se pudo obtener la URL del vídeo");
 
-      toast("⚙️ Procesando tu reel...");
+      toast("⚙️ Procesando tu vídeo...");
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
-      const res = await fetch("/api/sync/pipeline", {
+      const res = await fetch("/api/jobs/pipeline", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -277,9 +277,8 @@ export default function CreatePipelineVideoPage({
         return;
       }
 
-      toast.success("🎬 Reel enviado al pipeline correctamente");
+      toast.success("🎬 Vídeo enviado correctamente");
 
-      // 📊 Evento GA: reel enviado
       track("pipeline_reel_submitted", {
         language,
         template,
@@ -292,7 +291,7 @@ export default function CreatePipelineVideoPage({
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
-      toast.error("❌ Error en el pipeline");
+      toast.error("❌ Error en el proceso");
       track("pipeline_error", { error: String(error) });
     } finally {
       setSubmitting(false);
@@ -324,7 +323,6 @@ export default function CreatePipelineVideoPage({
               <div
                 key={v.id}
                 onClick={async () => {
-                  // ⏱️ validar duración de preloaded antes de seleccionar
                   try {
                     const sec = await getVideoDurationFromUrl(v.url);
                     if (!sec) {
@@ -546,11 +544,13 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
+
+      {/* Modal Paywall */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message="Necesitas una suscripción activa para generar vídeos."
       />
     </div>
   );

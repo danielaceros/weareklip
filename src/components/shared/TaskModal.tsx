@@ -144,3 +144,4 @@ export default function TaskModal({ open, onOpenChange, adminId, task }: TaskMod
     </Dialog>
   )
 }
+

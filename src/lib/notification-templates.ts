@@ -48,3 +48,4 @@ export const NotificationTemplates = {
 } as const;
 
 export type EventKey = keyof typeof NotificationTemplates;
+

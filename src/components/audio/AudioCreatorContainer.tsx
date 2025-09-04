@@ -16,41 +16,28 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { Play, Pause, Loader2 } from "lucide-react";
 
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-const MAX_SEC = 60;
-
-// ✅ límites oficiales de speed para ElevenLabs v2
-const MIN_SPEED = 0.7;
-const MAX_SPEED = 1.2;
-
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
-
-// Lectura aproximada para TTS ~150 wpm => 2.5 palabras/seg
-const estimateTtsSeconds = (text: string) => {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return words / 2.5;
-};
+// ✅ usa límites y estimación centralizados (soporta idioma + velocidad)
+import {
+  estimateTtsSeconds,
+  MAX_AUDIO_SECONDS as MAX_SEC,
+} from "@/lib/limits";
 
 interface Props {
+  /** Permite al padre cerrar su modal y refrescar lista al guardar */
   onCreated?: () => void;
+  /** Permite que el padre pase onCancel sin error de tipos */
   onCancel?: () => void;
 }
+
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
 export default function AudioCreatorContainer({ onCreated }: Props) {
   const searchParams = useSearchParams();
@@ -61,6 +48,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
   const [audioUrl, setAudioUrl] = useState("");
   const [audioId, setAudioId] = useState("");
   const [regenCount, setRegenCount] = useState(0);
+  const [regenLoading, setRegenLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   // 🎵 Control de audio
@@ -68,16 +56,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-
-  // 🔄 Mini-diálogo para regeneración con TODOS los campos
-  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
-  const [regenText, setRegenText] = useState("");
-  const [regenVoiceId, setRegenVoiceId] = useState("");
-  const [regenStability, setRegenStability] = useState(0.5);
-  const [regenSimilarityBoost, setRegenSimilarityBoost] = useState(0.75);
-  const [regenStyle, setRegenStyle] = useState(0);
-  const [regenSpeed, setRegenSpeed] = useState(1);
-  const [regenSpeakerBoost, setRegenSpeakerBoost] = useState(true);
 
   const { ensureSubscribed } = useSubscriptionGate();
   const [showCheckout, setShowCheckout] = useState(false);
@@ -106,47 +84,31 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
   const formatTime = (time: number) => {
     if (!time || isNaN(time)) return "00:00";
-    const m = Math.floor(time / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = Math.floor(time % 60)
-      .toString()
-      .padStart(2, "0");
+    const m = Math.floor(time / 60).toString().padStart(2, "0");
+    const s = Math.floor(time % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
 
-  // Avisar si el audio generado excede 60s
+  // Avisar si el audio generado excede el máximo
   useEffect(() => {
     if (duration > MAX_SEC) {
       toast.error(
         `⏱️ El audio dura ${formatTime(
           duration
-        )} y el máximo permitido es ${MAX_SEC}s. Acorta el texto o la velocidad.`
+        )} y el máximo permitido es ${MAX_SEC}s. Acorta el texto o sube la velocidad.`
       );
     }
   }, [duration]);
 
-  const buildVoiceSettings = (overrides?: {
-    stability?: number;
-    similarity_boost?: number;
-    style?: number;
-    speed?: number;
-    use_speaker_boost?: boolean;
-  }) => {
-    const rawSpeed = overrides?.speed ?? form.speed ?? 1;
-    const safeSpeed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED); // ✅ clamp
-
-    const vs = {
-      stability: overrides?.stability ?? form.stability ?? null,
-      similarity_boost:
-        overrides?.similarity_boost ?? form.similarityBoost ?? null,
-      style: overrides?.style ?? form.style ?? null,
-      speed: safeSpeed, // ✅ en rango
-      use_speaker_boost:
-        overrides?.use_speaker_boost ?? form.speakerBoost ?? null,
+  const buildVoiceSettings = () => {
+    const safeSpeed = clamp(form.speed ?? 1, MIN_SPEED, MAX_SPEED);
+    return {
+      stability: form.stability ?? null,
+      similarity_boost: form.similarityBoost ?? null,
+      style: form.style ?? null,
+      speed: safeSpeed,
+      use_speaker_boost: form.speakerBoost ?? null,
     };
-    console.log("[Audio] buildVoiceSettings ->", vs);
-    return vs;
   };
 
   // 👉 Generar audio inicial
@@ -161,7 +123,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       toast.error("Debes escribir el texto a convertir.");
       return;
     }
-    const est = estimateTtsSeconds(form.text);
+
+    // ✅ Estimación previa considerando idioma + velocidad
+    const est = estimateTtsSeconds(form.text, form.languageCode, form.speed);
     if (est > MAX_SEC) {
       toast.error(
         `⏱️ El texto es demasiado largo (~${Math.round(
@@ -184,7 +148,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
     try {
       const token = await form.user.getIdToken();
-      const res = await fetch("/api/elevenlabs/audio/create", {
+      const res = await fetch("/api/audio/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,6 +157,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         },
         body: JSON.stringify({
           text: form.text,
+          languageCode: form.languageCode,
           voiceId: form.voiceId,
           voice_settings: buildVoiceSettings(),
         }),
@@ -215,32 +180,8 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     }
   };
 
-  // 🔄 Abrir diálogo de regeneración con valores actuales
-  const openRegenDialog = () => {
-    if (regenCount >= 2) {
-      toast.error("⚠️ Ya has regenerado el audio 2 veces.");
-      return;
-    }
-    setRegenText(form.text);
-    setRegenVoiceId(form.voiceId);
-    setRegenStability(form.stability);
-    setRegenSimilarityBoost(form.similarityBoost);
-    setRegenStyle(form.style);
-    setRegenSpeed(clamp(form.speed, MIN_SPEED, MAX_SPEED));
-    setRegenSpeakerBoost(form.speakerBoost);
-    setRegenDialogOpen(true);
-  };
-
-  // 👉 Regenerar audio con los valores del diálogo (o overrides)
-  const handleRegenerate = async (overrides?: {
-    text?: string;
-    voiceId?: string;
-    stability?: number;
-    similarity_boost?: number;
-    style?: number;
-    speed?: number;
-    use_speaker_boost?: boolean;
-  }) => {
+  // 👉 Regenerar audio
+  const handleRegenerate = async () => {
     const ok = await ensureSubscribed({ feature: "audio" });
     if (!ok) {
       setShowCheckout(true);
@@ -256,10 +197,8 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       return;
     }
 
-    const textToUse = overrides?.text ?? form.text;
-    const voiceToUse = overrides?.voiceId ?? form.voiceId;
-
-    const est = estimateTtsSeconds(textToUse);
+    // ✅ Estimar por si cambió texto/velocidad/idioma
+    const est = estimateTtsSeconds(form.text, form.languageCode, form.speed);
     if (est > MAX_SEC) {
       toast.error(
         `⏱️ El texto es demasiado largo (~${Math.round(
@@ -269,19 +208,12 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       return;
     }
 
-    console.log("[Audio] Regen payload:", {
-      parentAudioId: audioId,
-      text: textToUse,
-      voiceId: voiceToUse,
-      voice_settings: buildVoiceSettings(overrides),
-    });
-
-    const t0 = performance.now();
+    setRegenLoading(true);
     const loadingId = toast.loading("🔄 Regenerando audio...");
 
     try {
       const token = await form.user?.getIdToken();
-      const res = await fetch("/api/elevenlabs/audio/regenerate", {
+      const res = await fetch("/api/audio/regenerate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -290,43 +222,25 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         },
         body: JSON.stringify({
           parentAudioId: audioId,
-          text: textToUse,
-          voiceId: voiceToUse,
-          voice_settings: buildVoiceSettings(overrides),
+          text: form.text,
+          languageCode: form.languageCode,
+          voiceId: form.voiceId,
+          voice_settings: buildVoiceSettings(),
         }),
       });
 
-      const dt = performance.now() - t0;
       const data = await res.json().catch(() => ({}));
-      console.log("[Audio] /audio/regenerate fetch:", dt, "ms");
-      console.log("[Audio] /audio/regenerate status:", res.status, data);
-
       if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
       setAudioUrl(data.audioUrl);
       setRegenCount((c) => c + 1);
 
-      // reflejar cambios en el form
-      if (overrides?.text) form.setText(overrides.text);
-      if (overrides?.voiceId) form.setVoiceId(overrides.voiceId);
-      if (overrides?.stability !== undefined)
-        form.setStability(overrides.stability);
-      if (overrides?.similarity_boost !== undefined)
-        form.setSimilarityBoost(overrides.similarity_boost);
-      if (overrides?.style !== undefined) form.setStyle(overrides.style);
-      if (overrides?.speed !== undefined)
-        form.setSpeed(clamp(overrides.speed, MIN_SPEED, MAX_SPEED));
-      if (overrides?.use_speaker_boost !== undefined)
-        form.setSpeakerBoost(overrides.use_speaker_boost);
-
-      toast.success(`✅ Audio regenerado (${Math.min(regenCount + 1, 2)}/2)`, {
-        id: loadingId,
-      });
+      toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
       console.error("❌ [Audio] handleRegenerate error:", err);
       toast.error("❌ No se pudo regenerar", { id: loadingId });
     } finally {
-      toast.dismiss(loadingId);
+      setRegenLoading(false);
     }
   };
 
@@ -337,8 +251,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       onCreated();
       return;
     }
-    const stamp = Date.now();
-    router.push(`/dashboard/audio?created=${stamp}`);
+    router.push(`/dashboard/audio?created=${Date.now()}`);
   }, [onCreated, router]);
 
   const handleAccept = () => {
@@ -410,12 +323,10 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
           <DialogFooter className="flex justify-between">
             <Button
               variant="outline"
-              onClick={openRegenDialog}
-              disabled={regenCount >= 2}
+              onClick={handleRegenerate}
+              disabled={regenCount >= 2 || regenLoading}
             >
-              {form.loading && (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              )}
+              {regenLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Regenerar ({regenCount}/2)
             </Button>
             <Button onClick={handleAccept} disabled={duration > MAX_SEC}>
@@ -425,172 +336,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Mini-diálogo para modificar TODOS los parámetros antes de regenerar */}
-      <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Modificar parámetros antes de regenerar</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Texto */}
-            <div>
-              <Label htmlFor="regen-text">Texto *</Label>
-              <Textarea
-                id="regen-text"
-                value={regenText}
-                onChange={(e) => setRegenText(e.target.value)}
-                placeholder="Escribe el texto a convertir en audio"
-                className="min-h-[100px]"
-              />
-            </div>
-
-            {/* Voz (idioma fijo) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="regen-voice">Voz *</Label>
-                <Select value={regenVoiceId} onValueChange={setRegenVoiceId}>
-                  <SelectTrigger id="regen-voice">
-                    <SelectValue placeholder="Selecciona una voz" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {form.voices.map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id}>
-                        {voice.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Idioma</Label>
-                <Select defaultValue="es" disabled>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="es">Español</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Controles de voz */}
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Label>Estabilidad</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {regenStability.toFixed(2)} / 1.00
-                  </span>
-                </div>
-                <Slider
-                  value={[regenStability]}
-                  onValueChange={([v]) => setRegenStability(v)}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Label>Similaridad</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {regenSimilarityBoost.toFixed(2)} / 1.00
-                  </span>
-                </div>
-                <Slider
-                  value={[regenSimilarityBoost]}
-                  onValueChange={([v]) => setRegenSimilarityBoost(v)}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Label>Estilo</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {regenStyle.toFixed(2)} / 1.00
-                  </span>
-                </div>
-                <Slider
-                  value={[regenStyle]}
-                  onValueChange={([v]) => setRegenStyle(v)}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Label>Velocidad</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {regenSpeed.toFixed(2)} / {MAX_SPEED.toFixed(2)}
-                  </span>
-                </div>
-                <Slider
-                  value={[regenSpeed]}
-                  onValueChange={([v]) =>
-                    setRegenSpeed(clamp(v, MIN_SPEED, MAX_SPEED))
-                  }
-                  min={MIN_SPEED}
-                  max={MAX_SPEED}
-                  step={0.01}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="regen-speaker-boost"
-                  checked={regenSpeakerBoost}
-                  onCheckedChange={(checked) => setRegenSpeakerBoost(!!checked)}
-                />
-                <Label htmlFor="regen-speaker-boost" className="cursor-pointer">
-                  Usar Speaker Boost
-                </Label>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRegenDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!regenText.trim()) {
-                  toast.error("El texto no puede estar vacío");
-                  return;
-                }
-                if (!regenVoiceId) {
-                  toast.error("Debes seleccionar una voz");
-                  return;
-                }
-
-                setRegenDialogOpen(false);
-                await handleRegenerate({
-                  text: regenText,
-                  voiceId: regenVoiceId,
-                  stability: regenStability,
-                  similarity_boost: regenSimilarityBoost,
-                  style: regenStyle,
-                  speed: regenSpeed,
-                  use_speaker_boost: regenSpeakerBoost,
-                });
-              }}
-            >
-              Aceptar y regenerar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal checkout */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

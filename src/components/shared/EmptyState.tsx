@@ -5,3 +5,4 @@ export default function EmptyState({ children }: { children: React.ReactNode }) 
     </div>
   )
 }
+

@@ -11,3 +11,4 @@ export async function requireUserUid(req: Request): Promise<string> {
   if (!decoded?.uid) throw new Error("No uid");
   return decoded.uid;
 }
+

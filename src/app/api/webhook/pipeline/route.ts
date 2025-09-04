@@ -114,18 +114,18 @@ export async function POST(req: Request) {
         await gaServerEvent("billing_edit_failed", { uid, simulated: true, reason: String(err) });
       }
 
-      // 👉 Encadenar simulación de Submagic
+      // 👉 Encadenar simulación de klipcap
       const submagicPayload = {
         projectId: `submagic_${Date.now()}`,
         status: "completed",
-        title: "Video Submagic Simulado",
-        downloadUrl: "https://fake.local/video-submagic.mp4",
+        title: "Video klipcap Simulado",
+        downloadUrl: "https://fake.local/video-klipcap.mp4",
         duration: 30,
         completedAt: new Date().toISOString(),
         timestamp: new Date().toISOString(),
       };
 
-      await fetch(`${baseUrl}/api/webhook/submagic?uid=${uid}`, {
+      await fetch(`${baseUrl}/api/webhook/klipcap?uid=${uid}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify(submagicPayload),
       }).catch((err) => {
-        console.error("❌ Error disparando webhook submagic simulado:", err);
+        console.error("❌ Error disparando webhook klipcap simulado:", err);
         gaServerEvent("submagic_error_from_pipeline", { uid, simulated: true, reason: String(err) });
       });
 
@@ -168,11 +168,11 @@ export async function POST(req: Request) {
 
         if (email) {
           try {
-            const webhookUrl = `${baseUrl}/api/webhook/submagic?uid=${uid}`;
-            console.log("🚀 Enviando a Submagic con webhook:", webhookUrl);
+            const webhookUrl = `${baseUrl}/api/webhook/klipcap?uid=${uid}`;
+            console.log("🚀 Enviando a klipcap con webhook:", webhookUrl);
 
             const submagicRes = await fetch(
-              "https://api.submagic.co/v1/projects",
+              "https://api.klipcap.co/v1/projects",
               {
                 method: "POST",
                 headers: {
@@ -232,11 +232,11 @@ export async function POST(req: Request) {
                 await gaServerEvent("billing_edit_failed", { uid, simulated: false, reason: String(err) });
               }
             } else {
-              console.error("❌ Error en Submagic:", submagicData);
+              console.error("❌ Error en klipcap:", submagicData);
               await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, response: submagicData });
             }
           } catch (err) {
-            console.error("⚠️ Error interno llamando a Submagic:", err);
+            console.error("⚠️ Error interno llamando a klipcap:", err);
             await gaServerEvent("submagic_error_from_pipeline", { uid, simulated: false, reason: String(err) });
           }
         }

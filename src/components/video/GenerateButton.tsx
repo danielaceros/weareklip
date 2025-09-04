@@ -15,3 +15,4 @@ export function GenerateButton({ loading, onClick }: GenerateButtonProps) {
     </Button>
   );
 }
+

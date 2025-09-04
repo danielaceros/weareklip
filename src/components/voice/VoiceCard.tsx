@@ -29,3 +29,4 @@ export function VoiceCard({ name, category, description, preview_url }: VoiceCar
     </Card>
   );
 }
+

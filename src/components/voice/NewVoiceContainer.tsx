@@ -34,6 +34,16 @@ import { validateFileSizeAs } from "@/lib/fileLimits";
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
 
+/** Helper estable (fuera del componente) */
+function getAudioDurationFromURL(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const audio = document.createElement("audio");
+    audio.src = url;
+    audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
+    audio.addEventListener("error", (e) => reject(e));
+  });
+}
+
 export default function NewVoiceContainer() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -58,16 +68,6 @@ export default function NewVoiceContainer() {
   /* ---- auth listener ---- */
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
-  /* ---- helpers ---- */
-  const getAudioDurationFromURL = (url: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const audio = document.createElement("audio");
-      audio.src = url;
-      audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
-      audio.addEventListener("error", (e) => reject(e));
-    });
-
-  /* ---- fetchSamples con dependencias correctas ---- */
   const fetchSamples = useCallback(async () => {
     if (!user) return;
     try {
@@ -97,11 +97,10 @@ export default function NewVoiceContainer() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Error cargando muestras desde Firebase");
+      toast.error("Error cargando muestras desde el almacenamiento");
     }
   }, [user, storage]);
 
-  /* ✅ efecto depende de la función (sin warning ni closures viejos) */
   useEffect(() => {
     void fetchSamples();
   }, [fetchSamples]);
@@ -205,9 +204,9 @@ export default function NewVoiceContainer() {
         })
       );
     },
-    accept: { "audio/*": [], "video/*": [] }, // puedes dejar vídeo si conviertes a audio
+    accept: { "audio/*": [], "video/*": [] },
     multiple: true,
-    validator, // 👈 fuerza 10 MB para todo lo que entre aquí
+    validator,
   });
 
   /* ---- grabación de micrófono (con tope 10 MB) ---- */
@@ -227,7 +226,6 @@ export default function NewVoiceContainer() {
           type: "audio/webm",
         });
 
-        // ✅ también 10 MB para la grabación
         const v = validateFileSizeAs(file, "audio");
         if (!v.ok) {
           toast.error("Audio demasiado grande", { description: v.message });
@@ -281,7 +279,7 @@ export default function NewVoiceContainer() {
       return;
     }
 
-    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
+    const ok = await ensureSubscribed({ feature: "voice" });
     if (!ok) {
       setShowCheckout(true);
       return;
@@ -292,9 +290,9 @@ export default function NewVoiceContainer() {
       const idem = uuidv4();
 
       const paths = samples.map((s) => s.storagePath);
-      toast.loading("Creando voz en ElevenLabs...");
+      toast.loading("Generando voz…");
 
-      const res = await fetch("/api/elevenlabs/voice/create", {
+      const res = await fetch("/api/voice/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -359,7 +357,7 @@ export default function NewVoiceContainer() {
       }
 
       toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
-      router.push("/dashboard/clones  ");
+      router.push("/dashboard/clones");
     } catch (err) {
       console.error(err);
       toast.dismiss();
@@ -436,11 +434,11 @@ export default function NewVoiceContainer() {
             </button>
           </div>
 
-          {/* Progreso total minutos (visual) */}
+          {/* Progreso (coherente con 180 s) */}
           <div className="flex items-center gap-4">
-            <Progress value={(totalDuration / 120) * 100} className="flex-1" />
+            <Progress value={(totalDuration / 180) * 100} className="flex-1" />
             <span className="text-sm font-medium whitespace-nowrap">
-              {Math.round(totalDuration)} / 120
+              {Math.round(totalDuration)} / 180
             </span>
           </div>
 
@@ -450,7 +448,7 @@ export default function NewVoiceContainer() {
               onClick={createVoice}
               className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition w-full sm:w-auto"
               data-paywall
-              data-paywall-feature="elevenlabs-voice"
+              data-paywall-feature="voice"
             >
               Generar audio
             </button>

@@ -123,3 +123,4 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
     </div>
   );
 };
+

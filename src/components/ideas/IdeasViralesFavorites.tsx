@@ -167,3 +167,4 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
     </div>
   );
 };
+

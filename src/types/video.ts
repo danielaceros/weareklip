@@ -29,3 +29,4 @@ export interface Video {
   /** Comentarios tipo Notion en el vídeo */
   comments?: ReelComment[];
 }
+

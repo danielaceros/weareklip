@@ -245,3 +245,4 @@ export default function ChatbotPanel({ onClose }: ChatbotPanelProps) {
     </>
   );
 }
+

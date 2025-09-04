@@ -270,3 +270,4 @@ export const Spinner = ({ variant, ...props }: SpinnerProps) => {
       return <Default {...props} />;
   }
 };
+

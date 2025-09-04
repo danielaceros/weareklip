@@ -187,3 +187,4 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
     </Dialog>
   );
 }
+

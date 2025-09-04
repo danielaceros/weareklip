@@ -25,3 +25,4 @@ export default function ApiErrorHandler() {
 
   return null; // no renderiza nada, solo intercepta
 }
+

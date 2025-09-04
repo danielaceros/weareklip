@@ -14,3 +14,4 @@ export async function sendEventPush(
   sdata.kind = kind;
   return notifyPush(uid, title, body, sdata);
 }
+

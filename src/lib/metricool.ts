@@ -1,3 +1,4 @@
+import "server-only";
 // lib/metricool.ts
 
 import FormData from "form-data";
@@ -173,3 +174,5 @@ export async function validateMetricoolCredentials(): Promise<boolean> {
 export async function getMetricoolProfiles() {
   return metricoolRequest("/admin/simpleProfiles", "GET");
 }
+
+

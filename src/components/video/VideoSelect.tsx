@@ -36,3 +36,4 @@ export function VideoSelect({ videos, onChange }: VideoSelectProps) {
     </div>
   );
 }
+

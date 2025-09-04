@@ -139,3 +139,4 @@ export default function useSubscriptionGate() {
 
   return { ensureSubscribed, invalidateSubscription };
 }
+

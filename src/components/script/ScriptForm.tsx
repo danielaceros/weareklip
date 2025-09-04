@@ -1,3 +1,4 @@
+// src/components/script/ScriptForm.tsx
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
@@ -19,12 +20,15 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { toast } from "sonner";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
+// ✅ límites centralizados (mismos que audio)
+import { MAX_AUDIO_SECONDS as MAX_SEC, WPS } from "@/lib/limits";
+
 interface ScriptFormProps {
   description: string;
   tone: string;
   platform: string;
-  duration: string;
-  language: string;
+  duration: string; // "0-15" | "15-30" | "30-45" | "45-60"
+  language: string; // "es" | "en" | "fr"
   structure: string;
   addCTA: boolean;
   ctaText: string;
@@ -39,6 +43,16 @@ interface ScriptFormProps {
   setCtaText: (val: string) => void;
   onSubmit: () => void | Promise<void>;
   onClose?: () => void; // 👈 nuevo: para cerrar modal padre
+}
+
+// 🔎 util: parsea "15-30" -> [15, 30]
+function parseDurationRange(range: string): [number, number] | null {
+  const m = range.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return [Math.min(a, b), Math.max(a, b)];
 }
 
 export function ScriptForm({
@@ -60,16 +74,27 @@ export function ScriptForm({
   setAddCTA,
   setCtaText,
   onSubmit,
-  onClose, // 👈 recibimos
+  onClose,
 }: ScriptFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // 🧮 presupuesto de palabras en base a idioma + rango de duración (cap a 60s)
+  const [minSec, maxSec] = useMemo(() => {
+    const r = parseDurationRange(duration) ?? [0, 60];
+    return [Math.min(r[0], MAX_SEC), Math.min(r[1], MAX_SEC)];
+  }, [duration]);
+
+  const secondsCap = maxSec;
+  const wps = WPS[language] ?? 2.5;
+  const wordBudget = Math.max(1, Math.floor(wps * secondsCap));
+
+  const descMax = 400;
+  const ctaMax = 80;
+
   const handleSubmit = useCallback(async () => {
-    flushSync(() => {
-      setProcessing(true);
-    });
+    flushSync(() => setProcessing(true));
 
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
@@ -78,8 +103,25 @@ export function ScriptForm({
       return;
     }
 
-    if (!description || !tone || !platform || !duration || !structure) {
+    if (!description || !tone || !platform || !duration || !structure || !language) {
       toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
+      setProcessing(false);
+      return;
+    }
+
+    if (secondsCap > MAX_SEC) {
+      toast.error("⏱️ La duración seleccionada excede el máximo permitido (60s).");
+      setProcessing(false);
+      return;
+    }
+
+    if (description.length > descMax) {
+      toast.error(`⚠️ La descripción es demasiado larga (máx. ${descMax} caracteres).`);
+      setProcessing(false);
+      return;
+    }
+    if (addCTA && ctaText.length > ctaMax) {
+      toast.error(`⚠️ El CTA es demasiado largo (máx. ${ctaMax} caracteres).`);
       setProcessing(false);
       return;
     }
@@ -87,7 +129,6 @@ export function ScriptForm({
     try {
       await onSubmit();
 
-      // 👇 opcional: cerrar modal padre justo después de generar
       if (typeof onClose === "function") {
         onClose();
       }
@@ -101,18 +142,17 @@ export function ScriptForm({
     platform,
     duration,
     structure,
+    language,
+    addCTA,
+    ctaText,
+    secondsCap,
     onSubmit,
     onClose,
   ]);
 
   const isLoading = processing || loading;
-  const buttonText = processing
-    ? "Procesando..."
-    : loading
-    ? "Generando..."
-    : "Generar guion";
+  const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar guion";
 
-  // Opciones memoizadas
   const toneOptions = useMemo(
     () => [
       { value: "motivador", label: "Motivador" },
@@ -190,7 +230,11 @@ export function ScriptForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ej: Reel motivador sobre productividad para emprendedores"
               className="min-h-[120px] resize-none"
+              maxLength={400}
             />
+            <p className="text-xs text-muted-foreground">
+              {description.length}/400
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -242,6 +286,9 @@ export function ScriptForm({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tope: ~{wordBudget} palabras para ≈{secondsCap}s (máximo absoluto {MAX_SEC}s).
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -258,6 +305,9 @@ export function ScriptForm({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Velocidad base 1×. El TTS final no excederá 60s.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -285,11 +335,15 @@ export function ScriptForm({
           <Label>Añadir llamada a la acción (CTA)</Label>
         </div>
         {addCTA && (
-          <Input
-            value={ctaText}
-            onChange={(e) => setCtaText(e.target.value)}
-            placeholder="Ej: Sígueme para más consejos"
-          />
+          <>
+            <Input
+              value={ctaText}
+              onChange={(e) => setCtaText(e.target.value)}
+              placeholder="Ej: Sígueme para más consejos"
+              maxLength={80}
+            />
+            <p className="text-xs text-muted-foreground">{ctaText.length}/80</p>
+          </>
         )}
       </div>
 
@@ -315,7 +369,7 @@ export function ScriptForm({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message="Necesitas una suscripción activa para generar guiones."
       />
     </div>
   );

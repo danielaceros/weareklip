@@ -369,7 +369,7 @@ export default function OnboardingPage() {
       return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
     }
 
-    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
+    const ok = await ensureSubscribed({ feature: "voice" });
     console.log(ok)
       if (!ok) {
         setShowCheckout(true); // 👈 abre el modal
@@ -384,8 +384,8 @@ export default function OnboardingPage() {
 
       toast.loading("Creando voz…");
 
-      // 1. Pedir a ElevenLabs que cree la voz
-      const res = await fetch("/api/elevenlabs/voice/create", {
+      // 1. Crear la voz en el motor TTS
+      const res = await fetch("/api/voice/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -789,3 +789,4 @@ function StepDot({
     </div>
   );
 }
+

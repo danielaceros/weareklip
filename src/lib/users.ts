@@ -26,3 +26,4 @@ export async function checkIsAdmin(uid?: string): Promise<boolean> {
     return false;
   }
 }
+

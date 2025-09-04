@@ -58,3 +58,4 @@ export function VideoDropzone({ file, setFile, videoUrl, setVideoUrl }: Props) {
     </div>
   );
 }
+

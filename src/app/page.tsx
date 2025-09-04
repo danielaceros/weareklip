@@ -5,3 +5,4 @@ export default function HomePage() {
   // Redirige siempre al login como ruta raíz
   redirect("/login");
 }
+
