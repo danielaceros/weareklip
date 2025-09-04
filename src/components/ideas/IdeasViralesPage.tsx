@@ -1,3 +1,4 @@
+// src/app/dashboard/ideas/page.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -25,6 +26,9 @@ export default function IdeasViralesPage() {
   const [favorites, setFavorites] = useState<ShortVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+
+  // Mostrar “sin resultados” solo después de una búsqueda válida
+  const [hasSearched, setHasSearched] = useState(false);
 
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -67,44 +71,52 @@ export default function IdeasViralesPage() {
       return;
     }
 
-    setLoading(true);
-    const loadingToast = toast.loading("Buscando vídeos virales...");
-    
     const userToken = user ? await user.getIdToken() : null;
-
     if (!userToken) {
       toast.error("Debes iniciar sesión para buscar vídeos");
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setHasSearched(true);
+
+    const loadingToast = toast.loading("Buscando vídeos virales...");
+
     try {
       const res = await fetch(
-        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(query)}`,
+        `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(
+          query
+        )}`,
         {
-          headers: {
-            Authorization: `Bearer ${userToken}`,
-          },
+          headers: { Authorization: `Bearer ${userToken}` },
         }
       );
       const data = await res.json();
 
-      // Normalización de las vistas
-      const normalized: ShortVideo[] = data.map((d: any) => ({
-        ...d,
-        views: Number(d.views) || 0,
-      }));
+      // Defensivo si la API no devuelve array
+      const normalized: ShortVideo[] = (Array.isArray(data) ? data : []).map(
+        (d: any) => ({
+          ...d,
+          views: Number(d.views) || 0,
+        })
+      );
 
       setVideos(normalized);
 
-      toast.success("Vídeos cargados correctamente", { id: loadingToast });
+      // ✅ Si hay resultados, mostramos success; si no, ningún toast (solo mensaje abajo)
+      if (normalized.length > 0) {
+        toast.success("Vídeos cargados correctamente", { id: loadingToast });
+      } else {
+        toast.dismiss(loadingToast);
+      }
     } catch (err) {
       console.error("Error fetching shorts:", err);
       toast.error("Error al cargar los vídeos", { id: loadingToast });
+      setVideos([]); // para que aparezca el estado vacío
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
-
 
   // Filtrar
   const filteredVideos =
@@ -125,7 +137,7 @@ export default function IdeasViralesPage() {
 
     const exists = favorites.some((fav) => fav.id === video.id);
 
-    // 👉 Optimistic UI: actualizamos favoritos de inmediato
+    // Optimistic UI
     setFavorites((prev) =>
       exists ? prev.filter((f) => f.id !== video.id) : [...prev, video]
     );
@@ -144,19 +156,15 @@ export default function IdeasViralesPage() {
 
       const res = await fetch(url, options);
       if (!res.ok) throw new Error(`Error ${res.status}`);
-
-      toast.success(exists ? "Eliminado de favoritos" : "Añadido a favoritos");
     } catch (err) {
       console.error("Error en toggleFavorite:", err);
       toast.error("No se pudo actualizar favoritos");
-
-      // ❌ revertir cambio si falla
+      // revertir cambio si falla
       setFavorites((prev) =>
         exists ? [...prev, video] : prev.filter((f) => f.id !== video.id)
       );
     }
   };
-
 
   // Replicar vídeo
   const replicateVideo = async (video: ShortVideo) => {
@@ -165,34 +173,24 @@ export default function IdeasViralesPage() {
       return;
     }
 
-    // 👉 Optimistic UI: feedback inmediato
-    const replicateToast = toast.loading("Replicando guion...");
-    
-    // Creamos un guion provisional para mostrar al usuario (si tienes UI de scripts)
-    const provisionalScript = {
-      id: `temp-${video.id}`,
-      description: `Guion replicado de ${video.title}`,
-      platform: "youtube",
-      script: "Generando transcripción...",
-      isAI: false,
-      createdAt: new Date(),
-      videoTitle: video.title,
-      videoThumbnail: video.thumbnail,
-    };
-    // Aquí podrías insertarlo en tu lista local de scripts, si la tienes.
-
     try {
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
       const data = await res.json();
 
       if (!data.transcript) {
-        toast.error("No se encontró transcripción", { id: replicateToast });
+        toast.error("No se encontró transcripción");
         return;
       }
 
       const newScript = {
-        ...provisionalScript,
+        id: `temp-${video.id}`,
+        description: `Guion replicado de ${video.title}`,
+        platform: "youtube",
         script: data.transcript,
+        isAI: false,
+        createdAt: new Date(),
+        videoTitle: video.title,
+        videoThumbnail: video.thumbnail,
         fuente: video.url,
         videoDescription: video.description,
         videoChannel: video.channel,
@@ -211,20 +209,18 @@ export default function IdeasViralesPage() {
       });
 
       if (!saveRes.ok) throw new Error(`Error ${saveRes.status}`);
-      const saved = await saveRes.json();
-
-      toast.success("Guion replicado y guardado ✅", { id: replicateToast });
       router.push("/dashboard/script");
-
-      // Aquí podrías reemplazar el provisional por el real usando saved.id
     } catch (err) {
       console.error("Error replicando vídeo:", err);
-      toast.error("Error al replicar vídeo", { id: replicateToast });
-
-      // ❌ opcional: eliminar el guion provisional de la UI
+      toast.error("Error al replicar vídeo");
     }
   };
 
+  // Mensajes de “no hay resultados” bajo la lista
+  const showEmptyFromSearch =
+    hasSearched && !loading && videos.length === 0 && query.trim() !== "";
+  const showEmptyFromFilter =
+    !loading && videos.length > 0 && filteredVideos.length === 0;
 
   return (
     <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">
@@ -251,6 +247,21 @@ export default function IdeasViralesPage() {
         onReplicate={replicateVideo}
         viewOnYoutubeText={t("viralIdeasPage.viewOnYoutube")}
       />
+
+      {/* Empty states bajo la lista */}
+      {showEmptyFromSearch && (
+        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No hay vídeos en tendencia para{" "}
+          <span className="font-medium">“{query}”</span> con los filtros
+          actuales. Prueba otro término, idioma o intervalo.
+        </div>
+      )}
+
+      {showEmptyFromFilter && (
+        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No hay coincidencias con el filtro actual.
+        </div>
+      )}
 
       <IdeasViralesFavorites
         favorites={favorites}
