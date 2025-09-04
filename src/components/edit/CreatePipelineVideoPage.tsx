@@ -31,12 +31,14 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { track } from "@/lib/analytics-events";
 
+// -------- utilidades --------
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 function hasString(v: unknown, key: string): v is Record<string, string> {
   return isRecord(v) && typeof v[key] === "string";
 }
+// -----------------------------
 
 const MAX_SEC = 60;
 
@@ -81,7 +83,7 @@ interface Props {
   preloadedVideos?: VideoOption[];
   audioUrl: string; // obligatorio
   onComplete?: () => void;
-  onCreated?: (video?: OptimisticVideoData) => void;
+  onCreated?: (video?: OptimisticVideoData) => void; // ✅ corregido para aceptar optimistic
 }
 
 export default function CreatePipelineVideoPage({
@@ -96,9 +98,6 @@ export default function CreatePipelineVideoPage({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoSec, setVideoSec] = useState<number | null>(null);
-
-  // 🏷️ NUEVO: título del reel
-  const [videoTitle, setVideoTitle] = useState("");
 
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
@@ -120,6 +119,7 @@ export default function CreatePipelineVideoPage({
 
   const { ensureSubscribed } = useSubscriptionGate();
 
+  /* ---- Dropzone ---- */
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const f = acceptedFiles[0];
     if (!f) return;
@@ -151,6 +151,7 @@ export default function CreatePipelineVideoPage({
     disabled: !!videoUrl,
   });
 
+  /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
@@ -225,11 +226,7 @@ export default function CreatePipelineVideoPage({
     if (onCreated) {
       const tempVideo: OptimisticVideoData = {
         projectId: uuidv4(),
-        title:
-          (videoTitle || "").trim() ||
-          file?.name ||
-          preloadedVideos[0]?.name ||
-          "Reel sin título",
+        title: file?.name || "video-preloaded",
         status: "processing",
         downloadUrl: videoUrl || preloadedVideos[0]?.url,
         _optimistic: true,
@@ -267,7 +264,6 @@ export default function CreatePipelineVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: (videoTitle || "").trim() || undefined, // 👈 ENVIAMOS TÍTULO
           audioUrl,
           videoUrl: finalVideoUrl,
           subLang: language,
@@ -287,7 +283,6 @@ export default function CreatePipelineVideoPage({
 
       toast.success("🎬 Reel enviado al pipeline correctamente");
       track("pipeline_reel_submitted", {
-        title: videoTitle || undefined,
         language,
         template,
         magicZooms,
@@ -420,18 +415,6 @@ export default function CreatePipelineVideoPage({
 
       {/* DERECHA */}
       <div className="space-y-4 sm:space-y-6">
-        {/* 🏷️ Título del reel (NUEVO) */}
-        <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Título del reel</Label>
-          <Input
-            value={videoTitle}
-            onChange={(e) => setVideoTitle(e.target.value)}
-            placeholder="Ej: Testimonial Eneko – ES"
-            className="text-sm"
-            maxLength={120}
-          />
-        </div>
-
         {/* Templates */}
         <div>
           <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
@@ -483,7 +466,7 @@ export default function CreatePipelineVideoPage({
           )}
         </div>
 
-        {/* Descripción breve */}
+        {/* Diccionario */}
         <div>
           <Label className="mb-1 sm:mb-2 block text-sm">
             Descripción breve
