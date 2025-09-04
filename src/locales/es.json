@@ -73,11 +73,11 @@
     "clientTitle": "Panel de Cliente",
     "home": "Inicio",
     "adminHome": "Inicio Admin",
-    "scripts": "Guiones",
+    "scripts": "ScriptAI®",
     "videos": "Videos",
-    "audio": "Audios",
+    "audio": "AudioAI®",
     "voice": "Voces",
-    "video": "Vídeos",
+    "video": "EditAI®",
     "clones": "Clones",
     "notifications": "Notificaciones",
     "calendar": "Calendario",
@@ -98,7 +98,7 @@
     "clients": "Clientes",
     "tasks": "Tareas",
     "adminNotifications": "Notificaciones",
-    "lipsync": "Grabaciones"
+    "lipsync": "VideoAI®"
   },
   "common": {
     "unknown": "Desconocido"
