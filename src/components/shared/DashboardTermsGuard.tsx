@@ -2,24 +2,32 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import useTermsAccepted from "@/hooks/useTermsAccepted";
+import useUserFlags from "@/hooks/useUserFlags";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 export default function DashboardTermsGuard({ children }: { children: React.ReactNode }) {
-  const { loading, accepted } = useTermsAccepted();
+  const { loading, isTermsAccepted, onboardingCompleted } = useUserFlags();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading) {
-      // 👉 si está en dashboard pero no en onboarding, y no aceptó términos → redirige
-      if (pathname.startsWith("/dashboard") && !pathname.startsWith("/dashboard/onboarding")) {
-        if (!accepted) {
-          router.replace("/dashboard/onboarding");
-        }
+    if (loading) return;
+
+    const inDashboard = pathname.startsWith("/dashboard");
+    const inOnboarding = pathname.startsWith("/dashboard/onboarding");
+
+    // 🔒 Si está en dashboard (fuera de onboarding) pero le falta algo → forzar onboarding
+    if (inDashboard && !inOnboarding) {
+      if (!isTermsAccepted || !onboardingCompleted) {
+        router.replace("/dashboard/onboarding");
       }
     }
-  }, [loading, accepted, pathname, router]);
+
+    // ✅ Si está en onboarding pero ya completó todo → redirigir al dashboard normal
+    if (inOnboarding && isTermsAccepted && onboardingCompleted) {
+      router.replace("/dashboard");
+    }
+  }, [loading, isTermsAccepted, onboardingCompleted, pathname, router]);
 
   if (loading) {
     return (

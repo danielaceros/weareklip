@@ -31,12 +31,18 @@ export default function useUserFlags(): FlagsResult {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
+
         if (res.ok && data) {
           setIsTermsAccepted(Boolean(data.isTermsAccepted));
           setOnboardingCompleted(Boolean(data.onboardingCompleted));
+        } else {
+          setIsTermsAccepted(false);
+          setOnboardingCompleted(false);
         }
       } catch (e) {
         console.error("useUserFlags error:", e);
+        setIsTermsAccepted(false);
+        setOnboardingCompleted(false);
       } finally {
         setLoading(false);
       }
