@@ -19,7 +19,7 @@ export default function CreateReelGlobalButton() {
   const redirectToSupport = () => {
     // Redirigir a la URL de Notion
     window.open(
-      "https://weareklip.notion.site/25f690859b7b8082838dee56be9fcaf4?pvs=105",
+      "https://wa.me/34694224731",
       "_blank"
     );
   };
