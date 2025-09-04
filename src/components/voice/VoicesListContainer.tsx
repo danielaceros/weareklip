@@ -16,7 +16,7 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface VoiceData {
   voiceId: string;
@@ -39,7 +39,6 @@ export default function VoicesListContainer({
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
-  // estado para borrar
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -89,37 +88,28 @@ export default function VoicesListContainer({
     try {
       const idToken = await user.getIdToken();
 
-      // 1️⃣ Eliminar en ElevenLabs (POST con body)
       const resEleven = await fetch(`/api/elevenlabs/voice/delete`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ voiceId: deleteTarget }),
       });
-
       if (!resEleven.ok) {
         const errText = await resEleven.text();
         throw new Error(`Error eliminando en ElevenLabs: ${errText}`);
       }
 
-      // 2️⃣ Eliminar en Firebase
       const resFirebase = await fetch(
         `/api/firebase/users/${user.uid}/voices/${deleteTarget}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
+          headers: { Authorization: `Bearer ${idToken}` },
         }
       );
-
       if (!resFirebase.ok) {
         const errText = await resFirebase.text();
         throw new Error(`Error eliminando en Firebase: ${errText}`);
       }
 
-      // 3️⃣ Actualizar estado local
       setVoices((prev) => prev.filter((v) => v.voiceId !== deleteTarget));
       setDeleteTarget(null);
     } catch (err) {
@@ -129,10 +119,11 @@ export default function VoicesListContainer({
     }
   };
 
-
-
   const totalPages = Math.ceil(voices.length / perPage);
   const paginated = voices.slice((page - 1) * perPage, page * perPage);
+
+  // ⛔ Límite de 1 voz (UX)
+  const quotaExceeded = voices.length >= 1;
 
   return (
     <section
@@ -144,7 +135,9 @@ export default function VoicesListContainer({
     >
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">{title}</h2>
-        <Button onClick={() => setOpen(true)}>+ Nueva voz</Button>
+        <Button onClick={() => setOpen(true)} disabled={quotaExceeded}>
+          {quotaExceeded ? "Límite: 1 voz" : "+ Nueva voz"}
+        </Button>
       </div>
 
       {loading ? (
@@ -155,7 +148,6 @@ export default function VoicesListContainer({
         <p className="text-muted-foreground">No tienes voces aún.</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
-          {/* Grid responsive */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {paginated.map((voice) => (
               <VoiceCard
@@ -166,7 +158,6 @@ export default function VoicesListContainer({
             ))}
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-auto">
               <Pagination>
@@ -210,14 +201,12 @@ export default function VoicesListContainer({
         </div>
       )}
 
-      {/* Modal Crear Voz */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-6xl w-full">
           <NewVoiceContainer />
         </DialogContent>
       </Dialog>
 
-      {/* Modal Confirmación de borrado */}
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -282,7 +271,6 @@ function VoiceCard({
 
   return (
     <Card className="p-4 flex flex-col rounded-2xl bg-card border border-border shadow-sm">
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold truncate">
           {voice.name || "Sin nombre"}
@@ -295,7 +283,6 @@ function VoiceCard({
         </button>
       </div>
 
-      {/* Player */}
       {loadingPreview ? (
         <div className="flex justify-center items-center h-20">
           <Spinner size="sm" variant="ellipsis" />
@@ -306,7 +293,11 @@ function VoiceCard({
             onClick={togglePlay}
             className="flex items-center justify-center w-10 h-10 rounded-full border border-border hover:bg-muted transition shrink-0"
           >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {isPlaying ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
           </button>
 
           <div className="flex-1 w-full">
@@ -336,7 +327,9 @@ function VoiceCard({
           />
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">🎧 Preview no disponible</p>
+        <p className="text-sm text-muted-foreground">
+          🎧 Preview no disponible
+        </p>
       )}
     </Card>
   );
