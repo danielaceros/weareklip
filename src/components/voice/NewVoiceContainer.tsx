@@ -127,9 +127,16 @@ export default function NewVoiceContainer() {
 
       const storagePath = `users/${user.uid}/voices/${fileName}`;
       const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file);
 
-      toast(`📤 Subiendo ${file.name}...`);
+      // 👉 Optimistic UI: añadimos preview temporal
+      const tempUrl = URL.createObjectURL(file);
+      setSamples((prev) => [
+        ...prev,
+        { name: fileName, duration: 0, url: tempUrl, storagePath },
+      ]);
+      setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
       return new Promise<void>((resolve, reject) => {
         uploadTask.on(
@@ -147,23 +154,42 @@ export default function NewVoiceContainer() {
               delete next[fileName];
               return next;
             });
+            // ❌ eliminamos muestra temporal si falla
+            setSamples((prev) =>
+              prev.filter((s) => s.storagePath !== storagePath)
+            );
             reject(error);
           },
           async () => {
-            toast.success(`✅ ${file.name} subida correctamente`);
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            let duration = 0;
+            try {
+              duration = await getAudioDurationFromURL(url);
+            } catch {
+              duration = 0;
+            }
+
+            // ✅ reemplazamos la muestra provisional por la final
+            setSamples((prev) =>
+              prev.map((s) =>
+                s.storagePath === storagePath ? { ...s, url, duration } : s
+              )
+            );
             setUploadProgress((prev) => {
               const next = { ...prev };
               delete next[fileName];
               return next;
             });
-            await fetchSamples();
+
+            toast.success(`✅ ${file.name} subida correctamente`);
             resolve();
           }
         );
       });
     },
-    [user, storage, fetchSamples]
+    [user, storage]
   );
+
 
   /* ---- dropzone ---- */
   const onDrop = useCallback(

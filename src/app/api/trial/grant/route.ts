@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = snap.data() as { stripeCustomerId?: string; isGiftUsed?: boolean } | undefined;
+    const user = snap.data() as {
+      stripeCustomerId?: string;
+      isGiftUsed?: boolean;
+    } | undefined;
     const customerId: string | undefined = user?.stripeCustomerId;
 
     if (!customerId) {
@@ -52,7 +55,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) Verificar que el customer no tenga trial_credit_granted
-    const customer = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
+    const customer = (await stripe.customers.retrieve(
+      customerId
+    )) as Stripe.Customer;
     if (customer.metadata?.trial_credit_granted === "1") {
       return NextResponse.json(
         { error: "Ya existe un crédito promocional otorgado en Stripe" },
@@ -60,7 +65,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4) Crear credit grant
+    // 4) Buscar trial_end en la suscripción activa
+    const subs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "trialing",
+      limit: 1,
+    });
+
+    const trialEnd = subs.data[0]?.trial_end; // epoch seconds
+    if (!trialEnd) {
+      return NextResponse.json(
+        { error: "El cliente no tiene un periodo de prueba activo" },
+        { status: 400 }
+      );
+    }
+
+    // 5) Crear credit grant con expiración
     const grant = await stripe.billing.creditGrants.create({
       customer: customerId,
       name: "Gift Credits",
@@ -72,15 +92,19 @@ export async function POST(req: NextRequest) {
       applicability_config: {
         scope: { price_type: "metered" },
       },
-    });
+      expiration_config: {
+        expires_at: trialEnd, // ⬅️ caducan al final del trial
+      },
+    } as any);
 
-    // 5) Guardar flags
+    // 6) Guardar flags
     await Promise.all([
       userRef.set({ isGiftUsed: true }, { merge: true }),
       stripe.customers.update(customerId, {
         metadata: {
           trial_credit_granted: "1",
           trial_credit_grant_id: grant.id,
+          trial_credit_expires_at: String(trialEnd),
         },
       }),
     ]);
@@ -90,9 +114,10 @@ export async function POST(req: NextRequest) {
       email,
       customerId,
       grantId: grant.id,
+      trialEnd,
     });
 
-    return NextResponse.json({ ok: true, grantId: grant.id });
+    return NextResponse.json({ ok: true, grantId: grant.id, trialEnd });
   } catch (e: any) {
     console.error("❌ /api/trial/grant error:", e);
     return NextResponse.json(

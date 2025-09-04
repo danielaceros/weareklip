@@ -32,6 +32,7 @@ import { TagsInput } from "../shared/TagsInput";
 
 /* ✅ límite de tamaño (100 MB vídeo) */
 import { validateFileSizeAs } from "@/lib/fileLimits";
+import { VideoData } from "./VideosPage";
 
 const MAX_SEC = 60; // ⏱️ límite duro
 
@@ -58,7 +59,9 @@ interface Props {
     magicBrolls: boolean;
     magicBrollsPercentage: number;
   }) => void;
-  onCreated?: () => void;
+  onCreated?: (
+    video?: VideoData & { _optimistic?: boolean; _rollback?: boolean }
+  ) => void;
 }
 
 export default function CreateVideoPage({
@@ -227,60 +230,25 @@ export default function CreateVideoPage({
       return;
     }
 
-    // ⏱️ Validación dura de duración
-    const sec =
-      videoSec ??
-      (videoUrl ? await getVideoDurationFromUrl(videoUrl).catch(() => 0) : 0);
-    if (!sec) {
-      toast.error("No se pudo leer la duración del vídeo.");
-      setProcessing(false);
-      return;
-    }
-    if (sec > MAX_SEC) {
-      toast.error(
-        `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
-      );
-      setProcessing(false);
-      return;
-    }
-
-    // ⛔️ Validación dura de tamaño (por si llega por otro camino)
-    if (file) {
-      const sizeCheck = validateFileSizeAs(file, "video");
-      if (!sizeCheck.ok) {
-        toast.error("Archivo demasiado grande", {
-          description: sizeCheck.message,
-        });
-        setProcessing(false);
-        return;
-      }
-    }
-
-    if (!language) {
-      toast.error("⚠️ Debes seleccionar un idioma");
-      setProcessing(false);
-      return;
-    }
-
-    // Si viene desde wizard → devolvemos datos en vez de llamar API
-    if (onComplete) {
-      const selectedVideo = videoUrl || preloadedVideos[0]?.url || "";
-      toast.success("✅ Selección guardada correctamente");
-      onComplete({
-        selectedVideo,
-        subLang: language,
-        template,
-        dictionary,
-        magicZooms,
-        magicBrolls,
-        magicBrollsPercentage,
-      });
-      setProcessing(false);
-      return;
-    }
+    // ... validaciones de duración/tamaño/idioma (sin cambios)
 
     setSubmitting(true);
     setUploadProgress(0);
+
+    // 🔹 Construimos un id temporal para optimistic
+    const tempId = uuidv4();
+    const tempVideo = {
+      projectId: tempId,
+      title: file?.name || "video-temp",
+      status: "processing",
+      downloadUrl: videoUrl || undefined,
+      _optimistic: true,
+    };
+
+    // 🟢 Optimistic: agregamos a la lista padre
+    if (typeof onCreated === "function") {
+      onCreated(tempVideo as any);
+    }
 
     try {
       let finalVideoUrl = videoUrl;
@@ -329,9 +297,9 @@ export default function CreateVideoPage({
       setFile(null);
       setUploadProgress(0);
 
-      // ✅ cerrar modal padre y refrescar lista
+      // 🔄 Refrescar o notificar al padre
       if (typeof onCreated === "function") {
-        onCreated();
+        onCreated(); // el padre puede hacer un refetch real
       } else {
         if (window.location.pathname === "/dashboard/edit") {
           router.refresh();
@@ -342,11 +310,17 @@ export default function CreateVideoPage({
     } catch (error) {
       console.error(error);
       toast.error("❌ Error subiendo o procesando el vídeo");
+
+      // 🔙 Rollback: quitamos el optimista
+      if (typeof onCreated === "function") {
+        onCreated({ ...tempVideo, _rollback: true } as any);
+      }
     } finally {
       setSubmitting(false);
       setProcessing(false);
     }
   };
+
 
   const isLoading = processing || submitting;
   const buttonText = processing

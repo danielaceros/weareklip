@@ -12,21 +12,28 @@ import LipsyncCreatePage from "./LipsyncCreatePage";
 import { toast } from "sonner";
 import { ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
-interface VideoData {
+export interface VideoData {
   projectId: string;
-  title: string;
+  title: string; // 👈 obligatorio
   status: string;
   downloadUrl?: string;
   duration?: number;
 }
 
+interface Props {
+  onClose?: () => void;
+  onCreated?: (video?: OptimisticVideoData) => void;
+}
+
+type OptimisticVideoData = VideoData & { _rollback?: boolean };
+
 export default function LipsyncVideosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [videos, setVideos] = useState<VideoData[]>([]);
+  const [videos, setVideos] = useState<OptimisticVideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
@@ -38,17 +45,14 @@ export default function LipsyncVideosPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   // 🟢 Autoabrir modal con ?new=1 y limpiar la URL
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setIsNewOpen(true);
-      router.replace("/dashboard/video"); // limpia ?new=1
+      router.replace("/dashboard/video");
     }
   }, [searchParams, router]);
 
@@ -65,7 +69,6 @@ export default function LipsyncVideosPage() {
         if (!res.ok) throw new Error("Error cargando lipsync");
 
         const data = await res.json();
-
         const mapped: VideoData[] = data.map((d: any) => ({
           projectId: d.id,
           ...(d as Omit<VideoData, "projectId">),
@@ -87,13 +90,18 @@ export default function LipsyncVideosPage() {
     if (!user) return;
     setDeleting(true);
 
+    // 🔹 Guardamos estado previo por si falla
+    const prevVideos = [...videos];
+
     try {
       const token = await user.getIdToken();
 
       if (deleteAll) {
-        // 🟥 Borrar todos via API
+        // 🟢 Optimistic: vaciamos lista al instante
+        setVideos([]);
+
         await Promise.all(
-          videos.map(async (video) => {
+          prevVideos.map(async (video) => {
             const res = await fetch(
               `/api/firebase/users/${user.uid}/lipsync/${video.projectId}`,
               {
@@ -104,7 +112,6 @@ export default function LipsyncVideosPage() {
             if (!res.ok)
               throw new Error(`Error borrando doc ${video.projectId}`);
 
-            // Borrar en Storage si aplica
             if (video.downloadUrl?.includes("firebasestorage")) {
               try {
                 const path = decodeURIComponent(
@@ -120,9 +127,13 @@ export default function LipsyncVideosPage() {
           })
         );
 
-        setVideos([]);
         toast.success("Todos los vídeos han sido eliminados ✅");
       } else if (videoToDelete) {
+        // 🟢 Optimistic: quitamos de la lista antes del DELETE real
+        setVideos((prev) =>
+          prev.filter((v) => v.projectId !== videoToDelete.projectId)
+        );
+
         const res = await fetch(
           `/api/firebase/users/${user.uid}/lipsync/${videoToDelete.projectId}`,
           {
@@ -146,14 +157,14 @@ export default function LipsyncVideosPage() {
           }
         }
 
-        setVideos((prev) =>
-          prev.filter((v) => v.projectId !== videoToDelete.projectId)
-        );
         toast.success("Vídeo eliminado correctamente ✅");
       }
     } catch (err) {
       console.error("❌ Error eliminando vídeos:", err);
       toast.error("No se pudieron eliminar los vídeos");
+
+      // 🔙 Revertimos si falla
+      setVideos(prevVideos);
     } finally {
       setDeleting(false);
       setVideoToDelete(null);
@@ -161,7 +172,7 @@ export default function LipsyncVideosPage() {
     }
   }
 
-  // ✅ Spinner loader
+  // ✅ Loader
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -172,33 +183,31 @@ export default function LipsyncVideosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header con título y botones */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold">Clones</h1>
         <div className="flex gap-3">
-          <div className="flex gap-3 justify-end">
-            <Button
-              variant="destructive"
-              className="rounded-lg"
-              onClick={() => setDeleteAll(true)}
-              disabled={videos.length === 0}
-            >
-              <Trash2 size={18} className="mr-2" />
-              Borrar todos
-            </Button>
+          <Button
+            variant="destructive"
+            className="rounded-lg"
+            onClick={() => setDeleteAll(true)}
+            disabled={videos.length === 0}
+          >
+            <Trash2 size={18} className="mr-2" />
+            Borrar todos
+          </Button>
 
-            <Button
-              className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-              onClick={() => setIsNewOpen(true)}
-            >
-              <Plus size={18} className="mr-2" />
-              Crear vídeo
-            </Button>
-          </div>
+          <Button
+            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+            onClick={() => setIsNewOpen(true)}
+          >
+            <Plus size={18} className="mr-2" />
+            Crear vídeo
+          </Button>
         </div>
       </div>
 
-      {/* Lista de vídeos */}
+      {/* Lista */}
       <LipsyncVideoList
         videos={videos}
         onDelete={(id, url) =>
@@ -218,10 +227,14 @@ export default function LipsyncVideosPage() {
         <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
           <LipsyncCreatePage
             onClose={() => setIsNewOpen(false)}
-            onCreated={() => {
-              setTimeout(() => {
-                window.location.reload(); // 👈 mantienes mismo patrón que scripts/audios
-              }, 300);
+            onCreated={(video?: OptimisticVideoData) => {
+              if (!video) return;
+
+              if (video._rollback) {
+                setVideos((prev) => prev.filter((v) => v.projectId !== video.projectId));
+              } else {
+                setVideos((prev) => [...prev, video]);
+              }
             }}
           />
         </DialogContent>

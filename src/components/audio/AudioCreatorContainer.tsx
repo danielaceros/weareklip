@@ -28,7 +28,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Play, Pause, Loader2 } from "lucide-react";
-
+import type { AudioData } from "@/components/audio/AudiosList";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
@@ -48,7 +48,7 @@ const estimateTtsSeconds = (text: string) => {
 };
 
 interface Props {
-  onCreated?: () => void;
+  onCreated?: (audio: AudioData) => void;
   onCancel?: () => void;
 }
 
@@ -134,18 +134,17 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     use_speaker_boost?: boolean;
   }) => {
     const rawSpeed = overrides?.speed ?? form.speed ?? 1;
-    const safeSpeed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED); // ✅ clamp
+    const safeSpeed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED);
 
     const vs = {
       stability: overrides?.stability ?? form.stability ?? null,
       similarity_boost:
         overrides?.similarity_boost ?? form.similarityBoost ?? null,
       style: overrides?.style ?? form.style ?? null,
-      speed: safeSpeed, // ✅ en rango
+      speed: safeSpeed,
       use_speaker_boost:
         overrides?.use_speaker_boost ?? form.speakerBoost ?? null,
     };
-    console.log("[Audio] buildVoiceSettings ->", vs);
     return vs;
   };
 
@@ -231,7 +230,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     setRegenDialogOpen(true);
   };
 
-  // 👉 Regenerar audio con los valores del diálogo (o overrides)
+  // 👉 Regenerar audio
   const handleRegenerate = async (overrides?: {
     text?: string;
     voiceId?: string;
@@ -269,16 +268,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       return;
     }
 
-    console.log("[Audio] Regen payload:", {
-      parentAudioId: audioId,
-      text: textToUse,
-      voiceId: voiceToUse,
-      voice_settings: buildVoiceSettings(overrides),
-    });
-
-    const t0 = performance.now();
     const loadingId = toast.loading("🔄 Regenerando audio...");
-
     try {
       const token = await form.user?.getIdToken();
       const res = await fetch("/api/elevenlabs/audio/regenerate", {
@@ -296,17 +286,12 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         }),
       });
 
-      const dt = performance.now() - t0;
       const data = await res.json().catch(() => ({}));
-      console.log("[Audio] /audio/regenerate fetch:", dt, "ms");
-      console.log("[Audio] /audio/regenerate status:", res.status, data);
-
       if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
       setAudioUrl(data.audioUrl);
       setRegenCount((c) => c + 1);
 
-      // reflejar cambios en el form
       if (overrides?.text) form.setText(overrides.text);
       if (overrides?.voiceId) form.setVoiceId(overrides.voiceId);
       if (overrides?.stability !== undefined)
@@ -323,18 +308,17 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         id: loadingId,
       });
     } catch (err) {
-      console.error("❌ [Audio] handleRegenerate error:", err);
+      console.error("❌ handleRegenerate error:", err);
       toast.error("❌ No se pudo regenerar", { id: loadingId });
     } finally {
       toast.dismiss(loadingId);
     }
   };
 
-  // 👇 Cerrar modal de preview + refrescar lista
+  // 👇 Cerrar modal + refrescar
   const finishAndRefresh = useCallback(() => {
     setShowModal(false);
     if (onCreated) {
-      onCreated();
       return;
     }
     const stamp = Date.now();
@@ -350,17 +334,30 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       );
       return;
     }
+
+    const optimisticAudio: AudioData = {
+      audioId: audioId || uuidv4(),
+      url: audioUrl,
+      name: form.text.slice(0, 30) + "...",
+      description: form.text,
+      createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+      duration: duration,
+      language: "es",
+    };
+
+    if (onCreated) {
+      onCreated(optimisticAudio);
+    }
+
     toast.success("📂 Audio guardado en tu biblioteca");
     finishAndRefresh();
   };
 
-  // ============================ RENDER ============================
   return (
     <>
-      {/* Form principal */}
       <AudioForm {...form} onGenerate={handleGenerate} />
 
-      {/* Modal de preview tras generar */}
+      {/* Preview modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-md space-y-4">
           <DialogHeader>
@@ -425,7 +422,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Mini-diálogo para modificar TODOS los parámetros antes de regenerar */}
+      {/* Regen dialog */}
       <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -433,7 +430,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Texto */}
             <div>
               <Label htmlFor="regen-text">Texto *</Label>
               <Textarea
@@ -445,7 +441,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
               />
             </div>
 
-            {/* Voz (idioma fijo) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="regen-voice">Voz *</Label>
@@ -476,7 +471,6 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
               </div>
             </div>
 
-            {/* Controles de voz */}
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between mb-1">
@@ -590,7 +584,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Modal checkout */}
+      {/* Checkout modal */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

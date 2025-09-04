@@ -344,9 +344,15 @@ export default function ScriptsContainer() {
         <DialogContent className="max-w-2xl w-full rounded-xl">
           <ScriptCreatorContainer
             onClose={() => setIsNewOpen(false)}
-            onCreated={() => {
-              // si prefieres, usa fetchScripts() en lugar de recargar
-              setTimeout(() => window.location.reload(), 300);
+            onCreated={(newScript: ScriptData) => {
+              // Optimista: añadir al estado inmediatamente
+              setScripts((prev) => [{ ...newScript }, ...prev]);
+              setIsNewOpen(false);
+
+              // En paralelo podrías refrescar desde la API para confirmar
+              fetchScripts().catch(() =>
+                toast.error("Error confirmando guiones, refresca la página")
+              );
             }}
           />
         </DialogContent>

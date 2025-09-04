@@ -108,11 +108,16 @@ export default function VideosPage() {
     if (!user) return;
     setDeleting(true);
 
+    // 🔹 Guardamos estado previo por si falla
+    const prevVideos = [...videos];
+
     try {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // DELETE en lote
+        // 🟢 Optimistic: vaciamos lista al instante
+        setVideos([]);
+
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
           method: "DELETE",
           headers: {
@@ -123,10 +128,14 @@ export default function VideosPage() {
         });
 
         if (!res.ok) throw new Error("Error eliminando todos los vídeos");
-        setVideos([]);
+
         toast.success("Todos los vídeos han sido eliminados");
       } else if (videoToDelete) {
-        // DELETE individual
+        // 🟢 Optimistic: quitamos de la lista antes del DELETE real
+        setVideos((prev) =>
+          prev.filter((v) => v.projectId !== videoToDelete.projectId)
+        );
+
         const res = await fetch(
           `/api/firebase/users/${user.uid}/videos/${videoToDelete.projectId}`,
           {
@@ -134,22 +143,24 @@ export default function VideosPage() {
             headers: { Authorization: `Bearer ${idToken}` },
           }
         );
+
         if (!res.ok) throw new Error("Error eliminando vídeo");
 
-        setVideos((prev) =>
-          prev.filter((v) => v.projectId !== videoToDelete.projectId)
-        );
         toast.success("Vídeo eliminado correctamente");
       }
     } catch (err) {
       console.error("Error eliminando vídeos:", err);
       toast.error("No se pudieron eliminar los vídeos");
+
+      // 🔙 Rollback si falla
+      setVideos(prevVideos);
     } finally {
       setDeleting(false);
       setVideoToDelete(null);
       setDeleteAll(false);
     }
   }
+
 
   if (loading) {
     return (
@@ -258,11 +269,24 @@ export default function VideosPage() {
               <X size={20} />
             </button>
             <CreateVideoPage
-              onCreated={() => {
-                setShowCreateModal(false); // cierra modal
-                setTimeout(() => {
-                  window.location.reload(); // recarga la página
-                }, 300);
+              onCreated={(video?: VideoData & { _optimistic?: boolean; _rollback?: boolean }) => {
+                if (!video) {
+                  setShowCreateModal(false);
+                  setTimeout(() => window.location.reload(), 300);
+                  return;
+                }
+
+                if (video._rollback) {
+                  // rollback: quitar el temp
+                  setVideos((prev) => prev.filter((v) => v.projectId !== video.projectId));
+                } else if (video._optimistic) {
+                  // añadir provisional
+                  setVideos((prev) => [...prev, video]);
+                } else {
+                  // caso normal (backend ya confirmó → refetch o reload)
+                  setShowCreateModal(false);
+                  setTimeout(() => window.location.reload(), 300);
+                }
               }}
             />
           </div>

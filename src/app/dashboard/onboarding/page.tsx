@@ -26,7 +26,7 @@ import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 /* ----------------- Constantes de límites ----------------- */
-const MAX_VIDEO_MB = 100;
+const MAX_VIDEO_MB = 200;
 const MAX_SAMPLE_MB = 10;
 const MAX_SAMPLE_SECONDS = 30;
 const MAX_TOTAL_SECONDS = 120;
@@ -83,6 +83,7 @@ export default function OnboardingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
 
   // Paso 1
   const [name, setName] = useState("");
@@ -121,8 +122,8 @@ export default function OnboardingPage() {
       }
       // 👉 Verificar subscripción al entrar
       try {
-        const ok = await ensureSubscribed({ feature: "clone"});
-        console.log("Subscripción ok:", ok);
+        const ok = await ensureSubscribed({ feature: "clone" });
+        setSubscribed(ok); // 👈 guardamos el estado
         if (!ok) {
           setShowCheckout(true);
         }
@@ -138,9 +139,7 @@ export default function OnboardingPage() {
 
   /* ----------------- Paso 2 ----------------- */
   const handleVideoUpload = async (file: File) => {
-    
     if (!user) return;
-
     if (!file.type.startsWith("video/")) return toast.error("El archivo debe ser un vídeo");
     if (bytesToMB(file.size) > MAX_VIDEO_MB) return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
 
@@ -148,6 +147,9 @@ export default function OnboardingPage() {
     const storagePath = `users/${user.uid}/clones/${id}`;
     const storageRef = ref(storage, storagePath);
 
+    // 👉 Optimistic UI: mostrar un objeto provisional en la UI
+    const tempUrl = URL.createObjectURL(file);
+    setVideoDoc({ id, url: tempUrl, storagePath });
     setUploadingVideo(true);
     setVideoProgressPct(0);
 
@@ -161,14 +163,16 @@ export default function OnboardingPage() {
       (err) => {
         console.error(err);
         toast.error("Error subiendo el vídeo");
+        setVideoDoc(null); // revertir si falla
         setUploadingVideo(false);
       },
       async () => {
         const url = await getDownloadURL(task.snapshot.ref);
         const idToken = await auth.currentUser?.getIdToken();
         if (!idToken) throw new Error("No autenticado");
-        const res = await fetch(`/api/firebase/users/${user.uid}/clones/${id}`, {
-          method: "PUT", // porque actualizas/creas un documento con ID conocido
+
+        await fetch(`/api/firebase/users/${user.uid}/clones/${id}`, {
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
@@ -183,21 +187,15 @@ export default function OnboardingPage() {
           }),
         });
 
-        if (!res.ok) {
-          throw new Error(`Error guardando clonación: ${res.status}`);
-        }
-
-        const saved = await res.json();
-
-        // actualizar estado en UI
-        setVideoDoc(saved);
+        // 👉 Reemplazar el objeto temporal con el definitivo
+        setVideoDoc({ id, url, storagePath });
         setUploadingVideo(false);
         setVideoProgressPct(0);
         toast.success("Vídeo subido correctamente");
-
       }
     );
   };
+
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => {
@@ -221,7 +219,6 @@ export default function OnboardingPage() {
 
   /* ----------------- Paso 3 ----------------- */
   const uploadSample = async (file: File) => {
-
     if (!user) return;
 
     if (!(file.type.startsWith("audio/") || file.type.startsWith("video/"))) {
@@ -233,63 +230,56 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Validar duración
-    try {
-      const tmpUrl = URL.createObjectURL(file);
-      const dur = await getAudioDurationSafe(tmpUrl);
-      URL.revokeObjectURL(tmpUrl);
-      if (dur > MAX_SAMPLE_SECONDS) {
-        toast.error(`Cada muestra ≤ ${MAX_SAMPLE_SECONDS}s`);
-        return;
-      }
-    } catch {
-      toast.error("No se pudo calcular duración del audio");
-      return;
-    }
-
     const ext = (file.type.split("/")[1] || "webm").replace("x-m4a", "m4a");
     const fileName = `sample-${Date.now()}.${ext}`;
     const storagePath = `users/${user.uid}/voices/${fileName}`;
     const storageRef = ref(storage, storagePath);
 
-    const task = uploadBytesResumable(storageRef, file);
-    toast(`📤 Subiendo ${file.name}...`);
+    // 👉 Optimistic UI: mostrar inmediatamente la muestra
+    const tempUrl = URL.createObjectURL(file);
+    setSamples((prev) => [...prev, { name: fileName, duration: 0, url: tempUrl, storagePath }]);
+    setUploadProgress((p) => ({ ...p, [fileName]: 0 }));
 
-    await new Promise<void>((resolve, reject) => {
-      task.on(
-        "state_changed",
-        (s) => {
-          const pct = Math.round((s.bytesTransferred / s.totalBytes) * 100);
-          setUploadProgress((p) => ({ ...p, [fileName]: pct }));
-        },
-        (err) => {
-          console.error(err);
-          toast.error("Error al subir muestra");
-          setUploadProgress((p) => {
-            const n = { ...p };
-            delete n[fileName];
-            return n;
-          });
-          reject(err);
-        },
-        async () => {
-          const url = await getDownloadURL(task.snapshot.ref);
-          let duration = 0;
-          try {
-            duration = await getAudioDurationSafe(url);
-          } catch {}
-          setSamples((prev) => [...prev, { name: fileName, duration, url, storagePath }]);
-          setUploadProgress((p) => {
-            const n = { ...p };
-            delete n[fileName];
-            return n;
-          });
-          toast.success(`✅ ${file.name} subida`);
-          resolve();
-        }
-      );
-    });
+    const task = uploadBytesResumable(storageRef, file);
+    task.on(
+      "state_changed",
+      (s) => {
+        const pct = Math.round((s.bytesTransferred / s.totalBytes) * 100);
+        setUploadProgress((p) => ({ ...p, [fileName]: pct }));
+      },
+      (err) => {
+        console.error(err);
+        toast.error("Error al subir muestra");
+        setSamples((prev) => prev.filter((s) => s.storagePath !== storagePath)); // revertir
+        setUploadProgress((p) => {
+          const n = { ...p };
+          delete n[fileName];
+          return n;
+        });
+      },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        let duration = 0;
+        try {
+          duration = await getAudioDurationSafe(url);
+        } catch {}
+
+        // 👉 Reemplazar muestra provisional por la real
+        setSamples((prev) =>
+          prev.map((s) =>
+            s.storagePath === storagePath ? { ...s, url, duration } : s
+          )
+        );
+        setUploadProgress((p) => {
+          const n = { ...p };
+          delete n[fileName];
+          return n;
+        });
+        toast.success(`✅ ${file.name} subida`);
+      }
+    );
   };
+
 
   const dropzoneAudio = useDropzone({
     onDrop: async (files) => {
@@ -382,7 +372,7 @@ export default function OnboardingPage() {
       const idem = uuidv4();
       const paths = samples.map((s) => s.storagePath);
 
-      toast.loading("Creando voz…");
+      toast.loading("Clonando...");
 
       // 1. Pedir a ElevenLabs que cree la voz
       const res = await fetch("/api/elevenlabs/voice/create", {
@@ -465,46 +455,49 @@ export default function OnboardingPage() {
 
   const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
   const goNext = async () => {
-    const ok = await ensureSubscribed();
-    if (!ok) {
-      setShowCheckout(true);
-      return;
+    // ✅ Primero: validaciones sincronas
+    if (step === 1 && !validStep1) {
+      return toast.error("Debes aceptar los Términos y la Política de Uso Aceptable.");
     }
-
-    // ✅ Validación Step 1
-    if (step === 1) {
-      if (!validStep1) {
-        return toast.error("Debes aceptar los Términos y la Política de Uso Aceptable.");
-      }
-
-      // Solo si ambas casillas están marcadas → guardar en Firestore
-      if (user && acceptTerms && acceptAup) {
-        try {
-          const idToken = await user.getIdToken(true);
-          await fetch(`/api/firebase/users/${user.uid}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ isTermsAccepted: true }),
-          });
-          console.log("✅ Flag isTermsAccepted actualizado en Firestore");
-        } catch (err) {
-          console.error("Error al actualizar isTermsAccepted:", err);
-        }
-      }
-    }
-
     if (step === 2 && !validStep2) {
       return toast.error("Sube un vídeo de clonación.");
     }
 
-    // Avanzar de paso
+    // ✅ Optimistic UI: avanzar inmediatamente
     setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
+
+    // 🔄 En background (no bloquea la UI)
+    (async () => {
+      try {
+        const ok = await ensureSubscribed();
+        if (!ok) {
+          setShowCheckout(true);
+          return;
+        }
+
+        // Guardar flag en paso 1
+        if (step === 1 && user && acceptTerms && acceptAup) {
+          try {
+            const idToken = await user.getIdToken(true);
+            await fetch(`/api/firebase/users/${user.uid}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({ isTermsAccepted: true }),
+            });
+            console.log("✅ Flag isTermsAccepted actualizado en Firestore");
+          } catch (err) {
+            console.error("Error al actualizar isTermsAccepted:", err);
+          }
+        }
+      } catch (err) {
+        console.error("Error al verificar subscripción:", err);
+        toast.error("No se pudo verificar tu suscripción.");
+      }
+    })();
   };
-
-
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -639,44 +632,89 @@ export default function OnboardingPage() {
           </section>
         )}
 
-
-
-
-
         {step === 2 && (
-          <section className="space-y-5">
-            <h2 className="text-xl font-semibold">Sube tu vídeo de clonación</h2>
+        <section className="space-y-5">
+          <h2 className="text-xl font-semibold">Sube tu vídeo de clonación</h2>
 
-            {!videoDoc ? (
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                  isDragActive ? "border-primary bg-muted/40" : "border-border"
-                }`}
-              >
-                <input {...getInputProps()} />
-                <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
-                <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
-                <p className="text-xs text-muted-foreground">Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16</p>
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* 📹 Izquierda: tutorial + checklist */}
+            <div className="space-y-4">
+              <div className="aspect-video rounded-lg overflow-hidden border border-border">
+                <video
+                  src="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/Tutorial%20grabación.mov?alt=media"
+                  controls
+                  preload="metadata"
+                  playsInline
+                  poster="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/video-cover.jpeg?alt=media"
+                  className="w-full h-full object-cover"
+                />
               </div>
-            ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <video src={videoDoc.url} controls className="w-full max-h-96 object-cover" />
-                <div className="p-3 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Vídeo listo</span>
-                  <Button variant="outline" size="sm" onClick={removeVideo}>Reemplazar</Button>
+
+              {/* ✅ Requisitos */}
+              <div className="space-y-2 text-sm">
+                <p className="font-medium">Requisitos del vídeo:</p>
+                <ul className="space-y-1">
+                  <li className="flex items-center gap-2 text-muted-foreground">
+                    <Check className="w-4 h-4 text-green-500" />
+                    Formato vertical (9:16)
+                  </li>
+                  <li className="flex items-center gap-2 text-muted-foreground">
+                    <Check className="w-4 h-4 text-green-500" />
+                    Máximo {MAX_VIDEO_MB} MB
+                  </li>
+                  <li className="flex items-center gap-2 text-muted-foreground">
+                    <Check className="w-4 h-4 text-green-500" />
+                    Fondo liso y buena iluminación
+                  </li>
+                  <li className="flex items-center gap-2 text-muted-foreground">
+                    <Check className="w-4 h-4 text-green-500" />
+                    Hablar de frente y con claridad
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* 📤 Derecha: Dropzone o vídeo cargado */}
+            <div>
+              {!videoDoc ? (
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer transition ${
+                    isDragActive ? "border-primary bg-muted/40" : "border-border"
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
+                  <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
+                  <p className="text-xs text-muted-foreground">
+                    Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16
+                  </p>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-lg border overflow-hidden">
+                  <video src={videoDoc.url} controls className="w-full max-h-80 object-cover" />
+                  <div className="p-3 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Vídeo listo</span>
+                    <Button variant="outline" size="sm" onClick={removeVideo}>
+                      Reemplazar
+                    </Button>
+                  </div>
+                </div>
+              )}
 
-            {uploadingVideo && (
-              <div className="flex items-center gap-3">
-                <Progress value={videoProgressPct} className="w-48" />
-                <span className="text-xs">{videoProgressPct}%</span>
-              </div>
-            )}
-          </section>
-        )}
+              {uploadingVideo && (
+                <div className="flex items-center gap-3 mt-4">
+                  <Progress value={videoProgressPct} className="w-48" />
+                  <span className="text-xs">{videoProgressPct}%</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+
+
 
         {step === 3 && (
           <section className="space-y-6">
@@ -735,10 +773,10 @@ export default function OnboardingPage() {
                   totalDuration === 0 ||
                   totalDuration > MAX_TOTAL_SECONDS ||
                   !videoDoc ||
-                  !validStep1
+                  !validStep1 || !subscribed
                 }
               >
-                Crear voz y finalizar
+                Finalizar
               </Button>
             </div>
           </section>

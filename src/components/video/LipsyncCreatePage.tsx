@@ -17,6 +17,17 @@ type VideoItem = { id: string; url: string; name?: string };
 const PAGE_SIZE = 1;
 const MAX_SEC = 60; // ⏱️ límite duro
 
+export interface VideoData {
+  projectId: string;
+  title: string;
+  status: string;
+  downloadUrl?: string;
+  duration?: number;
+}
+
+// ✅ Usamos este extendido para el flujo optimista
+export type OptimisticVideoData = VideoData & { _rollback?: boolean };
+
 // Helpers para leer duración desde URL remota
 const getAudioDurationFromUrl = (url: string) =>
   new Promise<number>((resolve, reject) => {
@@ -40,7 +51,7 @@ const getVideoDurationFromUrl = (url: string) =>
 
 interface Props {
   onClose?: () => void;
-  onCreated?: () => void;
+  onCreated?: (video?: OptimisticVideoData) => void;
 }
 
 export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
@@ -195,166 +206,121 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   }
 
   async function handleGenerate() {
-    flushSync(() => setProcessing(true));
+  flushSync(() => setProcessing(true));
 
-    const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
-    if (!ok) {
-      setProcessing(false);
-      setShowCheckout(true); // 👈 abre modal
-      return;
-    }
-
-    if (!user) {
-      toast.error("Debes iniciar sesión.");
-      setProcessing(false);
-      return;
-    }
-
-    const audio = audios.find((a) => a.id === selectedAudioId);
-    if (!audio?.audioUrl) {
-      toast.error("Debes seleccionar un audio válido.");
-      setProcessing(false);
-      return;
-    }
-
-    const video = videos.find((v) => v.id === selectedVideoId);
-    if (!video?.url) {
-      toast.error("Debes seleccionar un vídeo válido.");
-      setProcessing(false);
-      return;
-    }
-
-    if (!title.trim()) {
-      toast.error("Debes escribir un título para el vídeo.");
-      setProcessing(false);
-      return;
-    }
-
-    // ⏱️ Validación dura de duración (audio + vídeo)
-    try {
-      const aSec =
-        audioSec ??
-        (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
-      const vSec =
-        videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
-
-      if (!aSec) {
-        toast.error("No se pudo leer la duración del audio.");
-        setProcessing(false);
-        return;
-      }
-      if (!vSec) {
-        toast.error("No se pudo leer la duración del vídeo.");
-        setProcessing(false);
-        return;
-      }
-      if (aSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-      if (vSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-    } catch {
-      toast.error("No se pudo validar la duración de los medios.");
-      setProcessing(false);
-      return;
-    }
-
-    // ⏱️ Validación dura de duración (audio + vídeo)
-    try {
-      const aSec =
-        audioSec ??
-        (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
-      const vSec =
-        videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
-
-      if (!aSec) {
-        toast.error("No se pudo leer la duración del audio.");
-        setProcessing(false);
-        return;
-      }
-      if (!vSec) {
-        toast.error("No se pudo leer la duración del vídeo.");
-        setProcessing(false);
-        return;
-      }
-      if (aSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-      if (vSec > MAX_SEC) {
-        toast.error(
-          `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
-        );
-        setProcessing(false);
-        return;
-      }
-    } catch {
-      toast.error("No se pudo validar la duración de los medios.");
-      setProcessing(false);
-      return;
-    }
-
-    toast.info(
-      `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
-    );
-
-    setLoading(true);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/sync/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          audioUrl: audio.audioUrl,
-          videoUrl: video.url,
-          title,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error creando vídeo");
-
-      toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-
-      // 1️⃣ cerrar modal secundario
-      onClose?.();
-
-      // 2️⃣ refrescar lista en el padre
-      if (typeof onCreated === "function") {
-        onCreated();
-      } else {
-        // fallback
-        if (window.location.pathname === "/dashboard/video") {
-          router.refresh();
-        } else {
-          router.push("/dashboard/video");
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "No se pudo crear el lipsync"
-      );
-    } finally {
-      setLoading(false);
-      setProcessing(false);
-    }
+  const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
+  if (!ok) {
+    setProcessing(false);
+    setShowCheckout(true);
+    return;
   }
+
+  if (!user) {
+    toast.error("Debes iniciar sesión.");
+    setProcessing(false);
+    return;
+  }
+
+  const audio = audios.find((a) => a.id === selectedAudioId);
+  const video = videos.find((v) => v.id === selectedVideoId);
+
+  if (!audio?.audioUrl) {
+    toast.error("Debes seleccionar un audio válido.");
+    setProcessing(false);
+    return;
+  }
+  if (!video?.url) {
+    toast.error("Debes seleccionar un vídeo válido.");
+    setProcessing(false);
+    return;
+  }
+  if (!title.trim()) {
+    toast.error("Debes escribir un título para el vídeo.");
+    setProcessing(false);
+    return;
+  }
+
+  // ⏱️ Validación dura de duración
+  try {
+    const aSec =
+      audioSec ??
+      (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
+    const vSec =
+      videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
+
+    if (!aSec) throw new Error("No se pudo leer la duración del audio.");
+    if (!vSec) throw new Error("No se pudo leer la duración del vídeo.");
+    if (aSec > MAX_SEC)
+      throw new Error(
+        `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
+      );
+    if (vSec > MAX_SEC)
+      throw new Error(
+        `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
+      );
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Validación fallida");
+    setProcessing(false);
+    return;
+  }
+
+  // ⚡ Optimistic UI: placeholder
+  const optimisticId = `optimistic-${Date.now()}`;
+      onCreated?.({
+      projectId: "temp-" + Date.now(),
+      title: "Temporal",
+      status: "processing",
+      downloadUrl: "", 
+      _rollback: true,
+    });
+
+  toast.info(
+    `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
+  );
+
+  setLoading(true);
+  try {
+    const token = await user.getIdToken();
+    const res = await fetch("/api/sync/create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        audioUrl: audio.audioUrl,
+        videoUrl: video.url,
+        title,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error creando vídeo");
+
+    toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
+
+    // 1️⃣ cerrar modal secundario
+    onClose?.();
+
+    // 2️⃣ actualizar/reemplazar el placeholder
+    onCreated?.({
+      projectId: data.id,
+      title: data.title || title,
+      status: "processing",
+      downloadUrl: data.downloadUrl,
+    } as any);
+  } catch (err) {
+    console.error(err);
+    toast.error(
+      err instanceof Error ? err.message : "No se pudo crear el lipsync"
+    );
+    // ❌ revertir optimista
+    onCreated?.({ projectId: optimisticId, _rollback: true } as any);
+  } finally {
+    setLoading(false);
+    setProcessing(false);
+  }
+}
 
   const isLoading = processing || loading;
   const buttonText = processing

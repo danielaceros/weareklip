@@ -123,10 +123,15 @@ export default function IdeasViralesPage() {
       return;
     }
 
+    const exists = favorites.some((fav) => fav.id === video.id);
+
+    // 👉 Optimistic UI: actualizamos favoritos de inmediato
+    setFavorites((prev) =>
+      exists ? prev.filter((f) => f.id !== video.id) : [...prev, video]
+    );
+
     try {
       const idToken = await user.getIdToken();
-      const exists = favorites.some((fav) => fav.id === video.id);
-
       const url = `/api/firebase/users/${user.uid}/ideas/${video.id}`;
       const options: RequestInit = {
         method: exists ? "DELETE" : "PUT",
@@ -141,12 +146,17 @@ export default function IdeasViralesPage() {
       if (!res.ok) throw new Error(`Error ${res.status}`);
 
       toast.success(exists ? "Eliminado de favoritos" : "Añadido a favoritos");
-      await loadFavorites(user);
     } catch (err) {
       console.error("Error en toggleFavorite:", err);
       toast.error("No se pudo actualizar favoritos");
+
+      // ❌ revertir cambio si falla
+      setFavorites((prev) =>
+        exists ? [...prev, video] : prev.filter((f) => f.id !== video.id)
+      );
     }
   };
+
 
   // Replicar vídeo
   const replicateVideo = async (video: ShortVideo) => {
@@ -155,9 +165,23 @@ export default function IdeasViralesPage() {
       return;
     }
 
+    // 👉 Optimistic UI: feedback inmediato
     const replicateToast = toast.loading("Replicando guion...");
+    
+    // Creamos un guion provisional para mostrar al usuario (si tienes UI de scripts)
+    const provisionalScript = {
+      id: `temp-${video.id}`,
+      description: `Guion replicado de ${video.title}`,
+      platform: "youtube",
+      script: "Generando transcripción...",
+      isAI: false,
+      createdAt: new Date(),
+      videoTitle: video.title,
+      videoThumbnail: video.thumbnail,
+    };
+    // Aquí podrías insertarlo en tu lista local de scripts, si la tienes.
+
     try {
-      // 🔹 Obtener transcripción desde tu API
       const res = await fetch(`/api/youtube/transcript?id=${video.id}`);
       const data = await res.json();
 
@@ -166,24 +190,16 @@ export default function IdeasViralesPage() {
         return;
       }
 
-      // 🔹 Preparar body para el nuevo guion
       const newScript = {
-        description: `Guion replicado de ${video.title}`,
-        platform: "youtube",
-        language: "es",
+        ...provisionalScript,
         script: data.transcript,
-        createdAt: new Date(), // tu backend lo guarda como Timestamp
         fuente: video.url,
-        isAI: false,
-        videoTitle: video.title,
         videoDescription: video.description,
         videoChannel: video.channel,
         videoPublishedAt: video.publishedAt,
         videoViews: video.views,
-        videoThumbnail: video.thumbnail,
       };
 
-      // 🔹 Guardar en /scripts via API segura
       const idToken = await user.getIdToken();
       const saveRes = await fetch(`/api/firebase/users/${user.uid}/scripts`, {
         method: "POST",
@@ -195,15 +211,20 @@ export default function IdeasViralesPage() {
       });
 
       if (!saveRes.ok) throw new Error(`Error ${saveRes.status}`);
-      await saveRes.json();
+      const saved = await saveRes.json();
 
       toast.success("Guion replicado y guardado ✅", { id: replicateToast });
       router.push("/dashboard/script");
+
+      // Aquí podrías reemplazar el provisional por el real usando saved.id
     } catch (err) {
       console.error("Error replicando vídeo:", err);
       toast.error("Error al replicar vídeo", { id: replicateToast });
+
+      // ❌ opcional: eliminar el guion provisional de la UI
     }
   };
+
 
   return (
     <div className="min-h-[85vh] max-w-6xl mx-auto py-8 space-y-8">

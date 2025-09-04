@@ -17,8 +17,7 @@ export function kindForFile(file: File): MediaKind {
 
 /** Valida según su mimetype (comportamiento por defecto) */
 export function validateFileSize(
-  file: File
-): { ok: true } | { ok: false; message: string } {
+file: File, p0: number): { ok: true } | { ok: false; message: string } {
   return validateFileSizeAs(file, kindForFile(file));
 }
 
