@@ -38,7 +38,9 @@ import {
   User as UserIcon,
   CreditCard,
   PlayCircle,
+  DollarSign,
 } from "lucide-react";
+import { FaMoneyBill } from "react-icons/fa";
 
 interface Props {
   user: {
@@ -235,6 +237,14 @@ export default function UserDropdown({ user }: Props) {
         </DropdownMenuItem>
 
         <DropdownMenuItem
+          onClick={() => router.push("/pricing")}
+          className="cursor-pointer"
+        >
+          <DollarSign className="mr-2 h-4 w-4 opacity-80" />
+          Pricing
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
           onClick={() => {
             router.push("/dashboard");
             setTimeout(() => {
@@ -247,6 +257,7 @@ export default function UserDropdown({ user }: Props) {
           <PlayCircle className="mr-2 h-4 w-4 opacity-80" />
           ¿Cómo utilizar Viralizalo.AI?
         </DropdownMenuItem>
+        
 
         <DropdownMenuItem
           onClick={() => router.push("/dashboard/settings")}
