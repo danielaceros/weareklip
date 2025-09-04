@@ -1,4 +1,3 @@
-// src/app/dashboard/clones/NewVoiceContainer.tsx
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -18,7 +17,7 @@ import { VoiceSamplesList } from "./VoiceSamplesList";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { v4 as uuidv4 } from "uuid";
 import { Progress } from "@/components/ui/progress";
-import { Mic, UploadCloud, CheckCircle2, VolumeX } from "lucide-react";
+import { Mic, UploadCloud, CheckCircle2, VolumeX, Loader2 } from "lucide-react";
 import {
   Pagination,
   PaginationContent,
@@ -28,10 +27,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
-import { Input } from "@/components/ui/input"; // ⬅️ nuevo
-import { Label } from "@/components/ui/label"; // ⬅️ nuevo
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button"; // ⬅️ nuevo
 
-/* ✅ límites: forzamos "audio" (10 MB) aunque el archivo sea video */
 import { validateFileSizeAs } from "@/lib/fileLimits";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
@@ -52,19 +51,19 @@ export default function NewVoiceContainer() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
-  /* 🏷️ nombre de la voz (opcional) */
-  const [voiceTitle, setVoiceTitle] = useState(""); // ⬅️ nuevo
+  // 🏷️ nombre de la voz
+  const [voiceTitle, setVoiceTitle] = useState("");
 
-  /* ✅ memoizamos la referencia de storage (evita recrear callbacks) */
+  // ⛔ anti-doble-click
+  const [submitting, setSubmitting] = useState(false);
+  const inFlight = useRef(false);
+
   const storage = useMemo(() => getStorage(), []);
-
   const { ensureSubscribed } = useSubscriptionGate();
   const [showCheckout, setShowCheckout] = useState(false);
 
-  /* ---- auth listener ---- */
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
-  /* ---- helpers ---- */
   const getAudioDurationFromURL = (url: string): Promise<number> =>
     new Promise((resolve, reject) => {
       const audio = document.createElement("audio");
@@ -73,7 +72,6 @@ export default function NewVoiceContainer() {
       audio.addEventListener("error", (e) => reject(e));
     });
 
-  /* ---- fetchSamples con dependencias correctas ---- */
   const fetchSamples = useCallback(async () => {
     if (!user) return;
     try {
@@ -107,12 +105,10 @@ export default function NewVoiceContainer() {
     }
   }, [user, storage]);
 
-  /* ✅ efecto depende de la función (sin warning ni closures viejos) */
   useEffect(() => {
     void fetchSamples();
   }, [fetchSamples]);
 
-  /* ---- subida a Firebase con tope 10 MB ---- */
   const uploadToFirebase = useCallback(
     async (file: File) => {
       if (!user) {
@@ -120,7 +116,6 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      // ✅ Límite 10 MB SIEMPRE (sea audio o vídeo)
       const v = validateFileSizeAs(file, "audio");
       if (!v.ok) {
         toast.error("Archivo demasiado grande", { description: v.message });
@@ -134,7 +129,6 @@ export default function NewVoiceContainer() {
       const storagePath = `users/${user.uid}/voices/${fileName}`;
       const storageRef = ref(storage, storagePath);
 
-      // 👉 Optimistic UI: añadimos preview temporal
       const tempUrl = URL.createObjectURL(file);
       setSamples((prev) => [
         ...prev,
@@ -160,7 +154,6 @@ export default function NewVoiceContainer() {
               delete next[fileName];
               return next;
             });
-            // ❌ eliminamos muestra temporal si falla
             setSamples((prev) =>
               prev.filter((s) => s.storagePath !== storagePath)
             );
@@ -171,11 +164,7 @@ export default function NewVoiceContainer() {
             let duration = 0;
             try {
               duration = await getAudioDurationFromURL(url);
-            } catch {
-              duration = 0;
-            }
-
-            // ✅ reemplazamos la muestra provisional por la final
+            } catch {}
             setSamples((prev) =>
               prev.map((s) =>
                 s.storagePath === storagePath ? { ...s, url, duration } : s
@@ -186,7 +175,6 @@ export default function NewVoiceContainer() {
               delete next[fileName];
               return next;
             });
-
             toast.success(`✅ ${file.name} subida correctamente`);
             resolve();
           }
@@ -196,7 +184,6 @@ export default function NewVoiceContainer() {
     [user, storage]
   );
 
-  /* ---- dropzone ---- */
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (!user) {
@@ -205,7 +192,6 @@ export default function NewVoiceContainer() {
       }
       for (const file of acceptedFiles) {
         try {
-          // “Doble red”: validamos aquí también
           const v = validateFileSizeAs(file, "audio");
           if (!v.ok) {
             toast.error("Archivo demasiado grande", { description: v.message });
@@ -221,7 +207,6 @@ export default function NewVoiceContainer() {
     [user, uploadToFirebase]
   );
 
-  // ✅ Dropzone: rechaza si excede 10 MB (audio-context)
   const validator = (file: File) => {
     const v = validateFileSizeAs(file, "audio");
     return v.ok ? null : { code: "file-too-large", message: v.message };
@@ -236,12 +221,11 @@ export default function NewVoiceContainer() {
         })
       );
     },
-    accept: { "audio/*": [], "video/*": [] }, // puedes dejar vídeo si conviertes a audio
+    accept: { "audio/*": [], "video/*": [] },
     multiple: true,
-    validator, // 👈 fuerza 10 MB para todo lo que entre aquí
+    validator,
   });
 
-  /* ---- grabación de micrófono (con tope 10 MB) ---- */
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -258,7 +242,6 @@ export default function NewVoiceContainer() {
           type: "audio/webm",
         });
 
-        // ✅ también 10 MB para la grabación
         const v = validateFileSizeAs(file, "audio");
         if (!v.ok) {
           toast.error("Audio demasiado grande", { description: v.message });
@@ -288,7 +271,6 @@ export default function NewVoiceContainer() {
     }
   };
 
-  /* ---- acciones ---- */
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
@@ -303,46 +285,58 @@ export default function NewVoiceContainer() {
   };
 
   const createVoice = async () => {
-    if (!user) {
-      toast.error("Debes iniciar sesión");
-      return;
-    }
-    if (samples.length === 0) {
-      toast.error("Debes subir al menos una muestra de voz");
-      return;
-    }
-
-    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
-    if (!ok) {
-      setShowCheckout(true);
-      return;
-    }
+    if (inFlight.current || submitting) return; // ⛔ doble click
+    inFlight.current = true;
+    setSubmitting(true);
 
     try {
-      const idToken = await user.getIdToken(true);
+      if (!user) {
+        toast.error("Debes iniciar sesión");
+        return;
+      }
+      if (samples.length === 0) {
+        toast.error("Debes subir al menos una muestra de voz");
+        return;
+      }
+
+      const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
+      if (!ok) {
+        setShowCheckout(true);
+        return;
+      }
+
+      // Pre-check de cuota en cliente (UX)
+      const token = await user.getIdToken(true);
+      const resList = await fetch(`/api/firebase/users/${user.uid}/voices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const list = (await resList.json().catch(() => [])) as any[];
+      if (Array.isArray(list) && list.length >= 1) {
+        toast.error("Has alcanzado el límite de 1 voz por cuenta.");
+        return;
+      }
+
       const idem = uuidv4();
-
       const paths = samples.map((s) => s.storagePath);
-
-      // 🏷️ nombre final (fallback si lo dejan vacío)
-      const fallback = `Voz-${Date.now()}`;
-      const finalName = (voiceTitle || "").trim() || fallback;
+      const finalName = (voiceTitle || "").trim() || `Voz-${Date.now()}`;
 
       toast.loading("Creando voz en ElevenLabs...");
 
-      // 1) Crear voz en ElevenLabs (si tu route usa voiceName, lo mandamos)
+      // 1) Crear voz en ElevenLabs
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-          "X-Idempotency-Key": idem,
+          Authorization: `Bearer ${token}`,
+          "X-Idempotency-Key": idem, // 🔒 idempotencia
         },
-        body: JSON.stringify({
-          paths,
-          voiceName: finalName, // ⬅️ usamos el nombre elegido
-        }),
+        body: JSON.stringify({ paths, voiceName: finalName }),
       });
+
+      if (res.status === 409) {
+        toast.message("Ya estamos creando tu voz…");
+        return;
+      }
 
       let data: VoiceCreateOk | VoiceCreateErr;
       try {
@@ -375,16 +369,16 @@ export default function NewVoiceContainer() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             voice_id: data.voice_id,
             requires_verification:
               "requires_verification" in data
-                ? data.requires_verification
+                ? (data as any).requires_verification
                 : undefined,
-            name: finalName, // ⬅️ guardamos el nombre
-            title: finalName, // ⬅️ compat si tu UI lee `title`
+            name: finalName,
+            title: finalName,
             paths,
             createdAt: Date.now(),
             idem,
@@ -397,7 +391,7 @@ export default function NewVoiceContainer() {
         throw new Error(`Error guardando voz: ${errText}`);
       }
 
-      toast.success(`✅ Voz creada y guardada con ID: ${data.voice_id}`);
+      toast.success(`✅ Voz creada y guardada`);
       router.push("/dashboard/clones");
     } catch (err) {
       console.error(err);
@@ -405,23 +399,24 @@ export default function NewVoiceContainer() {
       toast.error(
         (err as Error).message || "Error de conexión al crear la voz"
       );
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
     }
   };
 
-  /* ---- paginación ---- */
   const [page, setPage] = useState(1);
   const perPage = 1;
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
 
-  /* ---- UI ---- */
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
         Clonación de voz
       </h1>
 
-      {/* 🏷️ Nombre de la voz */}
+      {/* Nombre de la voz */}
       <div className="mb-6">
         <Label className="text-sm font-medium" htmlFor="voice-title">
           Nombre de la voz (opcional)
@@ -437,22 +432,21 @@ export default function NewVoiceContainer() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-8">
-        {/* Columna izquierda */}
+        {/* izquierda */}
         <div className="space-y-6">
-          {/* Tips */}
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-2">
               <VolumeX className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
               <h3 className="font-medium text-sm">Evita entornos ruidosos</h3>
               <p className="text-xs text-muted-foreground">
-                Los sonidos de fondo interfieren con la calidad de la grabación.
+                Los sonidos de fondo interfieren con la calidad.
               </p>
             </div>
             <div className="p-2">
               <Mic className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
               <h3 className="font-medium text-sm">Usa equipo consistente</h3>
               <p className="text-xs text-muted-foreground">
-                No cambies el equipo de grabación entre muestras.
+                No cambies el equipo entre muestras.
               </p>
             </div>
             <div className="p-2">
@@ -490,7 +484,7 @@ export default function NewVoiceContainer() {
             </button>
           </div>
 
-          {/* Progreso total minutos (visual) */}
+          {/* progreso total */}
           <div className="flex items-center gap-4">
             <Progress value={(totalDuration / 120) * 100} className="flex-1" />
             <span className="text-sm font-medium whitespace-nowrap">
@@ -498,20 +492,23 @@ export default function NewVoiceContainer() {
             </span>
           </div>
 
-          {/* Botón generar */}
+          {/* Botón generar (bloqueado mientras envía) */}
           <div className="flex justify-center lg:justify-end">
-            <button
+            <Button
               onClick={createVoice}
-              className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition w-full sm:w-auto"
+              disabled={submitting || samples.length === 0}
+              aria-busy={submitting}
+              className="w-full sm:w-auto"
               data-paywall
               data-paywall-feature="elevenlabs-voice"
             >
-              Generar audio
-            </button>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Creando voz..." : "Generar audio"}
+            </Button>
           </div>
         </div>
 
-        {/* Columna derecha */}
+        {/* derecha */}
         <div className="w-full space-y-6">
           <div className="max-h-[400px] overflow-y-auto pr-2">
             <VoiceSamplesList
@@ -562,7 +559,6 @@ export default function NewVoiceContainer() {
         </div>
       </div>
 
-      {/* Modal */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
