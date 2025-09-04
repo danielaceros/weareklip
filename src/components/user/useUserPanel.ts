@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { auth, storage } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 
@@ -19,6 +24,7 @@ interface ClonacionVideo {
   url: string;
   thumbnail?: string;
   storagePath?: string;
+  uploading?: boolean; // 👈 para identificar temporales
 }
 
 export function useUserPanel() {
@@ -27,7 +33,7 @@ export function useUserPanel() {
   const [clonacionVideos, setClonacionVideos] = useState<ClonacionVideo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [loading, setLoading] = useState(true); // ✅ spinner en primera carga
+  const [loading, setLoading] = useState(true);
 
   // Props extra para evitar errores de TS en SubscriptionSection
   const loadingSub = false;
@@ -44,7 +50,7 @@ export function useUserPanel() {
       } else {
         setClonacionVideos([]);
       }
-      setLoading(false); // ✅ termina el loading tras la primera respuesta
+      setLoading(false);
     });
     return () => unsub();
   }, []);
@@ -62,9 +68,7 @@ export function useUserPanel() {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 
-      if (!res.ok) {
-        throw new Error("Error al cargar videos de clonación");
-      }
+      if (!res.ok) throw new Error("Error al cargar videos de clonación");
 
       const vids: ClonacionVideo[] = await res.json();
       setClonacionVideos(vids);
@@ -74,7 +78,7 @@ export function useUserPanel() {
     }
   };
 
-  // Subir vídeo
+  // Subir vídeo (Optimistic UI)
   const handleUpload = async (file: File) => {
     if (!user) {
       toast.error(t("clonacion.mustLogin"));
@@ -84,10 +88,18 @@ export function useUserPanel() {
     const id = crypto.randomUUID();
     const storagePath = `users/${user.uid}/clones/${id}`;
 
-    try {
-      setUploading(true);
-      setProgress(0);
+    // 🔹 Añadimos preview inmediata
+    const tempVideo: ClonacionVideo = {
+      id,
+      url: URL.createObjectURL(file),
+      storagePath,
+      uploading: true,
+    };
+    setClonacionVideos((prev) => [tempVideo, ...prev]);
+    setUploading(true);
+    setProgress(0);
 
+    try {
       // 1) Subir a Storage
       const storageRef = ref(storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, file);
@@ -106,10 +118,10 @@ export function useUserPanel() {
         );
       });
 
-      // 2) Obtener URL
+      // 2) Obtener URL real
       const url = await getDownloadURL(storageRef);
 
-      // 3) Persistir en tu API (CRUD)
+      // 3) Persistir en tu API
       const token = await user.getIdToken();
       const res = await fetch(`/api/firebase/users/${user.uid}/clones`, {
         method: "POST",
@@ -125,27 +137,39 @@ export function useUserPanel() {
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`Error guardando clonación (${res.status})`);
-      }
+      if (!res.ok) throw new Error(`Error guardando clonación (${res.status})`);
+
+      // 🔹 Reemplazamos temporal con definitivo
+      setClonacionVideos((prev) =>
+        prev.map((v) =>
+          v.id === id ? { ...v, url, uploading: false } : v
+        )
+      );
 
       toast.success(t("clonacion.uploadSuccess"));
-      setUploading(false);
-      setProgress(0);
-      await fetchClonacionVideos(user.uid);
     } catch (err) {
       console.error("❌ Upload error:", err);
       toast.error(t("clonacion.uploadError"));
+
+      // 🔹 Revertimos quitando el temporal
+      setClonacionVideos((prev) => prev.filter((v) => v.id !== id));
+    } finally {
       setUploading(false);
+      setProgress(0);
     }
   };
 
-  const handleDelete = async (videoId: string, storagePath: string) => {
+  // Eliminar vídeo (Optimistic UI)
+  const handleDelete = async (videoId: string, storagePath?: string) => {
     if (!user) return;
+
+    const prevVideos = [...clonacionVideos];
+    // 🔹 Quitamos inmediatamente
+    setClonacionVideos((prev) => prev.filter((v) => v.id !== videoId));
+
     try {
       const token = await user.getIdToken();
 
-      // 1) Eliminar doc via API
       const res = await fetch(
         `/api/firebase/users/${user.uid}/clones/${videoId}`,
         {
@@ -155,7 +179,6 @@ export function useUserPanel() {
       );
       if (!res.ok) throw new Error(`Error borrando doc (${res.status})`);
 
-      // 2) Eliminar archivo de Storage
       if (storagePath) {
         try {
           await deleteObject(ref(storage, storagePath));
@@ -165,10 +188,12 @@ export function useUserPanel() {
       }
 
       toast.success(t("clonacion.deleteSuccess"));
-      await fetchClonacionVideos(user.uid);
     } catch (err) {
       console.error(err);
       toast.error(t("clonacion.deleteError"));
+
+      // 🔹 Revertimos si falla
+      setClonacionVideos(prevVideos);
     }
   };
 
@@ -180,7 +205,7 @@ export function useUserPanel() {
     handleDelete,
     uploading,
     progress,
-    loading, // 👈 ahora lo exponemos
+    loading,
 
     // Props extra para SubscriptionSection
     loadingSub,

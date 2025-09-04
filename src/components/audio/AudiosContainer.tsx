@@ -93,45 +93,54 @@ export default function AudiosContainer() {
     if (!user) return;
     if (deleting) return;
     setDeleting(true);
+
+    const prev = audios; // 👈 guardamos estado previo por si toca rollback
+
     try {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        await Promise.all(
-          audios.map(async (audio) => {
-            const res = await fetch(
-              `/api/firebase/users/${user.uid}/audios/${audio.audioId}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${idToken}` },
-              }
-            );
-            if (!res.ok) throw new Error(`Error ${res.status}`);
-          })
-        );
+        // 🔹 UI optimista: vaciamos la lista de inmediato
         setAudios([]);
+
+        await Promise.all(
+          prev.map((audio) =>
+            fetch(`/api/firebase/users/${user.uid}/audios/${audio.audioId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${idToken}` },
+            })
+          )
+        );
+
         toast.success("🗑️ Todos los audios eliminados");
       } else if (audioToDelete) {
+        // 🔹 UI optimista: quitamos el audio antes de la respuesta del servidor
+        setAudios((s) => s.filter((a) => a.audioId !== audioToDelete.audioId));
+
         const res = await fetch(
           `/api/firebase/users/${user.uid}/audios/${audioToDelete.audioId}`,
-          { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } }
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
         );
-        if (!res.ok) throw new Error(`Error ${res.status}`);
 
-        setAudios((prev) =>
-          prev.filter((a) => a.audioId !== audioToDelete.audioId)
-        );
+        if (!res.ok) throw new Error("Error en borrado");
         toast.success("Audio eliminado ✅");
       }
     } catch (err) {
       console.error("Error eliminando audio:", err);
       toast.error("❌ No se pudo eliminar el audio");
+
+      // 🔄 rollback si algo salió mal
+      setAudios(prev);
     } finally {
       setDeleting(false);
       setAudioToDelete(null);
       setDeleteAll(false);
     }
-  }, [user, deleteAll, audioToDelete, audios, deleting]);
+  }, [user, audios, deleteAll, audioToDelete, deleting]);
+
 
   /* 🔢 Paginación */
   const totalPages = Math.max(1, Math.ceil(audios.length / perPage));
@@ -227,15 +236,14 @@ export default function AudiosContainer() {
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl">
           <AudioCreatorContainer
-            {
-              ...({
-                onClose: () => setIsNewOpen(false),
-                onCreated: () => {
-                  setIsNewOpen(false);
-                  fetchAudios(); // refresca la lista sin recargar
-                },
-              } as any) // 👈 cast puntual para evitar el error de tipos
-            }
+            onCreated={(newAudio) => {
+              setIsNewOpen(false);
+              // Optimistic UI: añadimos el nuevo audio a la lista
+              setAudios((prev) => [newAudio, ...prev]);
+              // ⚡ opcional: aún así refrescamos desde backend en background
+              fetchAudios();
+            }}
+            onCancel={() => setIsNewOpen(false)}
           />
         </DialogContent>
       </Dialog>

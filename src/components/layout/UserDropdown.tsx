@@ -219,15 +219,6 @@ export default function UserDropdown({ user }: Props) {
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
-        {/* Items simples */}
-        <DropdownMenuItem
-          onClick={() => router.push("/dashboard/user")}
-          className="cursor-pointer"
-        >
-          <UserIcon className="mr-2 h-4 w-4 opacity-80" />
-          {t("dropdown.profile") ?? "Mi perfil"}
-        </DropdownMenuItem>
-
         <DropdownMenuItem
           onClick={() => router.push("/dashboard/billing")}
           className="cursor-pointer"

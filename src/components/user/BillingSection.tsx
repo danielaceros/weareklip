@@ -52,7 +52,6 @@ interface UserDoc {
   usage?: { tokens?: number; euros?: number };
 }
 
-/** Tareas (Firestore /tasks) */
 type Task = {
   id: string;
   kind: "script" | "audio" | "video" | "edit" | string;
@@ -112,11 +111,11 @@ export default function BillingSection() {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [openCheckout, setOpenCheckout] = useState(false);
 
-  // NUEVO: summary desde Stripe
   const [summary, setSummary] = useState<any | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
-  // NUEVO: filtros
+  const [optimisticTasks, setOptimisticTasks] = useState<Task[]>([]);
+
   const [filterKind, setFilterKind] = useState<string>("all");
   const [filterRange, setFilterRange] = useState<"week" | "month" | "all">(
     "week"
@@ -132,7 +131,7 @@ export default function BillingSection() {
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-  // 🔥 Fetch paralelo
+  // Fetch paralelo: usuario, stripe, summary
   useEffect(() => {
     if (!user) return;
     const ctrl = new AbortController();
@@ -158,7 +157,6 @@ export default function BillingSection() {
             if (!docResp.ok) return null;
             const doc = await docResp.json();
             if (!doc?.stripeCustomerId) return null;
-
             return fetch(
               `/api/stripe/customer?customerId=${encodeURIComponent(
                 doc.stripeCustomerId
@@ -207,7 +205,7 @@ export default function BillingSection() {
     };
   }, [user]);
 
-  // 🔥 Obtener tasks
+  // Fetch tasks
   useEffect(() => {
     if (!user) return;
     const ctrl = new AbortController();
@@ -227,6 +225,7 @@ export default function BillingSection() {
         if (res.ok) {
           const data: Task[] = await res.json();
           setTasks(data);
+          setOptimisticTasks(data);
         }
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -241,6 +240,21 @@ export default function BillingSection() {
 
     return () => ctrl.abort();
   }, [user]);
+
+  const filteredTasks = useMemo(() => {
+    return optimisticTasks.filter((t) => {
+      const d = tsToDate(t.createdAt);
+      if (!d) return false;
+      if (filterRange === "week") {
+        if (d < currentWeek.start || d > currentWeek.end) return false;
+      }
+      if (filterRange === "month") {
+        if (d.getMonth() !== new Date().getMonth()) return false;
+      }
+      if (filterKind !== "all" && t.kind !== filterKind) return false;
+      return true;
+    });
+  }, [optimisticTasks, filterKind, filterRange, currentWeek]);
 
   const sub = useMemo(() => {
     const fromStripe =
@@ -267,25 +281,6 @@ export default function BillingSection() {
   const periodStart = sub?.start_date ?? sub?.trial_start ?? null;
   const periodEnd =
     sub?.status === "trialing" ? sub?.trial_end ?? null : sub?.renewal ?? null;
-
-  // 🔥 Filtrar tareas
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      const d = tsToDate(t.createdAt);
-      if (!d) return false;
-
-      if (filterRange === "week") {
-        if (d < currentWeek.start || d > currentWeek.end) return false;
-      }
-      if (filterRange === "month") {
-        if (d.getMonth() !== new Date().getMonth()) return false;
-      }
-
-      if (filterKind !== "all" && t.kind !== filterKind) return false;
-
-      return true;
-    });
-  }, [tasks, filterKind, filterRange, currentWeek]);
 
   return (
     <section className="space-y-6 px-4 sm:px-6">
@@ -325,7 +320,10 @@ export default function BillingSection() {
                 ) : (
                   <>
                     <div className="text-3xl font-semibold">
-                      {toCredits(summary?.pendingUsageCents ?? 0)} créditos
+                      {sub?.status === "trialing"
+                        ? 0
+                        : toCredits(summary?.pendingUsageCents ?? 0)}{" "}
+                      créditos
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       Uso total
@@ -371,7 +369,26 @@ export default function BillingSection() {
 
               <div className="pt-4">
                 {!sub?.active ? (
-                  <Button className="w-full" onClick={() => setOpenCheckout(true)}>
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      setOpenCheckout(true);
+                      try {
+                        const currentUser = getAuth().currentUser;
+                        if (!currentUser) throw new Error("No autenticado");
+                        const idToken = await currentUser.getIdToken();
+                        const res = await fetch("/api/stripe/checkout", {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${idToken}` },
+                        });
+                        if (!res.ok) throw new Error("Error en checkout");
+                      } catch (err) {
+                        console.error(err);
+                        toast.error("❌ No se pudo abrir el checkout");
+                        setOpenCheckout(false);
+                      }
+                    }}
+                  >
                     Empezar prueba GRATUITA
                   </Button>
                 ) : (
@@ -380,10 +397,9 @@ export default function BillingSection() {
                     className="w-full"
                     onClick={async () => {
                       toast.loading("Abriendo tu portal de Cliente");
-                      const user = getAuth().currentUser;
-                      if (!user) return alert("Debes iniciar sesión");
-                      const idToken = await user.getIdToken();
-
+                      const currentUser = getAuth().currentUser;
+                      if (!currentUser) return alert("Debes iniciar sesión");
+                      const idToken = await currentUser.getIdToken();
                       const res = await fetch("/api/stripe/portal", {
                         method: "POST",
                         headers: { Authorization: `Bearer ${idToken}` },
@@ -421,7 +437,10 @@ export default function BillingSection() {
               </SelectContent>
             </Select>
 
-            <Select value={filterRange} onValueChange={(v: any) => setFilterRange(v)}>
+            <Select
+              value={filterRange}
+              onValueChange={(v: any) => setFilterRange(v)}
+            >
               <SelectTrigger className="sm:w-[160px] w-full">
                 <SelectValue placeholder="Rango" />
               </SelectTrigger>

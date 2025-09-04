@@ -52,7 +52,7 @@ const STRUCTURE_OPTIONS = [
 
 interface ScriptCreatorContainerProps {
   onClose?: () => void; // 👈 para cerrar el modal padre también
-  onCreated?: () => void; // 👈 nuevo
+   onCreated?: (newScript: any) => void; // 👈 pasa el objeto creado
 }
 
 export default function ScriptCreatorContainer({
@@ -269,7 +269,21 @@ export default function ScriptCreatorContainer({
 
       // 2️⃣ Notificar al padre que se creó un guion
       if (typeof onCreated === "function") {
-        onCreated();
+        onCreated({
+          scriptId,
+          description,
+          tone,
+          platform,
+          duration,
+          language,
+          structure,
+          addCTA,
+          ctaText,
+          script,
+          createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
+          regenerations: scriptRegens,
+          isAI: true,
+        });
       }
 
       // 3️⃣ Cerrar modal principal si hay `onClose`
@@ -278,13 +292,12 @@ export default function ScriptCreatorContainer({
       }
 
       // 4️⃣ Refrescar/navegar
-      setTimeout(() => {
-        if (window.location.pathname === "/dashboard/script") {
-          router.refresh();
-        } else {
-          router.push("/dashboard/script");
-        }
-      }, 300);
+      if (window.location.pathname === "/dashboard/script") {
+        router.refresh(); // asegura sincronización con server
+      } else {
+        router.push("/dashboard/script");
+      }
+
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
       toast.error("No se pudo guardar el guion.", { id: toastId });

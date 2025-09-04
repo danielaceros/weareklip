@@ -12,7 +12,6 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
-import { Gift } from "lucide-react";
 
 type Summary = {
   subscriptions: {
@@ -84,29 +83,20 @@ export function Topbar() {
   // 🧮 Conversiones
   const toCredits = (cents?: number | null) =>
     Math.floor(Math.max(0, cents ?? 0) / 10);
+
   const availableCredits = toCredits(summary?.credits?.availableCents);
-  const pendingCredits = toCredits(summary?.pendingUsageCents);
   const overdueCredits = toCredits(summary?.overdueCents);
 
-  // 🔁 Fechas de ciclo
-  const fmtDate = (ts: number | null | undefined) =>
-    ts
-      ? new Date(ts * 1000).toLocaleDateString(undefined, {
-          day: "2-digit",
-          month: "short",
-          year: "2-digit",
-        })
-      : "—";
-
+  // ⚡ Uso total del mes (excluye prueba)
   const monthly = summary?.subscriptions?.monthly;
-  const periodEnd = monthly?.renewalAt;
-  const periodStart = monthly?.renewalAt
-    ? new Date(
-        new Date(monthly.renewalAt * 1000).setMonth(
-          new Date(monthly.renewalAt * 1000).getMonth() - 1
-        )
-      ).getTime() / 1000
-    : null;
+  const usageCredits =
+    monthly?.trialing ? 0 : toCredits(summary?.pendingUsageCents);
+
+  // ⚡ Cargo diario real (solo si no está en trial)
+  const dailyChargeEuros = monthly?.trialing
+    ? 0
+    : (summary?.pendingUsageCents ?? 0) / 100;
+  const dailyChargeCredits = monthly?.trialing ? 0 : usageCredits;
 
   // ⚡ Handler para reclamar créditos regalo
   const claimTrial = async () => {
@@ -119,7 +109,6 @@ export function Topbar() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        // 🔄 Recargar toda la app para reflejar cambios globales
         window.location.reload();
       } else {
         const err = await res.json();
@@ -138,8 +127,8 @@ export function Topbar() {
       {summary?.trial?.available && !summary?.trial?.used && (
         <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
           <span>
-Tienes créditos de prueba disponibles. Reclámalos para empezar a
-            usar la plataforma sin coste.
+            Tienes créditos de prueba disponibles. Reclámalos para empezar a usar la
+            plataforma sin coste.
           </span>
           <button
             onClick={claimTrial}
@@ -193,49 +182,42 @@ Tienes créditos de prueba disponibles. Reclámalos para empezar a
                 >
                   {summary.hasOverdue
                     ? `Deuda: ${overdueCredits} créditos`
-                    : `Consumo: ${pendingCredits} créditos`}
+                    : `Uso total: ${usageCredits} créditos`}
                 </Badge>
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="w-80 rounded-2xl border border-neutral-800 bg-black text-white p-6 shadow-lg space-y-6"
+                className="w-72 rounded-2xl border border-neutral-800 bg-black text-white p-6 shadow-lg space-y-6"
               >
                 <div>
-                  <h4 className="text-sm text-neutral-400">
-                    Consumo del mes ({fmtDate(periodStart)} – {fmtDate(periodEnd)})
-                  </h4>
+                  <h4 className="text-sm text-neutral-400">Uso total del mes</h4>
                   <div className="text-4xl font-semibold mt-1">
-                    {pendingCredits}{" "}
+                    {usageCredits}{" "}
                     <span className="text-lg font-normal">créditos</span>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-neutral-400 text-sm">Créditos disponibles</p>
+                  <p className="text-neutral-400 text-sm">
+                    Créditos disponibles (incluye prueba)
+                  </p>
                   <div className="text-2xl font-semibold">
                     {availableCredits}{" "}
                     <span className="text-lg font-normal">créditos</span>
                   </div>
-                  {monthly?.trialing && (
-                    <p className="text-xs text-neutral-500">
-                      Créditos de prueba hasta {fmtDate(monthly.renewalAt)}
+                </div>
+                  <div className="space-y-1 pt-2 border-t border-neutral-800">
+                    <p className="text-neutral-400 text-sm">Hoy</p>
+                    <p className="text-sm text-neutral-500">
+                      Cargo hoy a las 23:59 (Europa/Madrid)
                     </p>
-                  )}
-                </div>
-
-                <div className="space-y-1 pt-2 border-t border-neutral-800">
-                  <p className="text-neutral-400 text-sm">Hoy</p>
-                  <p className="text-sm text-neutral-500">
-                    Cargo hoy a las 23:59 (Europa/Madrid)
-                  </p>
-                  <div className="text-lg font-medium mt-1">
-                    {(summary?.pendingUsageCents ?? 0) / 100}€ · {pendingCredits} créditos
+                    <div className="text-lg font-medium mt-1">
+                      {dailyChargeEuros}€ · {dailyChargeCredits} créditos
+                    </div>
                   </div>
-                </div>
               </PopoverContent>
             </Popover>
           ) : null}
-
 
           {user && (
             <div id="user-dropdown">

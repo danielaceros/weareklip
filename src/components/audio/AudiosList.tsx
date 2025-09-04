@@ -25,9 +25,10 @@ export interface AudioData {
   description?: string;
   createdAt?: { seconds: number; nanoseconds: number };
   url: string;
-  duration?: string;
+  duration?: number;  // 👈 ahora es number
   language?: string;
 }
+
 
 interface AudiosListProps {
   audios: AudioData[];

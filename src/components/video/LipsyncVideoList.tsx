@@ -11,9 +11,9 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-interface VideoData {
+export interface VideoData {
   projectId: string;
-  title: string;
+  title: string; // 👈 obligatorio
   status: string;
   downloadUrl?: string;
   duration?: number;
