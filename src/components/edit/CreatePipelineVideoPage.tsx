@@ -1,4 +1,3 @@
-// src/app/dashboard/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -32,16 +31,13 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { track } from "@/lib/analytics-events";
 
-// -------- utilidades --------
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 function hasString(v: unknown, key: string): v is Record<string, string> {
   return isRecord(v) && typeof v[key] === "string";
 }
-const stripExt = (name?: string) => (name || "").replace(/\.[^/.]+$/, "");
 
-// -----------------------------
 const MAX_SEC = 60;
 
 const getVideoDurationFromUrl = (url: string) =>
@@ -101,7 +97,7 @@ export default function CreatePipelineVideoPage({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoSec, setVideoSec] = useState<number | null>(null);
 
-  // 🏷️ TÍTULO DEL REEL (opcional)
+  // 🏷️ NUEVO: título del reel
   const [videoTitle, setVideoTitle] = useState("");
 
   const [language, setLanguage] = useState("");
@@ -124,36 +120,30 @@ export default function CreatePipelineVideoPage({
 
   const { ensureSubscribed } = useSubscriptionGate();
 
-  /* ---- Dropzone ---- */
-  const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      const f = acceptedFiles[0];
-      if (!f) return;
-      try {
-        const sec = await getVideoDurationFromFile(f);
-        if (!sec) {
-          toast.error("No se pudo leer la duración del vídeo.");
-          return;
-        }
-        if (sec > MAX_SEC) {
-          toast.error(
-            `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-          );
-          return;
-        }
-        setFile(f);
-        setVideoSec(sec);
-        setVideoUrl(null);
-        // sugerimos título si está vacío
-        if (!videoTitle.trim()) setVideoTitle(stripExt(f.name));
-        toast.success(`📹 Vídeo "${f.name}" cargado`);
-        track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
-      } catch {
-        toast.error("❌ No se pudo analizar el vídeo.");
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const f = acceptedFiles[0];
+    if (!f) return;
+    try {
+      const sec = await getVideoDurationFromFile(f);
+      if (!sec) {
+        toast.error("No se pudo leer la duración del vídeo.");
+        return;
       }
-    },
-    [videoTitle]
-  );
+      if (sec > MAX_SEC) {
+        toast.error(
+          `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+        );
+        return;
+      }
+      setFile(f);
+      setVideoSec(sec);
+      setVideoUrl(null);
+      toast.success(`📹 Vídeo "${f.name}" cargado`);
+      track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
+    } catch {
+      toast.error("❌ No se pudo analizar el vídeo.");
+    }
+  }, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
@@ -161,7 +151,6 @@ export default function CreatePipelineVideoPage({
     disabled: !!videoUrl,
   });
 
-  /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
@@ -232,18 +221,15 @@ export default function CreatePipelineVideoPage({
       return;
     }
 
-    // 🏷️ Título final
-    const finalTitle =
-      videoTitle.trim() ||
-      stripExt(file?.name) ||
-      preloadedVideos[0]?.name ||
-      "video-preloaded";
-
     // ---- Optimistic UI ----
     if (onCreated) {
       const tempVideo: OptimisticVideoData = {
         projectId: uuidv4(),
-        title: finalTitle,
+        title:
+          (videoTitle || "").trim() ||
+          file?.name ||
+          preloadedVideos[0]?.name ||
+          "Reel sin título",
         status: "processing",
         downloadUrl: videoUrl || preloadedVideos[0]?.url,
         _optimistic: true,
@@ -281,7 +267,7 @@ export default function CreatePipelineVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: finalTitle, // ⬅️ enviamos el título
+          title: (videoTitle || "").trim() || undefined, // 👈 ENVIAMOS TÍTULO
           audioUrl,
           videoUrl: finalVideoUrl,
           subLang: language,
@@ -301,7 +287,7 @@ export default function CreatePipelineVideoPage({
 
       toast.success("🎬 Reel enviado al pipeline correctamente");
       track("pipeline_reel_submitted", {
-        title: finalTitle,
+        title: videoTitle || undefined,
         language,
         template,
         magicZooms,
@@ -361,8 +347,6 @@ export default function CreatePipelineVideoPage({
                     }
                     setVideoUrl(v.url);
                     setVideoSec(sec);
-                    // sugerimos título si no hay
-                    if (!videoTitle.trim()) setVideoTitle(v.name);
                     toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
                     track("video_selected", {
                       name: v.name,
@@ -436,21 +420,16 @@ export default function CreatePipelineVideoPage({
 
       {/* DERECHA */}
       <div className="space-y-4 sm:space-y-6">
-        {/* 🏷️ Título del reel */}
+        {/* 🏷️ Título del reel (NUEVO) */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">
-            Título (opcional)
-          </Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">Título del reel</Label>
           <Input
             value={videoTitle}
             onChange={(e) => setVideoTitle(e.target.value)}
-            placeholder="Ej: Demo features – vertical"
-            maxLength={80}
+            placeholder="Ej: Testimonial Eneko – ES"
+            className="text-sm"
+            maxLength={120}
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Si lo dejas vacío usaremos el nombre del archivo o
-            “video-preloaded”.
-          </p>
         </div>
 
         {/* Templates */}
@@ -585,7 +564,6 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
-
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

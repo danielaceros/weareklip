@@ -22,7 +22,9 @@ export async function POST(req: Request) {
     const decoded = await adminAuth.verifyIdToken(idToken);
 
     // 2️⃣ Body
+    const body = await req.json();
     const {
+      title, // ⬅️ NUEVO: título opcional
       audioUrl,
       videoUrl,
       subLang,
@@ -31,7 +33,11 @@ export async function POST(req: Request) {
       magicZooms,
       magicBrolls,
       magicBrollsPercentage,
-    } = await req.json();
+    } = body || {};
+    const requestedTitle =
+      typeof title === "string" && title.trim().length > 0
+        ? title.trim()
+        : "";
 
     if (!audioUrl || !videoUrl) {
       return NextResponse.json(
@@ -44,6 +50,7 @@ export async function POST(req: Request) {
     await gaServerEvent(
       "pipeline_started",
       {
+        title: requestedTitle || undefined,
         audioUrl,
         videoUrl,
         subLang,
@@ -80,7 +87,9 @@ export async function POST(req: Request) {
         .collection("lipsync")
         .doc(jobId)
         .set({
-          title: `Lipsync (simulado) - ${new Date().toLocaleString()}`,
+          title:
+            requestedTitle ||
+            `Lipsync (simulado) - ${new Date().toLocaleString()}`,
           status: "processing",
           createdAt: now,
           updatedAt: now,
@@ -93,7 +102,9 @@ export async function POST(req: Request) {
           magicZooms: magicZooms ?? false,
           magicBrolls: magicBrolls ?? false,
           magicBrollsPercentage:
-            typeof magicBrollsPercentage === "number" ? magicBrollsPercentage : 50,
+            typeof magicBrollsPercentage === "number"
+              ? magicBrollsPercentage
+              : 50,
           email: decoded.email || null,
           uid: decoded.uid,
           simulated: true,
@@ -180,14 +191,15 @@ export async function POST(req: Request) {
     jobId = data.id;
     model = data.model || "lipsync-2";
 
-    // 5️⃣ Guardar en Firestore
+    // 5️⃣ Guardar en Firestore (con título)
     await adminDB
       .collection("users")
       .doc(decoded.uid)
       .collection("lipsync")
       .doc(jobId)
       .set({
-        title: `Lipsync - ${new Date().toLocaleString()}`,
+        title:
+          requestedTitle || `Lipsync - ${new Date().toLocaleString()}`, // ⬅️ respeta el título del usuario
         status: "processing",
         createdAt: adminTimestamp.now(),
         updatedAt: adminTimestamp.now(),
