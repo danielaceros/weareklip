@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { useSearchParams, usePathname, useRouter } from "next/navigation"; // 👈 NUEVO
+import { useSearchParams, useRouter } from "next/navigation";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -22,11 +23,12 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
-import { ScriptCard } from "./ScriptCard";
-import { ScriptModal } from "./ScriptModal";
-import ScriptCreatorContainer from "./ScriptCreatorContainer";
+
+import { ScriptCard } from "@/components/script/ScriptCard";
+import { ScriptModal } from "@/components/script/ScriptModal";
+import ScriptCreatorContainer from "@/components/script/ScriptCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface ScriptData {
   scriptId: string;
@@ -52,6 +54,9 @@ interface ScriptData {
 }
 
 export default function ScriptsContainer() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [scripts, setScripts] = useState<ScriptData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -73,17 +78,6 @@ export default function ScriptsContainer() {
     const auth = getAuth();
     return onAuthStateChanged(auth, setUser);
   }, []);
-
-  // ✅ Abrir modal automáticamente si viene ?new=1
-  const searchParams = useSearchParams(); // 👈 NUEVO
-  const pathname = usePathname(); // 👈 NUEVO
-  const router = useRouter(); // 👈 NUEVO
-  useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setIsNewOpen(true); // abre el mismo modal del botón
-      router.replace(pathname, { scroll: false }); // limpia el query para que no se reabra
-    }
-  }, [searchParams, pathname, router]);
 
   // 📥 Fetch de scripts
   const fetchScripts = useCallback(async () => {
@@ -127,6 +121,17 @@ export default function ScriptsContainer() {
   useEffect(() => {
     fetchScripts();
   }, [fetchScripts]);
+
+  // ✅ Abrir modal si venimos con ?new=1 y limpiar la URL
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setIsNewOpen(true);
+      // limpiamos el query param sin recargar
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   // 🟠 Borrado con UI optimista
   const handleConfirmDelete = async () => {
@@ -337,7 +342,13 @@ export default function ScriptsContainer() {
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-2xl w-full rounded-xl">
-          <ScriptCreatorContainer />
+          <ScriptCreatorContainer
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              // si prefieres, usa fetchScripts() en lugar de recargar
+              setTimeout(() => window.location.reload(), 300);
+            }}
+          />
         </DialogContent>
       </Dialog>
 

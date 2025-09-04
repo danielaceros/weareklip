@@ -1,4 +1,4 @@
-// app/api/firebase/users/[uid]/voices/[voiceId]/route.ts
+// /app/api/firebase/users/[uid]/voices/[voiceId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminDB, adminAuth } from "@/lib/firebase-admin";
 
@@ -14,10 +14,15 @@ async function verifyAuth(req: NextRequest, expectedUid: string) {
   return decoded;
 }
 
+// Tipado de params
+interface RouteContext {
+  params: Promise<{ uid: string; voiceId: string }>;
+}
+
 // 🔹 GET una voz
-export async function GET(req: NextRequest, context: any) {
+export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    const { uid, voiceId } = context.params;
+    const { uid, voiceId } = await context.params; // 👈 await obligatorio
     await verifyAuth(req, uid);
 
     const docSnap = await adminDB
@@ -45,9 +50,9 @@ export async function GET(req: NextRequest, context: any) {
 }
 
 // 🔹 PUT crear o actualizar voz
-export async function PUT(req: NextRequest, context: any) {
+export async function PUT(req: NextRequest, context: RouteContext) {
   try {
-    const { uid, voiceId } = context.params;
+    const { uid, voiceId } = await context.params; // 👈 await obligatorio
     await verifyAuth(req, uid);
 
     const body = await req.json();
@@ -79,9 +84,9 @@ export async function PUT(req: NextRequest, context: any) {
 }
 
 // 🔹 DELETE eliminar voz
-export async function DELETE(req: NextRequest, context: any) {
+export async function DELETE(req: NextRequest, context: RouteContext) {
   try {
-    const { uid, voiceId } = context.params;
+    const { uid, voiceId } = await context.params; // 👈 await obligatorio
     await verifyAuth(req, uid);
 
     await adminDB

@@ -22,7 +22,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
+import { Spinner } from "@/components/ui/shadcn-io/spinner";
+
+/* ✅ Toast (Sonner) */
+import { toast } from "sonner";
+/* ✅ Validación de tamaño */
+import { validateFileSize } from "@/lib/fileLimits";
 
 interface ClonacionVideo {
   id: string;
@@ -37,7 +42,7 @@ interface ClonacionVideosSectionProps {
   handleDelete: (id: string) => Promise<void> | void;
   uploading: boolean;
   progress: number;
-  loading?: boolean; // 👈 nuevo prop para spinner inicial
+  loading?: boolean;
   perPage?: number;
 }
 
@@ -54,7 +59,7 @@ export default function ClonacionVideosSection({
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  // Estado para confirmación
+  // Estado para confirmación de borrado
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -98,9 +103,21 @@ export default function ClonacionVideosSection({
               accept="video/*"
               className="hidden"
               onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  handleUpload(e.target.files[0]);
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // ⛔️ Valida tamaño y muestra toast si excede
+                const res = validateFileSize(file);
+                if (!res.ok) {
+                  toast.error("Archivo demasiado grande", {
+                    description: res.message,
+                  });
+                  e.target.value = ""; // limpia el input si no pasa
+                  return;
                 }
+
+                // ✅ OK => subir
+                handleUpload(file);
               }}
               disabled={uploading}
             />
@@ -224,7 +241,10 @@ export default function ClonacionVideosSection({
       </div>
 
       {/* Modal de preview */}
-      <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+      <Dialog
+        open={!!selectedVideo}
+        onOpenChange={() => setSelectedVideo(null)}
+      >
         <DialogContent className="max-w-lg sm:max-w-xl md:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("clonacion.previewTitle")}</DialogTitle>

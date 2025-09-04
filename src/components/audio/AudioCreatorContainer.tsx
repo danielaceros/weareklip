@@ -34,6 +34,11 @@ interface Props {
   onCancel?: () => void;
 }
 
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
+
 export default function AudioCreatorContainer({ onCreated }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -79,16 +84,12 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
   const formatTime = (time: number) => {
     if (!time || isNaN(time)) return "00:00";
-    const m = Math.floor(time / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = Math.floor(time % 60)
-      .toString()
-      .padStart(2, "0");
+    const m = Math.floor(time / 60).toString().padStart(2, "0");
+    const s = Math.floor(time % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
 
-  // Avisar si el audio generado excede 60s
+  // Avisar si el audio generado excede el máximo
   useEffect(() => {
     if (duration > MAX_SEC) {
       toast.error(
@@ -99,13 +100,16 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     }
   }, [duration]);
 
-  const buildVoiceSettings = () => ({
-    stability: form.stability ?? null,
-    similarity_boost: form.similarityBoost ?? null,
-    style: form.style ?? null,
-    speed: form.speed ?? 1,
-    use_speaker_boost: form.speakerBoost ?? null,
-  });
+  const buildVoiceSettings = () => {
+    const safeSpeed = clamp(form.speed ?? 1, MIN_SPEED, MAX_SPEED);
+    return {
+      stability: form.stability ?? null,
+      similarity_boost: form.similarityBoost ?? null,
+      style: form.style ?? null,
+      speed: safeSpeed,
+      use_speaker_boost: form.speakerBoost ?? null,
+    };
+  };
 
   // 👉 Generar audio inicial
   const handleGenerate = async () => {
@@ -225,31 +229,29 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Error regenerando audio");
 
       setAudioUrl(data.audioUrl);
       setRegenCount((c) => c + 1);
+
       toast.success("✅ Audio regenerado", { id: loadingId });
     } catch (err) {
-      console.error(err);
+      console.error("❌ [Audio] handleRegenerate error:", err);
       toast.error("❌ No se pudo regenerar", { id: loadingId });
     } finally {
       setRegenLoading(false);
     }
   };
 
-  // 👇 Cerrar modal de preview + cerrar modal padre (si hay) + refrescar lista
+  // 👇 Cerrar modal de preview + refrescar lista
   const finishAndRefresh = useCallback(() => {
     setShowModal(false);
-
     if (onCreated) {
       onCreated();
       return;
     }
-
-    const stamp = Date.now();
-    router.push(`/dashboard/audio?created=${stamp}`);
+    router.push(`/dashboard/audio?created=${Date.now()}`);
   }, [onCreated, router]);
 
   const handleAccept = () => {
@@ -261,15 +263,17 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       );
       return;
     }
-
     toast.success("📂 Audio guardado en tu biblioteca");
     finishAndRefresh();
   };
 
+  // ============================ RENDER ============================
   return (
     <>
+      {/* Form principal */}
       <AudioForm {...form} onGenerate={handleGenerate} />
 
+      {/* Modal de preview tras generar */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-md space-y-4">
           <DialogHeader>
@@ -341,4 +345,3 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     </>
   );
 }
-

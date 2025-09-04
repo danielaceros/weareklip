@@ -70,8 +70,8 @@ type Task = {
 
 /* ========= Helpers ========= */
 
-const euro = (cents?: number | null) =>
-  (Math.max(0, cents ?? 0) / 100).toFixed(2);
+const toCredits = (cents?: number | null) =>
+  Math.floor(Math.max(0, cents ?? 0) / 10);
 
 const fmtDate = (d: Date | null) =>
   d
@@ -150,7 +150,6 @@ export default function BillingSection() {
             headers: { Authorization: `Bearer ${idToken}` },
             signal: ctrl.signal,
           }),
-          // 🔹 Ahora usamos stripeCustomerId en vez de email
           (async () => {
             const docResp = await fetch(`/api/firebase/users/${user.uid}`, {
               headers: { Authorization: `Bearer ${idToken}` },
@@ -264,7 +263,7 @@ export default function BillingSection() {
       };
     return (fromStripe as SubscriptionInfo) ?? docData?.subscription ?? null;
   }, [stripeData, docData?.subscription]);
-  console.log(sub)
+
   const periodStart = sub?.start_date ?? sub?.trial_start ?? null;
   const periodEnd =
     sub?.status === "trialing" ? sub?.trial_end ?? null : sub?.renewal ?? null;
@@ -326,10 +325,19 @@ export default function BillingSection() {
                 ) : (
                   <>
                     <div className="text-3xl font-semibold">
-                      {euro(summary?.pendingUsageCents ?? 0)} €
+                      {toCredits(summary?.pendingUsageCents ?? 0)} créditos
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       Uso total
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-2xl font-semibold">
+                        {toCredits(summary?.credits?.availableCents ?? 0)} créditos
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Créditos disponibles (incluye prueba)
+                      </div>
                     </div>
                   </>
                 )}
@@ -471,7 +479,9 @@ export default function BillingSection() {
                       <TableCell className="truncate max-w-[100px] sm:max-w-[140px]">
                         {t.id}
                       </TableCell>
-                      <TableCell>{euro(t.chargedCents ?? 0)}€</TableCell>
+                      <TableCell>
+                        {toCredits(t.chargedCents)} créditos
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {(() => {
                           const d = tsToDate(t.createdAt);
@@ -499,7 +509,7 @@ export default function BillingSection() {
       <CheckoutRedirectModal
         open={openCheckout}
         onClose={() => setOpenCheckout(false)}
-        plan="ACCESS" // 👈 aquí fijas el plan o lo determinas dinámicamente
+        plan="ACCESS"
       />
     </section>
   );

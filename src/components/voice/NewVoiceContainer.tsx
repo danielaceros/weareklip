@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { onAuthStateChanged, getAuth, type User } from "firebase/auth";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/pagination";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
+/* ✅ límites: forzamos "audio" (10 MB) aunque el archivo sea video */
+import { validateFileSizeAs } from "@/lib/fileLimits";
+
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
 
@@ -50,14 +53,19 @@ export default function NewVoiceContainer() {
 
   const [totalDuration, setTotalDuration] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
-  const storage = getStorage();
+
+  /* ✅ memoizamos la referencia de storage (evita recrear callbacks) */
+  const storage = useMemo(() => getStorage(), []);
 
   const { ensureSubscribed } = useSubscriptionGate();
   const [showCheckout, setShowCheckout] = useState(false);
 
+  /* ---- auth listener ---- */
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
   const fetchSamples = useCallback(async () => {
@@ -83,7 +91,9 @@ export default function NewVoiceContainer() {
       setTotalDuration(total);
 
       if (total > 180) {
-        toast.error("⚠ Has superado el límite de 3 minutos, elimina muestras para continuar.");
+        toast.error(
+          "⚠ Has superado el límite de 3 minutos, elimina muestras para continuar."
+        );
       }
     } catch (err) {
       console.error(err);
@@ -95,12 +105,21 @@ export default function NewVoiceContainer() {
     void fetchSamples();
   }, [fetchSamples]);
 
+  /* ---- subida a Firebase con tope 10 MB ---- */
   const uploadToFirebase = useCallback(
     async (file: File) => {
       if (!user) {
         toast.error("Debes iniciar sesión");
         return;
       }
+
+      // ✅ Límite 10 MB SIEMPRE (sea audio o vídeo)
+      const v = validateFileSizeAs(file, "audio");
+      if (!v.ok) {
+        toast.error("Archivo demasiado grande", { description: v.message });
+        return;
+      }
+
       const rawExt = file.type.split("/")[1] || "webm";
       const safeExt = rawExt === "x-m4a" ? "m4a" : rawExt;
       const fileName = `sample-${Date.now()}.${safeExt}`;
@@ -115,7 +134,9 @@ export default function NewVoiceContainer() {
         uploadTask.on(
           "state_changed",
           (snapshot) => {
-            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            const progress = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
             setUploadProgress((prev) => ({ ...prev, [fileName]: progress }));
           },
           (error) => {
@@ -140,9 +161,10 @@ export default function NewVoiceContainer() {
         );
       });
     },
-    [user, fetchSamples, storage]
+    [user, storage, fetchSamples]
   );
 
+  /* ---- dropzone ---- */
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (!user) {
@@ -151,6 +173,12 @@ export default function NewVoiceContainer() {
       }
       for (const file of acceptedFiles) {
         try {
+          // “Doble red”: validamos aquí también
+          const v = validateFileSizeAs(file, "audio");
+          if (!v.ok) {
+            toast.error("Archivo demasiado grande", { description: v.message });
+            continue;
+          }
           await uploadToFirebase(file);
         } catch (err) {
           console.error(err);
@@ -161,12 +189,27 @@ export default function NewVoiceContainer() {
     [user, uploadToFirebase]
   );
 
+  // ✅ Dropzone: rechaza si excede 10 MB (audio-context)
+  const validator = (file: File) => {
+    const v = validateFileSizeAs(file, "audio");
+    return v.ok ? null : { code: "file-too-large", message: v.message };
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: (rejs) => {
+      rejs.forEach((r) =>
+        toast.error("Archivo demasiado grande", {
+          description: r.errors?.[0]?.message,
+        })
+      );
+    },
     accept: { "audio/*": [], "video/*": [] },
     multiple: true,
+    validator,
   });
 
+  /* ---- grabación de micrófono (con tope 10 MB) ---- */
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -182,6 +225,14 @@ export default function NewVoiceContainer() {
         const file = new File([blob], `recording-${Date.now()}.webm`, {
           type: "audio/webm",
         });
+
+        const v = validateFileSizeAs(file, "audio");
+        if (!v.ok) {
+          toast.error("Audio demasiado grande", { description: v.message });
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
         await uploadToFirebase(file);
         stream.getTracks().forEach((t) => t.stop());
       };
@@ -195,16 +246,22 @@ export default function NewVoiceContainer() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
   };
 
+  /* ---- acciones ---- */
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     try {
-      await deleteObject(ref(storage, `users/${user.uid}/voices/${sampleName}`));
+      await deleteObject(
+        ref(storage, `users/${user.uid}/voices/${sampleName}`)
+      );
       toast("🗑 Muestra eliminada");
       await fetchSamples();
     } catch {
@@ -222,7 +279,6 @@ export default function NewVoiceContainer() {
       return;
     }
 
-    // Mantenemos el ID interno para no romper gating.
     const ok = await ensureSubscribed({ feature: "voice" });
     if (!ok) {
       setShowCheckout(true);
@@ -234,10 +290,8 @@ export default function NewVoiceContainer() {
       const idem = uuidv4();
 
       const paths = samples.map((s) => s.storagePath);
-      // Texto neutral (sin marcas de proveedor)
       toast.loading("Generando voz…");
 
-      // Ruta genérica para no exponer proveedor en Network
       const res = await fetch("/api/voice/create", {
         method: "POST",
         headers: {
@@ -286,7 +340,9 @@ export default function NewVoiceContainer() {
           body: JSON.stringify({
             voice_id: data.voice_id,
             requires_verification:
-              "requires_verification" in data ? data.requires_verification : undefined,
+              "requires_verification" in data
+                ? data.requires_verification
+                : undefined,
             name: `Voz-${Date.now()}`,
             paths,
             createdAt: Date.now(),
@@ -305,15 +361,19 @@ export default function NewVoiceContainer() {
     } catch (err) {
       console.error(err);
       toast.dismiss();
-      toast.error((err as Error).message || "Error de conexión al crear la voz");
+      toast.error(
+        (err as Error).message || "Error de conexión al crear la voz"
+      );
     }
   };
 
+  /* ---- paginación ---- */
   const [page, setPage] = useState(1);
   const perPage = 1;
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
 
+  /* ---- UI ---- */
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
@@ -360,7 +420,7 @@ export default function NewVoiceContainer() {
               Haz clic para subir o arrastra y suelta
             </p>
             <p className="text-xs text-muted-foreground">
-              Archivos de audio o vídeo de hasta 10 MB cada uno
+              Audios o vídeos (como muestra) hasta 10&nbsp;MB
             </p>
             <span className="mt-2 text-xs text-muted-foreground">o</span>
             <button
@@ -388,7 +448,7 @@ export default function NewVoiceContainer() {
               onClick={createVoice}
               className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition w-full sm:w-auto"
               data-paywall
-              data-paywall-feature="voice"  // mantenido para compatibilidad
+              data-paywall-feature="voice"
             >
               Generar audio
             </button>
@@ -456,4 +516,3 @@ export default function NewVoiceContainer() {
     </div>
   );
 }
-

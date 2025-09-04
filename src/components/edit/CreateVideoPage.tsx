@@ -30,12 +30,20 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-function hasString(v: unknown, key: string): v is Record<string, string> {
-  return isRecord(v) && typeof v[key] === "string";
-}
+/* ✅ límite de tamaño (100 MB vídeo) */
+import { validateFileSizeAs } from "@/lib/fileLimits";
+
+const MAX_SEC = 60; // ⏱️ límite duro
+
+const getVideoDurationFromUrl = (url: string) =>
+  new Promise<number>((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.src = url;
+    v.onloadedmetadata = () => resolve(v.duration || 0);
+    v.onerror = () =>
+      reject(new Error("No se pudo leer la duración del vídeo"));
+  });
 
 type VideoOption = { id: string; name: string; url: string };
 
@@ -50,19 +58,21 @@ interface Props {
     magicBrolls: boolean;
     magicBrollsPercentage: number;
   }) => void;
+  onCreated?: () => void;
 }
 
 export default function CreateVideoPage({
   preloadedVideos = [],
   onComplete,
+  onCreated,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const preloadedVideoUrl = searchParams.get("videoUrl");
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(preloadedVideoUrl);
+  const [videoSec, setVideoSec] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const [language, setLanguage] = useState("");
@@ -72,6 +82,7 @@ export default function CreateVideoPage({
   const [magicBrolls, setMagicBrolls] = useState(false);
   const [magicBrollsPercentage, setMagicBrollsPercentage] = useState(50);
   const [showTemplates, setShowTemplates] = useState(false);
+
   const [languages, setLanguages] = useState<{ name: string; code: string }[]>(
     []
   );
@@ -79,43 +90,105 @@ export default function CreateVideoPage({
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
 
+  // estados del botón
   const [processing, setProcessing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
   const { ensureSubscribed } = useSubscriptionGate();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles[0]) {
-      setFile(acceptedFiles[0]);
-      setVideoUrl(null);
-      toast.success(`📹 Vídeo "${acceptedFiles[0].name}" cargado`);
+  /* ---- Dropzone ---- */
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const f = acceptedFiles[0];
+    if (!f) return;
+
+    // ⛔️ 1) Tamaño (100 MB vídeo)
+    const sizeCheck = validateFileSizeAs(f, "video");
+    if (!sizeCheck.ok) {
+      toast.error("Archivo demasiado grande", {
+        description: sizeCheck.message,
+      });
+      return;
+    }
+
+    // ⏱️ 2) Duración (60 s)
+    const url = URL.createObjectURL(f);
+    try {
+      const sec = await getVideoDurationFromUrl(url);
+      if (sec > MAX_SEC) {
+        toast.error(
+          `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+        );
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setFile(f);
+      setVideoUrl(url);
+      setVideoSec(sec);
+      toast.success("📹 Vídeo cargado");
+    } catch {
+      toast.error("No se pudo analizar el vídeo.");
+      URL.revokeObjectURL(url);
     }
   }, []);
 
+  // ✅ Validator del drop (rechaza antes de onDrop)
+  const validator = (f: File) => {
+    const r = validateFileSizeAs(f, "video"); // 100 MB
+    return r.ok ? null : { code: "file-too-large", message: r.message };
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: (rejs) =>
+      rejs.forEach((r) =>
+        toast.error("Archivo demasiado grande", {
+          description: r.errors?.[0]?.message,
+        })
+      ),
     accept: { "video/*": [] },
     multiple: false,
     disabled: !!videoUrl,
+    validator,
   });
 
+  /* ---- Autoselección de vídeo + medir duración ---- */
   useEffect(() => {
-    if (!videoUrl && !file) {
-      if (preloadedVideoUrl) {
-        setVideoUrl(preloadedVideoUrl);
-      } else if (preloadedVideos.length > 0) {
-        setVideoUrl(preloadedVideos[0].url);
+    (async () => {
+      if (!videoUrl) {
+        if (preloadedVideoUrl) {
+          setVideoUrl(preloadedVideoUrl);
+          const sec = await getVideoDurationFromUrl(preloadedVideoUrl).catch(
+            () => 0
+          );
+          setVideoSec(sec);
+          if (sec > MAX_SEC) {
+            toast.error(
+              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+            );
+          }
+        } else if (preloadedVideos.length > 0) {
+          const url = preloadedVideos[0].url;
+          setVideoUrl(url);
+          const sec = await getVideoDurationFromUrl(url).catch(() => 0);
+          setVideoSec(sec);
+          if (sec > MAX_SEC) {
+            toast.error(
+              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+            );
+          }
+        }
       }
-    }
-  }, [preloadedVideoUrl, preloadedVideos, videoUrl, file]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preloadedVideoUrl, preloadedVideos]);
 
+  /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
     fetch("/api/captions/languages")
       .then((res) => res.json())
       .then((data) => {
         setLanguages(data.languages || []);
-        toast.success("🌍 Idiomas cargados");
       })
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
@@ -124,7 +197,6 @@ export default function CreateVideoPage({
       .then((res) => res.json())
       .then((data) => {
         setTemplates(data.templates || []);
-        toast.success("📑 Templates cargados");
       })
       .catch(() => toast.error("❌ Error cargando templates"))
       .finally(() => setLoadingTpl(false));
@@ -132,7 +204,8 @@ export default function CreateVideoPage({
 
   const handleSubmit = async () => {
     flushSync(() => setProcessing(true));
-    const ok = await ensureSubscribed({ feature: "subtitles" });
+
+    const ok = await ensureSubscribed({ feature: "submagic" });
     if (!ok) {
       setProcessing(false);
       setShowCheckout(true);
@@ -151,6 +224,36 @@ export default function CreateVideoPage({
       setProcessing(false);
       return;
     }
+
+    // ⏱️ Validación dura de duración
+    const sec =
+      videoSec ??
+      (videoUrl ? await getVideoDurationFromUrl(videoUrl).catch(() => 0) : 0);
+    if (!sec) {
+      toast.error("No se pudo leer la duración del vídeo.");
+      setProcessing(false);
+      return;
+    }
+    if (sec > MAX_SEC) {
+      toast.error(
+        `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
+      );
+      setProcessing(false);
+      return;
+    }
+
+    // ⛔️ Validación de tamaño
+    if (file) {
+      const sizeCheck = validateFileSizeAs(file, "video");
+      if (!sizeCheck.ok) {
+        toast.error("Archivo demasiado grande", {
+          description: sizeCheck.message,
+        });
+        setProcessing(false);
+        return;
+      }
+    }
+
     if (!language) {
       toast.error("⚠️ Debes seleccionar un idioma");
       setProcessing(false);
@@ -212,30 +315,25 @@ export default function CreateVideoPage({
         }),
       });
 
-      const raw = await res.text();
-      let parsed: unknown = {};
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = { message: raw };
-      }
-
       if (!res.ok) {
-        const msg =
-          (hasString(parsed, "error") && parsed.error) ||
-          (hasString(parsed, "message") && parsed.message) ||
-          `HTTP ${res.status}`;
-        toast.error(msg);
-        return;
+        const msg = await res.text();
+        throw new Error(msg || `HTTP ${res.status}`);
       }
 
-      const projectId = hasString(parsed, "id") ? parsed.id : undefined;
-      toast.success(
-        `🎬 Vídeo creado correctamente${projectId ? ` (ID: ${projectId})` : ""}`
-      );
+      toast.success("🎬 Vídeo creado correctamente");
+
       setFile(null);
       setUploadProgress(0);
-      router.push("/dashboard/edit");
+
+      if (typeof onCreated === "function") {
+        onCreated();
+      } else {
+        if (window.location.pathname === "/dashboard/edit") {
+          router.refresh();
+        } else {
+          router.push("/dashboard/edit");
+        }
+      }
     } catch (error) {
       console.error(error);
       toast.error("❌ Error subiendo o procesando el vídeo");
@@ -246,16 +344,10 @@ export default function CreateVideoPage({
   };
 
   const isLoading = processing || submitting;
-  const buttonText = processing
-    ? "Procesando..."
-    : submitting
-    ? "Generando..."
-    : onComplete
-    ? "Crear vídeo"
-    : "Generar edición de vídeo";
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 sm:p-6">
+    <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 pb-8">
+      {/* Título */}
       <div className="lg:col-span-2 mb-4">
         <h2 className="text-2xl font-bold">🎥 Edición de Vídeo IA</h2>
         <p className="text-muted-foreground text-sm">
@@ -264,15 +356,28 @@ export default function CreateVideoPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* IZQUIERDA */}
         <div className="flex flex-col gap-4 items-center">
           {preloadedVideos.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
               {preloadedVideos.map((v) => (
                 <div
                   key={v.id}
-                  onClick={() => {
+                  onClick={async () => {
                     setVideoUrl(v.url);
-                    toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    const sec = await getVideoDurationFromUrl(v.url).catch(
+                      () => 0
+                    );
+                    setVideoSec(sec);
+                    if (sec > MAX_SEC) {
+                      toast.error(
+                        `⏱️ El vídeo dura ${Math.round(
+                          sec
+                        )}s y el máximo es ${MAX_SEC}s.`
+                      );
+                    } else {
+                      toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    }
                   }}
                   className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
                     videoUrl === v.url ? "ring-2 ring-blue-500" : ""
@@ -292,7 +397,7 @@ export default function CreateVideoPage({
               ))}
             </div>
           ) : videoUrl ? (
-            <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
+            <div className="rounded-xl overflow-hidden border w/full max-w-sm aspect-[9/16]">
               <video
                 src={videoUrl}
                 controls
@@ -303,7 +408,7 @@ export default function CreateVideoPage({
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center cursor-pointer 
-                w-full max-w-[280px] sm:max-w-sm aspect-[9/16] max-h-[10vh] transition
+                w-full max-w-[280px] sm:max-w-sm aspect-[9/16] transition
                 ${
                   isDragActive
                     ? "border-primary bg-muted"
@@ -324,6 +429,9 @@ export default function CreateVideoPage({
                       ? "Suelta el vídeo aquí..."
                       : "Arrastra un vídeo o haz click"}
                   </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Hasta 60s y 100&nbsp;MB
+                  </p>
                 </>
               )}
             </div>
@@ -333,7 +441,9 @@ export default function CreateVideoPage({
           )}
         </div>
 
+        {/* DERECHA */}
         <div className="space-y-6">
+          {/* Templates */}
           <div>
             <Label className="mb-2 block">Template</Label>
             {loadingTpl ? (
@@ -343,6 +453,7 @@ export default function CreateVideoPage({
               </div>
             ) : (
               <>
+                {/* Mobile */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
                     {(showTemplates ? templates : templates.slice(0, 6)).map(
@@ -374,6 +485,7 @@ export default function CreateVideoPage({
                   )}
                 </div>
 
+                {/* Desktop */}
                 <div className="hidden sm:grid sm:grid-cols-3 gap-3">
                   {templates.map((t) => (
                     <Button
@@ -394,6 +506,7 @@ export default function CreateVideoPage({
             )}
           </div>
 
+          {/* Idioma */}
           <div>
             <Label className="mb-2 block">Idioma</Label>
             {loadingLang ? (
@@ -416,8 +529,11 @@ export default function CreateVideoPage({
             )}
           </div>
 
+          {/* Diccionario */}
           <div>
-            <Label className="mb-2 block">Describe en 3-4 palabras el vídeo</Label>
+            <Label className="mb-2 block">
+              Describe en 3-4 palabras el vídeo
+            </Label>
             <TagsInput
               value={dictionary}
               onChange={setDictionary}
@@ -425,6 +541,7 @@ export default function CreateVideoPage({
             />
           </div>
 
+          {/* Opciones mágicas */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
               <Tooltip>
@@ -432,14 +549,7 @@ export default function CreateVideoPage({
                   <div className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={magicZooms}
-                      onCheckedChange={(c) => {
-                        setMagicZooms(!!c);
-                        toast(
-                          !!c
-                            ? "🔍 Magic Zooms activado"
-                            : "Magic Zooms desactivado"
-                        );
-                      }}
+                      onCheckedChange={(c) => setMagicZooms(!!c)}
                     />
                     <Label>Magic Zooms</Label>
                   </div>
@@ -454,14 +564,7 @@ export default function CreateVideoPage({
                   <div className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={magicBrolls}
-                      onCheckedChange={(c) => {
-                        setMagicBrolls(!!c);
-                        toast(
-                          !!c
-                            ? "🎞 Magic B-rolls activado"
-                            : "Magic B-rolls desactivado"
-                        );
-                      }}
+                      onCheckedChange={(c) => setMagicBrolls(!!c)}
                     />
                     <Label>Magic B-rolls</Label>
                   </div>
@@ -481,29 +584,33 @@ export default function CreateVideoPage({
                   defaultValue={[magicBrollsPercentage]}
                   max={100}
                   step={1}
-                  onValueChange={(v) => {
-                    setMagicBrollsPercentage(v[0]);
-                    toast(`🎬 Porcentaje de B-rolls: ${v[0]}%`);
-                  }}
+                  onValueChange={(v) => setMagicBrollsPercentage(v[0])}
                 />
               </div>
             )}
           </div>
 
+          {/* Botón final */}
           <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            {buttonText}
+            {processing
+              ? "Procesando..."
+              : submitting
+              ? "Generando..."
+              : onComplete
+              ? "Crear vídeo"
+              : "Generar edición de vídeo"}
           </Button>
         </div>
       </div>
 
+      {/* Modal paywall */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message="Necesitas una suscripción activa para generar vídeos."
       />
     </div>
   );
 }
-

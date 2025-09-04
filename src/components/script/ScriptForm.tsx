@@ -27,8 +27,8 @@ interface ScriptFormProps {
   description: string;
   tone: string;
   platform: string;
-  duration: string;      // "0-15" | "15-30" | "30-45" | "45-60"
-  language: string;      // "es" | "en" | "fr"
+  duration: string; // "0-15" | "15-30" | "30-45" | "45-60"
+  language: string; // "es" | "en" | "fr"
   structure: string;
   addCTA: boolean;
   ctaText: string;
@@ -42,6 +42,7 @@ interface ScriptFormProps {
   setAddCTA: (val: boolean) => void;
   setCtaText: (val: string) => void;
   onSubmit: () => void | Promise<void>;
+  onClose?: () => void; // 👈 nuevo: para cerrar modal padre
 }
 
 // 🔎 util: parsea "15-30" -> [15, 30]
@@ -73,6 +74,7 @@ export function ScriptForm({
   setAddCTA,
   setCtaText,
   onSubmit,
+  onClose,
 }: ScriptFormProps) {
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
@@ -81,15 +83,14 @@ export function ScriptForm({
   // 🧮 presupuesto de palabras en base a idioma + rango de duración (cap a 60s)
   const [minSec, maxSec] = useMemo(() => {
     const r = parseDurationRange(duration) ?? [0, 60];
-    // Nunca permitimos más de 60s
     return [Math.min(r[0], MAX_SEC), Math.min(r[1], MAX_SEC)];
   }, [duration]);
 
-  const secondsCap = maxSec; // Usamos el extremo superior del rango
-  const wps = WPS[language] ?? 2.5; // fallback conservador
-  const wordBudget = Math.max(1, Math.floor(wps * secondsCap)); // palabras objetivo
+  const secondsCap = maxSec;
+  const wps = WPS[language] ?? 2.5;
+  const wordBudget = Math.max(1, Math.floor(wps * secondsCap));
 
-  const descMax = 400;  // límite suave para prompt (evita descripciones kilométricas)
+  const descMax = 400;
   const ctaMax = 80;
 
   const handleSubmit = useCallback(async () => {
@@ -108,14 +109,12 @@ export function ScriptForm({
       return;
     }
 
-    // Tope duro de seguridad: jamás permitir >60s
     if (secondsCap > MAX_SEC) {
       toast.error("⏱️ La duración seleccionada excede el máximo permitido (60s).");
       setProcessing(false);
       return;
     }
 
-    // Limitar inputs (calidad/protección prompt)
     if (description.length > descMax) {
       toast.error(`⚠️ La descripción es demasiado larga (máx. ${descMax} caracteres).`);
       setProcessing(false);
@@ -128,9 +127,11 @@ export function ScriptForm({
     }
 
     try {
-      // 💡 RECOMENDACIÓN: en el backend (route.ts) usa `wordBudget` y `secondsCap`
-      // para instruir al modelo: “no excedas ~{wordBudget} palabras (~{secondsCap}s)”.
       await onSubmit();
+
+      if (typeof onClose === "function") {
+        onClose();
+      }
     } finally {
       setProcessing(false);
     }
@@ -146,12 +147,12 @@ export function ScriptForm({
     ctaText,
     secondsCap,
     onSubmit,
+    onClose,
   ]);
 
   const isLoading = processing || loading;
   const buttonText = processing ? "Procesando..." : loading ? "Generando..." : "Generar guion";
 
-  // Opciones estáticas memoizadas
   const toneOptions = useMemo(
     () => [
       { value: "motivador", label: "Motivador" },
@@ -363,6 +364,7 @@ export function ScriptForm({
         </Button>
       </div>
 
+      {/* Modal paywall */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
@@ -372,4 +374,3 @@ export function ScriptForm({
     </div>
   );
 }
-

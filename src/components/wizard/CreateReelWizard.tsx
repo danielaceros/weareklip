@@ -1,4 +1,4 @@
-// app/components/wizard/CreateReelWizard.tsx
+// src/app/dashboard/.../CreateReelWizard.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,9 +11,57 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { useRouter } from "next/navigation";
-import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage"; // OK
+import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
 import { track, withTiming } from "@/lib/analytics-events";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
+
+// === Opciones iguales a ScriptCreatorContainer ===
+const TONE_OPTIONS = [
+  "Motivador",
+  "Educativo",
+  "Humorístico",
+  "Serio",
+  "Inspirador",
+  "Emocional",
+  "Provocador",
+];
+
+const STRUCTURE_OPTIONS = [
+  "Gancho – Desarrollo – Cierre",
+  "Storytelling",
+  "Lista de tips",
+  "Pregunta retórica",
+  "Comparativa antes/después",
+  "Mito vs realidad",
+  "Problema – Solución",
+  "Testimonio",
+];
+
+// === Helper para voces (id puede venir como id o voice_id) ===
+const getVoiceId = (v: any) => v?.voice_id ?? v?.id ?? "";
+
+const SPEED_MIN = 0.7;
+const SPEED_MAX = 1.2;
+const clampSpeed = (x: number) =>
+  Math.min(SPEED_MAX, Math.max(SPEED_MIN, Number.isFinite(x) ? x : 1));
 
 type ReelData = {
   script: string;
@@ -54,13 +102,32 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   const [audioId, setAudioId] = useState<string | null>(null);
 
   // Paso 3 - Vídeos clonación
-  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [videos, setVideos] = useState<
+    { id: string; name: string; url: string }[]
+  >([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
 
+  // Regens
   const [scriptRegens, setScriptRegens] = useState(0);
   const [audioRegens, setAudioRegens] = useState(0);
+
   const [showCheckout, setShowCheckout] = useState(false);
   const { ensureSubscribed } = useSubscriptionGate();
+
+  // ==== Mini-diálogo Script ====
+  const [regenScriptOpen, setRegenScriptOpen] = useState(false);
+  const [regenTone, setRegenTone] = useState("");
+  const [regenStructure, setRegenStructure] = useState("");
+
+  // ==== Mini-diálogo Audio ====
+  const [regenAudioOpen, setRegenAudioOpen] = useState(false);
+  const [rText, setRText] = useState("");
+  const [rVoiceId, setRVoiceId] = useState("");
+  const [rStability, setRStability] = useState(0.5);
+  const [rSimilarity, setRSimilarity] = useState(0.75);
+  const [rStyle, setRStyle] = useState(0);
+  const [rSpeed, setRSpeed] = useState(1);
+  const [rSpeakerBoost, setRSpeakerBoost] = useState(true);
 
   useEffect(() => {
     const auth = getAuth();
@@ -73,7 +140,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     track("wizard_step_viewed", { step, modalType });
   }, [step, modalType]);
 
-  // --- Paso 1: guion ---
+  // ------------------- Paso 1: Guion -------------------
   const generateScript = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
@@ -93,15 +160,34 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     }
     const loadingId = toast.loading("✍️ Generando guion...");
     setLoading(true);
-    track("script_generate_clicked", { tone, platform, duration, language, structure, addCTA: !!addCTA });
+    track("script_generate_clicked", {
+      tone,
+      platform,
+      duration,
+      language,
+      structure,
+      addCTA: !!addCTA,
+    });
 
     try {
       const token = await user.getIdToken();
       const res = await withTiming("script_generate", async () =>
         fetch("/api/ai/scripts/create", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            description,
+            tone,
+            platform,
+            duration,
+            language,
+            structure,
+            addCTA,
+            ctaText,
+          }),
         })
       );
       const parsed = await res.json().catch(() => ({}));
@@ -119,28 +205,47 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     }
   };
 
-  const regenerateScript = async () => {
+  const openScriptRegenDialog = () => {
     if (scriptRegens >= 2) {
       toast.error("⚠️ Ya has regenerado el guion 2 veces.");
       track("script_regenerate_limit_reached");
       return;
     }
-    setScriptRegens((c) => c + 1);
+    setRegenTone(tone || TONE_OPTIONS[0]);
+    setRegenStructure(structure || STRUCTURE_OPTIONS[0]);
+    setRegenScriptOpen(true);
+  };
+
+  const doRegenerateScript = async (toneOverride: string, structureOverride: string) => {
     const loadingId = toast.loading("🔄 Regenerando guion...");
-    track("script_regenerate_clicked", { count: scriptRegens + 1 });
     try {
       const token = await user?.getIdToken();
       const res = await withTiming("script_regenerate", async () =>
         fetch("/api/ai/scripts/regenerate", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ description, tone, platform, duration, language, structure, addCTA, ctaText }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            description,
+            tone: toneOverride,
+            platform,
+            duration,
+            language,
+            structure: structureOverride,
+            addCTA,
+            ctaText,
+          }),
         })
       );
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
       setScript(parsed.script || "");
-      toast.success("✅ Guion regenerado", { id: loadingId });
+      setTone(toneOverride);
+      setStructure(structureOverride);
+      setScriptRegens((c) => c + 1);
+      toast.success(`✅ Guion regenerado`, { id: loadingId });
       track("script_regenerate_succeeded", { length: (parsed.script || "").length });
     } catch (err: any) {
       console.error(err);
@@ -157,7 +262,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     setStep(2);
   };
 
-  // --- Paso 2: audio ---
+  // ------------------- Paso 2: Audio -------------------
   const generateAudio = async () => {
     const ok = await ensureSubscribed({ feature: "reel" });
     if (!ok) {
@@ -191,7 +296,10 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       const res = await withTiming("audio_generate", async () =>
         fetch("/api/audio/create", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             text: audioForm.text,
             voiceId: audioForm.voiceId,
@@ -200,7 +308,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
               stability: audioForm.stability,
               similarity_boost: audioForm.similarityBoost,
               style: audioForm.style,
-              speed: audioForm.speed,
+              speed: clampSpeed(audioForm.speed),
               use_speaker_boost: audioForm.speakerBoost,
             },
           }),
@@ -222,7 +330,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     }
   };
 
-  const regenerateAudio = async () => {
+  const openAudioRegenDialog = () => {
     if (!audioId) {
       toast.error("No hay audio base para regenerar.");
       track("audio_regenerate_no_base");
@@ -233,25 +341,44 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       track("audio_regenerate_limit_reached");
       return;
     }
-    setAudioRegens((c) => c + 1);
+    setRText(audioForm.text);
+    setRVoiceId(audioForm.voiceId);
+    setRStability(audioForm.stability);
+    setRSimilarity(audioForm.similarityBoost);
+    setRStyle(audioForm.style);
+    setRSpeed(audioForm.speed);
+    setRSpeakerBoost(audioForm.speakerBoost);
+    setRegenAudioOpen(true);
+  };
+
+  const doRegenerateAudio = async () => {
+    const token = await user?.getIdToken();
     const loadingId = toast.loading("🔄 Regenerando audio...");
-    track("audio_regenerate_clicked", { count: audioRegens + 1 });
+
+    const clamped = clampSpeed(rSpeed);
+    if (clamped !== rSpeed) {
+      toast.message("⚙️ Ajustamos la velocidad al rango permitido (0.7–1.2).");
+      setRSpeed(clamped);
+    }
+
     try {
-      const token = await user?.getIdToken();
       const res = await withTiming("audio_regenerate", async () =>
         fetch("/api/audio/regenerate", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             parentAudioId: audioId,
-            text: audioForm.text,
-            voiceId: audioForm.voiceId,
+            text: rText,
+            voiceId: rVoiceId,
             voice_settings: {
-              stability: audioForm.stability,
-              similarity_boost: audioForm.similarityBoost,
-              style: audioForm.style,
-              speed: audioForm.speed,
-              use_speaker_boost: audioForm.speakerBoost,
+              stability: rStability,
+              similarity_boost: rSimilarity,
+              style: rStyle,
+              speed: clamped,
+              use_speaker_boost: rSpeakerBoost,
             },
           }),
         })
@@ -259,6 +386,16 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
       setAudioUrl(parsed.audioUrl || null);
+
+      audioForm.setText(rText);
+      audioForm.setVoiceId(rVoiceId);
+      audioForm.setStability(rStability);
+      audioForm.setSimilarityBoost(rSimilarity);
+      audioForm.setStyle(rStyle);
+      audioForm.setSpeed(clamped);
+      audioForm.setSpeakerBoost(rSpeakerBoost);
+
+      setAudioRegens((c) => c + 1);
       toast.success("✅ Audio regenerado", { id: loadingId });
       track("audio_regenerate_succeeded");
     } catch (err: any) {
@@ -276,28 +413,23 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
     void loadClonacionVideos();
   };
 
-  // --- Paso 3: vídeos clonación ---
+  // ------------------- Paso 3 -------------------
   const loadClonacionVideos = async () => {
     if (!user) return;
     setLoadingVideos(true);
 
     try {
       const idToken = await user.getIdToken();
-
       const res = await fetch(`/api/firebase/users/${user.uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-
       if (!res.ok) throw new Error("Error al cargar vídeos de clonación");
-
       const data = await res.json();
-
       const list = data.map((d: any) => ({
         id: d.id,
         name: d.titulo ?? d.id,
         url: d.url ?? "",
       }));
-
       setVideos(list);
       track("clonacion_videos_loaded", { count: list.length });
     } catch (err) {
@@ -321,11 +453,11 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
           return (
             <div key={label} className="flex items-center flex-1 min-w-[100px]">
               <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
-              ${completed || current
+                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+                  completed || current
                     ? "bg-primary text-white"
                     : "bg-gray-300 dark:bg-neutral-700 text-gray-600 dark:text-gray-300"
-                  }`}
+                }`}
               >
                 {i + 1}
               </div>
@@ -427,7 +559,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
               Atrás
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={regenerateScript} disabled={scriptRegens >= 2}>
+              <Button variant="outline" onClick={openScriptRegenDialog} disabled={scriptRegens >= 2}>
                 Regenerar ({scriptRegens}/2)
               </Button>
               <Button onClick={acceptScript}>Aceptar guion</Button>
@@ -456,7 +588,7 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
               Atrás
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={regenerateAudio} disabled={audioRegens >= 2}>
+              <Button variant="outline" onClick={openAudioRegenDialog} disabled={audioRegens >= 2}>
                 Regenerar ({audioRegens}/2)
               </Button>
               <Button onClick={acceptAudio}>Aceptar audio</Button>
@@ -465,14 +597,126 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
         </div>
       )}
 
-      {/* Paywall */}
+      {/* ====== Mini-diálogo REGEN SCRIPT ====== */}
+      <Dialog open={regenScriptOpen} onOpenChange={setRegenScriptOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modificar antes de regenerar</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div className="text-sm font-medium mb-1">Tono</div>
+              <Select value={regenTone} onValueChange={setRegenTone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona tono" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TONE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <div className="text-sm font-medium mb-1">Estructura</div>
+              <Select value={regenStructure} onValueChange={setRegenStructure}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona estructura" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STRUCTURE_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenScriptOpen(false)}>Cancelar</Button>
+            <Button onClick={async () => { setRegenScriptOpen(false); await doRegenerateScript(regenTone, regenStructure); }}>
+              Aceptar y regenerar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== Mini-diálogo REGEN AUDIO ====== */}
+      <Dialog open={regenAudioOpen} onOpenChange={setRegenAudioOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modificar parámetros antes de regenerar</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium" htmlFor="r-text">Texto *</Label>
+              <Textarea id="r-text" value={rText} onChange={(e) => setRText(e.target.value)} className="min-h-[100px]" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium" htmlFor="r-voice">Voz *</Label>
+                <Select value={rVoiceId} onValueChange={setRVoiceId}>
+                  <SelectTrigger id="r-voice">
+                    <SelectValue placeholder="Selecciona una voz" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(audioForm.voices || []).map((v: any) => {
+                      const id = getVoiceId(v);
+                      return <SelectItem key={id} value={id}>{v.name || v.display_name || id}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Idioma</Label>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {audioForm.languageCode === "es" ? "Español" : audioForm.languageCode?.toUpperCase() || "—"}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between mb-1"><Label>Estabilidad</Label><span>{rStability.toFixed(2)} / 1.00</span></div>
+                <Slider value={[rStability]} min={0} max={1} step={0.01} onValueChange={([v]) => setRStability(v)} />
+              </div>
+              <div>
+                <div className="flex justify-between mb-1"><Label>Similaridad</Label><span>{rSimilarity.toFixed(2)} / 1.00</span></div>
+                <Slider value={[rSimilarity]} min={0} max={1} step={0.01} onValueChange={([v]) => setRSimilarity(v)} />
+              </div>
+              <div>
+                <div className="flex justify-between mb-1"><Label>Estilo</Label><span>{rStyle.toFixed(2)} / 1.00</span></div>
+                <Slider value={[rStyle]} min={0} max={1} step={0.01} onValueChange={([v]) => setRStyle(v)} />
+              </div>
+              <div>
+                <div className="flex justify-between mb-1"><Label>Velocidad</Label><span>{rSpeed.toFixed(2)} / 2.00</span></div>
+                <Slider value={[rSpeed]} min={0.5} max={2} step={0.01} onValueChange={([v]) => setRSpeed(v)} />
+                <div className="mt-1 text-xs text-muted-foreground">Acepta 0.7–1.2. Ajustaremos automáticamente si sales de ese rango.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="r-sb" checked={rSpeakerBoost} onCheckedChange={(c) => setRSpeakerBoost(!!c)} />
+                <Label htmlFor="r-sb">Usar Speaker Boost</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenAudioOpen(false)}>Cancelar</Button>
+            <Button onClick={async () => {
+              if (!rText.trim()) { toast.error("El texto no puede estar vacío"); return; }
+              if (!rVoiceId) { toast.error("Debes seleccionar una voz"); return; }
+              setRegenAudioOpen(false); await doRegenerateAudio();
+            }}>
+              Aceptar y regenerar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout */}
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para continuar."
+        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
       />
     </div>
   );
 }
-

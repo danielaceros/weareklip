@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -11,8 +12,7 @@ import LipsyncCreatePage from "./LipsyncCreatePage";
 import { toast } from "sonner";
 import { ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Spinner } from "@/components/ui/shadcn-io/spinner";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/shadcn-io/spinner"; // 👈 Spinner de shadcn
 
 interface VideoData {
   projectId: string;
@@ -23,6 +23,9 @@ interface VideoData {
 }
 
 export default function LipsyncVideosPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -33,55 +36,53 @@ export default function LipsyncVideosPage() {
   const [deleteAll, setDeleteAll] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // --- Auth ---
   useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // --- Fetch videos (reutilizable para refrescar al cerrar modal) ---
-  const fetchVideos = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/firebase/users/${user.uid}/lipsync`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      if (!res.ok) throw new Error("Error cargando lipsync");
-
-      const data = await res.json();
-      const mapped: VideoData[] = data.map((d: any) => ({
-        projectId: d.id,
-        ...(d as Omit<VideoData, "projectId">),
-      }));
-
-      setVideos(mapped);
-    } catch (error) {
-      console.error("Error fetching lipsync videos:", error);
-      toast.error("❌ No se pudieron cargar los vídeos");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    void fetchVideos();
-  }, [fetchVideos]);
-
-  // --- Auto abrir con ?new=1 y limpiar el query ---
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
+  // 🟢 Autoabrir modal con ?new=1 y limpiar la URL
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setIsNewOpen(true);
-      router.replace(pathname, { scroll: false }); // quita ?new=1 de la URL
+      router.replace("/dashboard/video"); // limpia ?new=1
     }
-  }, [searchParams, pathname, router]);
+  }, [searchParams, router]);
 
-  // --- Eliminar (uno o todos) ---
+  useEffect(() => {
+    const fetchVideos = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/firebase/users/${user.uid}/lipsync`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+
+        if (!res.ok) throw new Error("Error cargando lipsync");
+
+        const data = await res.json();
+
+        const mapped: VideoData[] = data.map((d: any) => ({
+          projectId: d.id,
+          ...(d as Omit<VideoData, "projectId">),
+        }));
+
+        setVideos(mapped);
+      } catch (error) {
+        console.error("Error fetching lipsync videos:", error);
+        toast.error("❌ No se pudieron cargar los vídeos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
+  }, [user]);
+
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
@@ -90,6 +91,7 @@ export default function LipsyncVideosPage() {
       const token = await user.getIdToken();
 
       if (deleteAll) {
+        // 🟥 Borrar todos via API
         await Promise.all(
           videos.map(async (video) => {
             const res = await fetch(
@@ -159,7 +161,7 @@ export default function LipsyncVideosPage() {
     }
   }
 
-  // --- Loading ---
+  // ✅ Spinner loader
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -174,23 +176,25 @@ export default function LipsyncVideosPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold">Clones</h1>
         <div className="flex gap-3">
-          <Button
-            variant="destructive"
-            className="rounded-lg"
-            onClick={() => setDeleteAll(true)}
-            disabled={videos.length === 0 || deleting}
-          >
-            <Trash2 size={18} className="mr-2" />
-            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
-          </Button>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="destructive"
+              className="rounded-lg"
+              onClick={() => setDeleteAll(true)}
+              disabled={videos.length === 0}
+            >
+              <Trash2 size={18} className="mr-2" />
+              Borrar todos
+            </Button>
 
-          <Button
-            className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
-            onClick={() => setIsNewOpen(true)}
-          >
-            <Plus size={18} className="mr-2" />
-            Crear vídeo
-          </Button>
+            <Button
+              className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
+              onClick={() => setIsNewOpen(true)}
+            >
+              <Plus size={18} className="mr-2" />
+              Crear vídeo
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -209,16 +213,17 @@ export default function LipsyncVideosPage() {
       />
 
       {/* Modal crear */}
-      <Dialog
-        open={isNewOpen}
-        onOpenChange={async (open) => {
-          setIsNewOpen(open);
-          if (!open) await fetchVideos(); // refresca al cerrar por si se creó uno
-        }}
-      >
+      <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogOverlay className="backdrop-blur-sm fixed inset-0" />
         <DialogContent className="max-w-3xl w-full rounded-xl p-0 overflow-hidden">
-          <LipsyncCreatePage onClose={() => setIsNewOpen(false)} />
+          <LipsyncCreatePage
+            onClose={() => setIsNewOpen(false)}
+            onCreated={() => {
+              setTimeout(() => {
+                window.location.reload(); // 👈 mantienes mismo patrón que scripts/audios
+              }, 300);
+            }}
+          />
         </DialogContent>
       </Dialog>
 

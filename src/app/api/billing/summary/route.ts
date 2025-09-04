@@ -1,3 +1,4 @@
+// src/app/api/billing/summary/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDB } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
@@ -34,7 +35,6 @@ function pickBestSubStatus(subs: Stripe.Subscription[]) {
 
 export async function GET(req: NextRequest) {
   try {
-    // 1) Auth
     const authHeader = req.headers.get("authorization");
     const idToken = authHeader?.startsWith("Bearer ")
       ? authHeader.split(" ")[1]
@@ -46,41 +46,37 @@ export async function GET(req: NextRequest) {
 
     const { uid, email } = await adminAuth.verifyIdToken(idToken);
 
-    // 2) User doc en Firestore
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     if (!snap.exists) {
       await gaServerEvent("billing_summary_missing_user", { uid, email });
-      return NextResponse.json(
-        { error: "Usuario no encontrado en Firestore" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Usuario no encontrado en Firestore" }, { status: 404 });
     }
 
-    const user = snap.data();
+    const user = snap.data() as { stripeCustomerId?: string; isGiftUsed?: boolean } | undefined;
     const customerId: string | undefined = user?.stripeCustomerId;
-    const trialCreditCents: number = user?.trialCreditCents ?? 0;
 
     if (!customerId) {
       return NextResponse.json(
         {
-          subscriptions: {
-            monthly: null,
-            usage: null,
-          },
+          subscriptions: { monthly: null, usage: null },
           usage: { script: 0, voice: 0, lipsync: 0, edit: 0 },
           pendingUsageCents: 0,
-          trialCreditCents,
+          credits: { availableCents: 0, currency: null },
           payment: { hasDefaultPayment: false },
           hasOverdue: false,
           overdueCents: 0,
+          trial: {
+            available: user?.isGiftUsed === false || !user?.isGiftUsed,
+            used: user?.isGiftUsed === true,
+          },
           debug: { customerId: null, reconciled: false },
         },
         { status: 200 }
       );
     }
 
-    // 3) Buscar subs
+    // Subs Stripe
     const subs = await stripe.subscriptions.list({
       customer: customerId,
       status: "all",
@@ -88,7 +84,6 @@ export async function GET(req: NextRequest) {
       expand: ["data.items.data.price"],
     });
 
-    // IDs de planes
     const monthlyPlans = [
       process.env.STRIPE_PRICE_ACCESS,
       process.env.STRIPE_PRICE_MID,
@@ -102,7 +97,6 @@ export async function GET(req: NextRequest) {
       process.env.STRIPE_PRICE_USAGE_EDIT,
     ];
 
-    // Filtrar subs
     const monthlySubs = subs.data.filter((s) =>
       s.items.data.some((it) => monthlyPlans.includes(it.price.id))
     );
@@ -110,22 +104,15 @@ export async function GET(req: NextRequest) {
       s.items.data.some((it) => usagePlans.includes(it.price.id))
     );
 
-    // Elegir la mejor mensual y la mejor de uso
     const monthly = monthlySubs.length > 0 ? pickBestSubStatus(monthlySubs) : null;
     const usageSub = usageSubs.length > 0 ? pickBestSubStatus(usageSubs) : null;
 
-    // Recuperar customer
-    const customer = (await stripe.customers.retrieve(
-      customerId
-    )) as Stripe.Customer;
+    const customer = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
 
-    // Parsear helper
     const parseSub = (sub: Stripe.Subscription | null) => {
       if (!sub) return null;
-
       let status = sub.status;
-      const cancelAtPeriodEnd = sub.cancel_at_period_end === true;
-      if (cancelAtPeriodEnd) status = "canceled";
+      if (sub.cancel_at_period_end) status = "canceled";
 
       const trialing = status === "trialing";
       const active = status === "active" || status === "trialing";
@@ -144,11 +131,10 @@ export async function GET(req: NextRequest) {
         plan: planName,
         renewalAt,
         trialing,
-        cancelAtPeriodEnd,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
       };
     };
 
-    // 6) Uso y consumo variable
     const usage: UsageMap = { script: 0, voice: 0, lipsync: 0, edit: 0 };
     let pendingUsageCents = 0;
 
@@ -159,11 +145,9 @@ export async function GET(req: NextRequest) {
           subscription: usageSub.id,
           expand: ["lines.data.price"],
         });
-
         for (const line of preview?.lines?.data ?? []) {
           const priceId = (line as any).pricing?.price_details?.price;
           const amount = line.amount ?? 0;
-
           if (!priceId) continue;
 
           if (
@@ -173,7 +157,6 @@ export async function GET(req: NextRequest) {
             priceId === process.env.STRIPE_PRICE_USAGE_EDIT
           ) {
             pendingUsageCents += amount;
-
             const qty = line.quantity ?? 0;
             switch (priceId) {
               case process.env.STRIPE_PRICE_USAGE_SCRIPT:
@@ -196,66 +179,71 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 7) Facturas vencidas
+    let availableCredits = 0;
+    let creditCurrency: string | null = null;
+    try {
+      const grants = await stripe.billing.creditGrants.list({ customer: customerId, limit: 1 });
+      const grantId = grants.data[0]?.id;
+      if (grantId) {
+        const summary = await stripe.billing.creditBalanceSummary.retrieve({
+          customer: customerId,
+          filter: { type: "credit_grant", credit_grant: grantId },
+        } as any);
+        const balance = summary.balances?.[0]?.available_balance?.monetary;
+        if (balance) {
+          availableCredits = balance.value ?? 0;
+          creditCurrency = balance.currency ?? null;
+        }
+      }
+    } catch (err) {
+      console.warn("No se pudo recuperar creditBalanceSummary:", err);
+    }
+
     let hasOverdue = false;
     let overdueCents = 0;
-
     try {
-      const invoices = await stripe.invoices.list({
-        customer: customerId!,
-        status: "open",
-        limit: 50,
-      });
-      overdueCents = invoices.data.reduce(
-        (acc, inv) => acc + (inv.amount_remaining ?? 0),
-        0
-      );
+      const invoices = await stripe.invoices.list({ customer: customerId!, status: "open", limit: 50 });
+      overdueCents = invoices.data.reduce((acc, inv) => acc + (inv.amount_remaining ?? 0), 0);
       if (overdueCents > 0) hasOverdue = true;
     } catch (err) {
       console.warn("No se pudo calcular overdueCents:", err);
     }
 
-    const hasDefaultPayment =
-      !!customer.invoice_settings?.default_payment_method ||
-      !!customer.default_source;
+    const hasDefaultPayment = !!customer.invoice_settings?.default_payment_method || !!customer.default_source;
 
-    // 8) GA tracking
     await gaServerEvent("billing_summary_requested", {
       uid,
       email,
       customerId,
       monthly_status: monthly?.status ?? null,
       usage_status: usageSub?.status ?? null,
-      trialCreditCents,
+      credits: availableCredits,
       usage,
       pendingUsageCents,
       overdueCents,
       hasDefaultPayment,
     });
 
-    // 9) Respuesta
     return NextResponse.json(
       {
-        subscriptions: {
-          monthly: parseSub(monthly),
-          usage: parseSub(usageSub),
-        },
+        subscriptions: { monthly: parseSub(monthly), usage: parseSub(usageSub) },
         usage,
         pendingUsageCents,
-        trialCreditCents,
+        credits: { availableCents: availableCredits, currency: creditCurrency },
         payment: { hasDefaultPayment },
         hasOverdue,
         overdueCents,
+        trial: {
+          available: user?.isGiftUsed === false || !user?.isGiftUsed,
+          used: user?.isGiftUsed === true,
+        },
         debug: { customerId, reconciled: true },
       },
       { status: 200 }
     );
   } catch (e: any) {
-    const msg = e instanceof Error ? e.message : "summary error";
-    console.error("❌ /api/billing/summary:", msg, e);
-
-    await gaServerEvent("billing_summary_failed", { error: msg });
-
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("❌ /api/billing/summary:", e);
+    await gaServerEvent("billing_summary_failed", { error: e.message ?? "summary error" });
+    return NextResponse.json({ error: e.message ?? "summary error" }, { status: 500 });
   }
 }

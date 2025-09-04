@@ -10,6 +10,7 @@ import DashboardTour from "@/components/onboarding/OnboardingTour";
 import FcmInit from "@/components/shared/FcmInit";
 import ApiErrorHandler from "@/components/shared/ApiErrorComponent";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import DashboardTermsGuard from "@/components/shared/DashboardTermsGuard";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -28,16 +29,24 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
-      <div className="flex min-h-screen w-full bg-background text-foreground">
-        <Sidebar aria-label="Menú lateral del dashboard" />
+    <DashboardTermsGuard>
+      <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+        {/* Sidebar fijo */}
+        <div className="hidden md:block fixed inset-y-0 left-0 w-20 border-r bg-sidebar border-sidebar-border z-40">
+          <Sidebar aria-label="Menú lateral del dashboard" />
+        </div>
 
-        <div className="flex flex-1 flex-col relative bg-muted">
+        {/* Contenedor principal */}
+        <div className="flex flex-1 flex-col md:ml-20">
           <PaywallClickGuard>
-            <Topbar />
+            {/* Topbar fijo */}
+            <div className="fixed top-0 left-0 md:left-20 right-0 z-30">
+              <Topbar />
+            </div>
 
-            <main className="flex-1 max-w-9xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-              {children}
+            {/* Contenido scrollable */}
+            <main className="flex-1 overflow-y-auto pt-14 px-4 sm:px-6 lg:px-8 bg-muted">
+              <div className="max-w-9xl mx-auto py-6">{children}</div>
             </main>
 
             <DashboardTour />
@@ -45,12 +54,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* 👇 Ahora se monta en body */}
+      {/* Botón global fuera del flujo */}
       <CreateReelGlobalButtonPortal />
-
       <FcmInit />
       <ApiErrorHandler />
-    </>
+    </DashboardTermsGuard>
   );
 }
 

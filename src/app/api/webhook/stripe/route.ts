@@ -10,7 +10,6 @@ import { sendEventPush } from "@/lib/sendEventPush";
 
 type PlanId = "starter" | "mid" | "creator" | "business" | "usage" | "access";
 
-const DEFAULT_TRIAL_CENTS = Number(process.env.TRIAL_CREDIT_CENTS ?? "500");
 const USAGE_THRESHOLD_CENTS = Number(process.env.USAGE_THRESHOLD_CENTS || "0");
 
 const PRICE_USAGE: string[] = [
@@ -181,36 +180,6 @@ async function upsertCustomerMapping(uid: string, customerId: string, email?: st
   }
 }
 
-/** Si la sub está en trial → concede crédito SOLO una vez. */
-async function ensureTrialCreditOnce(
-  userRef: FirebaseFirestore.DocumentReference,
-  customerId: string,
-  subStatus?: Stripe.Subscription.Status
-) {
-  if (subStatus !== "trialing") return;
-
-  const snap = await userRef.get();
-  const data = snap.exists ? (snap.data() as FirebaseFirestore.DocumentData) : undefined;
-  if (data?.trialCreditEverGranted === true) return;
-
-  await userRef.set(
-    {
-      trialCreditCents: DEFAULT_TRIAL_CENTS,
-      trialCreditEverGranted: true,
-      trialCreditCustomerId: customerId,
-      trialCreditGrantedAt: adminTimestamp.now(),
-      lastUpdated: adminTimestamp.now(),
-    },
-    { merge: true }
-  );
-
-  await gaServerEvent("trial_credit_granted", { uid: userRef.id, customerId });
-
-  try {
-    await stripe.customers.update(customerId, { metadata: { trial_credit_granted: "1" } });
-  } catch {}
-}
-
 /** Crea (si no existe) la sub de uso con los prices, PM por defecto y umbral */
 async function ensureUsageSubscription(customerId: string, uid?: string) {
   if (!PRICE_USAGE.length) return;
@@ -310,7 +279,7 @@ export async function POST(req: NextRequest) {
           renewal = safeCurrentPeriodEnd(sub);
         }
 
-        const userRef = await upsertUser({
+        await upsertUser({
           uid,
           email: s.customer_details?.email ?? undefined,
           customerId,
@@ -324,30 +293,19 @@ export async function POST(req: NextRequest) {
           await upsertCustomerMapping(uid, customerId, s.customer_details?.email ?? undefined);
         }
 
-        // 👉 Marcar que ya usó su trial (aunque lo cancele después)
+        // Marcar que ya usó su trial
         if (uid) {
-          await adminDB.collection("users").doc(uid).set(
-            { hasTrialUsed: true },
-            { merge: true }
-          );
+          await adminDB.collection("users").doc(uid).set({ hasTrialUsed: true }, { merge: true });
         }
 
-        // Si arrancó en trial → dar crédito de prueba (una sola vez)
-        if (userRef && customerId) {
-          await ensureTrialCreditOnce(userRef, customerId, status);
-        }
-
-        // Guardar el PM en el Customer para que Usage cobre solo
+        // Guardar PM y crear sub de uso
         if (subscriptionId && customerId) {
           try {
             const params: Stripe.SubscriptionUpdateParams = {
               payment_settings: { save_default_payment_method: "on_subscription" },
             };
             await stripe.subscriptions.update(subscriptionId, params);
-          } catch {
-            /* ok si falla; continuamos */
-          }
-
+          } catch {}
           const sub = await stripe.subscriptions.retrieve(subscriptionId, {
             expand: ["default_payment_method"],
           });
@@ -373,14 +331,11 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Crear la sub de USO (diaria) si no existe — ahora con PM y umbral (si definido)
         if (customerId) {
           await ensureUsageSubscription(customerId, uid);
         }
-
         break;
       }
-
 
       /* -------- customer.subscription.created/updated -------- */
       case "customer.subscription.created":
@@ -403,9 +358,7 @@ export async function POST(req: NextRequest) {
           try {
             const c = await stripe.customers.retrieve(customerId);
             if (!("deleted" in c) && c.email) email = c.email;
-          } catch {
-            /* noop */
-          }
+          } catch {}
         }
 
         const userRef = await upsertUser({
@@ -419,12 +372,9 @@ export async function POST(req: NextRequest) {
         });
 
         if (uidMeta && customerId) await upsertCustomerMapping(uidMeta, customerId, email);
-        if (userRef && customerId) await ensureTrialCreditOnce(userRef, customerId, sub.status);
 
         // Marcar bloqueo si el estado es malo
-        const bad = ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(
-          sub.status
-        );
+        const bad = ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(sub.status);
         const ref = userRef ?? (await findUserRef({ uid: uidMeta, email, customerId }));
         if (ref) {
           await ref.set(
@@ -443,46 +393,31 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // ▶️ Notificaciones: trial/active con deduplicación
+        // ▶️ Push notifications
         try {
           const prev = (event.data as any).previous_attributes as { status?: string } | undefined;
           const uidForPush =
             uidMeta ?? (await resolveUidByCustomerOrEmail(customerId, email));
 
-          // “reciente” = creado hace menos de 2 minutos
           const justCreated =
-            typeof sub.created === "number" && (Date.now() / 1000 - sub.created) < 120;
+            typeof sub.created === "number" && Date.now() / 1000 - sub.created < 120;
 
-          if (!uidForPush) {
-            console.warn("[push] sub.created/updated sin uid resoluble", {
-              customerId,
-              email,
-              status: sub.status,
-            });
-          } else {
+          if (uidForPush) {
             if (event.type === "customer.subscription.created") {
               if (sub.status === "trialing") {
-                await sendEventPush(uidForPush, "trial_started", {
-                  plan: String(plan ?? ""),
-                });
+                await sendEventPush(uidForPush, "trial_started", { plan: String(plan ?? "") });
               } else if (sub.status === "active") {
-                await sendEventPush(uidForPush, "subscription_active", {
-                  plan: String(plan ?? ""),
-                });
+                await sendEventPush(uidForPush, "subscription_active", { plan: String(plan ?? "") });
               }
             } else if (event.type === "customer.subscription.updated") {
-              // Solo cuando pasa de trialing → active y NO justo tras crearse
               if (prev?.status === "trialing" && sub.status === "active" && !justCreated) {
-                await sendEventPush(uidForPush, "subscription_active", {
-                  plan: String(plan ?? ""),
-                });
+                await sendEventPush(uidForPush, "subscription_active", { plan: String(plan ?? "") });
               }
             }
           }
         } catch (e) {
           console.warn("[push] subscription created/updated error", e);
         }
-
         break;
       }
 
@@ -501,9 +436,7 @@ export async function POST(req: NextRequest) {
           try {
             const c = await stripe.customers.retrieve(customerId);
             if (!("deleted" in c) && c.email) email = c.email;
-          } catch {
-            /* noop */
-          }
+          } catch {}
         }
 
         await upsertUser({
@@ -524,10 +457,9 @@ export async function POST(req: NextRequest) {
         const paidAt = inv.status_transitions?.paid_at ?? inv.created;
         const email = emailFromInvoice(inv);
         const uid = uidFromInvoice(inv);
-        const customerId = (inv.customer as string | undefined) ?? undefined;
+        const customerId = inv.customer as string | undefined;
         const subscriptionId = subscriptionIdFromInvoice(inv as unknown);
 
-        // Upsert básico (último pago, etc.)
         const ref = await upsertUser({
           uid,
           email,
@@ -536,18 +468,14 @@ export async function POST(req: NextRequest) {
           lastPayment: paidAt,
         });
 
-        // ¿Es la suscripción de USO?
         let isUsage = false;
         if (subscriptionId) {
           try {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
             isUsage = sub.metadata?.plan === "usage";
-          } catch {
-            /* noop */
-          }
+          } catch {}
         }
 
-        // Desbloquear siempre en pago correcto
         if (ref) {
           const baseUpdate: Record<string, unknown> = {
             billingBlocked: false,
@@ -556,15 +484,12 @@ export async function POST(req: NextRequest) {
             lastUpdated: adminTimestamp.now(),
           };
 
-          // Si es la de uso: reseteo del acumulado y sello de reset
           if (isUsage) {
             const periodEndSec =
               typeof inv.period_end === "number" ? inv.period_end : undefined;
             if (periodEndSec) {
               baseUpdate["pendingLocalCents"] = 0;
-              baseUpdate["pendingLocalResetAt"] = adminTimestamp.fromMillis(
-                periodEndSec * 1000
-              );
+              baseUpdate["pendingLocalResetAt"] = adminTimestamp.fromMillis(periodEndSec * 1000);
             } else {
               baseUpdate["pendingLocalCents"] = 0;
               baseUpdate["pendingLocalResetAt"] = adminTimestamp.now();
@@ -573,10 +498,9 @@ export async function POST(req: NextRequest) {
 
           await ref.set(baseUpdate, { merge: true });
 
-          // ▶️ Notificación de “renovada” SOLO en ciclos reales (no en la 1ª factura)
           try {
             const reason = inv.billing_reason as Stripe.Invoice.BillingReason | undefined;
-            const isRenewal = reason === "subscription_cycle"; // <- clave
+            const isRenewal = reason === "subscription_cycle";
             const uidPaid =
               uidFromInvoice(inv) ??
               (await resolveUidByCustomerOrEmail(inv.customer as string | undefined, email));
@@ -603,7 +527,7 @@ export async function POST(req: NextRequest) {
         });
         const email = emailFromInvoice(inv);
         const uid = uidFromInvoice(inv);
-        const customerId = (inv.customer as string | undefined) ?? undefined;
+        const customerId = inv.customer as string | undefined;
 
         const userRef = await findUserRef({ uid, email, customerId });
         if (userRef) {
@@ -621,7 +545,6 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // ▶️ Notificación push (pago fallido)
         try {
           const uidFail =
             uidFromInvoice(inv) ??
@@ -635,12 +558,10 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn("[push] payment_failed error", e);
         }
-
         break;
       }
 
       default:
-        // otros eventos los ignoramos
         break;
     }
 
