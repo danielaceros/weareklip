@@ -30,12 +30,11 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
-import { Input } from "@/components/ui/input"; // ⬅️ nuevo
+import { Input } from "@/components/ui/input";
 import { TemplateSelector } from "./TemplateSelector";
-
-/* ✅ límite de tamaño (100 MB vídeo) */
 import { validateFileSizeAs } from "@/lib/fileLimits";
 import { VideoData } from "./VideosPage";
+import { useTranslations } from "next-intl";
 
 const MAX_SEC = 60; // ⏱️ límite duro
 
@@ -45,8 +44,7 @@ const getVideoDurationFromUrl = (url: string) =>
     v.preload = "metadata";
     v.src = url;
     v.onloadedmetadata = () => resolve(v.duration || 0);
-    v.onerror = () =>
-      reject(new Error("No se pudo leer la duración del vídeo"));
+    v.onerror = () => reject(new Error("No se pudo leer la duración del vídeo"));
   });
 
 type VideoOption = { id: string; name: string; url: string };
@@ -72,22 +70,19 @@ export default function CreateVideoPage({
   onComplete,
   onCreated,
 }: Props) {
+  const t = useTranslations("dashboard.edit.create");
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Si viene un vídeo por query (?videoUrl=...) lo respetamos
   const preloadedVideoUrl = searchParams.get("videoUrl");
 
-  // estado de archivo y video
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(preloadedVideoUrl);
   const [videoSec, setVideoSec] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // 🏷️ título del vídeo (opcional)
-  const [videoTitle, setVideoTitle] = useState<string>(""); // ⬅️ nuevo
+  const [videoTitle, setVideoTitle] = useState<string>("");
 
-  // parámetros de edición
   const [language, setLanguage] = useState("");
   const [template, setTemplate] = useState("");
   const [dictionary, setDictionary] = useState<string[]>([]);
@@ -102,7 +97,6 @@ export default function CreateVideoPage({
   const [loadingLang, setLoadingLang] = useState(true);
   const [loadingTpl, setLoadingTpl] = useState(true);
 
-  // estados del botón
   const [processing, setProcessing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -115,22 +109,23 @@ export default function CreateVideoPage({
       const f = acceptedFiles[0];
       if (!f) return;
 
-      // ⛔️ 1) Tamaño (100 MB vídeo)
       const sizeCheck = validateFileSizeAs(f, "video");
       if (!sizeCheck.ok) {
-        toast.error("Archivo demasiado grande", {
+        toast.error(t("errors.fileTooLarge.title"), {
           description: sizeCheck.message,
         });
         return;
       }
 
-      // ⏱️ 2) Duración (60 s)
       const url = URL.createObjectURL(f);
       try {
         const sec = await getVideoDurationFromUrl(url);
         if (sec > MAX_SEC) {
           toast.error(
-            `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+            t("errors.videoDurationExceeded", {
+              sec: Math.round(sec),
+              max: MAX_SEC,
+            })
           );
           URL.revokeObjectURL(url);
           return;
@@ -138,22 +133,20 @@ export default function CreateVideoPage({
         setFile(f);
         setVideoUrl(url);
         setVideoSec(sec);
-        // si no hay título aún, proponemos el nombre del archivo (sin extender)
         if (!videoTitle.trim()) {
-          setVideoTitle(f.name.replace(/\.[^/.]+$/, "")); // sin extensión
+          setVideoTitle(f.name.replace(/\.[^/.]+$/, ""));
         }
-        toast.success("📹 Vídeo cargado");
+        toast.success(t("success.videoLoaded"));
       } catch {
-        toast.error("No se pudo analizar el vídeo.");
+        toast.error(t("errors.analyzeFailed"));
         URL.revokeObjectURL(url);
       }
     },
-    [videoTitle]
+    [t, videoTitle]
   );
 
-  // ✅ Validator del drop (rechaza antes de onDrop)
   const validator = (f: File) => {
-    const r = validateFileSizeAs(f, "video"); // 100 MB
+    const r = validateFileSizeAs(f, "video");
     return r.ok ? null : { code: "file-too-large", message: r.message };
   };
 
@@ -161,7 +154,7 @@ export default function CreateVideoPage({
     onDrop,
     onDropRejected: (rejs) =>
       rejs.forEach((r) =>
-        toast.error("Archivo demasiado grande", {
+        toast.error(t("errors.fileTooLarge.title"), {
           description: r.errors?.[0]?.message,
         })
       ),
@@ -183,7 +176,10 @@ export default function CreateVideoPage({
           setVideoSec(sec);
           if (sec > MAX_SEC) {
             toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+              t("errors.videoDurationExceeded", {
+                sec: Math.round(sec),
+                max: MAX_SEC,
+              })
             );
           }
         } else if (preloadedVideos.length > 0) {
@@ -191,26 +187,29 @@ export default function CreateVideoPage({
           setVideoUrl(first.url);
           const sec = await getVideoDurationFromUrl(first.url).catch(() => 0);
           setVideoSec(sec);
-          if (!videoTitle.trim() && first.name) setVideoTitle(first.name); // ⬅️ sugerir
+          if (!videoTitle.trim() && first.name) setVideoTitle(first.name);
           if (sec > MAX_SEC) {
             toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+              t("errors.videoDurationExceeded", {
+                sec: Math.round(sec),
+                max: MAX_SEC,
+              })
             );
           }
         }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preloadedVideoUrl, preloadedVideos]);
+  }, [preloadedVideoUrl, preloadedVideos, t]);
 
-  /* ---- cargar idiomas/templates (sin cambios) ---- */
+  /* ---- cargar idiomas/templates ---- */
   useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
       .then((data) => {
         setLanguages(data.languages || []);
       })
-      .catch(() => toast.error("❌ Error cargando idiomas"))
+      .catch(() => toast.error(t("errors.loadLanguages")))
       .finally(() => setLoadingLang(false));
 
     fetch("/api/submagic/templates")
@@ -218,9 +217,9 @@ export default function CreateVideoPage({
       .then((data) => {
         setTemplates(data.templates || []);
       })
-      .catch(() => toast.error("❌ Error cargando templates"))
+      .catch(() => toast.error(t("errors.loadTemplates")))
       .finally(() => setLoadingTpl(false));
-  }, []);
+  }, [t]);
 
   const handleSubmit = async () => {
     flushSync(() => setProcessing(true));
@@ -233,13 +232,13 @@ export default function CreateVideoPage({
 
     const user = auth.currentUser;
     if (!user) {
-      toast.error("⚠️ Debes iniciar sesión");
+      toast.error(t("errors.mustLogin"));
       setProcessing(false);
       return;
     }
 
     if (!videoUrl && !file && preloadedVideos.length === 0) {
-      toast.error("⚠️ Debes subir o seleccionar un vídeo");
+      toast.error(t("errors.mustSelectVideo"));
       setProcessing(false);
       return;
     }
@@ -247,17 +246,15 @@ export default function CreateVideoPage({
     setSubmitting(true);
     setUploadProgress(0);
 
-    // 🏷️ título final (respeta lo que haya escrito el usuario)
     const finalTitle =
       videoTitle.trim() ||
       file?.name?.replace(/\.[^/.]+$/, "") ||
       "video-preloaded";
 
-    // 🔹 Optimistic
     const tempId = uuidv4();
     const tempVideo = {
       projectId: tempId,
-      title: finalTitle, // ⬅️ usamos tu título
+      title: finalTitle,
       status: "processing",
       downloadUrl: videoUrl || undefined,
       _optimistic: true,
@@ -270,7 +267,7 @@ export default function CreateVideoPage({
     try {
       let finalVideoUrl = videoUrl;
       if (!finalVideoUrl && file) {
-        toast("☁️ Subiendo vídeo a la nube...");
+        toast(t("upload.uploading"));
         const { downloadURL } = await uploadVideo(
           file,
           user.uid,
@@ -278,10 +275,9 @@ export default function CreateVideoPage({
         );
         finalVideoUrl = downloadURL;
       }
-      if (!finalVideoUrl)
-        throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl) throw new Error(t("errors.noVideoUrl"));
 
-      toast("⚙️ Procesando tu vídeo...");
+      toast(t("processing.processingVideo"));
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
@@ -293,7 +289,7 @@ export default function CreateVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: finalTitle, // ⬅️ lo mandamos al backend
+          title: finalTitle,
           language,
           videoUrl: finalVideoUrl,
           templateName: template || undefined,
@@ -309,13 +305,13 @@ export default function CreateVideoPage({
         throw new Error(msg || `HTTP ${res.status}`);
       }
 
-      toast.success("🎬 Vídeo creado correctamente");
+      toast.success(t("success.videoCreated"));
 
       setFile(null);
       setUploadProgress(0);
 
       if (typeof onCreated === "function") {
-        onCreated(); // el padre puede refetchear
+        onCreated();
       } else {
         if (window.location.pathname === "/dashboard/edit") {
           router.refresh();
@@ -325,7 +321,7 @@ export default function CreateVideoPage({
       }
     } catch (error) {
       console.error(error);
-      toast.error("❌ Error subiendo o procesando el vídeo");
+      toast.error(t("errors.uploadOrProcessFailed"));
 
       if (typeof onCreated === "function") {
         onCreated({ ...tempVideo, _rollback: true } as any);
@@ -338,22 +334,20 @@ export default function CreateVideoPage({
 
   const isLoading = processing || submitting;
   const buttonText = processing
-    ? "Procesando..."
+    ? t("buttons.processing")
     : submitting
-    ? "Generando..."
+    ? t("buttons.generating")
     : onComplete
-    ? "Crear vídeo"
-    : "Generar edición de vídeo";
+    ? t("buttons.createVideo")
+    : t("buttons.generateEdit");
 
   /* --------- UI --------- */
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 pb-8">
       {/* Título */}
       <div className="lg:col-span-2 mb-4">
-        <h2 className="text-2xl font-bold">🎥 Edición de Vídeo IA</h2>
-        <p className="text-muted-foreground text-sm">
-          Sube o selecciona un vídeo y aplica plantillas automáticas con IA.
-        </p>
+        <h2 className="text-2xl font-bold">{t("title")}</h2>
+        <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
       </div>
 
       {/* Layout responsive */}
@@ -371,15 +365,18 @@ export default function CreateVideoPage({
                       () => 0
                     );
                     setVideoSec(sec);
-                    if (!videoTitle.trim() && v.name) setVideoTitle(v.name); // ⬅️ sugerir nombre
+                    if (!videoTitle.trim() && v.name) setVideoTitle(v.name);
                     if (sec > MAX_SEC) {
                       toast.error(
-                        `⏱️ El vídeo dura ${Math.round(
-                          sec
-                        )}s y el máximo es ${MAX_SEC}s.`
+                        t("errors.videoDurationExceeded", {
+                          sec: Math.round(sec),
+                          max: MAX_SEC,
+                        })
                       );
                     } else {
-                      toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                      toast.success(
+                        t("selectVideo.selected", { name: v.name })
+                      );
                     }
                   }}
                   className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
@@ -429,11 +426,11 @@ export default function CreateVideoPage({
                   <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground text-center">
                     {isDragActive
-                      ? "Suelta el vídeo aquí..."
-                      : "Arrastra un vídeo o haz click"}
+                      ? t("drop.active")
+                      : t("drop.prompt")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Hasta 60s y 100&nbsp;MB
+                    {t("drop.hint", { max: MAX_SEC, size: 100 })}
                   </p>
                 </>
               )}
@@ -448,43 +445,42 @@ export default function CreateVideoPage({
         <div className="space-y-6">
           {/* 🏷️ Campo título */}
           <div>
-            <Label className="mb-2 block">Título (opcional)</Label>
+            <Label className="mb-2 block">{t("fields.title.label")}</Label>
             <Input
               value={videoTitle}
               onChange={(e) => setVideoTitle(e.target.value)}
-              placeholder="Ej: Lanzamiento producto – vertical"
+              placeholder={t("fields.title.placeholder")}
               maxLength={80}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Si lo dejas vacío, usaremos el nombre del archivo o
-              “video-preloaded”.
+              {t("fields.title.helper")}
             </p>
           </div>
 
           {/* Templates */}
           <div>
-            <Label className="mb-2 block">Template</Label>
+            <Label className="mb-2 block">{t("fields.template.label")}</Label>
             {loadingTpl ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
+                <Loader2 className="animate-spin h-4 w-4" /> {t("loading.templates")}
               </div>
             ) : (
               <>
                 {/* Mobile → botones simples */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
-                    {(showTemplates ? templates : templates.slice(0, 6)).map((t) => (
+                    {(showTemplates ? templates : templates.slice(0, 6)).map((tpl) => (
                       <Button
-                        key={t}
+                        key={tpl}
                         type="button"
-                        variant={t === template ? "default" : "secondary"}
+                        variant={tpl === template ? "default" : "secondary"}
                         className="w-full"
                         onClick={() => {
-                          setTemplate(t);
-                          toast.success(`📑 Template "${t}" seleccionado`);
+                          setTemplate(tpl);
+                          toast.success(t("templates.selected", { name: tpl }));
                         }}
                       >
-                        {t}
+                        {tpl}
                       </Button>
                     ))}
                   </div>
@@ -495,12 +491,12 @@ export default function CreateVideoPage({
                       className="mt-2 w-full"
                       onClick={() => setShowTemplates(!showTemplates)}
                     >
-                      {showTemplates ? "Ver menos" : "Ver más"}
+                      {showTemplates ? t("common.showLess") : t("common.showMore")}
                     </Button>
                   )}
                 </div>
 
-                {/* Desktop → tooltip con previsualización */}
+                {/* Desktop → selector con preview */}
                 <div className="hidden sm:block">
                   <TemplateSelector
                     templates={templates}
@@ -512,18 +508,17 @@ export default function CreateVideoPage({
             )}
           </div>
 
-
           {/* Idioma */}
           <div>
-            <Label className="mb-2 block">Idioma</Label>
+            <Label className="mb-2 block">{t("fields.language.label")}</Label>
             {loadingLang ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+                <Loader2 className="animate-spin h-4 w-4" /> {t("loading.languages")}
               </div>
             ) : (
               <Select value={language} onValueChange={setLanguage}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar un idioma" />
+                  <SelectValue placeholder={t("fields.language.placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {languages.map((l) => (
@@ -538,13 +533,11 @@ export default function CreateVideoPage({
 
           {/* Descripción */}
           <div>
-            <Label className="mb-2 block">
-              Describe en 3-4 palabras el vídeo
-            </Label>
+            <Label className="mb-2 block">{t("fields.tags.label")}</Label>
             <TagsInput
               value={dictionary}
               onChange={setDictionary}
-              placeholder="Escribe un tag y pulsa Enter o coma..."
+              placeholder={t("fields.tags.placeholder")}
             />
           </div>
 
@@ -558,11 +551,11 @@ export default function CreateVideoPage({
                       checked={magicZooms}
                       onCheckedChange={(c) => setMagicZooms(!!c)}
                     />
-                    <Label>Magic Zooms</Label>
+                    <Label>{t("magicZooms.label")}</Label>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Agrega acercamientos automáticos para más dinamismo.</p>
+                  <p>{t("magicZooms.tooltip")}</p>
                 </TooltipContent>
               </Tooltip>
 
@@ -573,11 +566,11 @@ export default function CreateVideoPage({
                       checked={magicBrolls}
                       onCheckedChange={(c) => setMagicBrolls(!!c)}
                     />
-                    <Label>Magic B-rolls</Label>
+                    <Label>{t("magicBrolls.label")}</Label>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+                  <p>{t("magicBrolls.tooltip")}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -585,7 +578,7 @@ export default function CreateVideoPage({
             {magicBrolls && (
               <div>
                 <Label className="mb-1 block">
-                  Porcentaje de B-rolls: {magicBrollsPercentage}%
+                  {t("magicBrolls.percentLabel", { percent: magicBrollsPercentage })}
                 </Label>
                 <Slider
                   defaultValue={[magicBrollsPercentage]}
@@ -598,11 +591,7 @@ export default function CreateVideoPage({
           </div>
 
           {/* Botón final */}
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="w-full"
-          >
+          <Button onClick={handleSubmit} disabled={isLoading} className="w-full">
             {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
             {buttonText}
           </Button>
@@ -614,7 +603,7 @@ export default function CreateVideoPage({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message={t("paywall.generateAudios")}
       />
     </div>
   );

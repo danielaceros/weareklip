@@ -1,3 +1,4 @@
+// src/components/user/UserProfileSection.tsx
 "use client";
 
 import { useEffect, useRef, useState, ChangeEvent, RefObject } from "react";
@@ -29,7 +30,6 @@ export interface UserProfileSectionProps {
   setPhone?: (value: string) => void;
   userData?: { email?: string } | null;
   uploadingPhoto?: boolean;
-  // 👇 ajuste de tipo: ref nullable
   fileInputRef?: RefObject<HTMLInputElement | null>;
   handlePhotoClick?: () => void;
   handlePhotoChange?: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -53,7 +53,6 @@ export default function UserProfileSection({
   photoURL,
   saveUserData,
 }: UserProfileSectionProps) {
-  // ---------- Confirmación al guardar ----------
   const [justSaved, setJustSaved] = useState(false);
   const onSave = async () => {
     try {
@@ -61,11 +60,10 @@ export default function UserProfileSection({
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
     } catch {
-      // si falla, no mostramos "guardado"
+      /* noop */
     }
   };
 
-  // ---------- Recorte básico ----------
   const [cropOpen, setCropOpen] = useState(false);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [rawImg, setRawImg] = useState<HTMLImageElement | null>(null);
@@ -75,10 +73,8 @@ export default function UserProfileSection({
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // input oculto para enviar el archivo recortado a tu handler existente
   const hiddenCroppedInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Intercepta la selección de archivo: abrimos cropper
   const onPickFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,7 +113,6 @@ export default function UserProfileSection({
     dragStart.current = null;
   };
 
-  // Genera el recorte (512x512) y lo envía a tu handlePhotoChange
   const doCropAndUpload = async () => {
     if (!rawImg || !containerRef.current) return;
 
@@ -183,7 +178,13 @@ export default function UserProfileSection({
           onClick={handlePhotoClick}
         >
           {photoURL ? (
-            <Image src={photoURL} alt="Profile photo" fill className="object-cover" sizes="112px" />
+            <Image
+              src={photoURL}
+              alt={t("profile.photoAlt")}
+              fill
+              className="object-cover"
+              sizes="112px"
+            />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-muted text-muted-foreground text-4xl font-bold">
               {name ? name[0].toUpperCase() : "?"}
@@ -257,7 +258,7 @@ export default function UserProfileSection({
             {justSaved && (
               <span className="inline-flex items-center gap-1 text-sm text-green-500">
                 <CheckCircle2 className="w-4 h-4" />
-                {t("profile.actions.saved") || "Guardado"}
+                {t("profile.actions.saved")}
               </span>
             )}
           </div>
@@ -268,7 +269,7 @@ export default function UserProfileSection({
       <Dialog open={cropOpen} onOpenChange={setCropOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>{t("profile.crop.title") || "Recortar foto"}</DialogTitle>
+            <DialogTitle>{t("profile.crop.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -284,7 +285,7 @@ export default function UserProfileSection({
               {imgSrc && (
                 <img
                   src={imgSrc}
-                  alt="To crop"
+                  alt={t("profile.crop.previewAlt")}
                   onLoad={onImgLoaded}
                   style={{
                     position: "absolute",
@@ -303,18 +304,25 @@ export default function UserProfileSection({
 
             <div className="px-1">
               <Label className="text-xs text-muted-foreground">
-                {t("profile.crop.zoom") || "Zoom"}
+                {t("profile.crop.zoom")}
               </Label>
-              <Slider className="mt-2" min={0.5} max={2} step={0.01} value={[zoom]} onValueChange={(v) => setZoom(v[0] ?? 1)} />
+              <Slider
+                className="mt-2"
+                min={0.5}
+                max={2}
+                step={0.01}
+                value={[zoom]}
+                onValueChange={(v) => setZoom(v[0] ?? 1)}
+              />
             </div>
           </div>
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setCropOpen(false)} disabled={uploadingPhoto}>
-              {t("common.cancel") || "Cancelar"}
+              {t("common.cancel")}
             </Button>
             <Button onClick={doCropAndUpload} disabled={uploadingPhoto}>
-              {t("profile.crop.confirm") || "Recortar y subir"}
+              {t("profile.crop.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

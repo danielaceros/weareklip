@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -31,6 +32,7 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { track } from "@/lib/analytics-events";
 import { TemplateSelector } from "./TemplateSelector";
+import { useTranslations } from "next-intl"; // ⬅️ i18n
 
 // -------- utilidades --------
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -49,8 +51,7 @@ const getVideoDurationFromUrl = (url: string) =>
     v.preload = "metadata";
     v.src = url;
     v.onloadedmetadata = () => resolve(v.duration || 0);
-    v.onerror = () =>
-      reject(new Error("No se pudo leer la duración del vídeo"));
+    v.onerror = () => reject(new Error("read-duration"));
   });
 
 const getVideoDurationFromFile = async (file: File) => {
@@ -94,6 +95,7 @@ export default function CreatePipelineVideoPage({
   onCreated,
 }: Props) {
   const router = useRouter();
+  const t = useTranslations("pipeline.create"); // ⬅️ i18n namespace
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -127,24 +129,22 @@ export default function CreatePipelineVideoPage({
     try {
       const sec = await getVideoDurationFromFile(f);
       if (!sec) {
-        toast.error("No se pudo leer la duración del vídeo.");
+        toast.error(t("errors.readDuration"));
         return;
       }
       if (sec > MAX_SEC) {
-        toast.error(
-          `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-        );
+        toast.error(t("errors.maxSeconds", { sec: Math.round(sec), max: MAX_SEC }));
         return;
       }
       setFile(f);
       setVideoSec(sec);
       setVideoUrl(null);
-      toast.success(`📹 Vídeo "${f.name}" cargado`);
+      toast.success(t("toasts.videoLoaded", { name: f.name }));
       track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
     } catch {
-      toast.error("❌ No se pudo analizar el vídeo.");
+      toast.error(t("errors.cantAnalyzeVideo"));
     }
-  }, []);
+  }, [t]);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
@@ -157,15 +157,15 @@ export default function CreatePipelineVideoPage({
     fetch("/api/submagic/languages")
       .then((res) => res.json())
       .then((data) => setLanguages(data.languages || []))
-      .catch(() => toast.error("❌ Error cargando idiomas"))
+      .catch(() => toast.error(t("errors.loadLangs")))
       .finally(() => setLoadingLang(false));
 
     fetch("/api/submagic/templates")
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
-      .catch(() => toast.error("❌ Error cargando templates"))
+      .catch(() => toast.error(t("errors.loadTemplates")))
       .finally(() => setLoadingTpl(false));
-  }, []);
+  }, [t]);
 
   const handleSubmit = async () => {
     flushSync(() => setProcessing(true));
@@ -179,18 +179,18 @@ export default function CreatePipelineVideoPage({
 
     const user = auth.currentUser;
     if (!user) {
-      toast.error("⚠️ Debes iniciar sesión");
+      toast.error(t("errors.mustLogin"));
       setProcessing(false);
       return;
     }
 
     if (!videoUrl && !file && preloadedVideos.length === 0) {
-      toast.error("⚠️ Debes subir o seleccionar un vídeo");
+      toast.error(t("errors.mustUploadOrSelect"));
       setProcessing(false);
       return;
     }
     if (!language) {
-      toast.error("⚠️ Debes seleccionar un idioma");
+      toast.error(t("errors.mustSelectLanguage"));
       setProcessing(false);
       return;
     }
@@ -206,19 +206,17 @@ export default function CreatePipelineVideoPage({
         }
       }
       if (!sec) {
-        toast.error("No se pudo leer la duración del vídeo.");
+        toast.error(t("errors.readDuration"));
         setProcessing(false);
         return;
       }
       if (sec > MAX_SEC) {
-        toast.error(
-          `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
-        );
+        toast.error(t("errors.maxSecondsAlt", { max: MAX_SEC, sec: Math.round(sec) }));
         setProcessing(false);
         return;
       }
     } catch {
-      toast.error("No se pudo validar la duración del vídeo.");
+      toast.error(t("errors.durationValidateFail"));
       setProcessing(false);
       return;
     }
@@ -241,7 +239,7 @@ export default function CreatePipelineVideoPage({
     try {
       let finalVideoUrl = videoUrl;
       if (!finalVideoUrl && file) {
-        toast("☁️ Subiendo vídeo a la nube...");
+        toast(t("toasts.uploading"));
         const { downloadURL } = await uploadVideo(
           file,
           user.uid,
@@ -250,10 +248,9 @@ export default function CreatePipelineVideoPage({
         finalVideoUrl = downloadURL;
         track("video_uploaded_cloud", { url: downloadURL });
       }
-      if (!finalVideoUrl)
-        throw new Error("No se pudo obtener la URL del vídeo");
+      if (!finalVideoUrl) throw new Error("no-url");
 
-      toast("⚙️ Procesando tu reel...");
+      toast(t("toasts.processingReel"));
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
@@ -282,7 +279,7 @@ export default function CreatePipelineVideoPage({
         throw new Error(msg || `HTTP ${res.status}`);
       }
 
-      toast.success("🎬 Reel enviado al pipeline correctamente");
+      toast.success(t("toasts.pipelineOk"));
       track("pipeline_reel_submitted", {
         language,
         template,
@@ -293,9 +290,10 @@ export default function CreatePipelineVideoPage({
 
       if (onComplete) onComplete();
       router.push("/dashboard/edit");
-    } catch (error) {
-      console.error(error);
-      toast.error("❌ Error en el pipeline");
+    } catch (error: any) {
+      toast.error(
+        error?.message === "no-url" ? t("errors.noUrl") : t("errors.pipeline")
+      );
       track("pipeline_error", { error: String(error) });
     } finally {
       setSubmitting(false);
@@ -304,18 +302,15 @@ export default function CreatePipelineVideoPage({
   };
 
   const isLoading = processing || submitting;
-  const buttonText = isLoading ? "Generando..." : "Crear Reel";
+  const buttonText = isLoading ? t("ui.buttonGenerating") : t("ui.buttonCreate");
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto p-4 sm:p-6">
       {/* Título */}
       <div className="lg:col-span-2 mb-2 sm:mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold">
-          🎬 Crear Reel con Pipeline
-        </h2>
+        <h2 className="text-xl sm:text-2xl font-bold">{t("header.title")}</h2>
         <p className="text-muted-foreground text-xs sm:text-sm">
-          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al
-          pipeline.
+          {t("header.subtitle")}
         </p>
       </div>
 
@@ -330,26 +325,24 @@ export default function CreatePipelineVideoPage({
                   try {
                     const sec = await getVideoDurationFromUrl(v.url);
                     if (!sec) {
-                      toast.error("No se pudo leer la duración del vídeo.");
+                      toast.error(t("errors.readDuration"));
                       return;
                     }
                     if (sec > MAX_SEC) {
                       toast.error(
-                        `⏱️ El vídeo dura ${Math.round(
-                          sec
-                        )}s y el máximo es ${MAX_SEC}s.`
+                        t("errors.maxSeconds", { sec: Math.round(sec), max: MAX_SEC })
                       );
                       return;
                     }
                     setVideoUrl(v.url);
                     setVideoSec(sec);
-                    toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    toast.success(t("toasts.videoSelected", { name: v.name }));
                     track("video_selected", {
                       name: v.name,
                       seconds: Math.round(sec),
                     });
                   } catch {
-                    toast.error("❌ No se pudo analizar el vídeo.");
+                    toast.error(t("errors.cantAnalyzeVideo"));
                   }
                 }}
                 className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
@@ -398,9 +391,7 @@ export default function CreatePipelineVideoPage({
               <>
                 <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-muted-foreground" />
                 <p className="text-xs sm:text-sm text-muted-foreground text-center">
-                  {isDragActive
-                    ? "Suelta el vídeo aquí..."
-                    : "Arrastra un vídeo o haz click"}
+                  {isDragActive ? t("drop.dropHere") : t("drop.dragOrClick")}
                 </p>
               </>
             )}
@@ -418,34 +409,34 @@ export default function CreatePipelineVideoPage({
       <div className="space-y-4 sm:space-y-6">
         {/* Templates */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">{t("ui.template")}</Label>
           {loadingTpl ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
+              <Loader2 className="animate-spin h-4 w-4" /> {t("ui.loadingTemplates")}
             </div>
           ) : (
             <TemplateSelector
-            templates={templates}
-            selected={template}
-            onSelect={(t) => {
-              setTemplate(t);
-              track("template_selected", { template: t });
-            }}
-          />
+              templates={templates}
+              selected={template}
+              onSelect={(tpl) => {
+                setTemplate(tpl);
+                track("template_selected", { template: tpl });
+              }}
+            />
           )}
         </div>
 
         {/* Idioma */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Idioma</Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">{t("ui.language")}</Label>
           {loadingLang ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+              <Loader2 className="animate-spin h-4 w-4" /> {t("ui.loadingLanguages")}
             </div>
           ) : (
             <Select value={language} onValueChange={setLanguage}>
               <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Seleccionar un idioma" />
+                <SelectValue placeholder={t("ui.selectLanguage")} />
               </SelectTrigger>
               <SelectContent>
                 {languages.map((l) => (
@@ -460,16 +451,14 @@ export default function CreatePipelineVideoPage({
 
         {/* Diccionario */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">
-            Descripción breve
-          </Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">{t("ui.dictionary")}</Label>
           <Input
             value={dictionary}
             onChange={(e) => {
               setDictionary(e.target.value);
               track("dictionary_updated");
             }}
-            placeholder="Escribe una breve descripción..."
+            placeholder={t("ui.dictionaryPlaceholder")}
             className="text-sm"
           />
         </div>
@@ -487,11 +476,11 @@ export default function CreatePipelineVideoPage({
                       track("magic_zooms_toggled", { enabled: !!c });
                     }}
                   />
-                  <Label className="text-sm">Magic Zooms</Label>
+                  <Label className="text-sm">{t("ui.magicZooms")}</Label>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Agrega acercamientos automáticos para más dinamismo.</p>
+                <p>{t("ui.magicZoomsTip")}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -505,11 +494,11 @@ export default function CreatePipelineVideoPage({
                       track("magic_brolls_toggled", { enabled: !!c });
                     }}
                   />
-                  <Label className="text-sm">Magic B-rolls</Label>
+                  <Label className="text-sm">{t("ui.magicBrolls")}</Label>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+                <p>{t("ui.magicBrollsTip")}</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -517,7 +506,7 @@ export default function CreatePipelineVideoPage({
           {magicBrolls && (
             <div>
               <Label className="mb-1 block text-sm">
-                Porcentaje de B-rolls: {magicBrollsPercentage}%
+                {t("ui.brollsPercentage", { value: magicBrollsPercentage })}
               </Label>
               <Slider
                 defaultValue={[magicBrollsPercentage]}
@@ -539,6 +528,7 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

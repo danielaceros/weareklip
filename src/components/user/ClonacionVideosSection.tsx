@@ -1,3 +1,4 @@
+// src/components/user/ClonacionVideosSection.tsx
 "use client";
 
 import { useState } from "react";
@@ -29,11 +30,11 @@ interface ClonacionVideo {
   id: string;
   url: string;
   thumbnail?: string;
-  storagePath?: string; // 👈 añadir esto
+  storagePath?: string;
 }
 
 interface ClonacionVideosSectionProps {
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, any>) => string;
   clonacionVideos: ClonacionVideo[];
   handleUpload: (file: File) => Promise<void>;
   handleDelete: (id: string) => Promise<void> | void;
@@ -96,17 +97,20 @@ export default function ClonacionVideosSection({
         const isValid = Math.abs(ratio - expected) < 0.02;
 
         if (!isValid) {
-          toast.error("⚠️ El vídeo debe ser 9:16", {
-            description: `Subiste ${videoWidth}x${videoHeight}, debe ser vertical.`,
+          toast.error(t("clonacion.aspectInvalid.title"), {
+            description: t("clonacion.aspectInvalid.description", {
+              width: videoWidth,
+              height: videoHeight,
+            }),
           });
         } else {
-          toast.success("✅ Vídeo válido (9:16)");
+          toast.success(t("clonacion.aspectValid"));
         }
         resolve(isValid);
       };
 
       video.onerror = () => {
-        toast.error("❌ No se pudo analizar el vídeo.");
+        toast.error(t("clonacion.analyzeError"));
         resolve(false);
       };
     });
@@ -144,7 +148,7 @@ export default function ClonacionVideosSection({
           </p>
         </div>
         <Button onClick={() => setOpenUpload(true)}>
-          + Añadir vídeo de clonación
+          {t("clonacion.addButton")}
         </Button>
       </div>
 
@@ -177,7 +181,7 @@ export default function ClonacionVideosSection({
                 {video.thumbnail ? (
                   <Image
                     src={video.thumbnail}
-                    alt="thumbnail"
+                    alt={t("clonacion.thumbnailAlt")}
                     width={200}
                     height={356}
                     className="w-full h-full object-cover"
@@ -189,7 +193,7 @@ export default function ClonacionVideosSection({
                     muted
                     onError={(e) => {
                       (e.target as HTMLVideoElement).style.display = "none";
-                      toast.error("⚠️ El vídeo ya no está disponible");
+                      toast.error(t("clonacion.videoUnavailable"));
                     }}
                   />
                 )}
@@ -199,6 +203,7 @@ export default function ClonacionVideosSection({
                     size="icon"
                     variant="secondary"
                     onClick={() => setSelectedVideo(video.url)}
+                    aria-label={t("clonacion.actions.preview")}
                   >
                     <Eye className="w-4 h-4" />
                   </Button>
@@ -206,6 +211,7 @@ export default function ClonacionVideosSection({
                     size="icon"
                     variant="destructive"
                     onClick={() => setDeleteTarget(video.id)}
+                    aria-label={t("clonacion.actions.delete")}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -278,17 +284,17 @@ export default function ClonacionVideosSection({
         onClose={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         deleting={deleting}
-        title="Eliminar vídeo"
-        description="¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
-        cancelText="Cancelar"
-        confirmText="Eliminar"
+        title={t("clonacion.delete.title")}
+        description={t("clonacion.delete.description")}
+        cancelText={t("common.cancel")}
+        confirmText={t("common.delete")}
       />
 
       {/* Upload modal */}
       <UploadClonacionVideoDialog
         open={openUpload}
         onOpenChange={setOpenUpload}
-        handleUpload={handleFileSelected} // ahora solo analiza
+        handleUpload={handleFileSelected} // aquí solo analizamos; confirmamos abajo
         uploading={uploading}
         progress={progress}
       >
@@ -297,7 +303,7 @@ export default function ClonacionVideosSection({
           <div className="mt-4 space-y-2">
             {analyzing ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Spinner size="sm" /> Analizando vídeo...
+                <Spinner size="sm" /> {t("clonacion.analyzingInline")}
               </div>
             ) : (
               <video
@@ -311,7 +317,7 @@ export default function ClonacionVideosSection({
               disabled={!isValidAspect || analyzing || uploading}
               className="w-full"
             >
-              Confirmar subida
+              {t("clonacion.confirmUpload")}
             </Button>
           </div>
         )}
@@ -319,3 +325,4 @@ export default function ClonacionVideosSection({
     </Card>
   );
 }
+
