@@ -44,9 +44,16 @@ function decodeJwt(token: string): any | null {
 ------------------------------------------------- */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ⚡ Excluir Stripe webhook de cualquier control
+  if (pathname.startsWith("/api/stripe/webhook")) {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/api/session")) {
     return NextResponse.next();
   }
+
   /* --- 1. Ignorar rutas públicas/estáticas --- */
   if (
     pathname.startsWith("/_next") || // bundles internos
@@ -73,45 +80,31 @@ export async function middleware(req: NextRequest) {
         { status: 429 }
       );
     }
+    // ⚠️ No hacemos auth aquí, cada endpoint se encarga
+    return NextResponse.next();
   }
 
-  /* --- 3. Zonas privadas --- */
+  /* --- 3. Zonas privadas (sí requieren auth global) --- */
   if (
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/checkout/callback") ||
-    pathname.startsWith("/api")
+    pathname.startsWith("/checkout/callback")
   ) {
     const tokenCookie = req.cookies.get("authToken")?.value;
-    const authHeader = req.headers.get("authorization");
-    const bearerToken =
-      authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-
-    const token = tokenCookie || bearerToken;
-
-    // Sin token → redirect login (excepto si es API, devolvemos 401 JSON)
-    if (!token) {
-      if (pathname.startsWith("/api")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    if (!tokenCookie) {
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Con token → validación mínima
-    const decoded = decodeJwt(token);
+    const decoded = decodeJwt(tokenCookie);
     if (!decoded) {
-      if (pathname.startsWith("/api")) {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-      }
       const loginUrl = req.nextUrl.clone();
       loginUrl.pathname = "/login";
       return NextResponse.redirect(loginUrl);
     }
 
-    // Si onboarding no está completo y entra al dashboard → redirigir
     if (
       pathname.startsWith("/dashboard") &&
       decoded.onboardingCompleted === false
