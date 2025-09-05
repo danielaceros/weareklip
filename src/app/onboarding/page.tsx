@@ -22,8 +22,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import useSubscriptionGate from "@/hooks/useSubscriptionGate";
-import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 /* ----------------- Constantes de límites ----------------- */
 const MAX_VIDEO_MB = 1000;
@@ -82,8 +80,6 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
 
   // Paso 1
   const [name, setName] = useState("");
@@ -105,7 +101,6 @@ export default function OnboardingPage() {
 
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptAup, setAcceptAup] = useState(false);
-  const { ensureSubscribed } = useSubscriptionGate();
 
    useEffect(() => {
     let initialized = false;
@@ -120,20 +115,10 @@ export default function OnboardingPage() {
         router.replace("/login");
         return;
       }
-      // 👉 Verificar subscripción al entrar
-      try {
-        const ok = await ensureSubscribed({ feature: "clone" });
-        setSubscribed(ok); // 👈 guardamos el estado
-        if (!ok) {
-          setShowCheckout(true);
-        }
-      } catch (err) {
-        console.error("Error al verificar subscripción:", err);
-      }
     });
 
     return () => unsub();
-  }, [router, ensureSubscribed]);
+  }, [router]);
 
 
 
@@ -359,14 +344,6 @@ export default function OnboardingPage() {
       return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
     }
 
-    const ok = await ensureSubscribed({ feature: "elevenlabs-voice" });
-    console.log(ok)
-      if (!ok) {
-        setShowCheckout(true); // 👈 abre el modal
-        return;
-      }
-
-
     try {
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
@@ -469,11 +446,6 @@ export default function OnboardingPage() {
     // 🔄 En background (no bloquea la UI)
     (async () => {
       try {
-        const ok = await ensureSubscribed();
-        if (!ok) {
-          setShowCheckout(true);
-          return;
-        }
 
         // Guardar flag en paso 1
         if (step === 1 && user && acceptTerms && acceptAup) {
@@ -778,7 +750,7 @@ export default function OnboardingPage() {
                   totalDuration === 0 ||
                   totalDuration > MAX_TOTAL_SECONDS ||
                   !videoDoc ||
-                  !validStep1 || !subscribed
+                  !validStep1 
                 }
               >
                 Finalizar
