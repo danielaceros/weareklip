@@ -31,6 +31,7 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
 import { Input } from "@/components/ui/input"; // ⬅️ nuevo
+import { TemplateSelector } from "./TemplateSelector";
 
 /* ✅ límite de tamaño (100 MB vídeo) */
 import { validateFileSizeAs } from "@/lib/fileLimits";
@@ -465,30 +466,27 @@ export default function CreateVideoPage({
             <Label className="mb-2 block">Template</Label>
             {loadingTpl ? (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="animate-spin h-4 w-4" /> Cargando
-                templates...
+                <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
               </div>
             ) : (
               <>
-                {/* Mobile */}
+                {/* Mobile → botones simples */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
-                    {(showTemplates ? templates : templates.slice(0, 6)).map(
-                      (t) => (
-                        <Button
-                          key={t}
-                          type="button"
-                          variant={t === template ? "default" : "secondary"}
-                          className="w-full"
-                          onClick={() => {
-                            setTemplate(t);
-                            toast.success(`📑 Template "${t}" seleccionado`);
-                          }}
-                        >
-                          {t}
-                        </Button>
-                      )
-                    )}
+                    {(showTemplates ? templates : templates.slice(0, 6)).map((t) => (
+                      <Button
+                        key={t}
+                        type="button"
+                        variant={t === template ? "default" : "secondary"}
+                        className="w-full"
+                        onClick={() => {
+                          setTemplate(t);
+                          toast.success(`📑 Template "${t}" seleccionado`);
+                        }}
+                      >
+                        {t}
+                      </Button>
+                    ))}
                   </div>
                   {templates.length > 6 && (
                     <Button
@@ -502,26 +500,18 @@ export default function CreateVideoPage({
                   )}
                 </div>
 
-                {/* Desktop */}
-                <div className="hidden sm:grid sm:grid-cols-3 gap-3">
-                  {templates.map((t) => (
-                    <Button
-                      key={t}
-                      type="button"
-                      variant={t === template ? "default" : "secondary"}
-                      className="w-full"
-                      onClick={() => {
-                        setTemplate(t);
-                        toast.success(`📑 Template "${t}" seleccionado`);
-                      }}
-                    >
-                      {t}
-                    </Button>
-                  ))}
+                {/* Desktop → tooltip con previsualización */}
+                <div className="hidden sm:block">
+                  <TemplateSelector
+                    templates={templates}
+                    selected={template}
+                    onSelect={setTemplate}
+                  />
                 </div>
               </>
             )}
           </div>
+
 
           {/* Idioma */}
           <div>
