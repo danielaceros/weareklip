@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FaGoogle } from 'react-icons/fa'; // Icono de Google
+import FractalBackground from "@/components/login/FractalBackground";
+import NextImage from "next/image";
 
 // Lista blanca de dominios
 const ALLOWED_EMAIL_DOMAINS = [
@@ -210,8 +212,18 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-black p-4">
-      <Card className="w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg">
+      <Card className="z-10 w-full max-w-md bg-neutral-900 text-white rounded-2xl shadow-lg">
         <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center">
+            <NextImage
+              src="/icons/bg.png"   // tu archivo en /public
+              alt="Logo"
+              width={300}
+              height={100}
+              className="mx-auto"
+              priority
+            />
+          </div>
           <CardTitle className="text-lg font-semibold">
             {mode === "login" ? "Inicia sesión en tu cuenta" : "Crea tu cuenta"}
           </CardTitle>
@@ -286,6 +298,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <FractalBackground />
     </main>
   );
 }
