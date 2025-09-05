@@ -10,7 +10,6 @@ import {
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
-  listAll,
 } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { VoiceSamplesList } from "./VoiceSamplesList";
@@ -29,12 +28,16 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button"; // ⬅️ nuevo
+import { Button } from "@/components/ui/button";
 
 import { validateFileSizeAs } from "@/lib/fileLimits";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
+
+// 🔹 Nuevos límites
+const MIN_DURATION = 180;   // 3 minutos
+const MAX_DURATION = 1800;  // 30 minutos
 
 export default function NewVoiceContainer() {
   const router = useRouter();
@@ -43,7 +46,10 @@ export default function NewVoiceContainer() {
     { name: string; duration: number; url: string; storagePath: string }[]
   >([]);
 
-  const [totalDuration, setTotalDuration] = useState(0);
+  const totalDuration = useMemo(
+   () => samples.reduce((acc, s) => acc + (s.duration || 0), 0),
+   [samples]
+   );
   const [recording, setRecording] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
     {}
@@ -51,10 +57,7 @@ export default function NewVoiceContainer() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
-  // 🏷️ nombre de la voz
   const [voiceTitle, setVoiceTitle] = useState("");
-
-  // ⛔ anti-doble-click
   const [submitting, setSubmitting] = useState(false);
   const inFlight = useRef(false);
 
@@ -65,49 +68,31 @@ export default function NewVoiceContainer() {
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
   const getAudioDurationFromURL = (url: string): Promise<number> =>
-    new Promise((resolve, reject) => {
+  new Promise((resolve, reject) => {
+    const audio = document.createElement("audio");
+    audio.src = url;
+    audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
+    audio.addEventListener("error", (e) => reject(e));
+  });
+
+  const getAudioDurationFromFile = (file: File): Promise<number> =>
+    new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
       const audio = document.createElement("audio");
       audio.src = url;
-      audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
-      audio.addEventListener("error", (e) => reject(e));
+      audio.addEventListener("loadedmetadata", () => {
+        resolve(audio.duration);
+        URL.revokeObjectURL(url); // liberar memoria
+      });
+      audio.addEventListener("error", () => {
+        resolve(0); // fallback optimista
+        URL.revokeObjectURL(url);
+      });
     });
 
-  const fetchSamples = useCallback(async () => {
-    if (!user) return;
-    try {
-      const folderRef = ref(storage, `users/${user.uid}/voices`);
-      const res = await listAll(folderRef);
-      const filesData = await Promise.all(
-        res.items.map(async (itemRef) => {
-          const url = await getDownloadURL(itemRef);
-          const duration = await getAudioDurationFromURL(url);
-          return {
-            name: itemRef.name,
-            duration,
-            url,
-            storagePath: itemRef.fullPath,
-          };
-        })
-      );
 
-      const total = filesData.reduce((acc, s) => acc + s.duration, 0);
-      setSamples(filesData);
-      setTotalDuration(total);
-
-      if (total > 180) {
-        toast.error(
-          "⚠ Has superado el límite de 3 minutos, elimina muestras para continuar."
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Error cargando muestras desde Firebase");
-    }
-  }, [user, storage]);
-
-  useEffect(() => {
-    void fetchSamples();
-  }, [fetchSamples]);
+  // ❌ Eliminada la carga automática desde Firebase
+  // Sólo se usaría si implementas "reanudar proceso" manual
 
   const uploadToFirebase = useCallback(
     async (file: File) => {
@@ -116,37 +101,36 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      const v = validateFileSizeAs(file, "audio");
-      if (!v.ok) {
-        toast.error("Archivo demasiado grande", { description: v.message });
-        return;
-      }
-
       const rawExt = file.type.split("/")[1] || "webm";
       const safeExt = rawExt === "x-m4a" ? "m4a" : rawExt;
       const fileName = `sample-${Date.now()}.${safeExt}`;
-
       const storagePath = `users/${user.uid}/voices/${fileName}`;
       const storageRef = ref(storage, storagePath);
 
+      // ✅ duración optimista
       const tempUrl = URL.createObjectURL(file);
+      const localDuration = await getAudioDurationFromFile(file);
+
+      // ✅ añadimos el sample como si ya estuviera
       setSamples((prev) => [
         ...prev,
-        { name: fileName, duration: 0, url: tempUrl, storagePath },
+        {
+          name: fileName,
+          duration: localDuration,
+          url: tempUrl,
+          storagePath,
+        },
       ]);
-      setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+
+      // 🔄 marcador de “sincronizando”
+      setUploadProgress((prev) => ({ ...prev, [fileName]: -1 }));
 
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       return new Promise<void>((resolve, reject) => {
         uploadTask.on(
           "state_changed",
-          (snapshot) => {
-            const progress = Math.round(
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            );
-            setUploadProgress((prev) => ({ ...prev, [fileName]: progress }));
-          },
+          null, // no actualizamos cada %
           (error) => {
             toast.error(`Error al subir ${file.name}`);
             setUploadProgress((prev) => {
@@ -154,14 +138,11 @@ export default function NewVoiceContainer() {
               delete next[fileName];
               return next;
             });
-            setSamples((prev) =>
-              prev.filter((s) => s.storagePath !== storagePath)
-            );
             reject(error);
           },
           async () => {
             const url = await getDownloadURL(uploadTask.snapshot.ref);
-            let duration = 0;
+            let duration = localDuration;
             try {
               duration = await getAudioDurationFromURL(url);
             } catch {}
@@ -170,9 +151,10 @@ export default function NewVoiceContainer() {
                 s.storagePath === storagePath ? { ...s, url, duration } : s
               )
             );
+            // ✅ marcar como “ok”
             setUploadProgress((prev) => {
               const next = { ...prev };
-              delete next[fileName];
+              next[fileName] = 100;
               return next;
             });
             toast.success(`✅ ${file.name} subida correctamente`);
@@ -183,6 +165,7 @@ export default function NewVoiceContainer() {
     },
     [user, storage]
   );
+
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -212,19 +195,30 @@ export default function NewVoiceContainer() {
     return v.ok ? null : { code: "file-too-large", message: v.message };
   };
 
+  // ⬇️ Cambia el hook del dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     onDropRejected: (rejs) => {
       rejs.forEach((r) =>
-        toast.error("Archivo demasiado grande", {
+        toast.error("Archivo inválido", {
           description: r.errors?.[0]?.message,
         })
       );
     },
-    accept: { "audio/*": [], "video/*": [] },
+    accept: { "audio/*": [] }, // ⬅️ solo audio
     multiple: true,
-    validator,
+    validator: (file: File) => {
+      const maxSize = 9 * 1024 * 1024; // 9 MB en bytes
+      if (file.size > maxSize) {
+        return {
+          code: "file-too-large",
+          message: "El archivo supera los 9 MB permitidos.",
+        };
+      }
+      return null;
+    },
   });
+
 
   const startRecording = async () => {
     try {
@@ -273,19 +267,17 @@ export default function NewVoiceContainer() {
 
   const removeSample = async (sampleName: string) => {
     if (!user) return;
-    try {
-      await deleteObject(
-        ref(storage, `users/${user.uid}/voices/${sampleName}`)
-      );
-      toast("🗑 Muestra eliminada");
-      await fetchSamples();
-    } catch {
-      toast.error("Error al eliminar muestra");
-    }
+    setSamples((prev) => prev.filter((s) => s.name !== sampleName));
+      try {
+        await deleteObject(ref(storage, `users/${user.uid}/voices/${sampleName}`));
+        toast("🗑 Muestra eliminada");
+      } catch {
+        toast.error("Error al eliminar muestra");
+      }
   };
 
   const createVoice = async () => {
-    if (inFlight.current || submitting) return; // ⛔ doble click
+    if (inFlight.current || submitting) return;
     inFlight.current = true;
     setSubmitting(true);
 
@@ -305,7 +297,6 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      // Pre-check de cuota en cliente (UX)
       const token = await user.getIdToken(true);
       const resList = await fetch(`/api/firebase/users/${user.uid}/voices`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -322,13 +313,12 @@ export default function NewVoiceContainer() {
 
       toast.loading("Creando voz en ElevenLabs...");
 
-      // 1) Crear voz en ElevenLabs
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          "X-Idempotency-Key": idem, // 🔒 idempotencia
+          "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({ paths, voiceName: finalName }),
       });
@@ -362,7 +352,6 @@ export default function NewVoiceContainer() {
         return;
       }
 
-      // 2) Guardar en Firestore el NOMBRE elegido
       const saveRes = await fetch(
         `/api/firebase/users/${user.uid}/voices/${data.voice_id}`,
         {
@@ -409,6 +398,14 @@ export default function NewVoiceContainer() {
   const perPage = 1;
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
+
+  // 🔹 Estado visual de duración
+  const durationState = useMemo(() => {
+    if (totalDuration < MIN_DURATION) return "insuficiente";
+    if (totalDuration <= 600) return "optimo";
+    if (totalDuration <= MAX_DURATION) return "exceso";
+    return "bloqueado";
+  }, [totalDuration]);
 
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -470,7 +467,7 @@ export default function NewVoiceContainer() {
               Haz clic para subir o arrastra y suelta
             </p>
             <p className="text-xs text-muted-foreground">
-              Audios o vídeos (como muestra) hasta 10&nbsp;MB
+              Audios (como muestra) hasta 9&nbsp;MB
             </p>
             <span className="mt-2 text-xs text-muted-foreground">o</span>
             <button
@@ -485,27 +482,39 @@ export default function NewVoiceContainer() {
           </div>
 
           {/* progreso total */}
-          <div className="flex items-center gap-4">
-            <Progress value={(totalDuration / 120) * 100} className="flex-1" />
-            <span className="text-sm font-medium whitespace-nowrap">
-              {Math.round(totalDuration)} / 120
-            </span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-4">
+              <Progress
+                value={(Math.min(totalDuration, MAX_DURATION) / MAX_DURATION) * 100}
+                className="flex-1"
+              />
+              <span className="text-sm font-medium whitespace-nowrap">
+                {Math.round(totalDuration)}s / {MAX_DURATION}s
+              </span>
+            </div>
+            {durationState === "insuficiente" && (
+              <p className="text-sm text-destructive">
+                ⚠ Necesitas al menos 180 segundos para una clonación de calidad.
+              </p>
+            )}
+            {durationState === "optimo" && (
+              <p className="text-sm text-green-600">
+                ✅ Duración óptima alcanzada.
+              </p>
+            )}
+            {durationState === "exceso" && (
+              <p className="text-sm text-yellow-600">
+                ℹ️ Ya tienes suficiente, subir más no mejora la calidad.
+              </p>
+            )}
+            {durationState === "bloqueado" && (
+              <p className="text-sm text-destructive">
+                ❌ Has superado el máximo de 30 minutos de muestras.
+              </p>
+            )}
           </div>
 
-          {/* Botón generar (bloqueado mientras envía) */}
-          <div className="flex justify-center lg:justify-end">
-            <Button
-              onClick={createVoice}
-              disabled={submitting || samples.length === 0}
-              aria-busy={submitting}
-              className="w-full sm:w-auto"
-              data-paywall
-              data-paywall-feature="elevenlabs-voice"
-            >
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitting ? "Creando voz..." : "Generar audio"}
-            </Button>
-          </div>
+          {/* Botón generar */}
         </div>
 
         {/* derecha */}
@@ -558,7 +567,23 @@ export default function NewVoiceContainer() {
           )}
         </div>
       </div>
-
+          <div className="p-5 w-full flex justify-center lg:justify-center">
+          <Button
+            onClick={createVoice}
+            disabled={
+              submitting ||
+              samples.length === 0 ||
+              totalDuration > MAX_DURATION
+            }
+            aria-busy={submitting}
+            className="w-full sm:w-auto"
+            data-paywall
+            data-paywall-feature="elevenlabs-voice"
+          >
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {submitting ? "Creando voz..." : "Generar audio"}
+          </Button>
+        </div>
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}

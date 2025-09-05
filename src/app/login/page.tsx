@@ -114,24 +114,40 @@ export default function LoginPage() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) return true;
 
-      const clonesRes = await fetch(`/api/firebase/users/${uid}/clones`, {
+      // 🔹 Leer el doc principal del usuario
+      const userRes = await fetch(`/api/firebase/users/${uid}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      const clones = await clonesRes.json();
-      if (Array.isArray(clones) && clones.length > 0) return false;
+      if (!userRes.ok) throw new Error("No se pudo cargar el usuario");
+      const user = await userRes.json();
 
-      const voicesRes = await fetch(`/api/firebase/users/${uid}/voices`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const voices = await voicesRes.json();
-      if (Array.isArray(voices) && voices.length > 0) return false;
+      // 🔹 Condición explícita
+      if (user?.onboardingCompleted) return false;
+
+      // 🔹 Fallback: si tiene clones y voces ya creados, asumimos completado
+      const [clonesRes, voicesRes] = await Promise.all([
+        fetch(`/api/firebase/users/${uid}/clones`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        }),
+        fetch(`/api/firebase/users/${uid}/voices`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        }),
+      ]);
+
+      const clones = (await clonesRes.json()).filter((c: any) => !!c?.url);
+      const voices = (await voicesRes.json()).filter((v: any) => !!v?.voice_id);
+
+      if (clones.length > 0 && voices.length > 0) {
+        return false;
+      }
 
       return true;
     } catch (err) {
       console.error("Error comprobando onboarding:", err);
-      return true;
+      return true; // fallback conservador
     }
   };
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,9 +166,15 @@ export default function LoginPage() {
         }
 
         await createSessionCookie(user); // 🔑 crea cookie de sesión
-        toast.success("¡Bienvenido!", { style: { background: "green", color: "white" } });
         const needsOnboarding = await checkOnboardingNeeded(user.uid);
-        router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
+        toast.success("¡Bienvenido!", { style: { background: "green", color: "white" } });
+
+        // ⚡ evita parpadeo: no renderices dashboard si necesita onboarding
+        if (needsOnboarding) {
+          await router.replace("/onboarding");
+        } else {
+          await router.replace("/dashboard");
+        }
       } else {
         const res = await createUserWithEmailAndPassword(auth, email, password);
         user = res.user;
@@ -186,7 +208,7 @@ export default function LoginPage() {
 
       toast.success("Inicio de sesión con Google");
       const needsOnboarding = await checkOnboardingNeeded(user.uid);
-      router.replace(needsOnboarding ? "/dashboard/onboarding" : "/dashboard");
+      router.replace(needsOnboarding ? "/onboarding" : "/dashboard");
     } catch {
       toast.error("No se pudo iniciar sesión con Google");
     } finally {

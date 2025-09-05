@@ -9,16 +9,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Upload, CheckCircle2 } from "lucide-react";
+import { Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { validateFileSize } from "@/lib/fileLimits";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  handleUpload: (file: File) => Promise<void>; // 🔹 mejor async
+  handleUpload: (file: File) => Promise<void>;
   uploading: boolean;
   progress: number;
+   children?: React.ReactNode   // 👈 añadir
 }
 
 export default function UploadClonacionVideoDialog({
@@ -28,49 +29,79 @@ export default function UploadClonacionVideoDialog({
   uploading,
   progress,
 }: Props) {
+  const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [validAspect, setValidAspect] = useState(false);
+  const [validSize, setValidSize] = useState(false);
 
-  // 🔄 limpiar estados al cerrar modal
+  // Limpiar estado al cerrar modal
   useEffect(() => {
     if (!open) {
+      setFile(null);
       setPreviewUrl(null);
       setFileName(null);
+      setValidAspect(false);
+      setValidSize(false);
     }
   }, [open]);
 
-  const optimisticUpload = async (file: File) => {
-    const res = validateFileSize(file, 200); // límite 200 MB
-    if (!res.ok) {
-      toast.error("Archivo demasiado grande", { description: res.message });
-      return;
-    }
+  // Validar archivo
+  const validateFile = async (f: File) => {
+    setAnalyzing(true);
+    const sizeOK = validateFileSize(f, 300).ok;
+    setValidSize(sizeOK);
 
-    // 👉 Optimistic UI: preview inmediata
-    const tempUrl = URL.createObjectURL(file);
-    setPreviewUrl(tempUrl);
-    setFileName(file.name);
+    // validar aspecto
+    const url = URL.createObjectURL(f);
+    const video = document.createElement("video");
+    video.src = url;
+    video.preload = "metadata";
 
-    try {
-      await handleUpload(file);
-      toast.success("✅ Vídeo subido correctamente");
-    } catch (err) {
-      console.error("❌ Error al subir:", err);
-      toast.error("No se pudo subir el vídeo");
-      setPreviewUrl(null); // 🔙 rollback
-      setFileName(null);
-    }
+    return new Promise<void>((resolve) => {
+      video.onloadedmetadata = () => {
+        const ratio = video.videoWidth / video.videoHeight;
+        const is916 = Math.abs(ratio - 9 / 16) < 0.05;
+        setValidAspect(is916);
+        setAnalyzing(false);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      video.onerror = () => {
+        setValidAspect(false);
+        setAnalyzing(false);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+    });
+  };
+
+  const onSelectFile = (f: File) => {
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+    setFileName(f.name);
+    validateFile(f);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) optimisticUpload(file);
+    const f = e.dataTransfer.files?.[0];
+    if (f) onSelectFile(f);
   };
 
-  const onFileSelect = (file: File) => {
-    optimisticUpload(file);
+  const confirmUpload = async () => {
+    if (!file || !validAspect || !validSize) return;
+    try {
+      await handleUpload(file);
+      toast.success("✅ Vídeo subido correctamente");
+      onOpenChange(false);
+    } catch {
+      toast.error("❌ Error al subir el vídeo");
+    }
   };
+
+  const readyToConfirm = file && validAspect && validSize && !analyzing;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,29 +123,41 @@ export default function UploadClonacionVideoDialog({
               className="w-full h-full object-cover"
             />
           </div>
-
-          {/* Checklist de requisitos */}
+          {/* Requisitos */}
           <div className="space-y-2 text-sm">
             <p className="font-medium">Requisitos del vídeo:</p>
             <ul className="space-y-1">
-              {[
-                "Formato vertical (9:16)",
-                "Máximo 200 MB",
-                "Fondo liso y buena iluminación",
-                "Hablar de frente y con claridad",
-              ].map((req) => (
-                <li key={req} className="flex items-center gap-2 text-muted-foreground">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  {req}
-                </li>
-              ))}
+              <li className="flex items-center gap-2">
+                <CheckCircle2
+                  className={`w-4 h-4 ${
+                    validAspect ? "text-green-500" : "text-muted-foreground"
+                  }`}
+                />
+                Formato vertical (9:16)
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2
+                  className={`w-4 h-4 ${
+                    validSize ? "text-green-500" : "text-muted-foreground"
+                  }`}
+                />
+                Máximo 300MB
+              </li>
+              <li className="flex items-center gap-2 text-muted-foreground">
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                Fondo liso y buena iluminación
+              </li>
+              <li className="flex items-center gap-2 text-muted-foreground">
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                Hablar de frente y con claridad
+              </li>
             </ul>
           </div>
 
           {/* Drag & Drop / Preview */}
           {!previewUrl ? (
             <div
-              className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-muted/40"
+              className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/40"
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDrop}
               onClick={() => document.getElementById("file-upload")?.click()}
@@ -129,23 +172,36 @@ export default function UploadClonacionVideoDialog({
                 className="hidden"
                 id="file-upload"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onFileSelect(file);
+                  const f = e.target.files?.[0];
+                  if (f) onSelectFile(f);
                 }}
                 disabled={uploading}
               />
             </div>
           ) : (
             <div className="rounded-lg border overflow-hidden">
-              <video src={previewUrl} controls className="w-full max-h-80 object-cover" />
+              <div className="relative">
+                {analyzing && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    Analizando vídeo...
+                  </div>
+                )}
+                <video
+                  src={previewUrl}
+                  controls
+                  className="w-full max-h-80 object-cover"
+                />
+              </div>
               <div className="p-3 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground truncate">
-                  {uploading ? "Subiendo…" : fileName || "Vídeo listo"}
+                  {fileName}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    setFile(null);
                     setPreviewUrl(null);
                     setFileName(null);
                   }}
@@ -155,6 +211,24 @@ export default function UploadClonacionVideoDialog({
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* Confirmar subida */}
+          {file && (
+            <Button
+              className="w-full"
+              onClick={confirmUpload}
+              disabled={!readyToConfirm || uploading}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  Subiendo...
+                </>
+              ) : (
+                "Subir"
+              )}
+            </Button>
           )}
 
           {/* Progreso */}

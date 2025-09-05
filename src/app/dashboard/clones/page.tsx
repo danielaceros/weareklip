@@ -23,15 +23,14 @@ export default function UserPage() {
           t={t}
           clonacionVideos={clonacionVideos}
           handleUpload={handleUpload}
-          // ✅ Wrapper: ClonacionVideosSection solo recibe id
           handleDelete={(id) => {
             const video = clonacionVideos.find((v) => v.id === id);
-            return handleDelete(id, (video as any)?.storagePath ?? "");
+            if (!video) return;
+            return handleDelete(id, video.storagePath);
           }}
           uploading={uploading}
           progress={progress}
         />
-
         {/* Voces */}
         <VoicesListContainer variant="card" title="Voces de clonación" />
       </div>

@@ -487,11 +487,15 @@ export default function OnboardingPage() {
               },
               body: JSON.stringify({ isTermsAccepted: true }),
             });
-            console.log("✅ Flag isTermsAccepted actualizado en Firestore");
+
+            // 👇 Optimistic update
+            setAcceptTerms(true); 
+            // o si usas context/global state: setIsTermsAccepted(true)
           } catch (err) {
             console.error("Error al actualizar isTermsAccepted:", err);
           }
         }
+
       } catch (err) {
         console.error("Error al verificar subscripción:", err);
         toast.error("No se pudo verificar tu suscripción.");

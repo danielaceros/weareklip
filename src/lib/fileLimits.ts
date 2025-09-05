@@ -2,7 +2,7 @@
 export const MB = 1024 * 1024;
 
 export const LIMITS = {
-  video: 100 * MB, // 100 MB
+  video: 300 * MB, // 100 MB
   audio: 10 * MB,  // 10 MB
   other: 100 * MB,
 } as const;

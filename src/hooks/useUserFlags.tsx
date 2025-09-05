@@ -16,8 +16,7 @@ export default function useUserFlags(): FlagsResult {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   useEffect(() => {
-    const run = async () => {
-      const user = auth.currentUser;
+    const unsub = auth.onAuthStateChanged(async (user) => {
       if (!user) {
         setIsTermsAccepted(false);
         setOnboardingCompleted(false);
@@ -31,14 +30,8 @@ export default function useUserFlags(): FlagsResult {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-
-        if (res.ok && data) {
-          setIsTermsAccepted(Boolean(data.isTermsAccepted));
-          setOnboardingCompleted(Boolean(data.onboardingCompleted));
-        } else {
-          setIsTermsAccepted(false);
-          setOnboardingCompleted(false);
-        }
+        setIsTermsAccepted(Boolean(data.isTermsAccepted));
+        setOnboardingCompleted(Boolean(data.onboardingCompleted));
       } catch (e) {
         console.error("useUserFlags error:", e);
         setIsTermsAccepted(false);
@@ -46,9 +39,9 @@ export default function useUserFlags(): FlagsResult {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    run();
+    return () => unsub();
   }, []);
 
   return { loading, isTermsAccepted, onboardingCompleted };

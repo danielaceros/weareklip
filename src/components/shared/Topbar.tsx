@@ -130,10 +130,17 @@ export function Topbar() {
     }
   };
 
-  const isOnboarding = pathname?.startsWith("/dashboard/onboarding");
+  const isOnboarding = pathname?.startsWith("/onboarding");
 
   return (
     <>
+      {/* 📱 Banner solo en móvil */}
+      <div className="w-full bg-yellow-100 text-yellow-900 text-sm py-2 px-4 md:hidden">
+        <p className="text-center whitespace-normal break-words leading-snug">
+          🚀 Es mucho mejor usar <b>Viralizalo.AI</b> en PC para una mejor experiencia.
+        </p>
+      </div>
+
       {/* 🎁 Banner si hay créditos regalo disponibles (no en /dashboard/onboarding) */}
       {!isOnboarding &&
         summary?.trial?.available &&

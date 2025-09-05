@@ -14,21 +14,28 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 import UploadClonacionVideoDialog from "@/components/video/UploadClonacionVideoDialog";
+import { toast } from "sonner";
 
 interface ClonacionVideo {
   id: string;
   url: string;
   thumbnail?: string;
+  storagePath?: string; // 👈 añadir esto
 }
 
 interface ClonacionVideosSectionProps {
   t: (key: string) => string;
   clonacionVideos: ClonacionVideo[];
-  handleUpload: (file: File) => Promise<void>; 
+  handleUpload: (file: File) => Promise<void>;
   handleDelete: (id: string) => Promise<void> | void;
   uploading: boolean;
   progress: number;
@@ -55,6 +62,9 @@ export default function ClonacionVideosSection({
 
   // Upload modal
   const [openUpload, setOpenUpload] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [isValidAspect, setIsValidAspect] = useState(false);
 
   const totalPages = Math.ceil(clonacionVideos.length / perPage);
   const paginated = clonacionVideos.slice((page - 1) * perPage, page * perPage);
@@ -70,17 +80,72 @@ export default function ClonacionVideosSection({
     }
   };
 
+  // Validación 9:16
+  async function validateAspectRatio(file: File): Promise<boolean> {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.src = URL.createObjectURL(file);
+
+      video.onloadedmetadata = () => {
+        const { videoWidth, videoHeight } = video;
+        URL.revokeObjectURL(video.src);
+
+        const ratio = videoWidth / videoHeight;
+        const expected = 9 / 16;
+        const isValid = Math.abs(ratio - expected) < 0.02;
+
+        if (!isValid) {
+          toast.error("⚠️ El vídeo debe ser 9:16", {
+            description: `Subiste ${videoWidth}x${videoHeight}, debe ser vertical.`,
+          });
+        } else {
+          toast.success("✅ Vídeo válido (9:16)");
+        }
+        resolve(isValid);
+      };
+
+      video.onerror = () => {
+        toast.error("❌ No se pudo analizar el vídeo.");
+        resolve(false);
+      };
+    });
+  }
+
+  // Cuando se selecciona archivo en modal
+  const handleFileSelected = async (file: File) => {
+    setPendingFile(file);
+    setAnalyzing(true);
+    setIsValidAspect(false);
+
+    const ok = await validateAspectRatio(file);
+    setIsValidAspect(ok);
+    setAnalyzing(false);
+  };
+
+  // Confirmar subida
+  const confirmUpload = async () => {
+    if (!pendingFile || !isValidAspect) return;
+    await handleUpload(pendingFile);
+    setPendingFile(null);
+    setOpenUpload(false);
+  };
+
   return (
     <Card className="p-6 shadow-sm bg-card text-card-foreground">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{t("clonacion.sectionTitle")}</h2>
+          <h2 className="text-xl font-semibold">
+            {t("clonacion.sectionTitle")}
+          </h2>
           <p className="text-sm text-muted-foreground">
             {t("clonacion.sectionSubtitle")}
           </p>
         </div>
-        <Button onClick={() => setOpenUpload(true)}>+ Añadir vídeo de clonación</Button>
+        <Button onClick={() => setOpenUpload(true)}>
+          + Añadir vídeo de clonación
+        </Button>
       </div>
 
       <Separator className="my-4" />
@@ -91,7 +156,9 @@ export default function ClonacionVideosSection({
           <Spinner size="lg" variant="ellipsis" />
         </div>
       ) : clonacionVideos.length === 0 ? (
-        <p className="text-muted-foreground italic">{t("clonacion.noVideos")}</p>
+        <p className="text-muted-foreground italic">
+          {t("clonacion.noVideos")}
+        </p>
       ) : (
         <>
           <div
@@ -107,7 +174,6 @@ export default function ClonacionVideosSection({
                 key={video.id ?? video.url ?? idx}
                 className="relative group rounded-lg overflow-hidden border border-border aspect-[9/16] max-h-[260px]"
               >
-                {/* Thumbnail */}
                 {video.thumbnail ? (
                   <Image
                     src={video.thumbnail}
@@ -121,10 +187,13 @@ export default function ClonacionVideosSection({
                     src={video.url}
                     className="w-full h-full object-cover"
                     muted
+                    onError={(e) => {
+                      (e.target as HTMLVideoElement).style.display = "none";
+                      toast.error("⚠️ El vídeo ya no está disponible");
+                    }}
                   />
                 )}
 
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
                   <Button
                     size="icon"
@@ -145,7 +214,6 @@ export default function ClonacionVideosSection({
             ))}
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <Pagination>
               <PaginationContent>
@@ -220,10 +288,34 @@ export default function ClonacionVideosSection({
       <UploadClonacionVideoDialog
         open={openUpload}
         onOpenChange={setOpenUpload}
-        handleUpload={handleUpload}
+        handleUpload={handleFileSelected} // ahora solo analiza
         uploading={uploading}
         progress={progress}
-      />
+      >
+        {/* Preview dentro del modal */}
+        {pendingFile && (
+          <div className="mt-4 space-y-2">
+            {analyzing ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Spinner size="sm" /> Analizando vídeo...
+              </div>
+            ) : (
+              <video
+                src={URL.createObjectURL(pendingFile)}
+                className="w-full aspect-[9/16] object-cover rounded"
+                muted
+              />
+            )}
+            <Button
+              onClick={confirmUpload}
+              disabled={!isValidAspect || analyzing || uploading}
+              className="w-full"
+            >
+              Confirmar subida
+            </Button>
+          </div>
+        )}
+      </UploadClonacionVideoDialog>
     </Card>
   );
 }
