@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/VideoCard.tsx
 "use client";
 
 import { FC, useState } from "react";
@@ -5,6 +6,7 @@ import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { getStatusBadge } from "./videoUtils";
+import { useTranslations } from "next-intl";
 
 interface VideoData {
   projectId: string;
@@ -14,7 +16,7 @@ interface VideoData {
   storagePath?: string;
   duration?: number;
   completedAt?: string;
-  thumbnail?: string; // 👈 añadimos opcional para preview
+  thumbnail?: string;
 }
 
 interface Props {
@@ -29,13 +31,14 @@ const VideoThumbPlayer: FC<{ url: string; title: string; thumbnail?: string }> =
   thumbnail,
 }) => {
   const [active, setActive] = useState(false);
+  const t = useTranslations("video.card");
 
   return (
     <div className="relative w-full aspect-[9/16] overflow-hidden bg-black rounded-md">
       {!active && (
         <button
           type="button"
-          aria-label={`Reproducir: ${title}`}
+          aria-label={t("ariaPlay", { title })}
           onClick={() => setActive(true)}
           className="group absolute inset-0 grid place-items-center"
         >
@@ -49,7 +52,7 @@ const VideoThumbPlayer: FC<{ url: string; title: string; thumbnail?: string }> =
             <div className="absolute inset-0 w-full h-full bg-black/40" />
           )}
           <span className="absolute grid place-items-center rounded-full px-4 py-3 bg-white/90 backdrop-blur text-black text-sm font-semibold shadow-lg transition group-hover:scale-105">
-            ▶ Ver aquí
+            {t("playHere")}
           </span>
         </button>
       )}
@@ -68,6 +71,8 @@ const VideoThumbPlayer: FC<{ url: string; title: string; thumbnail?: string }> =
 
 /* 📦 Card principal */
 const VideoCard: FC<Props> = ({ video, onDelete }) => {
+  const t = useTranslations("video.card");
+
   return (
     <Card className="overflow-hidden rounded-xl border bg-card text-foreground flex flex-col">
       {/* Header */}
@@ -77,12 +82,13 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
           variant="ghost"
           onClick={onDelete}
           className="h-8 w-8 shrink-0 self-end sm:self-start"
+          aria-label="Delete video"
         >
           <Trash2 size={16} className="text-red-500" />
         </Button>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm sm:text-base font-bold truncate">
-            {video.title || "Sin título"}
+            {video.title || t("untitled")}
           </h3>
           <div className="mt-1">{getStatusBadge(video.status)}</div>
         </div>
@@ -99,10 +105,10 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
         ) : (
           <div className="w-full aspect-[9/16] flex items-center justify-center text-xs sm:text-sm text-muted-foreground bg-black/30 rounded-md">
             {video.status === "processing"
-              ? "⏳ Procesando..."
+              ? t("processing")
               : video.status === "error"
-              ? "❌ Error al generar"
-              : "⏱ Esperando datos..."}
+              ? t("error")
+              : t("waiting")}
           </div>
         )}
       </CardContent>
@@ -112,7 +118,7 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
         <CardFooter className="p-3 flex flex-col sm:flex-row justify-between items-center gap-2">
           <Button size="sm" variant="secondary" asChild className="w-full sm:w-auto rounded-lg">
             <a href={video.downloadUrl} target="_blank" rel="noopener noreferrer">
-              Descargar
+              {t("download")}
             </a>
           </Button>
         </CardFooter>

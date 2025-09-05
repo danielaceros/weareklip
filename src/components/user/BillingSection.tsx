@@ -1,8 +1,9 @@
+// src/app/dashboard/billing/BillingSection.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { auth } from "@/lib/firebase";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,37 +73,20 @@ type Task = {
 const toCredits = (cents?: number | null) =>
   Math.floor(Math.max(0, cents ?? 0) / 10);
 
-const fmtDate = (d: Date | null) =>
-  d
-    ? d.toLocaleDateString(undefined, {
-        day: "2-digit",
-        month: "short",
-        year: "2-digit",
-      })
-    : "—";
-
 function tsToDate(ts?: string | null): Date | null {
   if (!ts) return null;
   const d = new Date(ts);
   return isNaN(d.getTime()) ? null : d;
 }
 
-function statusBadge(status: string | null, cancelAtPeriodEnd?: boolean) {
-  if (!status) return <Badge variant="secondary">Sin suscripción</Badge>;
-  if (status === "trialing") return <Badge variant="secondary">En prueba</Badge>;
-  if (status === "active" && cancelAtPeriodEnd)
-    return <Badge variant="outline">Se cancela al final</Badge>;
-  if (status === "active") return <Badge>Activa</Badge>;
-  if (status === "past_due")
-    return <Badge variant="destructive">Pago vencido</Badge>;
-  if (status === "unpaid") return <Badge variant="destructive">Impago</Badge>;
-  if (status === "canceled") return <Badge variant="outline">Cancelada</Badge>;
-  return <Badge variant="secondary">{status}</Badge>;
-}
-
 /* ========= Componente ========= */
 
-export default function BillingSection() {
+interface BillingSectionProps {
+  /** Función de traducción (opcional). Si no se provee, se mostrará la clave. */
+  t?: (key: string, values?: Record<string, string | number>) => string;
+}
+
+export default function BillingSection({ t }: BillingSectionProps) {
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [docData, setDocData] = useState<UserDoc | null>(null);
   const [stripeData, setStripeData] = useState<any | null>(null);
@@ -121,6 +105,57 @@ export default function BillingSection() {
     "week"
   );
 
+  // Locale consistente para fechas/hora
+  const locale = useMemo(
+    () => (typeof navigator !== "undefined" ? navigator.language : "es-ES"),
+    []
+  );
+
+  // Helper i18n tolerante (funciona con t global o namespaced 'billing')
+  const T = (key: string, values?: Record<string, string | number>) => {
+    if (typeof t !== "function") return key;
+
+    try {
+      // Intento 1: clave tal cual
+      const v1 = t(key, values);
+      if (v1 !== key) return v1;
+    } catch {
+      /* noop */
+    }
+
+    if (key.startsWith("billing.")) {
+      // Intento 2: quitar prefijo si t es namespaced
+      const k2 = key.slice("billing.".length);
+      try {
+        const v2 = t(k2, values);
+        if (v2 !== k2) return v2;
+      } catch {
+        /* noop */
+      }
+    } else {
+      // Intento 3: añadir prefijo si t es global
+      const k3 = `billing.${key}`;
+      try {
+        const v3 = t(k3, values);
+        if (v3 !== k3) return v3;
+      } catch {
+        /* noop */
+      }
+    }
+
+    // Fallback: muestra la clave
+    return key;
+  };
+
+  const fmtDate = (d: Date | null) =>
+    d
+      ? d.toLocaleDateString(locale, {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        })
+      : "—";
+
   const currentWeek = useMemo(() => {
     const now = new Date();
     return {
@@ -130,6 +165,28 @@ export default function BillingSection() {
   }, []);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  // status badge con i18n
+  const statusBadge = (status: string | null, cancelAtPeriodEnd?: boolean) => {
+    if (!status)
+      return <Badge variant="secondary">{T("billing.status.none")}</Badge>;
+    if (status === "trialing")
+      return <Badge variant="secondary">{T("billing.status.trialing")}</Badge>;
+    if (status === "active" && cancelAtPeriodEnd)
+      return (
+        <Badge variant="outline">{T("billing.status.cancelAtPeriodEnd")}</Badge>
+      );
+    if (status === "active") return <Badge>{T("billing.status.active")}</Badge>;
+    if (status === "past_due")
+      return (
+        <Badge variant="destructive">{T("billing.status.past_due")}</Badge>
+      );
+    if (status === "unpaid")
+      return <Badge variant="destructive">{T("billing.status.unpaid")}</Badge>;
+    if (status === "canceled")
+      return <Badge variant="outline">{T("billing.status.canceled")}</Badge>;
+    return <Badge variant="secondary">{T("billing.status.unknown")}</Badge>;
+  };
 
   // Fetch paralelo: usuario, stripe, summary
   useEffect(() => {
@@ -197,7 +254,7 @@ export default function BillingSection() {
       }
     };
 
-    fetchAll();
+    void fetchAll();
 
     return () => {
       active = false;
@@ -213,7 +270,7 @@ export default function BillingSection() {
     const fetchTasks = async () => {
       setLoadingTasks(true);
       try {
-        const currentUser = getAuth().currentUser;
+        const currentUser = auth.currentUser;
         if (!currentUser) throw new Error("No autenticado");
         const idToken = await currentUser.getIdToken();
 
@@ -242,16 +299,18 @@ export default function BillingSection() {
   }, [user]);
 
   const filteredTasks = useMemo(() => {
-    return optimisticTasks.filter((t) => {
-      const d = tsToDate(t.createdAt);
+    return optimisticTasks.filter((tItem) => {
+      const d = tsToDate(tItem.createdAt);
       if (!d) return false;
       if (filterRange === "week") {
         if (d < currentWeek.start || d > currentWeek.end) return false;
       }
       if (filterRange === "month") {
-        if (d.getMonth() !== new Date().getMonth()) return false;
+        const now = new Date();
+        if (d.getFullYear() !== now.getFullYear()) return false;
+        if (d.getMonth() !== now.getMonth()) return false;
       }
-      if (filterKind !== "all" && t.kind !== filterKind) return false;
+      if (filterKind !== "all" && tItem.kind !== filterKind) return false;
       return true;
     });
   }, [optimisticTasks, filterKind, filterRange, currentWeek]);
@@ -284,7 +343,9 @@ export default function BillingSection() {
 
   return (
     <section className="space-y-6 px-4 sm:px-6">
-      <h2 className="text-2xl font-semibold tracking-tight">Suscripción</h2>
+      <h2 className="text-2xl font-semibold tracking-tight">
+        {T("billing.sectionTitle")}
+      </h2>
 
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Columna izquierda */}
@@ -306,7 +367,7 @@ export default function BillingSection() {
           ) : (
             <div className="rounded-2xl border bg-card p-5 transition-all duration-200">
               <div className="text-sm text-muted-foreground mb-1">
-                Periodo de facturación
+                {T("billing.period.title")}
               </div>
               <div className="text-sm text-muted-foreground mb-4">
                 {periodStart && periodEnd
@@ -323,41 +384,48 @@ export default function BillingSection() {
                       {sub?.status === "trialing"
                         ? 0
                         : toCredits(summary?.pendingUsageCents ?? 0)}{" "}
-                      créditos
+                      {T("billing.credits")}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Uso total
+                      {T("billing.usage.total")}
                     </div>
 
                     <div className="mt-4">
                       <div className="text-2xl font-semibold">
-                        {toCredits(summary?.credits?.availableCents ?? 0)} créditos
+                        {toCredits(summary?.credits?.availableCents ?? 0)}{" "}
+                        {T("billing.credits")}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        Créditos disponibles (incluye prueba)
+                        {T("billing.usage.available")}
                       </div>
                     </div>
                   </>
                 )}
               </div>
 
-              <div className="text-3xl font-semibold mt-2">29,99 €/mes</div>
+              <div className="text-3xl font-semibold mt-2">
+                {T("billing.plan.price", { price: "29,99 €" })}
+              </div>
               <div className="text-xs text-muted-foreground mb-5">
-                Acceso a la plataforma. Prueba de 7 días.
+                {T("billing.plan.subtitle")}
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Plan</span>
+                  <span className="text-sm text-muted-foreground">
+                    {T("billing.labels.plan")}
+                  </span>
                   <Badge variant="outline">{sub?.plan ?? "—"}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Estado</span>
+                  <span className="text-sm text-muted-foreground">
+                    {T("billing.labels.status")}
+                  </span>
                   {statusBadge(sub?.status ?? null, sub?.cancel_at_period_end)}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    Renovación
+                    {T("billing.labels.renewal")}
                   </span>
                   <Badge variant="secondary">
                     {sub?.status === "trialing"
@@ -374,7 +442,7 @@ export default function BillingSection() {
                     onClick={async () => {
                       setOpenCheckout(true);
                       try {
-                        const currentUser = getAuth().currentUser;
+                        const currentUser = auth.currentUser;
                         if (!currentUser) throw new Error("No autenticado");
                         const idToken = await currentUser.getIdToken();
                         const res = await fetch("/api/stripe/checkout", {
@@ -384,21 +452,21 @@ export default function BillingSection() {
                         if (!res.ok) throw new Error("Error en checkout");
                       } catch (err) {
                         console.error(err);
-                        toast.error("❌ No se pudo abrir el checkout");
+                        toast.error(T("billing.errors.checkout"));
                         setOpenCheckout(false);
                       }
                     }}
                   >
-                    Empezar prueba GRATUITA
+                    {T("billing.actions.startTrial")}
                   </Button>
                 ) : (
                   <Button
                     variant="secondary"
                     className="w-full"
                     onClick={async () => {
-                      toast.loading("Abriendo tu portal de Cliente");
-                      const currentUser = getAuth().currentUser;
-                      if (!currentUser) return alert("Debes iniciar sesión");
+                      toast.loading(T("billing.portal.opening"));
+                      const currentUser = auth.currentUser;
+                      if (!currentUser) return alert(T("billing.errors.auth"));
                       const idToken = await currentUser.getIdToken();
                       const res = await fetch("/api/stripe/portal", {
                         method: "POST",
@@ -408,11 +476,11 @@ export default function BillingSection() {
                       if (res.ok) {
                         window.location.href = data.url;
                       } else {
-                        alert(data.error || "Error abriendo el portal");
+                        alert(data.error || T("billing.errors.portal"));
                       }
                     }}
                   >
-                    Gestionar suscripción
+                    {T("billing.actions.manage")}
                   </Button>
                 )}
               </div>
@@ -426,14 +494,26 @@ export default function BillingSection() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
             <Select value={filterKind} onValueChange={setFilterKind}>
               <SelectTrigger className="sm:w-[160px] w-full">
-                <SelectValue placeholder="Tipo" />
+                <SelectValue
+                  placeholder={T("billing.filters.kind.placeholder")}
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="script">Guiones</SelectItem>
-                <SelectItem value="audio">Audios</SelectItem>
-                <SelectItem value="video">Vídeos</SelectItem>
-                <SelectItem value="edit">Ediciones</SelectItem>
+                <SelectItem value="all">
+                  {T("billing.filters.kind.all")}
+                </SelectItem>
+                <SelectItem value="script">
+                  {T("billing.filters.kind.script")}
+                </SelectItem>
+                <SelectItem value="audio">
+                  {T("billing.filters.kind.audio")}
+                </SelectItem>
+                <SelectItem value="video">
+                  {T("billing.filters.kind.video")}
+                </SelectItem>
+                <SelectItem value="edit">
+                  {T("billing.filters.kind.edit")}
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -442,12 +522,20 @@ export default function BillingSection() {
               onValueChange={(v: any) => setFilterRange(v)}
             >
               <SelectTrigger className="sm:w-[160px] w-full">
-                <SelectValue placeholder="Rango" />
+                <SelectValue
+                  placeholder={T("billing.filters.range.placeholder")}
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="week">Semana actual</SelectItem>
-                <SelectItem value="month">Mes actual</SelectItem>
-                <SelectItem value="all">Todo el historial</SelectItem>
+                <SelectItem value="week">
+                  {T("billing.filters.range.week")}
+                </SelectItem>
+                <SelectItem value="month">
+                  {T("billing.filters.range.month")}
+                </SelectItem>
+                <SelectItem value="all">
+                  {T("billing.filters.range.all")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -457,11 +545,15 @@ export default function BillingSection() {
             <Table className="w-full sm:min-w-[500px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px] sm:w-[140px]">Tipo</TableHead>
-                  <TableHead>ID del trabajo</TableHead>
-                  <TableHead className="w-[80px] sm:w-[120px]">Coste</TableHead>
+                  <TableHead className="w-[100px] sm:w-[140px]">
+                    {T("billing.table.headers.kind")}
+                  </TableHead>
+                  <TableHead>{T("billing.table.headers.jobId")}</TableHead>
+                  <TableHead className="w-[80px] sm:w-[120px]">
+                    {T("billing.table.headers.cost")}
+                  </TableHead>
                   <TableHead className="w-[140px] sm:w-[200px]">
-                    Fecha de procesado
+                    {T("billing.table.headers.processedAt")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -478,34 +570,34 @@ export default function BillingSection() {
                       colSpan={4}
                       className="text-center py-8 text-sm text-muted-foreground"
                     >
-                      No hay tareas registradas en este periodo.
+                      {T("billing.table.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredTasks.map((t) => (
-                    <TableRow key={t.id}>
+                  filteredTasks.map((tItem) => (
+                    <TableRow key={tItem.id}>
                       <TableCell className="capitalize">
-                        {t.kind === "script"
-                          ? "Guión"
-                          : t.kind === "audio"
-                          ? "Audio"
-                          : t.kind === "video"
-                          ? "Vídeo"
-                          : t.kind === "edit"
-                          ? "Edición"
-                          : t.kind}
+                        {tItem.kind === "script"
+                          ? T("billing.taskKind.script")
+                          : tItem.kind === "audio"
+                          ? T("billing.taskKind.audio")
+                          : tItem.kind === "video"
+                          ? T("billing.taskKind.video")
+                          : tItem.kind === "edit"
+                          ? T("billing.taskKind.edit")
+                          : tItem.kind}
                       </TableCell>
                       <TableCell className="truncate max-w-[100px] sm:max-w-[140px]">
-                        {t.id}
+                        {tItem.jobId || tItem.id}
                       </TableCell>
                       <TableCell>
-                        {toCredits(t.chargedCents)} créditos
+                        {toCredits(tItem.chargedCents)} {T("billing.credits")}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {(() => {
-                          const d = tsToDate(t.createdAt);
+                          const d = tsToDate(tItem.createdAt);
                           return d
-                            ? d.toLocaleString(undefined, {
+                            ? d.toLocaleString(locale, {
                                 day: "2-digit",
                                 month: "short",
                                 year: "2-digit",
