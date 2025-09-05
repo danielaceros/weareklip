@@ -37,6 +37,15 @@ export default function CheckoutRedirectModal({ open, onClose, plan, message }: 
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || "Error en checkout");
 
+      if (typeof window !== "undefined" && typeof window.fbq === "function") {
+        window.fbq("track", "StartTrial", {
+          value: 0.00,
+          currency: "EUR",      // cámbialo a "EUR" si prefieres
+          predicted_ltv: 29.99, // valor estimado tras la prueba
+          plan,
+          email,
+        });
+      }
       // 👉 Redirige a la URL que devuelva el backend (Checkout o Portal)
       window.location.href = data.url;
     } catch (err) {

@@ -175,7 +175,7 @@ export default function LoginPage() {
         } else {
           await router.replace("/dashboard");
         }
-      } else {
+            } else {
         const res = await createUserWithEmailAndPassword(auth, email, password);
         user = res.user;
 
@@ -183,8 +183,16 @@ export default function LoginPage() {
         toast.info("Hemos enviado un correo de verificación. Revisa tu bandeja.");
         await ensureUserDoc(user.uid, user.email || email);
 
+        // 🔹 Disparar evento de Meta
+        if (typeof window !== "undefined" && typeof window.fbq === "function") {
+            window.fbq("track", "CompleteRegistration", {
+              method: "Email",
+              email: user.email,
+            });
+          }
         return router.replace("/verify");
       }
+
     } catch (err) {
       const message =
         (err as { code?: string }).code === "auth/email-already-in-use"
@@ -204,11 +212,21 @@ export default function LoginPage() {
       await ensureUserDoc(user.uid, user.email || "");
 
       // Google siempre da email verificado
-      await createSessionCookie(user); // 🔑 crea cookie de sesión
+      await createSessionCookie(user);
 
       toast.success("Inicio de sesión con Google");
+
+      // 🔹 Disparar evento de Meta
+      if (typeof window !== "undefined" && typeof window.fbq === "function") {
+          window.fbq("track", "CompleteRegistration", {
+            method: "Google",
+            email: user.email,
+          });
+        }
+
       const needsOnboarding = await checkOnboardingNeeded(user.uid);
       router.replace(needsOnboarding ? "/onboarding" : "/dashboard");
+
     } catch {
       toast.error("No se pudo iniciar sesión con Google");
     } finally {
