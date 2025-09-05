@@ -39,7 +39,6 @@ export async function GET() {
     await gaServerEvent("submagic_templates_fetched", {
       count: cachedTemplates?.length ?? 0,
     });
-
     return NextResponse.json({ templates: cachedTemplates });
   } catch (e: any) {
     // En caso de error, registrar y devolver error

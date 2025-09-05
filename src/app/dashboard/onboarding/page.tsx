@@ -645,6 +645,7 @@ export default function OnboardingPage() {
                   controls
                   preload="metadata"
                   playsInline
+                  autoPlay
                   poster="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/video-cover.jpeg?alt=media"
                   className="w-full h-full object-cover"
                 />

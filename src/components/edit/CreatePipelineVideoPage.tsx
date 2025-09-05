@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { track } from "@/lib/analytics-events";
+import { TemplateSelector } from "./TemplateSelector";
 
 // -------- utilidades --------
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -423,23 +424,14 @@ export default function CreatePipelineVideoPage({
               <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-              {templates.map((t) => (
-                <Button
-                  key={t}
-                  type="button"
-                  variant={t === template ? "default" : "secondary"}
-                  className="w-full text-xs sm:text-sm"
-                  onClick={() => {
-                    setTemplate(t);
-                    toast.success(`📑 Template "${t}" seleccionado`);
-                    track("template_selected", { template: t });
-                  }}
-                >
-                  {t}
-                </Button>
-              ))}
-            </div>
+            <TemplateSelector
+            templates={templates}
+            selected={template}
+            onSelect={(t) => {
+              setTemplate(t);
+              track("template_selected", { template: t });
+            }}
+          />
           )}
         </div>
 
