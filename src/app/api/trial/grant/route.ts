@@ -92,9 +92,7 @@ export async function POST(req: NextRequest) {
       applicability_config: {
         scope: { price_type: "metered" },
       },
-      expiration_config: {
-        expires_at: trialEnd, // ⬅️ caducan al final del trial
-      },
+      expires_at: trialEnd,
     } as any);
 
     // 6) Guardar flags

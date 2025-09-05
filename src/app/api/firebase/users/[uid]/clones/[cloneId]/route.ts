@@ -1,8 +1,6 @@
-// src/app/api/firebase/users/[uid]/clones/[cloneId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { adminDB, adminAuth } from "@/lib/firebase-admin";
 
-// 🔹 Verificar token y UID
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
@@ -47,7 +45,7 @@ export async function GET(
   }
 }
 
-// 🔹 Crear o actualizar un clone
+// 🔹 Actualizar un clone
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ uid: string; cloneId: string }> }

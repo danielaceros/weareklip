@@ -12,6 +12,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
+// 🔹 Constantes para feedback
+const MIN_SAMPLE_DURATION = 5;   // evitar audios demasiado cortos (<5s casi inútiles)
+const MAX_SAMPLE_DURATION = 600; // 10 min por muestra recomendado
+
 interface Sample {
   name: string;
   duration: number;
@@ -52,6 +56,28 @@ export function VoiceSamplesList({
       current.play();
       setPlaying(name);
     }
+  };
+
+  const durationLabel = (duration: number) => {
+    if (duration < MIN_SAMPLE_DURATION) {
+      return (
+        <span className="text-[11px] sm:text-xs text-destructive font-medium">
+          ⚠ {Math.round(duration)}s (muy corto)
+        </span>
+      );
+    }
+    if (duration > MAX_SAMPLE_DURATION) {
+      return (
+        <span className="text-[11px] sm:text-xs text-yellow-600 font-medium">
+          {Math.round(duration)}s (muy largo)
+        </span>
+      );
+    }
+    return (
+      <span className="text-[11px] sm:text-xs text-muted-foreground">
+        {Math.round(duration)} segundos
+      </span>
+    );
   };
 
   return (
@@ -143,10 +169,8 @@ export function VoiceSamplesList({
               </div>
             )}
 
-            {/* Duración */}
-            <span className="mt-1 sm:mt-2 text-[11px] sm:text-xs text-muted-foreground">
-              {Math.round(duration)} segundos
-            </span>
+            {/* Duración con feedback */}
+            <div className="mt-1 sm:mt-2">{durationLabel(duration)}</div>
           </Card>
         ))}
       </div>

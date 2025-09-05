@@ -13,20 +13,22 @@ export default function DashboardTermsGuard({ children }: { children: React.Reac
   useEffect(() => {
     if (loading) return;
 
-    const inDashboard = pathname.startsWith("/dashboard");
-    const inOnboarding = pathname.startsWith("/dashboard/onboarding");
+    const timeout = setTimeout(() => {
+      const inDashboard = pathname.startsWith("/dashboard");
+      const inOnboarding = pathname.startsWith("/onboarding");
 
-    // 🔒 Si está en dashboard (fuera de onboarding) pero le falta algo → forzar onboarding
-    if (inDashboard && !inOnboarding) {
-      if (!isTermsAccepted || !onboardingCompleted) {
-        router.replace("/dashboard/onboarding");
+      if (inDashboard && !inOnboarding) {
+        if (!isTermsAccepted || !onboardingCompleted) {
+          router.replace("/onboarding");
+        }
       }
-    }
 
-    // ✅ Si está en onboarding pero ya completó todo → redirigir al dashboard normal
-    if (inOnboarding && isTermsAccepted && onboardingCompleted) {
-      router.replace("/dashboard");
-    }
+      if (inOnboarding && isTermsAccepted && onboardingCompleted) {
+        router.replace("/dashboard");
+      }
+    }, 400); // 👈 da tiempo a que Firestore actualice
+
+    return () => clearTimeout(timeout);
   }, [loading, isTermsAccepted, onboardingCompleted, pathname, router]);
 
   if (loading) {

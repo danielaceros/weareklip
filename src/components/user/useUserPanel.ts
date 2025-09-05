@@ -71,7 +71,7 @@ export function useUserPanel() {
       if (!res.ok) throw new Error("Error al cargar videos de clonación");
 
       const vids: ClonacionVideo[] = await res.json();
-      setClonacionVideos(vids);
+      setClonacionVideos(vids.filter((v) => !!v.url)); // 👈 filtra los vacíos
     } catch (err) {
       console.error("fetchClonacionVideos error:", err);
       toast.error("Error cargando vídeos de clonación");

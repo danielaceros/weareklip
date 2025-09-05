@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDB, adminAuth } from "@/lib/firebase-admin";
 import admin from "firebase-admin";
 
-// 🔹 Helper local para validar el token y el uid
 async function verifyAuth(req: NextRequest, expectedUid: string) {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -60,16 +59,23 @@ export async function POST(
     await verifyAuth(req, uid);
 
     const body = await req.json();
-    const ref = await adminDB
+    const { id, ...rest } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+
+    await adminDB
       .collection("users")
       .doc(uid)
       .collection("clones")
-      .add({
-        ...body,
+      .doc(id) // 👈 usamos el mismo id que storage
+      .set({
+        ...rest,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-    return NextResponse.json({ id: ref.id, ...body });
+    return NextResponse.json({ id, ...rest });
   } catch (err: any) {
     console.error("POST clones error:", err);
     const status =
