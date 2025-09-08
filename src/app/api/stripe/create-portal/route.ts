@@ -7,27 +7,21 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const { priceId, mode = "subscription", success_url, cancel_url } = await req.json();
-
+    const { return_url } = await req.json();
     const user = await getUserFromSession(req);
     if (!user) return new NextResponse("Unauthorized", { status: 401 });
 
     const customerId = await getStripeCustomerId(user.id);
     if (!customerId) return new NextResponse("Missing stripeCustomerId", { status: 400 });
 
-    const session = await stripe.checkout.sessions.create({
-      mode,
+    const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url,
-      cancel_url,
-      allow_promotion_codes: true,
-      metadata: { uid: user.id },
+      return_url,
     });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: portal.url });
   } catch (e) {
-    console.error("[create-checkout] error:", e);
-    return new NextResponse("create-checkout failed", { status: 500 });
+    console.error("[create-portal] error:", e);
+    return new NextResponse("create-portal failed", { status: 500 });
   }
 }
