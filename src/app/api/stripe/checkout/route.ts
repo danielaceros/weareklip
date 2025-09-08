@@ -7,7 +7,7 @@ import Stripe from "stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Solo tienes “Access” en Stripe ahora mismo. Si añades más, declara aquí sus PRICE_ID */
+/** Solo tienes “Access” ahora mismo. Si añades más, declara aquí sus PRICE_ID */
 const PRICE_BY_PLAN: Record<"ACCESS" | "MID" | "CREATOR" | "BUSINESS", string | undefined> = {
   ACCESS: process.env.STRIPE_PRICE_ACCESS,
   MID: process.env.STRIPE_PRICE_MID,
@@ -20,14 +20,12 @@ const APP_URL =
   process.env.NEXT_PUBLIC_BASE_URL ||
   "http://localhost:3000";
 
-// Helpers
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 function isStripeDeleted(c: Stripe.Customer | Stripe.DeletedCustomer): c is Stripe.DeletedCustomer {
   return "deleted" in c && (c as Stripe.DeletedCustomer).deleted === true;
 }
-
 async function safeRetrieveCustomer(id: string): Promise<Stripe.Customer | null> {
   try {
     const c = await stripe.customers.retrieve(id);
@@ -41,11 +39,13 @@ async function safeRetrieveCustomer(id: string): Promise<Stripe.Customer | null>
 
 export async function POST(req: NextRequest) {
   try {
-    // ── 1) Auth (Bearer idToken o body.idToken)
+    // 1) Auth (Bearer idToken o body.idToken)
     const authHeader = req.headers.get("authorization");
     const hasBearer = authHeader?.startsWith("Bearer ");
     let body: any = {};
-    try { body = await req.json(); } catch {}
+    try {
+      body = await req.json();
+    } catch {}
 
     const idToken = hasBearer
       ? authHeader!.slice(7)
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const uid = decoded.uid;
     const emailFromToken = (decoded as any)?.email as string | undefined;
 
-    // ── 2) Resolver priceId (por plan o por priceId explícito)
+    // 2) Resolver priceId (por plan o por priceId explícito)
     let priceId: string | undefined;
     if (typeof body?.priceId === "string" && body.priceId) {
       priceId = body.priceId;
@@ -67,20 +67,19 @@ export async function POST(req: NextRequest) {
       if (!priceId) return jsonError(`No hay price configurado para el plan ${plan}`, 400);
       body.plan = plan;
     } else {
-      // por defecto fuerzo ACCESS porque es lo único que tienes creado para suscripción
       priceId = PRICE_BY_PLAN.ACCESS;
       body.plan = "ACCESS";
       if (!priceId) return jsonError("Falta STRIPE_PRICE_ACCESS en las env vars", 500);
     }
 
-    // ── 3) Leer doc usuario y customerId
+    // 3) Leer doc usuario y customerId
     const userRef = adminDB.collection("users").doc(uid);
     const snap = await userRef.get();
     const userData = snap.exists ? (snap.data() as any) : {};
     let customerId: string | undefined = userData?.stripeCustomerId || undefined;
     let hasTrialUsed: boolean = !!userData?.hasTrialUsed;
 
-    // Si no hay customerId, créalo ahora (para no depender de otro endpoint)
+    // Si no hay customerId, créalo ahora
     if (!customerId) {
       const c = await stripe.customers.create({
         email: emailFromToken || body?.email,
@@ -95,38 +94,33 @@ export async function POST(req: NextRequest) {
         },
         { merge: true }
       );
+    } else {
+      // sanity check del customer
+      await safeRetrieveCustomer(customerId);
     }
 
-    // ── 4) Si ya tiene sub activa/trial, mandamos al portal (como hacía la extensión)
-    let hasRelevant = false;
-    if (customerId) {
-      const list = await stripe.subscriptions.list({
-        customer: customerId,
-        status: "all",
-        expand: ["data.default_payment_method"],
-        limit: 10,
+    // 4) Si ya tiene sub activa/trial → portal
+    const list = await stripe.subscriptions.list({
+      customer: customerId!,
+      status: "all",
+      expand: ["data.default_payment_method"],
+      limit: 10,
+    });
+    const subs = list.data;
+    const hasActive = subs.some((s) => s.status === "active");
+    const hasTrialing = subs.some((s) => s.status === "trialing");
+    const hasTrialingCanceled = subs.some((s) => s.status === "trialing" && s.cancel_at_period_end);
+
+    if (hasActive || hasTrialing || hasTrialingCanceled) {
+      const next = typeof body?.next === "string" ? body.next : "/dashboard";
+      const portal = await stripe.billingPortal.sessions.create({
+        customer: customerId!,
+        return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(next)}`,
       });
-
-      const subs = list.data;
-      const hasActive = subs.some((s) => s.status === "active");
-      const hasTrialing = subs.some((s) => s.status === "trialing");
-      const hasTrialingCanceled = subs.some(
-        (s) => s.status === "trialing" && s.cancel_at_period_end === true
-      );
-
-      hasRelevant = hasActive || hasTrialing || hasTrialingCanceled;
-
-      if (hasRelevant) {
-        const next = typeof body?.next === "string" ? body.next : "/dashboard";
-        const portal = await stripe.billingPortal.sessions.create({
-          customer: customerId!,
-          return_url: `${APP_URL}/checkout/callback?success=1&next=${encodeURIComponent(next)}`,
-        });
-        return NextResponse.json({ url: portal.url });
-      }
+      return NextResponse.json({ url: portal.url });
     }
 
-    // ── 5) Guardar flags actuales
+    // 5) Guardar flags actuales
     await userRef.set(
       {
         stripeCustomerId: customerId,
@@ -136,13 +130,14 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // ── 6) Trial si nunca lo usó
+    // 6) Trial si nunca lo usó
     const trialDays = hasTrialUsed ? undefined : 7;
     const next = typeof body?.next === "string" ? body.next : "/dashboard";
 
-    // ── 7) Crear Checkout Session
+    // 7) Crear Checkout Session (solo tarjeta)
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      payment_method_types: ["card"], // <- solo tarjeta (sin Amazon Pay, Klarna, etc.)
       customer: customerId!,
       line_items: [{ price: priceId!, quantity: 1 }],
       allow_promotion_codes: true,
