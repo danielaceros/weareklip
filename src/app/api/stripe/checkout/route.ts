@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     // 7) Crear Checkout Session (solo tarjeta)
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["card"], // <- solo tarjeta (sin Amazon Pay, Klarna, etc.)
+      payment_method_types: ["card"], 
       customer: customerId!,
       line_items: [{ price: priceId!, quantity: 1 }],
       allow_promotion_codes: true,
