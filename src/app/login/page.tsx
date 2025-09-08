@@ -16,31 +16,81 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { FaGoogle } from 'react-icons/fa'; // Icono de Google
+import { FaGoogle } from "react-icons/fa";
 import FractalBackground from "@/components/login/FractalBackground";
 import NextImage from "next/image";
 
 // Lista blanca de dominios
 const ALLOWED_EMAIL_DOMAINS = [
-  "gmail.com", "yahoo.com", "outlook.com", "company.com", "hotmail.com",
-  "aol.com", "icloud.com", "protonmail.com", "zoho.com", "mail.com",
-  "yandex.com", "gmx.com", "fastmail.com", "tutanota.com", "hushmail.com",
-  "msn.com", "live.com", "comcast.net", "verizon.net", "sbcglobal.net",
-  "charter.net", "cox.net", "btinternet.com", "sky.com", "blueyonder.co.uk",
-  "virginmedia.com", "ntlworld.com", "talktalk.net", "orange.fr", "free.fr",
-  "wanadoo.fr", "sfr.fr", "laposte.net", "yahoo.co.uk", "ymail.com", "mail.ru",
-  "qq.com", "126.com", "163.com", "tencent.com", "zoho.in", "inbox.com",
-  "mailinator.com", "tempmail.com", "guerrillamail.com", "maildrop.cc",
-  "spamex.com", "trashmail.com", "spamgourmet.com", "dispostable.com",
-  "tempmailaddress.com", "throwawaymail.com", "sharklasers.com", "anonbox.net",
-  "getnada.com", "trashmail.io", "emailondeck.com", "10minutemail.com",
-  "mailcatch.com", "tmpmail.org", "fakemailgenerator.com", "burnermail.io",
-  "tempmailo.com", "jetable.org"
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "company.com",
+  "hotmail.com",
+  "aol.com",
+  "icloud.com",
+  "protonmail.com",
+  "zoho.com",
+  "mail.com",
+  "yandex.com",
+  "gmx.com",
+  "fastmail.com",
+  "tutanota.com",
+  "hushmail.com",
+  "msn.com",
+  "live.com",
+  "comcast.net",
+  "verizon.net",
+  "sbcglobal.net",
+  "charter.net",
+  "cox.net",
+  "btinternet.com",
+  "sky.com",
+  "blueyonder.co.uk",
+  "virginmedia.com",
+  "ntlworld.com",
+  "talktalk.net",
+  "orange.fr",
+  "free.fr",
+  "wanadoo.fr",
+  "sfr.fr",
+  "laposte.net",
+  "yahoo.co.uk",
+  "ymail.com",
+  "mail.ru",
+  "qq.com",
+  "126.com",
+  "163.com",
+  "tencent.com",
+  "zoho.in",
+  "inbox.com",
+  "mailinator.com",
+  "tempmail.com",
+  "guerrillamail.com",
+  "maildrop.cc",
+  "spamex.com",
+  "trashmail.com",
+  "spamgourmet.com",
+  "dispostable.com",
+  "tempmailaddress.com",
+  "throwawaymail.com",
+  "sharklasers.com",
+  "anonbox.net",
+  "getnada.com",
+  "trashmail.io",
+  "emailondeck.com",
+  "10minutemail.com",
+  "mailcatch.com",
+  "tmpmail.org",
+  "fakemailgenerator.com",
+  "burnermail.io",
+  "tempmailo.com",
+  "jetable.org",
 ];
 
 // Verifica si el dominio del correo electrónico está en la lista blanca
 const isAllowedDomain = (email: string): boolean => {
-  const domain = email.split('@')[1];
+  const domain = email.split("@")[1];
   return ALLOWED_EMAIL_DOMAINS.includes(domain);
 };
 
@@ -51,6 +101,37 @@ async function createSessionCookie(user: any) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
+}
+
+/** 👇 Asegura crear/recuperar el Customer de Stripe y guardarlo en Firestore (sustituye a la extensión) */
+async function ensureStripeCustomer(force = false) {
+  const u = auth.currentUser;
+  if (!u) return;
+
+  const cacheKey = `postLoginDone:${u.uid}`;
+  if (
+    !force &&
+    typeof window !== "undefined" &&
+    sessionStorage.getItem(cacheKey) === "1"
+  ) {
+    return; // evita llamadas repetidas en la misma sesión
+  }
+
+  const idToken = await u.getIdToken();
+  try {
+    const res = await fetch("/api/auth/post-login", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error("[post-login] failed:", res.status, txt);
+    } else if (typeof window !== "undefined") {
+      sessionStorage.setItem(cacheKey, "1");
+    }
+  } catch (e) {
+    console.error("[post-login] error:", e);
+  }
 }
 
 export default function LoginPage() {
@@ -118,7 +199,14 @@ export default function LoginPage() {
       const userRes = await fetch(`/api/firebase/users/${uid}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!userRes.ok) throw new Error("No se pudo cargar el usuario");
+      if (!userRes.ok) {
+        console.error(
+          "No se pudo cargar el usuario",
+          userRes.status,
+          await userRes.text()
+        );
+        return true;
+      }
       const user = await userRes.json();
 
       // 🔹 Condición explícita
@@ -134,24 +222,21 @@ export default function LoginPage() {
         }),
       ]);
 
+      if (!clonesRes.ok || !voicesRes.ok) return true;
+
       const clones = (await clonesRes.json()).filter((c: any) => !!c?.url);
       const voices = (await voicesRes.json()).filter((v: any) => !!v?.voice_id);
 
-      if (clones.length > 0 && voices.length > 0) {
-        return false;
-      }
-
-      return true;
+      return !(clones.length > 0 && voices.length > 0);
     } catch (err) {
       console.error("Error comprobando onboarding:", err);
       return true; // fallback conservador
     }
   };
 
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!await validate()) return; // Esperar a que la validación se complete
+    if (!(await validate())) return;
     setLoading(true);
     try {
       let user;
@@ -166,33 +251,43 @@ export default function LoginPage() {
         }
 
         await createSessionCookie(user); // 🔑 crea cookie de sesión
-        const needsOnboarding = await checkOnboardingNeeded(user.uid);
-        toast.success("¡Bienvenido!", { style: { background: "green", color: "white" } });
+        await ensureStripeCustomer(); // ✅ asegura el Customer en Stripe (sustituye a la extensión)
 
-        // ⚡ evita parpadeo: no renderices dashboard si necesita onboarding
+        const needsOnboarding = await checkOnboardingNeeded(user.uid);
+        toast.success("¡Bienvenido!", {
+          style: { background: "green", color: "white" },
+        });
+
         if (needsOnboarding) {
           await router.replace("/onboarding");
         } else {
           await router.replace("/dashboard");
         }
-            } else {
+      } else {
         const res = await createUserWithEmailAndPassword(auth, email, password);
         user = res.user;
 
         await sendEmailVerification(user);
-        toast.info("Hemos enviado un correo de verificación. Revisa tu bandeja.");
+        toast.info(
+          "Hemos enviado un correo de verificación. Revisa tu bandeja."
+        );
         await ensureUserDoc(user.uid, user.email || email);
 
-        // 🔹 Disparar evento de Meta
-        if (typeof window !== "undefined" && typeof window.fbq === "function") {
-            window.fbq("track", "CompleteRegistration", {
-              method: "Email",
-              email: user.email,
-            });
-          }
+        // ✅ opcional: crea el Customer ya en el primer login (como hacía la extensión)
+        await ensureStripeCustomer(true);
+
+        // 🔹 Meta event
+        if (
+          typeof window !== "undefined" &&
+          typeof (window as any).fbq === "function"
+        ) {
+          (window as any).fbq("track", "CompleteRegistration", {
+            method: "Email",
+            email: user.email,
+          });
+        }
         return router.replace("/verify");
       }
-
     } catch (err) {
       const message =
         (err as { code?: string }).code === "auth/email-already-in-use"
@@ -213,20 +308,23 @@ export default function LoginPage() {
 
       // Google siempre da email verificado
       await createSessionCookie(user);
+      await ensureStripeCustomer(); // ✅ asegura el Customer en Stripe
 
       toast.success("Inicio de sesión con Google");
 
-      // 🔹 Disparar evento de Meta
-      if (typeof window !== "undefined" && typeof window.fbq === "function") {
-          window.fbq("track", "CompleteRegistration", {
-            method: "Google",
-            email: user.email,
-          });
-        }
+      // 🔹 Meta event
+      if (
+        typeof window !== "undefined" &&
+        typeof (window as any).fbq === "function"
+      ) {
+        (window as any).fbq("track", "CompleteRegistration", {
+          method: "Google",
+          email: user.email,
+        });
+      }
 
       const needsOnboarding = await checkOnboardingNeeded(user.uid);
       router.replace(needsOnboarding ? "/onboarding" : "/dashboard");
-
     } catch {
       toast.error("No se pudo iniciar sesión con Google");
     } finally {
@@ -242,7 +340,9 @@ export default function LoginPage() {
     setLoadingReset(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      toast.success("Te hemos enviado un correo para restablecer tu contraseña");
+      toast.success(
+        "Te hemos enviado un correo para restablecer tu contraseña"
+      );
     } catch {
       toast.error("No se pudo enviar el correo de recuperación");
     } finally {
@@ -256,7 +356,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center">
             <NextImage
-              src="/icons/bg.png"   // tu archivo en /public
+              src="/icons/bg.png"
               alt="Logo"
               width={300}
               height={100}
@@ -289,10 +389,20 @@ export default function LoginPage() {
             <div className="grid gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Contraseña</label>
+                <button
+                  type="button"
+                  onClick={onResetPassword}
+                  disabled={loadingReset}
+                  className="text-xs text-neutral-400 hover:text-white"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
               </div>
               <Input
                 type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -303,33 +413,40 @@ export default function LoginPage() {
             </div>
 
             <div className="grid gap-0">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="mt-2 bg-neutral-200 text-black hover:bg-neutral-400"
-            >
-              {loading
-                ? "Cargando..."
-                : mode === "login"
-                ? "Iniciar sesión"
-                : "Crear cuenta"}
-            </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="mt-2 bg-neutral-200 text-black hover:bg-neutral-400"
+              >
+                {loading
+                  ? "Cargando..."
+                  : mode === "login"
+                  ? "Iniciar sesión"
+                  : "Crear cuenta"}
+              </Button>
 
-            <Button
-              type="button"
-              onClick={onGoogle}
-              disabled={loadingGoogle}
-              className="mt-4 flex items-center justify-center bg-neutral-700 text-white border-none rounded-md py-2 hover:bg-neutral-800 transition duration-300"
-            >
-              {loadingGoogle ? "Conectando..." : <>
-                <FaGoogle className="mr-2" /> Iniciar sesión con Google
-              </>}
-            </Button>
+              <Button
+                type="button"
+                onClick={onGoogle}
+                disabled={loadingGoogle}
+                className="mt-4 flex items-center justify-center bg-neutral-700 text-white border-none rounded-md py-2 hover:bg-neutral-800 transition duration-300"
+              >
+                {loadingGoogle ? (
+                  "Conectando..."
+                ) : (
+                  <>
+                    <FaGoogle className="mr-2" /> Iniciar sesión con Google
+                  </>
+                )}
+              </Button>
             </div>
+
             <button
               type="button"
               className={cn("mt-2 text-sm text-neutral-400 hover:text-white")}
-              onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}
+              onClick={() =>
+                setMode((m) => (m === "login" ? "register" : "login"))
+              }
             >
               {mode === "login"
                 ? "¿No tienes una cuenta? Regístrate"
