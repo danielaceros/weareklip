@@ -13,7 +13,8 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
-import { toast } from "sonner"; // 👈 importamos de sonner
+import { toast } from "sonner";
+import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
 type Summary = {
   subscriptions: {
@@ -51,6 +52,9 @@ export function Topbar() {
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
+
+  // 👇 control del modal
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
 
   const pathname = usePathname();
 
@@ -123,7 +127,10 @@ export function Topbar() {
         window.location.reload();
       } else {
         if (data.error === "El cliente no tiene un periodo de prueba activo") {
-          toast.error("Para reclamar créditos primero activa tu prueba gratuita desde Stripe.");
+          toast.error(
+            "Para reclamar créditos primero activa tu prueba gratuita desde Stripe."
+          );
+          setCheckoutModalOpen(true); // 👈 abre el modal
         } else {
           console.error("Error claimTrial:", data);
           toast.error(data.error || "No se pudo reclamar la prueba.");
@@ -139,6 +146,8 @@ export function Topbar() {
 
   const isOnboarding = pathname?.startsWith("/onboarding");
 
+  console.log(summary)
+
   return (
     <>
       {/* 📱 Banner solo en móvil */}
@@ -148,24 +157,25 @@ export function Topbar() {
         </p>
       </div>
 
-      {/* 🎁 Banner si hay créditos regalo disponibles */}
-      {!isOnboarding &&
-        summary?.trial?.available &&
-        !summary?.trial?.used && (
-          <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
-            <span>
-              Tienes créditos de prueba disponibles. Reclámalos para empezar a usar
-              la plataforma sin coste.
-            </span>
-            <button
-              onClick={claimTrial}
-              disabled={claiming}
-              className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {claiming ? "Reclamando..." : "Reclamar créditos"}
-            </button>
-          </div>
-        )}
+      {/* 🎁 Banner si hay créditos regalo disponibles y el usuario ya entró en trial */}
+        {!isOnboarding &&
+          summary?.trial?.available &&
+          !summary?.trial?.used &&
+          summary?.subscriptions?.monthly?.status === "trialing" && (
+            <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
+              <span>
+                Tienes créditos de prueba disponibles. Reclámalos para empezar a usar
+                la plataforma sin coste.
+              </span>
+              <button
+                onClick={claimTrial}
+                disabled={claiming}
+                className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {claiming ? "Reclamando..." : "Reclamar créditos"}
+              </button>
+            </div>
+          )}
 
       {/* 🔴 Banner si hay deuda */}
       {summary?.hasOverdue && (
@@ -254,6 +264,14 @@ export function Topbar() {
           )}
         </div>
       </header>
+
+      {/* Modal de checkout */}
+      <CheckoutRedirectModal
+        open={checkoutModalOpen}
+        onClose={() => setCheckoutModalOpen(false)}
+        plan="ACCESS"
+        message="Debes activar tu prueba gratuita para recibir los créditos."
+      />
     </>
   );
 }
