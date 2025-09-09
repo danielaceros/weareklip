@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useT } from "@/lib/i18n";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase"; // <-- ahora importamos también db
 import { onAuthStateChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,9 @@ import {
 } from "@/components/ideas/IdeasViralesList";
 import { IdeasViralesFavorites } from "@/components/ideas/IdeasViralesFavorites";
 
+// <-- nuevo: hook centralizado de favoritos (LocalStorage + Firestore)
+import { useFavorites } from "@/hooks/useFavorites";
+
 export default function IdeasViralesPage() {
   const t = useT();
   const router = useRouter();
@@ -23,7 +26,6 @@ export default function IdeasViralesPage() {
   const [range, setRange] = useState("week");
   const [query, setQuery] = useState("");
   const [videos, setVideos] = useState<ShortVideo[]>([]);
-  const [favorites, setFavorites] = useState<ShortVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
@@ -32,37 +34,20 @@ export default function IdeasViralesPage() {
 
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Detectar login y cargar favoritos
+  // Detectar login (la carga de favoritos la hace el hook)
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (loggedUser) => {
+    const unsub = onAuthStateChanged(auth, (loggedUser) => {
       setUser(loggedUser);
-      if (loggedUser) {
-        await loadFavorites(loggedUser);
-      } else {
-        setFavorites([]);
-      }
     });
     return () => unsub();
   }, []);
 
-  const loadFavorites = async (loggedUser: User) => {
-    try {
-      const idToken = await loggedUser.getIdToken();
-
-      const res = await fetch(`/api/firebase/users/${loggedUser.uid}/ideas`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      const data = await res.json();
-
-      const favs = data.map((d: any) => d as ShortVideo);
-      setFavorites(favs);
-    } catch (err) {
-      console.error("Error cargando favoritos:", err);
-      toast.error("Error cargando favoritos");
-    }
-  };
+  // Favoritos desde el hook (persistencia local + nube)
+  const {
+    favorites,
+    loading: favoritesLoading, // por si quieres mostrar skeleton/spinner
+    toggleFavorite,
+  } = useFavorites({ user, db });
 
   // Buscar vídeos virales
   const fetchVideos = async () => {
@@ -128,45 +113,7 @@ export default function IdeasViralesPage() {
             video.description?.toLowerCase().includes(query.toLowerCase())
         );
 
-  // Añadir o quitar favoritos
-  const toggleFavorite = async (video: ShortVideo) => {
-    if (!user) {
-      toast.error("Debes iniciar sesión para guardar favoritos");
-      return;
-    }
-
-    const exists = favorites.some((fav) => fav.id === video.id);
-
-    // Optimistic UI
-    setFavorites((prev) =>
-      exists ? prev.filter((f) => f.id !== video.id) : [...prev, video]
-    );
-
-    try {
-      const idToken = await user.getIdToken();
-      const url = `/api/firebase/users/${user.uid}/ideas/${video.id}`;
-      const options: RequestInit = {
-        method: exists ? "DELETE" : "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: exists ? undefined : JSON.stringify(video),
-      };
-
-      const res = await fetch(url, options);
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-    } catch (err) {
-      console.error("Error en toggleFavorite:", err);
-      toast.error("No se pudo actualizar favoritos");
-      // revertir cambio si falla
-      setFavorites((prev) =>
-        exists ? [...prev, video] : prev.filter((f) => f.id !== video.id)
-      );
-    }
-  };
-
-  // Replicar vídeo
+  // Replicar vídeo (igual que antes)
   const replicateVideo = async (video: ShortVideo) => {
     if (!user) {
       toast.error("Debes iniciar sesión para replicar vídeos");
@@ -242,8 +189,14 @@ export default function IdeasViralesPage() {
         listRef={listRef}
         loading={loading}
         filteredVideos={filteredVideos}
-        favorites={favorites}
-        onToggleFavorite={toggleFavorite}
+        favorites={favorites as ShortVideo[]}
+        onToggleFavorite={(v) => {
+          if (!user) {
+            toast.error("Debes iniciar sesión para guardar favoritos");
+            return;
+          }
+          toggleFavorite(v);
+        }}
         onReplicate={replicateVideo}
         viewOnYoutubeText={t("viralIdeasPage.viewOnYoutube")}
       />
@@ -264,8 +217,14 @@ export default function IdeasViralesPage() {
       )}
 
       <IdeasViralesFavorites
-        favorites={favorites}
-        onToggleFavorite={toggleFavorite}
+        favorites={favorites as ShortVideo[]}
+        onToggleFavorite={(v) => {
+          if (!user) {
+            toast.error("Debes iniciar sesión para guardar favoritos");
+            return;
+          }
+          toggleFavorite(v);
+        }}
       />
     </div>
   );
