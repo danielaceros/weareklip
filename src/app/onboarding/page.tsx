@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +51,11 @@ async function getAudioDurationSafe(url: string): Promise<number> {
     };
 
     const onMeta = () => {
-      if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+      if (
+        isFinite(audio.duration) &&
+        !isNaN(audio.duration) &&
+        audio.duration > 0
+      ) {
         cleanup();
         resolve(audio.duration);
       } else {
@@ -55,7 +64,11 @@ async function getAudioDurationSafe(url: string): Promise<number> {
     };
 
     const onTimeUpdate = () => {
-      if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+      if (
+        isFinite(audio.duration) &&
+        !isNaN(audio.duration) &&
+        audio.duration > 0
+      ) {
         cleanup();
         resolve(audio.duration);
       }
@@ -90,19 +103,29 @@ export default function OnboardingPage() {
   // Paso 2 – vídeo
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoProgressPct, setVideoProgressPct] = useState(0);
-  const [videoDoc, setVideoDoc] = useState<{ id: string; url: string; storagePath: string } | null>(null);
+  const [videoDoc, setVideoDoc] = useState<{
+    id: string;
+    url: string;
+    storagePath: string;
+  } | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string>(""); // ← NEW: título editable del vídeo
 
-  // Paso 3 – audio
+  // Paso 3 – audio / voz
   const [recording, setRecording] = useState(false);
-  const [samples, setSamples] = useState<{ name: string; duration: number; url: string; storagePath: string }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [samples, setSamples] = useState<
+    { name: string; duration: number; url: string; storagePath: string }[]
+  >([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
+  const [voiceName, setVoiceName] = useState<string>(""); // ← NEW: nombre editable de la voz
 
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptAup, setAcceptAup] = useState(false);
 
-   useEffect(() => {
+  useEffect(() => {
     let initialized = false;
 
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -120,17 +143,23 @@ export default function OnboardingPage() {
     return () => unsub();
   }, [router]);
 
-
-
   /* ----------------- Paso 2 ----------------- */
   const handleVideoUpload = async (file: File) => {
     if (!user) return;
-    if (!file.type.startsWith("video/")) return toast.error("El archivo debe ser un vídeo");
-    if (bytesToMB(file.size) > MAX_VIDEO_MB) return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
+    if (!file.type.startsWith("video/"))
+      return toast.error("El archivo debe ser un vídeo");
+    if (bytesToMB(file.size) > MAX_VIDEO_MB)
+      return toast.error(`El vídeo supera ${MAX_VIDEO_MB} MB`);
 
     const id = uuidv4();
     const storagePath = `users/${user.uid}/clones/${id}`;
     const storageRef = ref(storage, storagePath);
+
+    // Si el usuario no escribió un título todavía, proponemos el nombre del archivo (sin extensión)
+    const fallbackTitle = file.name.replace(/\.[^/.]+$/, "");
+    if (!videoTitle.trim()) {
+      setVideoTitle(fallbackTitle);
+    }
 
     // 👉 Optimistic UI: mostrar un objeto provisional en la UI
     const tempUrl = URL.createObjectURL(file);
@@ -166,7 +195,8 @@ export default function OnboardingPage() {
             id,
             url,
             storagePath,
-            titulo: file.name.replace(/\.[^/.]+$/, ""),
+            // ← NEW: usamos el título escrito por el usuario (o el nombre del archivo si está vacío)
+            titulo: (videoTitle || fallbackTitle).trim(),
             createdAt: Date.now(),
             source: "onboarding",
           }),
@@ -180,7 +210,6 @@ export default function OnboardingPage() {
       }
     );
   };
-
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => {
@@ -222,7 +251,10 @@ export default function OnboardingPage() {
 
     // 👉 Optimistic UI: mostrar inmediatamente la muestra
     const tempUrl = URL.createObjectURL(file);
-    setSamples((prev) => [...prev, { name: fileName, duration: 0, url: tempUrl, storagePath }]);
+    setSamples((prev) => [
+      ...prev,
+      { name: file.name || fileName, duration: 0, url: tempUrl, storagePath },
+    ]);
     setUploadProgress((p) => ({ ...p, [fileName]: 0 }));
 
     const task = uploadBytesResumable(storageRef, file);
@@ -265,7 +297,6 @@ export default function OnboardingPage() {
     );
   };
 
-
   const dropzoneAudio = useDropzone({
     onDrop: async (files) => {
       if (!user) return toast.error("Debes iniciar sesión");
@@ -280,43 +311,48 @@ export default function OnboardingPage() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks.current = [];
-    mediaRecorderRef.current = new MediaRecorder(stream);
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.current.push(e.data);
-    };
-    mediaRecorderRef.current.onstop = async () => {
-      const blob = new Blob(audioChunks.current, { type: "audio/webm" });
-      if (bytesToMB(blob.size) > MAX_SAMPLE_MB) {
-        toast.error(`La grabación supera ${MAX_SAMPLE_MB} MB`);
+      audioChunks.current = [];
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.current.push(e.data);
+      };
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(audioChunks.current, { type: "audio/webm" });
+        if (bytesToMB(blob.size) > MAX_SAMPLE_MB) {
+          toast.error(`La grabación supera ${MAX_SAMPLE_MB} MB`);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        let dur = 0;
+        try {
+          dur = await getAudioDurationSafe(URL.createObjectURL(blob));
+        } catch {
+          dur = 0;
+        }
+        if (dur > MAX_SAMPLE_SECONDS) {
+          toast.error(`La grabación supera ${MAX_SAMPLE_SECONDS}s`);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const file = new File([blob], `recording-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
+        await uploadSample(file);
         stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      let dur = 0;
-      try {
-        dur = await getAudioDurationSafe(URL.createObjectURL(blob));
-      } catch {
-        dur = 0;
-      }
-      if (dur > MAX_SAMPLE_SECONDS) {
-        toast.error(`La grabación supera ${MAX_SAMPLE_SECONDS}s`);
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      const file = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
-      await uploadSample(file);
-      stream.getTracks().forEach((t) => t.stop());
-    };
-    mediaRecorderRef.current.start();
-    setRecording(true);
-    toast("🎙 Grabando…");
+      };
+      mediaRecorderRef.current.start();
+      setRecording(true);
+      toast("🎙 Grabando…");
     } catch {
       toast.error("No se pudo acceder al micrófono");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setRecording(false);
     }
@@ -332,14 +368,19 @@ export default function OnboardingPage() {
     }
   };
 
-  const totalDuration = samples.reduce((acc, s) => acc + (isFinite(s.duration) ? s.duration : 0), 0);
+  const totalDuration = samples.reduce(
+    (acc, s) => acc + (isFinite(s.duration) ? s.duration : 0),
+    0
+  );
 
   const createVoice = async () => {
     if (!user) return toast.error("Debes iniciar sesión");
-    if (samples.length === 0) return toast.error("Sube al menos una muestra de voz");
+    if (samples.length === 0)
+      return toast.error("Sube al menos una muestra de voz");
     if (!videoDoc) return toast.error("Debes subir un vídeo en el paso 2");
     if (!validStep1) return toast.error("Completa los datos del paso 1");
-    if (totalDuration === 0) return toast.error("No se pudo calcular duración total");
+    if (totalDuration === 0)
+      return toast.error("No se pudo calcular duración total");
     if (totalDuration > MAX_TOTAL_SECONDS) {
       return toast.error(`Reduce a ${MAX_TOTAL_SECONDS}s totales o menos`);
     }
@@ -348,6 +389,9 @@ export default function OnboardingPage() {
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
       const paths = samples.map((s) => s.storagePath);
+
+      // ← NEW: nombre “bonito” de la voz (fallback si está vacío)
+      const safeVoiceName = (voiceName || `Voz-${Date.now()}`).trim();
 
       toast.loading("Clonando...");
 
@@ -361,7 +405,7 @@ export default function OnboardingPage() {
         },
         body: JSON.stringify({
           paths,
-          voiceName: `Voz-${Date.now()}`,
+          voiceName: safeVoiceName, // ← NEW
         }),
       });
 
@@ -377,7 +421,7 @@ export default function OnboardingPage() {
       // 2. Guardar la voz en la subcolección "voices" (API segura)
       const voicePayload = {
         voice_id: data.voice_id,
-        name: `Voz-${Date.now()}`,
+        name: safeVoiceName, // ← NEW
         paths,
         requires_verification: data.requires_verification ?? false,
         createdAt: Date.now(),
@@ -424,17 +468,20 @@ export default function OnboardingPage() {
     }
   };
 
-
-
   /* ----------------- Validaciones ----------------- */
-  const validStep1 = useMemo(() => acceptTerms && acceptAup, [acceptTerms, acceptAup]);
+  const validStep1 = useMemo(
+    () => acceptTerms && acceptAup,
+    [acceptTerms, acceptAup]
+  );
   const validStep2 = useMemo(() => !!videoDoc, [videoDoc]);
 
   const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
   const goNext = async () => {
     // ✅ Primero: validaciones sincronas
     if (step === 1 && !validStep1) {
-      return toast.error("Debes aceptar los Términos y la Política de Uso Aceptable.");
+      return toast.error(
+        "Debes aceptar los Términos y la Política de Uso Aceptable."
+      );
     }
     if (step === 2 && !validStep2) {
       return toast.error("Sube un vídeo de clonación.");
@@ -446,7 +493,6 @@ export default function OnboardingPage() {
     // 🔄 En background (no bloquea la UI)
     (async () => {
       try {
-
         // Guardar flag en paso 1
         if (step === 1 && user && acceptTerms && acceptAup) {
           try {
@@ -459,15 +505,11 @@ export default function OnboardingPage() {
               },
               body: JSON.stringify({ isTermsAccepted: true }),
             });
-
-            // 👇 Optimistic update
-            setAcceptTerms(true); 
-            // o si usas context/global state: setIsTermsAccepted(true)
+            setAcceptTerms(true);
           } catch (err) {
             console.error("Error al actualizar isTermsAccepted:", err);
           }
         }
-
       } catch (err) {
         console.error("Error al verificar subscripción:", err);
         toast.error("No se pudo verificar tu suscripción.");
@@ -491,7 +533,9 @@ export default function OnboardingPage() {
       <Card className="p-6 space-y-8">
         {step === 1 && (
           <section className="space-y-6">
-            <h2 className="text-xl font-semibold">Términos y uso responsable</h2>
+            <h2 className="text-xl font-semibold">
+              Términos y uso responsable
+            </h2>
             <p className="text-sm text-muted-foreground">
               Lee y acepta los documentos antes de continuar con tu onboarding.
             </p>
@@ -503,38 +547,46 @@ export default function OnboardingPage() {
                 <div>
                   <h3 className="font-medium mb-2">Términos y Condiciones</h3>
                   <p>
-                    El acceso y uso de la Plataforma implica la aceptación íntegra de los
-                    Términos y Condiciones. KLIP podrá modificarlos en cualquier momento; el
-                    uso continuado supone la aceptación de los Términos vigentes.
+                    El acceso y uso de la Plataforma implica la aceptación
+                    íntegra de los Términos y Condiciones. KLIP podrá
+                    modificarlos en cualquier momento; el uso continuado supone
+                    la aceptación de los Términos vigentes.
                   </p>
                   <p>
-                    KLIP es una plataforma SaaS que automatiza la creación de contenidos
-                    audiovisuales mediante IA (guiones, voces sintéticas, lip-sync, subtitulado).
-                    El servicio se presta “tal cual” y “según disponibilidad”.
+                    KLIP es una plataforma SaaS que automatiza la creación de
+                    contenidos audiovisuales mediante IA (guiones, voces
+                    sintéticas, lip-sync, subtitulado). El servicio se presta
+                    “tal cual” y “según disponibilidad”.
                   </p>
                   <p>
-                    El Usuario ostenta los derechos sobre los contenidos generados, salvo
-                    licencias de terceros. KLIP no usará tus outputs con fines promocionales sin
-                    consentimiento expreso...
+                    El Usuario ostenta los derechos sobre los contenidos
+                    generados, salvo licencias de terceros. KLIP no usará tus
+                    outputs con fines promocionales sin consentimiento
+                    expreso...
                   </p>
                 </div>
 
                 {/* --- Extracto de AUP --- */}
                 <div>
-                  <h3 className="font-medium mb-2">Política de Uso Aceptable (AUP)</h3>
+                  <h3 className="font-medium mb-2">
+                    Política de Uso Aceptable (AUP)
+                  </h3>
                   <p>
-                    Esta AUP define las reglas de uso de la Plataforma KLIP. Se prohíben
-                    contenidos ilegales o dañinos (CSAM, incitación al odio, violencia extrema),
-                    la infracción de propiedad intelectual, la clonación de voces o rostros sin
+                    Esta AUP define las reglas de uso de la Plataforma KLIP. Se
+                    prohíben contenidos ilegales o dañinos (CSAM, incitación al
+                    odio, violencia extrema), la infracción de propiedad
+                    intelectual, la clonación de voces o rostros sin
                     consentimiento y la difusión de desinformación maliciosa.
                   </p>
                   <p>
-                    También se prohíben fraudes, estafas, abuso técnico (scraping, ingeniería
-                    inversa, sobrecarga de infraestructura) y automatización no autorizada.
+                    También se prohíben fraudes, estafas, abuso técnico
+                    (scraping, ingeniería inversa, sobrecarga de
+                    infraestructura) y automatización no autorizada.
                   </p>
                   <p>
-                    KLIP podrá suspender o terminar cuentas ante incumplimientos y cooperará con
-                    las autoridades competentes cuando sea necesario...
+                    KLIP podrá suspender o terminar cuentas ante incumplimientos
+                    y cooperará con las autoridades competentes cuando sea
+                    necesario...
                   </p>
                 </div>
 
@@ -579,8 +631,8 @@ export default function OnboardingPage() {
                     className="underline text-primary"
                   >
                     Términos y Condiciones
-                  </a>
-                  {" "}y la{" "}
+                  </a>{" "}
+                  y la{" "}
                   <a
                     href="https://weareklip.com/viralizaloai/aup"
                     target="_blank"
@@ -601,7 +653,9 @@ export default function OnboardingPage() {
                   htmlFor="aup"
                   className="text-sm text-muted-foreground leading-snug"
                 >
-                  Declaro que soy titular o tengo autorización de la voz/imagen que subo y autorizo su clonación/uso para generar contenido; no suplantaré a terceros.
+                  Declaro que soy titular o tengo autorización de la voz/imagen
+                  que subo y autorizo su clonación/uso para generar contenido;
+                  no suplantaré a terceros.
                 </label>
               </div>
             </div>
@@ -609,106 +663,140 @@ export default function OnboardingPage() {
         )}
 
         {step === 2 && (
-        <section className="space-y-5">
-          <h2 className="text-xl font-semibold">Sube tu vídeo de clonación</h2>
+          <section className="space-y-5">
+            <h2 className="text-xl font-semibold">
+              Sube tu vídeo de clonación
+            </h2>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* 📹 Izquierda: tutorial + checklist */}
-            <div className="space-y-4">
-              <div className="aspect-video rounded-lg overflow-hidden border border-border">
-                <video
-                  src="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/Tutorial%20grabación.mov?alt=media"
-                  controls
-                  preload="metadata"
-                  playsInline
-                  autoPlay
-                  poster="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/video-cover.jpeg?alt=media"
-                  className="w-full h-full object-cover"
+            {/* ← NEW: campo para nombrar el vídeo */}
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <label className="text-sm font-medium">Nombre del vídeo</label>
+                <Input
+                  value={videoTitle}
+                  onChange={(e) => setVideoTitle(e.target.value)}
+                  placeholder="Ej: Vídeo de clonación de Alex"
                 />
-              </div>
 
-              {/* ✅ Requisitos */}
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">Requisitos del vídeo:</p>
-                <ul className="space-y-1">
-                  <li className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="w-4 h-4 text-green-500" />
-                    Formato vertical (9:16)
-                  </li>
-                  <li className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="w-4 h-4 text-green-500" />
-                    Máximo {MAX_VIDEO_MB} MB
-                  </li>
-                  <li className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="w-4 h-4 text-green-500" />
-                    Fondo liso y buena iluminación
-                  </li>
-                  <li className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="w-4 h-4 text-green-500" />
-                    Hablar de frente y con claridad
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* 📤 Derecha: Dropzone o vídeo cargado */}
-            <div>
-              {!videoDoc ? (
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                    isDragActive ? "border-primary bg-muted/40" : "border-border"
-                  }`}
-                >
-                  <input {...getInputProps()} />
-                  <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
-                  <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
-                  <p className="text-xs text-muted-foreground">
-                    Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16
-                  </p>
+                <div className="aspect-video rounded-lg overflow-hidden border border-border">
+                  <video
+                    src="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/Tutorial%20grabación.mov?alt=media"
+                    controls
+                    preload="metadata"
+                    playsInline
+                    autoPlay
+                    poster="https://firebasestorage.googleapis.com/v0/b/klip-6e9a8.firebasestorage.app/o/video-cover.jpeg?alt=media"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-              ) : (
-                <div className="rounded-lg border overflow-hidden">
-                  <video src={videoDoc.url} controls className="w-full max-h-80 object-cover" />
-                  <div className="p-3 flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Vídeo listo</span>
-                    <Button variant="outline" size="sm" onClick={removeVideo}>
-                      Reemplazar
-                    </Button>
+
+                {/* ✅ Requisitos */}
+                <div className="space-y-2 text-sm">
+                  <p className="font-medium">Requisitos del vídeo:</p>
+                  <ul className="space-y-1">
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <Check className="w-4 h-4 text-green-500" />
+                      Formato vertical (9:16)
+                    </li>
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <Check className="w-4 h-4 text-green-500" />
+                      Máximo {MAX_VIDEO_MB} MB
+                    </li>
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <Check className="w-4 h-4 text-green-500" />
+                      Fondo liso y buena iluminación
+                    </li>
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <Check className="w-4 h-4 text-green-500" />
+                      Hablar de frente y con claridad
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* 📤 Derecha: Dropzone o vídeo cargado */}
+              <div>
+                {!videoDoc ? (
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer transition ${
+                      isDragActive
+                        ? "border-primary bg-muted/40"
+                        : "border-border"
+                    }`}
+                  >
+                    <input {...getInputProps()} />
+                    <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      Haz clic para subir o arrastra y suelta
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Solo vídeo • Máx {MAX_VIDEO_MB} MB • Formato 9:16
+                    </p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <video
+                      src={videoDoc.url}
+                      controls
+                      className="w-full max-h-80 object-cover"
+                    />
+                    <div className="p-3 flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Vídeo listo
+                      </span>
+                      <Button variant="outline" size="sm" onClick={removeVideo}>
+                        Reemplazar
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-              {uploadingVideo && (
-                <div className="flex items-center gap-3 mt-4">
-                  <Progress value={videoProgressPct} className="w-48" />
-                  <span className="text-xs">{videoProgressPct}%</span>
-                </div>
-              )}
+                {uploadingVideo && (
+                  <div className="flex items-center gap-3 mt-4">
+                    <Progress value={videoProgressPct} className="w-48" />
+                    <span className="text-xs">{videoProgressPct}%</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
-      )}
-
-
-
+          </section>
+        )}
 
         {step === 3 && (
           <section className="space-y-6">
             <h2 className="text-xl font-semibold">Crea tu voz</h2>
             <p className="text-sm text-muted-foreground">
-              Sube muestras o graba directamente • Máx {MAX_TOTAL_SECONDS}s en total • ≤ {MAX_SAMPLE_SECONDS}s por muestra • ≤ {MAX_SAMPLE_MB} MB
+              Sube muestras o graba directamente • Máx {MAX_TOTAL_SECONDS}s en
+              total • ≤ {MAX_SAMPLE_SECONDS}s por muestra • ≤ {MAX_SAMPLE_MB} MB
             </p>
+
+            {/* ← NEW: nombre de la voz */}
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Nombre de la voz</label>
+              <Input
+                value={voiceName}
+                onChange={(e) => setVoiceName(e.target.value)}
+                placeholder="Ej: Voz Alex"
+              />
+              <span className="text-xs text-muted-foreground">
+                Este nombre aparecerá en tu biblioteca de voces.
+              </span>
+            </div>
 
             <div
               {...dropzoneAudio.getRootProps()}
               className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                dropzoneAudio.isDragActive ? "border-primary bg-muted/40" : "border-border"
+                dropzoneAudio.isDragActive
+                  ? "border-primary bg-muted/40"
+                  : "border-border"
               }`}
             >
               <input {...dropzoneAudio.getInputProps()} />
               <UploadCloud className="h-6 w-6 mb-2 text-muted-foreground" />
-              <p className="text-sm font-medium">Haz clic para subir o arrastra y suelta</p>
+              <p className="text-sm font-medium">
+                Haz clic para subir o arrastra y suelta
+              </p>
               <span className="mt-2 text-xs text-muted-foreground">o</span>
               <button
                 onClick={(e) => {
@@ -722,19 +810,32 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Progress value={Math.min(100, (totalDuration / MAX_TOTAL_SECONDS) * 100)} className="flex-1" />
-              <span className="text-sm font-medium">{Math.round(totalDuration)} / {MAX_TOTAL_SECONDS}s</span>
+              <Progress
+                value={Math.min(100, (totalDuration / MAX_TOTAL_SECONDS) * 100)}
+                className="flex-1"
+              />
+              <span className="text-sm font-medium">
+                {Math.round(totalDuration)} / {MAX_TOTAL_SECONDS}s
+              </span>
             </div>
 
             {samples.length > 0 && (
               <div className="grid gap-3">
                 {samples.map((s) => (
-                  <div key={s.storagePath} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div
+                    key={s.storagePath}
+                    className="flex items-center gap-3 rounded-lg border p-3"
+                  >
                     <audio controls src={s.url} className="h-8" />
                     <span className="text-xs text-muted-foreground">
                       {s.name} — {Math.round(s.duration)}s
                     </span>
-                    <Button variant="ghost" size="icon" className="ml-auto" onClick={() => removeSample(s.storagePath)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto"
+                      onClick={() => removeSample(s.storagePath)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -750,7 +851,7 @@ export default function OnboardingPage() {
                   totalDuration === 0 ||
                   totalDuration > MAX_TOTAL_SECONDS ||
                   !videoDoc ||
-                  !validStep1 
+                  !validStep1
                 }
               >
                 Finalizar
@@ -783,7 +884,12 @@ function StepDot({
   done,
   idx,
   label,
-}: { active: boolean; done: boolean; idx: number; label: string }) {
+}: {
+  active: boolean;
+  done: boolean;
+  idx: number;
+  label: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div
@@ -798,7 +904,12 @@ function StepDot({
       >
         {done ? <Check className="h-4 w-4" /> : idx}
       </div>
-      <span className={["text-sm", active ? "font-semibold" : "text-muted-foreground"].join(" ")}>
+      <span
+        className={[
+          "text-sm",
+          active ? "font-semibold" : "text-muted-foreground",
+        ].join(" ")}
+      >
         {label}
       </span>
     </div>

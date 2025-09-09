@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -13,61 +9,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Check, Lock, Pointer } from "lucide-react";
+import { Check, Lock, ArrowLeft } from "lucide-react";
 
 export default function PricingPage() {
-  const plans = [
-    {
-      name: "Basic",
-      price: "19,99€",
-      highlight: false,
-      locked: true,
-      features: [
-        "1 voz/avatar",
-        "Vídeos en 720p",
-        "Cola estándar de procesamiento",
-        "1 regeneración de Audio AI® gratuita",
-        "1 regeneración de Script AI® gratuita",
-        "Generar vídeos de hasta 30s",
-        "Pago por uso de cada módulo",
-        "Marca de agua incluida",
-      ],
-    },
-    {
-      name: "Access",
-      price: "29,99€",
-      highlight: true,
-      locked: false,
-      description: "Incluye 7 días de prueba + 200 créditos",
-      features: [
-        "1 voz/avatar",
-        "Vídeos en 1080p",
-        "Cola estándar de procesamiento",
-        "3 regeneraciones de Audio AI® gratuitas",
-        "2 regeneraciones de Script AI® gratuitas",
-        "Generar vídeos de hasta 1 minuto",
-        "Pago por uso de cada módulo",
-        "Sin marca de agua",
-      ],
-    },
-    {
-      name: "Pro",
-      price: "59,99€",
-      highlight: false,
-      locked: true,
-      features: [
-        "3 voces/avatares",
-        "Vídeos en 4K",
-        "Cola prioritaria de procesamiento",
-        "Regeneraciones ilimitadas de Audio AI®",
-        "Regeneraciones ilimitadas de Script AI®",
-        "Generar vídeos de hasta 5 minutos",
-        "Pago por uso de cada módulo",
-        "Sin marca de agua",
-      ],
-    },
-  ];
-
   const credits = [
     { module: "Script AI®", credits: 2 },
     { module: "Audio AI®", credits: 10 },
@@ -113,9 +57,19 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center py-16 px-6">
+      {/* Barra superior con botón de volver */}
+      <div className="w-full max-w-6xl mb-6">
+        <Button asChild variant="ghost" className="gap-2">
+          <Link href="/">
+            <ArrowLeft className="h-4 w-4" />
+            Volver al inicio
+          </Link>
+        </Button>
+      </div>
+
       {/* Título */}
       <h1 className="text-4xl font-bold mb-12">Precios</h1>
-    
+
       {/* Planes */}
       <div className="grid md:grid-cols-3 gap-8 max-w-6xl w-full">
         <Card className="relative bg-zinc-900/40 border border-zinc-800 text-white rounded-2xl overflow-hidden blur-sm select-none">
@@ -162,10 +116,18 @@ export default function PricingPage() {
             <Button
               className="w-full mt-2"
               variant="default"
-              onClick={() => (window.location.href = "https://app.viralizalo.ai")}
+              onClick={() =>
+                (window.location.href = "https://app.viralizalo.ai")
+              }
             >
               Empieza GRATIS
             </Button>
+
+            {/* Botón adicional para ir al inicio de la web */}
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/">Ir al inicio</Link>
+            </Button>
+
             <ul className="mt-6 space-y-2">
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
