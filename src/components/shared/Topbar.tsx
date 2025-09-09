@@ -13,6 +13,7 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
+import { toast } from "sonner"; // 👈 importamos de sonner
 
 type Summary = {
   subscriptions: {
@@ -91,7 +92,6 @@ export function Topbar() {
   const overdueCredits = toCredits(summary?.overdueCents);
 
   // ⚡ Uso total del mes (excluye prueba)
-  const monthly = summary?.subscriptions?.monthly;
   const usageCredits =
     summary?.trial && summary.trial.available && !summary.trial.used
       ? 0
@@ -117,14 +117,21 @@ export function Topbar() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
+      const data = await res.json();
+
       if (res.ok) {
         window.location.reload();
       } else {
-        const err = await res.json();
-        console.error("Error claimTrial:", err);
+        if (data.error === "El cliente no tiene un periodo de prueba activo") {
+          toast.error("Para reclamar créditos primero activa tu prueba gratuita desde Stripe.");
+        } else {
+          console.error("Error claimTrial:", data);
+          toast.error(data.error || "No se pudo reclamar la prueba.");
+        }
       }
     } catch (e) {
       console.error("Error claimTrial:", e);
+      toast.error("Ocurrió un error inesperado al reclamar los créditos.");
     } finally {
       setClaiming(false);
     }
@@ -141,7 +148,7 @@ export function Topbar() {
         </p>
       </div>
 
-      {/* 🎁 Banner si hay créditos regalo disponibles (no en /dashboard/onboarding) */}
+      {/* 🎁 Banner si hay créditos regalo disponibles */}
       {!isOnboarding &&
         summary?.trial?.available &&
         !summary?.trial?.used && (
