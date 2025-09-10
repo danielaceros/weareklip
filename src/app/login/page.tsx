@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
@@ -9,6 +9,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   sendEmailVerification,
+  fetchSignInMethodsForEmail, // 👈 NEW
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,79 +21,9 @@ import { FaGoogle } from "react-icons/fa";
 import FractalBackground from "@/components/login/FractalBackground";
 import NextImage from "next/image";
 
-// Lista blanca de dominios
 const ALLOWED_EMAIL_DOMAINS = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "company.com",
-  "hotmail.com",
-  "aol.com",
-  "icloud.com",
-  "protonmail.com",
-  "zoho.com",
-  "mail.com",
-  "yandex.com",
-  "gmx.com",
-  "fastmail.com",
-  "tutanota.com",
-  "hushmail.com",
-  "msn.com",
-  "live.com",
-  "comcast.net",
-  "verizon.net",
-  "sbcglobal.net",
-  "charter.net",
-  "cox.net",
-  "btinternet.com",
-  "sky.com",
-  "blueyonder.co.uk",
-  "virginmedia.com",
-  "ntlworld.com",
-  "talktalk.net",
-  "orange.fr",
-  "free.fr",
-  "wanadoo.fr",
-  "sfr.fr",
-  "laposte.net",
-  "yahoo.co.uk",
-  "ymail.com",
-  "mail.ru",
-  "qq.com",
-  "126.com",
-  "163.com",
-  "tencent.com",
-  "zoho.in",
-  "inbox.com",
-  "mailinator.com",
-  "tempmail.com",
-  "guerrillamail.com",
-  "maildrop.cc",
-  "spamex.com",
-  "trashmail.com",
-  "spamgourmet.com",
-  "dispostable.com",
-  "tempmailaddress.com",
-  "throwawaymail.com",
-  "sharklasers.com",
-  "anonbox.net",
-  "getnada.com",
-  "trashmail.io",
-  "emailondeck.com",
-  "10minutemail.com",
-  "mailcatch.com",
-  "tmpmail.org",
-  "fakemailgenerator.com",
-  "burnermail.io",
-  "tempmailo.com",
-  "jetable.org",
+  /* … tus dominios … */
 ];
-
-// Verifica si el dominio del correo electrónico está en la lista blanca
-const isAllowedDomain = (email: string): boolean => {
-  const domain = email.split("@")[1];
-  return ALLOWED_EMAIL_DOMAINS.includes(domain);
-};
 
 async function createSessionCookie(user: any) {
   const idToken = await user.getIdToken();
@@ -103,32 +34,25 @@ async function createSessionCookie(user: any) {
   });
 }
 
-/** 👇 Asegura crear/recuperar el Customer de Stripe y guardarlo en Firestore (sustituye a la extensión) */
 async function ensureStripeCustomer(force = false) {
   const u = auth.currentUser;
   if (!u) return;
-
   const cacheKey = `postLoginDone:${u.uid}`;
   if (
     !force &&
     typeof window !== "undefined" &&
     sessionStorage.getItem(cacheKey) === "1"
-  ) {
-    return; // evita llamadas repetidas en la misma sesión
-  }
-
+  )
+    return;
   const idToken = await u.getIdToken();
   try {
     const res = await fetch("/api/auth/post-login", {
       method: "POST",
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("[post-login] failed:", res.status, txt);
-    } else if (typeof window !== "undefined") {
+    if (res.ok && typeof window !== "undefined")
       sessionStorage.setItem(cacheKey, "1");
-    }
+    else console.error("[post-login] failed:", res.status, await res.text());
   } catch (e) {
     console.error("[post-login] error:", e);
   }
@@ -141,30 +65,43 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
+
+  // 👇 Estado para el mensaje inline
+  const [formError, setFormError] = useState<null | {
+    title: string;
+    detail?: string;
+    cta?: "register" | "google" | "reset";
+  }>(null);
+
+  // 👇 Refs para resaltar botones
+  const registerBtnRef = useRef<HTMLButtonElement>(null);
+  const googleBtnRef = useRef<HTMLButtonElement>(null);
+
   const router = useRouter();
+
+  const pulse = (el?: HTMLElement | null) => {
+    if (!el) return;
+    el.classList.add("ring-2", "ring-amber-400", "animate-pulse");
+    setTimeout(
+      () => el.classList.remove("ring-2", "ring-amber-400", "animate-pulse"),
+      1600
+    );
+  };
 
   const validate = async (): Promise<boolean> => {
     if (!email || !password) {
-      toast.error("Completa todos los campos");
+      setFormError({ title: "Completa todos los campos" });
       return false;
     }
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      toast.error("Email inválido");
+      setFormError({ title: "Email inválido" });
       return false;
     }
-
-    if (!isAllowedDomain(email)) {
-      toast.warning("Este dominio de correo no está permitido");
-      return false;
-    }
-
     if (password.length < 6) {
-      toast.warning("La contraseña debe tener al menos 6 caracteres");
+      setFormError({ title: "La contraseña debe tener al menos 6 caracteres" });
       return false;
     }
-
     return true;
   };
 
@@ -172,7 +109,6 @@ export default function LoginPage() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Not authenticated");
-
       await fetch(`/api/firebase/users/${uid}`, {
         method: "PUT",
         headers: {
@@ -194,25 +130,12 @@ export default function LoginPage() {
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) return true;
-
-      // 🔹 Leer el doc principal del usuario
       const userRes = await fetch(`/api/firebase/users/${uid}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!userRes.ok) {
-        console.error(
-          "No se pudo cargar el usuario",
-          userRes.status,
-          await userRes.text()
-        );
-        return true;
-      }
+      if (!userRes.ok) return true;
       const user = await userRes.json();
-
-      // 🔹 Condición explícita
       if (user?.onboardingCompleted) return false;
-
-      // 🔹 Fallback: si tiene clones y voces ya creados, asumimos completado
       const [clonesRes, voicesRes] = await Promise.all([
         fetch(`/api/firebase/users/${uid}/clones`, {
           headers: { Authorization: `Bearer ${idToken}` },
@@ -221,79 +144,153 @@ export default function LoginPage() {
           headers: { Authorization: `Bearer ${idToken}` },
         }),
       ]);
-
       if (!clonesRes.ok || !voicesRes.ok) return true;
-
       const clones = (await clonesRes.json()).filter((c: any) => !!c?.url);
       const voices = (await voicesRes.json()).filter((v: any) => !!v?.voice_id);
-
       return !(clones.length > 0 && voices.length > 0);
     } catch (err) {
       console.error("Error comprobando onboarding:", err);
-      return true; // fallback conservador
+      return true;
     }
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
     if (!(await validate())) return;
+
     setLoading(true);
     try {
-      let user;
+      const emailLower = email.trim().toLowerCase();
+
       if (mode === "login") {
-        const res = await signInWithEmailAndPassword(auth, email, password);
-        user = res.user;
-        await ensureUserDoc(user.uid, user.email || email);
+        // 1) Intentar login directo (como antes)
+        try {
+          const res = await signInWithEmailAndPassword(
+            auth,
+            emailLower,
+            password
+          );
+          const user = res.user;
 
-        if (!user.emailVerified) {
-          toast.warning("Debes verificar tu correo antes de acceder");
-          return router.replace("/verify");
-        }
+          await ensureUserDoc(user.uid, user.email || email);
+          if (!user.emailVerified) {
+            toast.warning("Debes verificar tu correo antes de acceder");
+            return router.replace("/verify");
+          }
 
-        await createSessionCookie(user); // 🔑 crea cookie de sesión
-        await ensureStripeCustomer(); // ✅ asegura el Customer en Stripe (sustituye a la extensión)
+          await createSessionCookie(user);
+          await ensureStripeCustomer();
 
-        const needsOnboarding = await checkOnboardingNeeded(user.uid);
-        toast.success("¡Bienvenido!", {
-          style: { background: "green", color: "white" },
-        });
+          const needsOnboarding = await checkOnboardingNeeded(user.uid);
+          toast.success("¡Bienvenido!");
+          return router.replace(needsOnboarding ? "/onboarding" : "/dashboard");
+        } catch (err: any) {
+          // 2) Si falla, diagnosticamos y damos feedback claro
+          const code = err?.code || "";
+          // Miramos cómo está esa dirección en Firebase (solo ahora)
+          let methods: string[] = [];
+          try {
+            methods = await fetchSignInMethodsForEmail(auth, emailLower);
+          } catch {}
 
-        if (needsOnboarding) {
-          await router.replace("/onboarding");
-        } else {
-          await router.replace("/dashboard");
+          // a) Cuenta solo con Google
+          if (!methods.includes("password") && methods.includes("google.com")) {
+            setFormError({
+              title: "Tu cuenta está vinculada a Google.",
+              detail: "Pulsa el botón “Iniciar sesión con Google”.",
+              cta: "google",
+            });
+            pulse(googleBtnRef.current);
+            return;
+          }
+
+          // b) No hay cuenta
+          if (code === "auth/user-not-found" || methods.length === 0) {
+            setFormError({
+              title: "No encontramos una cuenta con ese correo.",
+              detail: "Si aún no te has registrado, crea tu cuenta ahora.",
+              cta: "register",
+            });
+            pulse(registerBtnRef.current);
+            return;
+          }
+
+          // c) Credenciales inválidas (password incorrecta)
+          if (
+            code === "auth/wrong-password" ||
+            code === "auth/invalid-credential" ||
+            code === "auth/invalid-login-credentials"
+          ) {
+            setFormError({
+              title: "Correo o contraseña incorrectos.",
+              detail: "Si no recuerdas tu contraseña puedes restablecerla.",
+              cta: "reset",
+            });
+            return;
+          }
+
+          // d) Otros casos
+          if (code === "auth/too-many-requests") {
+            setFormError({
+              title:
+                "Demasiados intentos. Espera unos minutos o restablece tu contraseña.",
+              cta: "reset",
+            });
+          } else {
+            setFormError({
+              title: "No se pudo procesar tu solicitud. Inténtalo de nuevo.",
+            });
+          }
         }
       } else {
-        const res = await createUserWithEmailAndPassword(auth, email, password);
-        user = res.user;
+        // REGISTER
+        const methods = await fetchSignInMethodsForEmail(auth, emailLower);
+        if (methods.includes("password") || methods.includes("google.com")) {
+          setFormError({
+            title: "Este correo ya está registrado.",
+            detail: methods.includes("google.com")
+              ? "Accede con el botón de Google."
+              : "Inicia sesión con tu contraseña.",
+          });
+          if (methods.includes("google.com")) pulse(googleBtnRef.current);
+          setMode("login");
+          return;
+        }
+
+        const res = await createUserWithEmailAndPassword(
+          auth,
+          emailLower,
+          password
+        );
+        const user = res.user;
 
         await sendEmailVerification(user);
         toast.info(
           "Hemos enviado un correo de verificación. Revisa tu bandeja."
         );
         await ensureUserDoc(user.uid, user.email || email);
-
-        // ✅ opcional: crea el Customer ya en el primer login (como hacía la extensión)
         await ensureStripeCustomer(true);
-
-        // 🔹 Meta event
-        if (
-          typeof window !== "undefined" &&
-          typeof (window as any).fbq === "function"
-        ) {
-          (window as any).fbq("track", "CompleteRegistration", {
-            method: "Email",
-            email: user.email,
-          });
-        }
         return router.replace("/verify");
       }
-    } catch (err) {
-      const message =
-        (err as { code?: string }).code === "auth/email-already-in-use"
-          ? "Este correo electrónico ya está registrado. Intenta con otro."
-          : (err as Error).message;
-      toast.error(message || "Error de autenticación");
+    } catch (err: any) {
+      // 👇 Mensajes amables (sin exponer códigos de Firebase)
+      const code = err?.code || "";
+      if (
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential"
+      ) {
+        setFormError({
+          title: "Correo o contraseña incorrectos.",
+          detail: "Si no recuerdas tu contraseña puedes restablecerla.",
+          cta: "reset",
+        });
+      } else {
+        setFormError({
+          title: "No se pudo procesar tu solicitud. Inténtalo de nuevo.",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -301,32 +298,18 @@ export default function LoginPage() {
 
   const onGoogle = async () => {
     setLoadingGoogle(true);
+    setFormError(null);
     try {
       const provider = new GoogleAuthProvider();
       const { user } = await signInWithPopup(auth, provider);
       await ensureUserDoc(user.uid, user.email || "");
-
-      // Google siempre da email verificado
       await createSessionCookie(user);
-      await ensureStripeCustomer(); // ✅ asegura el Customer en Stripe
-
+      await ensureStripeCustomer();
       toast.success("Inicio de sesión con Google");
-
-      // 🔹 Meta event
-      if (
-        typeof window !== "undefined" &&
-        typeof (window as any).fbq === "function"
-      ) {
-        (window as any).fbq("track", "CompleteRegistration", {
-          method: "Google",
-          email: user.email,
-        });
-      }
-
       const needsOnboarding = await checkOnboardingNeeded(user.uid);
       router.replace(needsOnboarding ? "/onboarding" : "/dashboard");
     } catch {
-      toast.error("No se pudo iniciar sesión con Google");
+      setFormError({ title: "No se pudo iniciar sesión con Google." });
     } finally {
       setLoadingGoogle(false);
     }
@@ -334,17 +317,19 @@ export default function LoginPage() {
 
   const onResetPassword = async () => {
     if (!email) {
-      toast.warning("Introduce tu correo para restablecer la contraseña");
+      setFormError({
+        title: "Introduce tu correo para restablecer la contraseña",
+      });
       return;
     }
     setLoadingReset(true);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
       toast.success(
         "Te hemos enviado un correo para restablecer tu contraseña"
       );
     } catch {
-      toast.error("No se pudo enviar el correo de recuperación");
+      setFormError({ title: "No se pudo enviar el correo de recuperación" });
     } finally {
       setLoadingReset(false);
     }
@@ -371,6 +356,7 @@ export default function LoginPage() {
             Introduce tu correo electrónico para acceder a tu cuenta
           </p>
         </CardHeader>
+
         <CardContent>
           <form className="grid gap-3" onSubmit={onSubmit}>
             <div className="grid gap-1">
@@ -380,7 +366,10 @@ export default function LoginPage() {
                 autoComplete="email"
                 placeholder="tu@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFormError(null);
+                }}
                 required
                 className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
@@ -405,12 +394,64 @@ export default function LoginPage() {
                 }
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFormError(null);
+                }}
                 required
                 minLength={6}
                 className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-500"
               />
             </div>
+
+            {/* 👇 Mensaje descriptivo inline */}
+            {formError && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-100 p-3 text-sm">
+                <div className="font-medium">{formError.title}</div>
+                {formError.detail && (
+                  <div className="text-amber-200/90">{formError.detail}</div>
+                )}
+
+                {formError.cta === "register" && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("register");
+                        pulse(registerBtnRef.current);
+                      }}
+                      className="underline decoration-amber-300 underline-offset-4"
+                    >
+                      Crear cuenta
+                    </button>
+                  </div>
+                )}
+
+                {formError.cta === "google" && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => pulse(googleBtnRef.current)}
+                      className="underline decoration-amber-300 underline-offset-4"
+                    >
+                      Usar “Iniciar sesión con Google”
+                    </button>
+                  </div>
+                )}
+
+                {formError.cta === "reset" && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={onResetPassword}
+                      className="underline decoration-amber-300 underline-offset-4"
+                    >
+                      Restablecer contraseña
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-0">
               <Button
@@ -427,6 +468,7 @@ export default function LoginPage() {
 
               <Button
                 type="button"
+                ref={googleBtnRef}
                 onClick={onGoogle}
                 disabled={loadingGoogle}
                 className="mt-4 flex items-center justify-center bg-neutral-700 text-white border-none rounded-md py-2 hover:bg-neutral-800 transition duration-300"
@@ -442,6 +484,7 @@ export default function LoginPage() {
             </div>
 
             <button
+              ref={registerBtnRef}
               type="button"
               className={cn("mt-2 text-sm text-neutral-400 hover:text-white")}
               onClick={() =>
