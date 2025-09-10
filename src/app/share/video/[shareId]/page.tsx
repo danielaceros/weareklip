@@ -9,7 +9,6 @@ type VideoDoc = {
   description?: string;
   public?: boolean;
   uid_share?: string;
-  // urls posibles en tu modelo
   url?: string;
   videoUrl?: string;
   fileUrl?: string;
@@ -41,12 +40,11 @@ async function resolveSharedVideo(shareId: string) {
   return { id: snap.id, ...data };
 }
 
-export default async function PublicVideoPage({
-  params,
-}: {
-  params: { shareId: string };
-}) {
-  const doc = await resolveSharedVideo(params.shareId);
+export default async function PublicVideoPage(props: any) {
+  const shareId = props?.params?.shareId as string | undefined;
+  if (!shareId) return notFound();
+
+  const doc = await resolveSharedVideo(shareId);
   if (!doc) return notFound();
 
   const src = pickUrl(doc);
@@ -54,7 +52,6 @@ export default async function PublicVideoPage({
 
   return (
     <main className="min-h-dvh bg-black text-white p-6 flex items-center justify-center">
-      {/* Tarjeta algo más estrecha y centrada */}
       <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
         <div className="mb-4">
           <h1 className="text-xl font-semibold">
@@ -65,14 +62,13 @@ export default async function PublicVideoPage({
           </p>
         </div>
 
-        {/* Reproductor compacto, sin recortes, 9:16 */}
-        <div className="relative mx-auto w-full max-w-[360px] md:max-w-[360px] aspect-[9/16] rounded-xl overflow-hidden border border-neutral-800 bg-black">
+        {/* Player compacto 9:16 sin recortes */}
+        <div className="relative mx-auto w-full max-w-[420px] md:max-w-[480px] aspect-[9/16] rounded-xl overflow-hidden border border-neutral-800 bg-black">
           <video
             controls
             playsInline
             preload="metadata"
             poster={thumb || undefined}
-            // Se muestra completo dentro del marco
             className="w-full h-full object-contain"
             src={src}
           />

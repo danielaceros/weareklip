@@ -1,82 +1,86 @@
+// src/app/share/lipsync/[shareId]/page.tsx
 import { notFound } from "next/navigation";
 import { adminDB } from "@/lib/firebase-admin";
 
-export const dynamic = "force-dynamic"; // sin cache SSR para previews
+export const dynamic = "force-dynamic";
 
 type LipsyncDoc = {
   title?: string;
-  downloadUrl?: string;
-  status?: string; // "completed", "processing", etc.
-  thumbnail?: string;
-  createdAt?: any;
+  description?: string;
   public?: boolean;
   uid_share?: string;
+  url?: string;
+  videoUrl?: string;
+  fileUrl?: string;
+  downloadUrl?: string;
+  thumb?: string;
+  thumbnail?: string;
+  videoThumbnail?: string;
 };
 
+function pickUrl(d: LipsyncDoc) {
+  return d.url || d.videoUrl || d.fileUrl || d.downloadUrl || "";
+}
+
+function pickThumb(d: LipsyncDoc) {
+  return d.thumbnail || d.videoThumbnail || d.thumb || "";
+}
+
 async function resolveSharedLipsync(shareId: string) {
-  // 1) Buscar el mapeo global (igual que en scripts)
+  // 1) Mapa global
   const shareSnap = await adminDB.doc(`shares/${shareId}`).get();
   if (!shareSnap.exists) return null;
-
   const share = shareSnap.data() as any;
-  // Esperamos: { public: true, kind: "lipsync", path: "users/<uid>/lipsync/<id>" }
   if (!share?.public || share?.kind !== "lipsync" || !share?.path) return null;
 
-  // 2) Leer el doc real por path (sin índices)
-  const snap = await adminDB.doc(String(share.path)).get();
+  // 2) Doc real
+  const snap = await adminDB.doc(share.path as string).get();
   if (!snap.exists) return null;
 
   const data = snap.data() as LipsyncDoc;
-
-  // 3) Guardia extra: debe seguir público
   if (!data.public) return null;
 
   return { id: snap.id, ...data };
 }
 
-export default async function PublicLipsyncPage({
-  params,
-}: {
-  params: { shareId: string };
-}) {
-  const doc = await resolveSharedLipsync(params.shareId);
+export default async function PublicLipsyncPage(props: any) {
+  const shareId = props?.params?.shareId as string | undefined;
+  if (!shareId) return notFound();
+
+  const doc = await resolveSharedLipsync(shareId);
   if (!doc) return notFound();
 
-  // Si no hay URL de vídeo, no tiene sentido renderizar reproductor
-  const cannotPlay = !doc.downloadUrl || doc.status === "processing";
+  const src = pickUrl(doc);
+  const thumb = pickThumb(doc);
 
   return (
     <main className="min-h-dvh bg-black text-white p-6 flex items-center justify-center">
-      <div className="w-full max-w-[420px] rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
-        <div className="mb-3">
-          <h1 className="text-lg font-semibold">Reel compartido</h1>
-          <p className="text-xs text-neutral-400">
-            Vista pública (solo lectura) — Reel generado por KLIP
-          </p>
+      <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
+        <div className="mb-4">
+          <h1 className="text-xl font-semibold">
+            {doc.title || "Lipsync compartido"}
+          </h1>
         </div>
 
-        <div className="relative rounded-xl overflow-hidden border border-neutral-800 bg-black aspect-[9/16]">
-          {cannotPlay ? (
-            <div className="w-full h-full grid place-items-center text-neutral-400 text-sm">
-              Este vídeo no está disponible todavía.
-            </div>
-          ) : (
-            <video
-              controls
-              playsInline
-              src={doc.downloadUrl}
-              className="absolute inset-0 w-full h-full object-contain bg-black"
-            />
-          )}
-
-          {/* Marca de agua */}
-          <div className="absolute bottom-2 right-2 text-[10px] px-2 py-1 bg-white/10 backdrop-blur rounded">
-            Reel generado por KLIP
+        {/* Player compacto, sin recortes, 9:16 */}
+        <div className="relative mx-auto w-full max-w-[420px] md:max-w-[480px] aspect-[9/16] rounded-xl overflow-hidden border border-neutral-800 bg-black">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            poster={thumb || undefined}
+            className="w-full h-full object-contain"
+            src={src}
+          />
+          <div className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-white/60 bg-black/30 px-2 py-1 rounded">
+            KLIP • preview
           </div>
         </div>
 
-        {doc.title && (
-          <h2 className="mt-3 text-base font-medium truncate">{doc.title}</h2>
+        {doc.description && (
+          <p className="mt-4 text-sm text-neutral-300 whitespace-pre-wrap">
+            {doc.description}
+          </p>
         )}
       </div>
     </main>

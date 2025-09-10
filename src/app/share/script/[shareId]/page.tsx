@@ -1,3 +1,4 @@
+// src/app/share/script/[shareId]/page.tsx
 import { notFound } from "next/navigation";
 import { adminDB } from "@/lib/firebase-admin";
 
@@ -36,12 +37,11 @@ async function resolveSharedScript(shareId: string) {
   return { id: snap.id, ...data };
 }
 
-export default async function PublicScriptPage({
-  params,
-}: {
-  params: { shareId: string };
-}) {
-  const doc = await resolveSharedScript(params.shareId);
+export default async function PublicScriptPage(props: any) {
+  const shareId = props?.params?.shareId as string | undefined;
+  if (!shareId) return notFound();
+
+  const doc = await resolveSharedScript(shareId);
   if (!doc) return notFound();
 
   return (
