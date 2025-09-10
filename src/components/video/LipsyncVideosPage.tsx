@@ -231,7 +231,9 @@ export default function LipsyncVideosPage() {
               if (!video) return;
 
               if (video._rollback) {
-                setVideos((prev) => prev.filter((v) => v.projectId !== video.projectId));
+                setVideos((prev) =>
+                  prev.filter((v) => v.projectId !== video.projectId)
+                );
               } else {
                 setVideos((prev) => [...prev, video]);
               }

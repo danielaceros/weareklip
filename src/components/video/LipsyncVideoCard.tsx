@@ -1,9 +1,15 @@
 "use client";
 
 import { FC, useState } from "react";
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import ShareVideo from "@/components/shared/ShareVideo";
 
 /* ---------- Tipos ---------- */
 interface VideoData {
@@ -11,7 +17,7 @@ interface VideoData {
   title: string;
   status: string;
   downloadUrl?: string;
-  thumbnail?: string; // 👈 opcional, si quieres mostrar una miniatura primero
+  thumbnail?: string;
 }
 
 interface LipsyncVideoCardProps {
@@ -79,6 +85,8 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
           variant="ghost"
           onClick={() => onDelete(video.projectId, video.downloadUrl)}
           className="h-8 w-8 shrink-0"
+          aria-label="Eliminar vídeo"
+          title="Eliminar vídeo"
         >
           <Trash2 size={16} className="text-red-500" />
         </Button>
@@ -103,34 +111,46 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
       </CardContent>
 
       {video.downloadUrl && video.status === "completed" && (
-        <CardFooter className="p-3 flex justify-between items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="secondary"
-            asChild
-            className="flex-1 min-w-[100px] rounded-lg"
-          >
-            <a
-              href={video.downloadUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
+        <CardFooter className="p-3 flex items-center gap-2 flex-wrap">
+          {/* ✅ Chip de compartir como en guiones */}
+          <ShareVideo
+            docId={video.projectId}
+            kind="lipsync"
+            variant="chip"
+            className="h-8"
+          />
+
+          {/* Acciones principales */}
+          <div className="ml-auto flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="secondary"
+              asChild
+              className="min-w-[110px] rounded-lg"
             >
-              Descargar
-            </a>
-          </Button>
-          <Button
-            size="sm"
-            variant="default"
-            className="flex-1 min-w-[100px] rounded-lg"
-            onClick={() =>
-              (window.location.href = `/dashboard/edit/new?videoUrl=${encodeURIComponent(
-                video.downloadUrl!
-              )}`)
-            }
-          >
-            Autoeditar
-          </Button>
+              <a
+                href={video.downloadUrl}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Descargar
+              </a>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="default"
+              className="min-w-[110px] rounded-lg"
+              onClick={() =>
+                (window.location.href = `/dashboard/edit/new?videoUrl=${encodeURIComponent(
+                  video.downloadUrl!
+                )}`)
+              }
+            >
+              Autoeditar
+            </Button>
+          </div>
         </CardFooter>
       )}
     </Card>

@@ -25,7 +25,11 @@ interface LipsyncVideoListProps {
   onDelete: (id: string, url?: string) => void;
 }
 
-export function LipsyncVideoList({ videos, perPage = 5, onDelete }: LipsyncVideoListProps) {
+export function LipsyncVideoList({
+  videos,
+  perPage = 5,
+  onDelete,
+}: LipsyncVideoListProps) {
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(videos.length / perPage);
