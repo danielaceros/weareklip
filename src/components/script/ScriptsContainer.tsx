@@ -24,14 +24,21 @@ import {
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
 
+// ✅ Rutas correctas (tus componentes viven en src/app/components)
 import { ScriptCard } from "@/components/script/ScriptCard";
 import { ScriptModal } from "@/components/script/ScriptModal";
 import ScriptCreatorContainer from "@/components/script/ScriptCreatorContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface ScriptData {
   scriptId: string;
+
+  // 👇 NUEVO: para Share Link
+  public?: boolean;
+  uid_share?: string | null;
+
   isAI?: boolean;
   ctaText?: string;
   platform?: string;
@@ -95,6 +102,11 @@ export default function ScriptsContainer() {
       setScripts(
         data.map((doc) => ({
           scriptId: doc.id,
+
+          // 👇 incluye public/uid_share
+          public: doc.public ?? false,
+          uid_share: doc.uid_share ?? null,
+
           description: doc.description,
           platform: doc.platform,
           language: doc.language,
@@ -126,7 +138,6 @@ export default function ScriptsContainer() {
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setIsNewOpen(true);
-      // limpiamos el query param sin recargar
       const url = new URL(window.location.href);
       url.searchParams.delete("new");
       window.history.replaceState({}, "", url.toString());
@@ -225,7 +236,6 @@ export default function ScriptsContainer() {
   const totalPages = Math.ceil(sortedScripts.length / perPage);
   const paginated = sortedScripts.slice((page - 1) * perPage, page * perPage);
 
-  // ✅ Spinner loader centrado
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -345,11 +355,10 @@ export default function ScriptsContainer() {
           <ScriptCreatorContainer
             onClose={() => setIsNewOpen(false)}
             onCreated={(newScript: ScriptData) => {
-              // Optimista: añadir al estado inmediatamente
-              setScripts((prev) => [{ ...newScript }, ...prev]);
+              setScripts((prev) => [{ ...newScript }, ...prev]); // optimista
               setIsNewOpen(false);
 
-              // En paralelo podrías refrescar desde la API para confirmar
+              // refresco para traer public/uid_share si el backend los devuelve
               fetchScripts().catch(() =>
                 toast.error("Error confirmando guiones, refresca la página")
               );
