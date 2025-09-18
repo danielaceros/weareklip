@@ -1,5 +1,8 @@
+// src/components/video/VideoSelect.tsx
 "use client";
+
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useT } from "@/lib/i18n";
 
 interface VideoItem {
   id: string;
@@ -12,23 +15,27 @@ interface VideoSelectProps {
 }
 
 export function VideoSelect({ videos, onChange }: VideoSelectProps) {
+  const t = useT();
+
+  const hasVideos = videos && videos.length > 0;
+
   return (
     <div>
-      <p className="mb-1">Selecciona vídeo de clonación</p>
-      <Select onValueChange={onChange}>
+      <p className="mb-1">{t("userPage.clonacion.select.label")}</p>
+      <Select onValueChange={onChange} disabled={!hasVideos}>
         <SelectTrigger>
-          <SelectValue placeholder="Elige un vídeo" />
+          <SelectValue placeholder={t("userPage.clonacion.select.placeholder")} />
         </SelectTrigger>
         <SelectContent>
-          {videos.length > 0 ? (
+          {hasVideos ? (
             videos.map((v) => (
               <SelectItem key={v.id} value={v.id}>
-                {v.name}
+                {v.name ?? t("videos.untitled")}
               </SelectItem>
             ))
           ) : (
             <SelectItem value="none" disabled>
-              No tienes vídeos de clonación
+              {t("userPage.clonacion.select.empty")}
             </SelectItem>
           )}
         </SelectContent>

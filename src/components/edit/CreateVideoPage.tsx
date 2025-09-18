@@ -12,6 +12,7 @@ import { auth } from "@/lib/firebase";
 import { uploadVideo } from "@/lib/uploadVideo";
 import { v4 as uuidv4 } from "uuid";
 import { useDropzone } from "react-dropzone";
+import { TemplateSelector } from "./TemplateSelector";
 import {
   Select,
   SelectContent,
@@ -30,14 +31,17 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { TagsInput } from "../shared/TagsInput";
-import { Input } from "@/components/ui/input"; // ⬅️ nuevo
-import { TemplateSelector } from "./TemplateSelector";
-
-/* ✅ límite de tamaño (100 MB vídeo) */
+import { Input } from "@/components/ui/input";
 import { validateFileSizeAs } from "@/lib/fileLimits";
+import { useT } from "@/lib/i18n";
 import { VideoData } from "./VideosPage";
 
 const MAX_SEC = 60; // ⏱️ límite duro
+// 📐 reglas de resolución/aspecto
+const MAX_W = 1080;
+const MAX_H = 1920;
+const ASPECT = 9 / 16;
+const TOL = 0.01; // ±1%
 
 const getVideoDurationFromUrl = (url: string) =>
   new Promise<number>((resolve, reject) => {
@@ -45,11 +49,24 @@ const getVideoDurationFromUrl = (url: string) =>
     v.preload = "metadata";
     v.src = url;
     v.onloadedmetadata = () => resolve(v.duration || 0);
-    v.onerror = () =>
-      reject(new Error("No se pudo leer la duración del vídeo"));
+    v.onerror = () => reject(new Error("cantRead"));
   });
 
-type VideoOption = { id: string; name: string; url: string };
+const getVideoDimsFromUrl = (url: string) =>
+  new Promise<{ w: number; h: number }>((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.src = url;
+    v.onloadedmetadata = () => {
+      const w = v.videoWidth;
+      const h = v.videoHeight;
+      if (w && h) resolve({ w, h });
+      else reject(new Error("cantRead"));
+    };
+    v.onerror = () => reject(new Error("cantRead"));
+  });
+
+export type VideoOption = { id: string; name: string; url: string };
 
 interface Props {
   preloadedVideos?: VideoOption[];
@@ -72,10 +89,10 @@ export default function CreateVideoPage({
   onComplete,
   onCreated,
 }: Props) {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Si viene un vídeo por query (?videoUrl=...) lo respetamos
   const preloadedVideoUrl = searchParams.get("videoUrl");
 
   // estado de archivo y video
@@ -85,7 +102,7 @@ export default function CreateVideoPage({
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // 🏷️ título del vídeo (opcional)
-  const [videoTitle, setVideoTitle] = useState<string>(""); // ⬅️ nuevo
+  const [videoTitle, setVideoTitle] = useState<string>("");
 
   // parámetros de edición
   const [language, setLanguage] = useState("");
@@ -109,59 +126,82 @@ export default function CreateVideoPage({
 
   const { ensureSubscribed } = useSubscriptionGate();
 
+  // 🧪 validación de archivo: tamaño, duración, orientación/aspecto y resolución
+  const validateFromUrl = async (url: string) => {
+    // duración
+    const sec = await getVideoDurationFromUrl(url);
+    if (sec > MAX_SEC) {
+      toast.error(t("upload.errors.tooLong", { sec: Math.round(sec), max: MAX_SEC }));
+      return { ok: false as const };
+    }
+
+    // dimensiones/aspecto
+    const { w, h } = await getVideoDimsFromUrl(url);
+    if (h <= w) {
+      toast.error(t("upload.errors.notVertical"));
+      return { ok: false as const };
+    }
+    const ratio = w / h;
+    if (Math.abs(ratio - ASPECT) > TOL) {
+      toast.error(t("upload.errors.notAspect916"));
+      return { ok: false as const };
+    }
+    if (w > MAX_W || h > MAX_H) {
+      toast.error(t("upload.errors.tooBigResolution", { w, h }));
+      return { ok: false as const };
+    }
+
+    return { ok: true as const, sec, w, h };
+  };
+
   /* ---- Dropzone ---- */
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       const f = acceptedFiles[0];
       if (!f) return;
 
-      // ⛔️ 1) Tamaño (100 MB vídeo)
-      const sizeCheck = validateFileSizeAs(f, "video");
+      // 1) Tamaño (100 MB vídeo)
+      const sizeCheck = validateFileSizeAs(f, "video"); // límite interno 100MB
       if (!sizeCheck.ok) {
-        toast.error("Archivo demasiado grande", {
-          description: sizeCheck.message,
-        });
+        toast.error(t("clientVideosSection.errors.fileTooLarge", { max: 100 }));
         return;
       }
 
-      // ⏱️ 2) Duración (60 s)
+      // 2) Duración + aspecto + resolución
       const url = URL.createObjectURL(f);
       try {
-        const sec = await getVideoDurationFromUrl(url);
-        if (sec > MAX_SEC) {
-          toast.error(
-            `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-          );
+        const res = await validateFromUrl(url);
+        if (!res.ok) {
           URL.revokeObjectURL(url);
           return;
         }
+
         setFile(f);
         setVideoUrl(url);
-        setVideoSec(sec);
-        // si no hay título aún, proponemos el nombre del archivo (sin extender)
+        setVideoSec(res.sec);
         if (!videoTitle.trim()) {
-          setVideoTitle(f.name.replace(/\.[^/.]+$/, "")); // sin extensión
+          setVideoTitle(f.name.replace(/\.[^/.]+$/, ""));
         }
-        toast.success("📹 Vídeo cargado");
+        toast.success(t("edit.toasts.videoLoaded"));
       } catch {
-        toast.error("No se pudo analizar el vídeo.");
+        toast.error(t("upload.errors.cantRead"));
         URL.revokeObjectURL(url);
       }
     },
-    [videoTitle]
+    [t, videoTitle]
   );
 
   // ✅ Validator del drop (rechaza antes de onDrop)
   const validator = (f: File) => {
     const r = validateFileSizeAs(f, "video"); // 100 MB
-    return r.ok ? null : { code: "file-too-large", message: r.message };
+    return r.ok ? null : { code: "file-too-large", message: t("clientVideosSection.errors.fileTooLarge", { max: 100 }) };
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     onDropRejected: (rejs) =>
       rejs.forEach((r) =>
-        toast.error("Archivo demasiado grande", {
+        toast.error(t("clientVideosSection.errors.fileTooLarge", { max: 100 }), {
           description: r.errors?.[0]?.message,
         })
       ),
@@ -171,31 +211,30 @@ export default function CreateVideoPage({
     validator,
   });
 
-  /* ---- Autoselección de vídeo + medir duración ---- */
+  /* ---- Autoselección de vídeo + medir/validar ---- */
   useEffect(() => {
     (async () => {
       if (!videoUrl) {
         if (preloadedVideoUrl) {
           setVideoUrl(preloadedVideoUrl);
-          const sec = await getVideoDurationFromUrl(preloadedVideoUrl).catch(
-            () => 0
-          );
-          setVideoSec(sec);
-          if (sec > MAX_SEC) {
-            toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-            );
+          try {
+            const res = await validateFromUrl(preloadedVideoUrl);
+            setVideoSec(res.ok ? res.sec : 0);
+            if (!res.ok) setVideoUrl(null);
+          } catch {
+            toast.error(t("upload.errors.cantRead"));
           }
         } else if (preloadedVideos.length > 0) {
           const first = preloadedVideos[0];
-          setVideoUrl(first.url);
-          const sec = await getVideoDurationFromUrl(first.url).catch(() => 0);
-          setVideoSec(sec);
-          if (!videoTitle.trim() && first.name) setVideoTitle(first.name); // ⬅️ sugerir
-          if (sec > MAX_SEC) {
-            toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-            );
+          try {
+            const res = await validateFromUrl(first.url);
+            if (res.ok) {
+              setVideoUrl(first.url);
+              setVideoSec(res.sec);
+              if (!videoTitle.trim() && first.name) setVideoTitle(first.name);
+            }
+          } catch {
+            toast.error(t("upload.errors.cantRead"));
           }
         }
       }
@@ -207,17 +246,13 @@ export default function CreateVideoPage({
   useEffect(() => {
     fetch("/api/submagic/languages")
       .then((res) => res.json())
-      .then((data) => {
-        setLanguages(data.languages || []);
-      })
+      .then((data) => setLanguages(data.languages || []))
       .catch(() => toast.error("❌ Error cargando idiomas"))
       .finally(() => setLoadingLang(false));
 
     fetch("/api/submagic/templates")
       .then((res) => res.json())
-      .then((data) => {
-        setTemplates(data.templates || []);
-      })
+      .then((data) => setTemplates(data.templates || []))
       .catch(() => toast.error("❌ Error cargando templates"))
       .finally(() => setLoadingTpl(false));
   }, []);
@@ -247,7 +282,7 @@ export default function CreateVideoPage({
     setSubmitting(true);
     setUploadProgress(0);
 
-    // 🏷️ título final (respeta lo que haya escrito el usuario)
+    // 🏷️ título final
     const finalTitle =
       videoTitle.trim() ||
       file?.name?.replace(/\.[^/.]+$/, "") ||
@@ -257,7 +292,7 @@ export default function CreateVideoPage({
     const tempId = uuidv4();
     const tempVideo = {
       projectId: tempId,
-      title: finalTitle, // ⬅️ usamos tu título
+      title: finalTitle,
       status: "processing",
       downloadUrl: videoUrl || undefined,
       _optimistic: true,
@@ -293,7 +328,7 @@ export default function CreateVideoPage({
           "X-Idempotency-Key": idem,
         },
         body: JSON.stringify({
-          title: finalTitle, // ⬅️ lo mandamos al backend
+          title: finalTitle,
           language,
           videoUrl: finalVideoUrl,
           templateName: template || undefined,
@@ -366,20 +401,15 @@ export default function CreateVideoPage({
                 <div
                   key={v.id}
                   onClick={async () => {
-                    setVideoUrl(v.url);
-                    const sec = await getVideoDurationFromUrl(v.url).catch(
-                      () => 0
-                    );
-                    setVideoSec(sec);
-                    if (!videoTitle.trim() && v.name) setVideoTitle(v.name); // ⬅️ sugerir nombre
-                    if (sec > MAX_SEC) {
-                      toast.error(
-                        `⏱️ El vídeo dura ${Math.round(
-                          sec
-                        )}s y el máximo es ${MAX_SEC}s.`
-                      );
-                    } else {
+                    try {
+                      const res = await validateFromUrl(v.url);
+                      if (!res.ok) return;
+                      setVideoUrl(v.url);
+                      setVideoSec(res.sec);
+                      if (!videoTitle.trim() && v.name) setVideoTitle(v.name);
                       toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    } catch {
+                      toast.error(t("upload.errors.cantRead"));
                     }
                   }}
                   className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
@@ -400,7 +430,7 @@ export default function CreateVideoPage({
               ))}
             </div>
           ) : videoUrl ? (
-            <div className="rounded-xl overflow-hidden border w/full max-w-sm aspect-[9/16]">
+            <div className="rounded-xl overflow-hidden border w-full max-w-sm aspect-[9/16]">
               <video
                 src={videoUrl}
                 controls
@@ -429,11 +459,11 @@ export default function CreateVideoPage({
                   <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground text-center">
                     {isDragActive
-                      ? "Suelta el vídeo aquí..."
-                      : "Arrastra un vídeo o haz click"}
+                      ? t("ui.dropzone.dropHere")
+                      : t("ui.dropzone.dragOrClick")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Hasta 60s y 100&nbsp;MB
+                    {t("edit.dropzone.hint", { maxSec: MAX_SEC, maxMB: 100 })}
                   </p>
                 </>
               )}
@@ -473,18 +503,18 @@ export default function CreateVideoPage({
                 {/* Mobile → botones simples */}
                 <div className="sm:hidden">
                   <div className="grid grid-cols-2 gap-2">
-                    {(showTemplates ? templates : templates.slice(0, 6)).map((t) => (
+                    {(showTemplates ? templates : templates.slice(0, 6)).map((tname) => (
                       <Button
-                        key={t}
+                        key={tname}
                         type="button"
-                        variant={t === template ? "default" : "secondary"}
+                        variant={tname === template ? "default" : "secondary"}
                         className="w-full"
                         onClick={() => {
-                          setTemplate(t);
-                          toast.success(`📑 Template "${t}" seleccionado`);
+                          setTemplate(tname);
+                          toast.success(`📑 Template "${tname}" seleccionado`);
                         }}
                       >
-                        {t}
+                        {tname}
                       </Button>
                     ))}
                   </div>
@@ -500,7 +530,7 @@ export default function CreateVideoPage({
                   )}
                 </div>
 
-                {/* Desktop → tooltip con previsualización */}
+                {/* Desktop → selector con preview */}
                 <div className="hidden sm:block">
                   <TemplateSelector
                     templates={templates}
@@ -511,7 +541,6 @@ export default function CreateVideoPage({
               </>
             )}
           </div>
-
 
           {/* Idioma */}
           <div>
