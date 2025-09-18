@@ -10,12 +10,19 @@ import { Loader2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { Card } from "@/components/ui/card";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useT } from "@/lib/i18n";
 
 type AudioItem = { id: string; audioUrl: string; name?: string };
 type VideoItem = { id: string; url: string; name?: string };
 
 const PAGE_SIZE = 1;
 const MAX_SEC = 60; // ⏱️ límite duro
+
+// 📐 reglas de resolución/aspecto
+const MAX_W = 1080;
+const MAX_H = 1920;
+const ASPECT = 9 / 16;
+const TOL = 0.01; // ±1%
 
 export interface VideoData {
   projectId: string;
@@ -49,12 +56,28 @@ const getVideoDurationFromUrl = (url: string) =>
       reject(new Error("No se pudo leer la duración del vídeo"));
   });
 
+const getVideoDimsFromUrl = (url: string) =>
+  new Promise<{ w: number; h: number }>((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.src = url;
+    v.onloadedmetadata = () => {
+      const w = v.videoWidth;
+      const h = v.videoHeight;
+      if (w && h) resolve({ w, h });
+      else reject(new Error("cantRead"));
+    };
+    v.onerror = () => reject(new Error("cantRead"));
+  });
+
 interface Props {
   onClose?: () => void;
   onCreated?: (video?: OptimisticVideoData) => void;
 }
 
 export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
+  const t = useT();
+
   const [user, setUser] = useState<User | null>(null);
   const [audios, setAudios] = useState<AudioItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -70,17 +93,18 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
 
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 modal
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
 
-  // 🔘 botón de cierre oculto (DialogClose)
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-
-  // ⏱️ estados de duración de lo seleccionado (cache simple)
+  // ⏱️ estados de duración/validación
   const [audioSec, setAudioSec] = useState<number | null>(null);
   const [videoSec, setVideoSec] = useState<number | null>(null);
+  const [videoValid, setVideoValid] = useState<boolean>(true);
+  const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(
+    null
+  );
 
   useEffect(() => {
     const auth = getAuth();
@@ -108,7 +132,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     }
   }, [audioPage, audios, selectedAudioId]);
 
-  // ⏱️ medir duración cuando cambia el audio seleccionado
+  // ⏱️ medir duración cuando cambia el audio seleccionado (con i18n)
   useEffect(() => {
     const a = audios.find((x) => x.id === selectedAudioId);
     if (!a?.audioUrl) {
@@ -122,7 +146,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
           setAudioSec(sec || 0);
           if (sec > MAX_SEC) {
             toast.error(
-              `⏱️ El audio dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+              t("upload.errors.tooLong", { sec: Math.round(sec), max: MAX_SEC })
             );
           }
         }
@@ -133,34 +157,69 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedAudioId, audios]);
+  }, [selectedAudioId, audios, t]);
 
-  // ⏱️ medir duración cuando cambia el vídeo seleccionado
+  // ⏱️ medir duración + validar 9:16 y 1080×1920 cuando cambia el vídeo seleccionado
   useEffect(() => {
     const v = videos.find((x) => x.id === selectedVideoId);
     if (!v?.url) {
       setVideoSec(null);
+      setVideoValid(false);
+      setVideoDims(null);
       return;
     }
     let cancelled = false;
-    getVideoDurationFromUrl(v.url)
-      .then((sec) => {
-        if (!cancelled) {
-          setVideoSec(sec || 0);
-          if (sec > MAX_SEC) {
-            toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
-            );
-          }
+
+    const run = async () => {
+      try {
+        const [sec, { w, h }] = await Promise.all([
+          getVideoDurationFromUrl(v.url),
+          getVideoDimsFromUrl(v.url),
+        ]);
+        if (cancelled) return;
+
+        setVideoSec(sec || 0);
+        setVideoDims({ w, h });
+
+        if (sec > MAX_SEC) {
+          toast.error(
+            t("upload.errors.tooLong", { sec: Math.round(sec), max: MAX_SEC })
+          );
+          setVideoValid(false);
+          return;
         }
-      })
-      .catch(() => {
-        if (!cancelled) setVideoSec(null);
-      });
+        if (h <= w) {
+          toast.error(t("upload.errors.notVertical"));
+          setVideoValid(false);
+          return;
+        }
+        const ratio = w / h;
+        if (Math.abs(ratio - ASPECT) > TOL) {
+          toast.error(t("upload.errors.notAspect916"));
+          setVideoValid(false);
+          return;
+        }
+        if (w > MAX_W || h > MAX_H) {
+          toast.error(t("upload.errors.tooBigResolution", { w, h }));
+          setVideoValid(false);
+          return;
+        }
+        setVideoValid(true);
+      } catch {
+        if (!cancelled) {
+          setVideoSec(null);
+          setVideoDims(null);
+          setVideoValid(false);
+          toast.error(t("upload.errors.cantRead"));
+        }
+      }
+    };
+
+    run();
     return () => {
       cancelled = true;
     };
-  }, [selectedVideoId, videos]);
+  }, [selectedVideoId, videos, t]);
 
   async function loadMedia(uid: string) {
     try {
@@ -206,121 +265,132 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   }
 
   async function handleGenerate() {
-  flushSync(() => setProcessing(true));
+    flushSync(() => setProcessing(true));
 
-  const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
-  if (!ok) {
-    setProcessing(false);
-    setShowCheckout(true);
-    return;
-  }
+    const ok = await ensureSubscribed({ feature: "lipsync" });
+    if (!ok) {
+      setProcessing(false);
+      setShowCheckout(true);
+      return;
+    }
 
-  if (!user) {
-    toast.error("Debes iniciar sesión.");
-    setProcessing(false);
-    return;
-  }
+    if (!user) {
+      toast.error("Debes iniciar sesión.");
+      setProcessing(false);
+      return;
+    }
 
-  const audio = audios.find((a) => a.id === selectedAudioId);
-  const video = videos.find((v) => v.id === selectedVideoId);
+    const audio = audios.find((a) => a.id === selectedAudioId);
+    const video = videos.find((v) => v.id === selectedVideoId);
 
-  if (!audio?.audioUrl) {
-    toast.error("Debes seleccionar un audio válido.");
-    setProcessing(false);
-    return;
-  }
-  if (!video?.url) {
-    toast.error("Debes seleccionar un vídeo válido.");
-    setProcessing(false);
-    return;
-  }
-  if (!title.trim()) {
-    toast.error("Debes escribir un título para el vídeo.");
-    setProcessing(false);
-    return;
-  }
+    if (!audio?.audioUrl) {
+      toast.error("Debes seleccionar un audio válido.");
+      setProcessing(false);
+      return;
+    }
+    if (!video?.url) {
+      toast.error("Debes seleccionar un vídeo válido.");
+      setProcessing(false);
+      return;
+    }
+    if (!title.trim()) {
+      toast.error("Debes escribir un título para el vídeo.");
+      setProcessing(false);
+      return;
+    }
 
-  // ⏱️ Validación dura de duración
-  try {
-    const aSec =
-      audioSec ??
-      (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
-    const vSec =
-      videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
+    // ⏱️ Validación dura de duración + 9:16 + 1080×1920 (por si algo cambió)
+    try {
+      const aSec =
+        audioSec ?? (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
+      const vSec =
+        videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
 
-    if (!aSec) throw new Error("No se pudo leer la duración del audio.");
-    if (!vSec) throw new Error("No se pudo leer la duración del vídeo.");
-    if (aSec > MAX_SEC)
-      throw new Error(
-        `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
-      );
-    if (vSec > MAX_SEC)
-      throw new Error(
-        `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
-      );
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : "Validación fallida");
-    setProcessing(false);
-    return;
-  }
+      if (!aSec) throw new Error(t("upload.errors.cantRead"));
+      if (!vSec) throw new Error(t("upload.errors.cantRead"));
+      if (aSec > MAX_SEC)
+        throw new Error(
+          t("upload.errors.tooLong", { sec: Math.round(aSec), max: MAX_SEC })
+        );
+      if (vSec > MAX_SEC)
+        throw new Error(
+          t("upload.errors.tooLong", { sec: Math.round(vSec), max: MAX_SEC })
+        );
 
-  // ⚡ Optimistic UI: placeholder
-  const optimisticId = `optimistic-${Date.now()}`;
-      onCreated?.({
+      // revalida dims del vídeo seleccionado
+      const dims =
+        videoDims ?? (await getVideoDimsFromUrl(video.url).catch(() => null));
+      if (!dims) throw new Error(t("upload.errors.cantRead"));
+      const { w, h } = dims;
+      if (h <= w) throw new Error(t("upload.errors.notVertical"));
+      const ratio = w / h;
+      if (Math.abs(ratio - ASPECT) > TOL)
+        throw new Error(t("upload.errors.notAspect916"));
+      if (w > MAX_W || h > MAX_H)
+        throw new Error(t("upload.errors.tooBigResolution", { w, h }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("upload.errors.cantRead"));
+      setProcessing(false);
+      return;
+    }
+
+    // ⚡ Optimistic UI: placeholder
+    const optimisticId = `optimistic-${Date.now()}`;
+    onCreated?.({
       projectId: "temp-" + Date.now(),
       title: "Temporal",
       status: "processing",
-      downloadUrl: "", 
+      downloadUrl: "",
       _rollback: true,
     });
 
-  toast.info(
-    `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
-  );
-
-  setLoading(true);
-  try {
-    const token = await user.getIdToken();
-    const res = await fetch("/api/sync/create", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        audioUrl: audio.audioUrl,
-        videoUrl: video.url,
-        title,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error creando vídeo");
-
-    toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-
-    // 1️⃣ cerrar modal secundario
-    onClose?.();
-
-    // 2️⃣ actualizar/reemplazar el placeholder
-    onCreated?.({
-      projectId: data.id,
-      title: data.title || title,
-      status: "processing",
-      downloadUrl: data.downloadUrl,
-    } as any);
-  } catch (err) {
-    console.error(err);
-    toast.error(
-      err instanceof Error ? err.message : "No se pudo crear el lipsync"
+    toast.info(
+      `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
     );
-    // ❌ revertir optimista
-    onCreated?.({ projectId: optimisticId, _rollback: true } as any);
-  } finally {
-    setLoading(false);
-    setProcessing(false);
+
+    setLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/sync/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          audioUrl: audio.audioUrl,
+          videoUrl: video.url,
+          title,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error creando vídeo");
+
+      toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
+
+      // 1️⃣ cerrar modal secundario
+      onClose?.();
+
+      // 2️⃣ actualizar/reemplazar el placeholder
+      onCreated?.({
+        projectId: data.id,
+        title: data.title || title,
+        status: "processing",
+        downloadUrl: data.downloadUrl,
+      } as any);
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo crear el lipsync"
+      );
+      // ❌ revertir optimista
+      onCreated?.({ projectId: optimisticId, _rollback: true } as any);
+    } finally {
+      setLoading(false);
+      setProcessing(false);
+    }
   }
-}
 
   const isLoading = processing || loading;
   const buttonText = processing
@@ -367,10 +437,19 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
                 key={v.id}
                 className={`flex-shrink-0 w-32 h-48 sm:w-40 sm:h-60 rounded-lg cursor-pointer border-2 ${
                   selectedVideoId === v.id
-                    ? "border-primary"
+                    ? videoValid
+                      ? "border-primary"
+                      : "border-destructive"
                     : "border-transparent"
                 }`}
                 onClick={() => setSelectedVideoId(v.id)}
+                title={
+                  videoDims
+                    ? `${videoDims.w}×${videoDims.h} • ${
+                        videoValid ? "OK" : "Inválido"
+                      }`
+                    : undefined
+                }
               >
                 <video
                   src={v.url}

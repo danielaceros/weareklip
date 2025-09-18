@@ -11,14 +11,13 @@
     "color": "Color",
     "language": "Idioma",
     "logout": "Cerrar sesión"
-
   },
-      "accents": {
-      "blue": "Azul",
-      "green": "Verde",
-      "orange": "Naranja",
-      "rose": "Rosa"
-    },
+  "accents": {
+    "blue": "Azul",
+    "green": "Verde",
+    "orange": "Naranja",
+    "rose": "Rosa"
+  },
   "settings": {
     "title": "Configuración",
     "profile": "Perfil",
@@ -29,30 +28,24 @@
     "errorResetPassword": "No se pudo enviar el correo de restablecimiento",
     "savedProfile": "Perfil actualizado correctamente",
     "errorProfile": "No se pudo actualizar tu perfil",
-
     "preferences": "Preferencias",
     "theme": "Tema",
     "color": "Color",
     "language": "Idioma",
-
     "notifications": "Notificaciones",
     "emailNotifications": "Notificaciones por correo",
     "pushNotifications": "Notificaciones push",
     "whatsappNotifications": "Notificaciones por WhatsApp",
-
     "privacy": "Privacidad",
     "shareData": "Compartir datos anónimos para mejorar el servicio",
     "profileVisibility": "Hacer mi perfil visible públicamente",
-
     "security": "Seguridad",
     "twoFactor": "Autenticación en dos pasos (2FA)",
     "viewSessions": "Ver sesiones activas",
     "activeSessions": "Gestión de sesiones activa",
-    
     "integrations": "Integraciones",
     "connectInstagram": "Conectar Instagram",
     "connectMetricool": "Conectar Metricool",
-
     "advanced": "Avanzado",
     "clearLocal": "Borrar datos locales",
     "localCleared": "Datos locales eliminados",
@@ -62,12 +55,10 @@
     "confirmDelete": "¿Seguro que quieres eliminar tu cuenta? Esta acción no se puede deshacer.",
     "accountDeleted": "Tu cuenta ha sido eliminada",
     "errorDeleteAccount": "No se pudo eliminar la cuenta",
-
     "subscription": "Suscripción",
     "subscriptionDesc": "Administra tu plan y pagos desde el portal seguro de Stripe.",
     "manageSubscription": "Gestionar suscripción"
   },
-
   "sidebar": {
     "title": "Panel de Cliente",
     "clientTitle": "Panel de Cliente",
@@ -418,112 +409,121 @@
     "footer": "Mostrando {count} de {total} notificaciones • 🟢 Actualización en tiempo real"
   },
   "userPage": {
-  "dialog": {
-    "videoTitle": "Video"
-  },
-  "title": "Mi Panel de Usuario",
-  "subtitle": "Gestiona tu perfil, suscripción y videos de clonación",
-  "common": {
-    "unknown": "Desconocido"
-  },
-
-  "profile": {
-    "sectionTitle": "Datos del Usuario",
-    "labels": {
-      "name": "Nombre completo",
-      "instagramUser": "Usuario de Instagram",
-      "phone": "Teléfono",
-      "emailReadonly": "Correo electrónico"
-    },
-    "placeholders": {
-      "name": "Introduce tu nombre",
-      "instagramUser": "@usuario",
-      "phone": "+34 600 000 000"
-    },
-    "photo": {
-      "changeTooltip": "Haz clic para cambiar la foto",
-      "uploadingTooltip": "Subiendo foto...",
-      "uploadLoading": "Subiendo foto de perfil...",
-      "uploadError": "Error al subir la foto",
-      "saveToDbError": "Error al guardar la foto en la base de datos",
-      "updated": "Foto de perfil actualizada",
-      "onlyImages": "Solo se permiten imágenes",
-      "maxSize": "La imagen debe pesar menos de 5MB"
-    },
-    "actions": {
-      "save": "Guardar cambios",
-      "savingPhoto": "Subiendo foto...",
-      "saved": "Datos actualizados correctamente",
-      "saveError": "Error al guardar los datos",
-      "changePhoto": "Cambia tu foto de perfil"
-    },
-    "authRequired": "Usuario no autenticado"
-  },
-
-  "subscription": {
-    "sectionTitle": "Mi Suscripción",
-    "loading": "Cargando información de la suscripción...",
-    "noActive": "No tienes una suscripción activa.",
-    "labels": {
-      "status": "Estado",
-      "plan": "Plan",
-      "price": "Precio",
-      "renewal": "Renovación",
-      "cancelAtPeriodEnd": "Cancelar al final del periodo"
-    },
-    "status": {
-      "active": "Activa",
-      "trialing": "En prueba",
-      "incomplete": "Incompleta",
-      "canceled": "Cancelada",
-      "no_active": "Sin suscripción"
-    },
-    "yes": "Sí",
-    "no": "No",
-    "openBillingPortal": "Abrir portal de facturación"
-  },
-  "clonacion": {
-    "sectionTitle": "Videos de clonación",
-    "uploadPrompt": "Sube un archivo",
-    "uploading": "Subiendo video...",
-    "noVideos": "Aún no tienes videos de clonación",
-    "upload": {
-      "uploadingFile": "Subiendo {name}...",
-      "onlyVideos": "Solo se permiten archivos de video",
-      "loadingError": "Error cargando videos",
-      "maxSize": "El video debe pesar menos de 100MB",
-      "success": "{name} subido correctamente",
-      "uploadError": "Error al subir {name}",
-      "saveError": "Error al guardar el video en la base de datos",
-      "loadingVideos": "Cargando videos...",
-      "none": "No has subido videos."
-    },
-    "actions": {
-      "delete": "Eliminar",
-      "view": "Ver"
-    },
-    "grid": {
-      "aria": {
-        "deleteVideo": "Eliminar video {title}",
-        "closeVideo": "Cerrar video"
-      }
-    },
-    "deleteModal": {
-      "title": "Confirmar eliminación",
-      "body": "¿Seguro que quieres eliminar el video \"{title}\"?",
-      "cancel": "Cancelar",
-      "delete": "Eliminar"
-    },
-    "delete": {
-      "deleting": "Eliminando video...",
-      "success": "Video eliminado correctamente",
-      "error": "Error al eliminar el video"
-    },
     "dialog": {
       "videoTitle": "Video"
+    },
+    "title": "Mi Panel de Usuario",
+    "subtitle": "Gestiona tu perfil, suscripción y videos de clonación",
+    "common": {
+      "unknown": "Desconocido"
+    },
+    "profile": {
+      "sectionTitle": "Datos del Usuario",
+      "labels": {
+        "name": "Nombre completo",
+        "instagramUser": "Usuario de Instagram",
+        "phone": "Teléfono",
+        "emailReadonly": "Correo electrónico"
+      },
+      "placeholders": {
+        "name": "Introduce tu nombre",
+        "instagramUser": "@usuario",
+        "phone": "+34 600 000 000"
+      },
+      "photo": {
+        "changeTooltip": "Haz clic para cambiar la foto",
+        "uploadingTooltip": "Subiendo foto...",
+        "uploadLoading": "Subiendo foto de perfil...",
+        "uploadError": "Error al subir la foto",
+        "saveToDbError": "Error al guardar la foto en la base de datos",
+        "updated": "Foto de perfil actualizada",
+        "onlyImages": "Solo se permiten imágenes",
+        "maxSize": "La imagen debe pesar menos de 5MB"
+      },
+      "actions": {
+        "save": "Guardar cambios",
+        "savingPhoto": "Subiendo foto...",
+        "saved": "Datos actualizados correctamente",
+        "saveError": "Error al guardar los datos",
+        "changePhoto": "Cambia tu foto de perfil"
+      },
+      "authRequired": "Usuario no autenticado"
+    },
+    "subscription": {
+      "sectionTitle": "Mi Suscripción",
+      "loading": "Cargando información de la suscripción...",
+      "noActive": "No tienes una suscripción activa.",
+      "labels": {
+        "status": "Estado",
+        "plan": "Plan",
+        "price": "Precio",
+        "renewal": "Renovación",
+        "cancelAtPeriodEnd": "Cancelar al final del periodo"
+      },
+      "status": {
+        "active": "Activa",
+        "trialing": "En prueba",
+        "incomplete": "Incompleta",
+        "canceled": "Cancelada",
+        "no_active": "Sin suscripción"
+      },
+      "yes": "Sí",
+      "no": "No",
+      "openBillingPortal": "Abrir portal de facturación"
+    },
+    "clonacion": {
+      "sectionTitle": "Videos de clonación",
+      "uploadPrompt": "Sube un archivo",
+      "uploading": "Subiendo video...",
+      "noVideos": "Aún no tienes videos de clonación",
+
+      "uploadDialogTitle": "Subir video de clonación",
+      "requirementsTitle": "Requisitos del video",
+      "requirements": {
+        "vertical916": "Formato vertical (9:16)",
+        "maxResolution": "Resolución máxima 1080×1920",
+        "cleanBg": "Fondo liso y buena iluminación",
+        "faceFront": "Hablar de frente y con claridad"
+      },
+
+      "upload": {
+        "uploadingFile": "Subiendo {name}...",
+        "onlyVideos": "Solo se permiten archivos de video",
+        "loadingError": "Error cargando videos",
+        "maxSize": "El video debe pesar menos de 100MB",
+        "success": "{name} subido correctamente",
+        "uploadError": "Error al subir {name}",
+        "saveError": "Error al guardar el video en la base de datos",
+        "loadingVideos": "Cargando videos...",
+        "none": "No has subido videos.",
+        "dragOrClick": "Arrastra tu video aquí o haz clic para seleccionarlo"
+      },
+      "actions": {
+        "delete": "Eliminar",
+        "view": "Ver"
+      },
+      "grid": {
+        "aria": {
+          "deleteVideo": "Eliminar video {title}",
+          "closeVideo": "Cerrar video"
+        }
+      },
+      "deleteModal": {
+        "title": "Confirmar eliminación",
+        "body": "¿Seguro que quieres eliminar el video \"{title}\"?",
+        "cancel": "Cancelar",
+        "delete": "Eliminar"
+      },
+      "delete": {
+        "deleting": "Eliminando video...",
+        "success": "Video eliminado correctamente",
+        "error": "Error al eliminar el video"
+      },
+      "dialog": {
+        "videoTitle": "Video"
+      }
     }
-  }
-},
+  },
   "calendarPage": {
     "title": "Calendario de Publicación",
     "description": "Consulta las fechas programadas para tus videos (Reels).\nIntegración con Metricool pronto.",
@@ -1137,63 +1137,59 @@
       "stateUpdated": "Estado actualizado"
     }
   },
- "login": {
-  "titleLogin": "Iniciar sesión",
-  "titleRegister": "Crear cuenta",
-  "subtitle": "Accede a tu cuenta para continuar",
-  "email": "Correo electrónico",
-  "password": "Contraseña",
-  "continue": "Continuar",
-  "signIn": "Entrar",
-  "signInWithGoogle": "Entrar con Google",
-  "forgotPassword": "¿Olvidaste la contraseña?",
-  "noAccount": "¿No tienes cuenta?",
-  "createAccount": "Crear cuenta",
-
-  "form": {
-    "completeAll": "Completa todos los campos.",
-    "invalidEmail": "Correo electrónico no válido.",
-    "weakPassword": "La contraseña es demasiado débil."
+  "login": {
+    "titleLogin": "Iniciar sesión",
+    "titleRegister": "Crear cuenta",
+    "subtitle": "Accede a tu cuenta para continuar",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "continue": "Continuar",
+    "signIn": "Entrar",
+    "signInWithGoogle": "Entrar con Google",
+    "forgotPassword": "¿Olvidaste la contraseña?",
+    "noAccount": "¿No tienes cuenta?",
+    "createAccount": "Crear cuenta",
+    "form": {
+      "completeAll": "Completa todos los campos.",
+      "invalidEmail": "Correo electrónico no válido.",
+      "weakPassword": "La contraseña es demasiado débil."
+    },
+    "toasts": {
+      "verifyEmail": "Te hemos enviado un correo para verificar tu email. Revísalo para continuar."
+    },
+    "firebase": {
+      "emailInUse": "Este correo ya está en uso",
+      "invalidEmail": "Correo electrónico no válido",
+      "userNotFound": "Usuario no encontrado",
+      "wrongPassword": "Contraseña incorrecta",
+      "weakPassword": "La contraseña es demasiado débil",
+      "tooMany": "Demasiados intentos, intenta más tarde",
+      "mfaRequired": "Se requiere verificación en dos pasos"
+    },
+    "mfa": {
+      "title": "Verificación en dos pasos",
+      "subtitle": "Introduce el código de verificación de 6 dígitos",
+      "codeLabel": "Código",
+      "codePlaceholder": "123 456",
+      "sendCode": "Enviar código",
+      "resendCode": "Reenviar código",
+      "verify": "Verificar",
+      "verifying": "Verificando...",
+      "verified": "Verificación completada",
+      "invalidCode": "Código incorrecto o caducado",
+      "tooManyAttempts": "Demasiados intentos. Inténtalo más tarde.",
+      "smsSent": "Hemos enviado un SMS con tu código",
+      "callSent": "Te llamaremos con tu código",
+      "cancel": "Cancelar",
+      "back": "Volver",
+      "pleaseEnroll": "Activa la verificación en dos pasos para continuar.",
+      "invalidPhone": "Número de teléfono no válido.",
+      "deviceLabel": "Teléfono principal",
+      "completeCode": "Introduce los 6 dígitos del código.",
+      "enrolled": "Verificación en dos pasos activada.",
+      "incompleteProcess": "Proceso de verificación incompleto."
+    }
   },
-
-  "toasts": {
-    "verifyEmail": "Te hemos enviado un correo para verificar tu email. Revísalo para continuar."
-  },
-
-  "firebase": {
-    "emailInUse": "Este correo ya está en uso",
-    "invalidEmail": "Correo electrónico no válido",
-    "userNotFound": "Usuario no encontrado",
-    "wrongPassword": "Contraseña incorrecta",
-    "weakPassword": "La contraseña es demasiado débil",
-    "tooMany": "Demasiados intentos, intenta más tarde",
-    "mfaRequired": "Se requiere verificación en dos pasos"
-  },
-
-  "mfa": {
-    "title": "Verificación en dos pasos",
-    "subtitle": "Introduce el código de verificación de 6 dígitos",
-    "codeLabel": "Código",
-    "codePlaceholder": "123 456",
-    "sendCode": "Enviar código",
-    "resendCode": "Reenviar código",
-    "verify": "Verificar",
-    "verifying": "Verificando...",
-    "verified": "Verificación completada",
-    "invalidCode": "Código incorrecto o caducado",
-    "tooManyAttempts": "Demasiados intentos. Inténtalo más tarde.",
-    "smsSent": "Hemos enviado un SMS con tu código",
-    "callSent": "Te llamaremos con tu código",
-    "cancel": "Cancelar",
-    "back": "Volver",
-    "pleaseEnroll": "Activa la verificación en dos pasos para continuar.",
-    "invalidPhone": "Número de teléfono no válido.",
-    "deviceLabel": "Teléfono principal",
-    "completeCode": "Introduce los 6 dígitos del código.",
-    "enrolled": "Verificación en dos pasos activada.",
-    "incompleteProcess": "Proceso de verificación incompleto."
-  }
-},
   "auth": {
     "title": "Bienvenido a KLIP",
     "subtitle": "🤖 Automatizamos TODO tu contenido en redes.",
@@ -1211,7 +1207,6 @@
   },
   "profile": {
     "sectionTitle": "Perfil",
-    
     "sectionSubtitle": "Esta es la información sobre tu perfil",
     "labels": {
       "name": "Nombre",
@@ -1234,7 +1229,7 @@
     "noActive": "No tienes ninguna suscripción activa"
   },
   "clonacion": {
-    "sectionSubtitle":"Estos son tus vídeos de clonación",
+    "sectionSubtitle": "Estos son tus vídeos de clonación",
     "previewTitle": "Preview",
     "uploadPrompt": "Sube un archivo",
     "mustLogin": "Debes iniciar sesión para usar la clonación",
@@ -1260,4 +1255,3 @@
     "logout": "Cerrar sesión"
   }
 }
-
