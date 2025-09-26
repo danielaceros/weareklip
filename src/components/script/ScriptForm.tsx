@@ -1,6 +1,7 @@
+// src/components/script/ScriptForm.tsx
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,14 +19,15 @@ import { Loader2 } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { toast } from "sonner";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useT } from "@/lib/i18n";
 
 interface ScriptFormProps {
   description: string;
-  tone: string;
+  tone: string;        // guardamos la KEY (ideal) o un legacy label
   platform: string;
   duration: string;
   language: string;
-  structure: string;
+  structure: string;   // guardamos la KEY (ideal) o un legacy label
   addCTA: boolean;
   ctaText: string;
   loading: boolean;
@@ -38,8 +40,32 @@ interface ScriptFormProps {
   setAddCTA: (val: boolean) => void;
   setCtaText: (val: string) => void;
   onSubmit: () => void | Promise<void>;
-  onClose?: () => void; // 👈 nuevo: para cerrar modal padre
+  onClose?: () => void;
 }
+
+/** ===== KEYS i18n (estables) ===== */
+const TONE_KEYS = [
+  "motivational",
+  "educational",
+  "humorous",
+  "serious",
+  "inspirational",
+  "emotional",
+  "provocative",
+] as const;
+type ToneKey = typeof TONE_KEYS[number];
+
+const STRUCTURE_KEYS = [
+  "hook_body_close",
+  "storytelling",
+  "tips_list",
+  "rhetorical_question",
+  "before_after",
+  "myth_vs_reality",
+  "problem_solution",
+  "testimonial",
+] as const;
+type StructureKey = typeof STRUCTURE_KEYS[number];
 
 export function ScriptForm({
   description,
@@ -60,16 +86,39 @@ export function ScriptForm({
   setAddCTA,
   setCtaText,
   onSubmit,
-  onClose, // 👈 recibimos
+  onClose,
 }: ScriptFormProps) {
+  const t = useT();
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // Helpers de etiquetas traducidas
+  const toneLabel = (k: string) =>
+    k ? (t(`wizard.toneOptions.${k}`) ?? k) : "";
+
+  const structureLabel = (k: string) =>
+    k ? (t(`wizard.structureOptions.${k}`) ?? k) : "";
+
+  // Normalización: si llega un label legacy, lo convertimos a KEY
+  useEffect(() => {
+    if (tone && !TONE_KEYS.includes(tone as any)) {
+      const k = TONE_KEYS.find((key) => t(`wizard.toneOptions.${key}`) === tone);
+      if (k) setTone(k);
+    }
+  }, [tone, setTone, t]);
+
+  useEffect(() => {
+    if (structure && !STRUCTURE_KEYS.includes(structure as any)) {
+      const k = STRUCTURE_KEYS.find(
+        (key) => t(`wizard.structureOptions.${key}`) === structure
+      );
+      if (k) setStructure(k);
+    }
+  }, [structure, setStructure, t]);
+
   const handleSubmit = useCallback(async () => {
-    flushSync(() => {
-      setProcessing(true);
-    });
+    flushSync(() => setProcessing(true));
 
     const ok = await ensureSubscribed({ feature: "script" });
     if (!ok) {
@@ -79,18 +128,14 @@ export function ScriptForm({
     }
 
     if (!description || !tone || !platform || !duration || !structure) {
-      toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
+      toast.error(t("scriptsCreator.toasts.fillAll"));
       setProcessing(false);
       return;
     }
 
     try {
       await onSubmit();
-
-      // 👇 opcional: cerrar modal padre justo después de generar
-      if (typeof onClose === "function") {
-        onClose();
-      }
+      if (typeof onClose === "function") onClose();
     } finally {
       setProcessing(false);
     }
@@ -103,79 +148,71 @@ export function ScriptForm({
     structure,
     onSubmit,
     onClose,
+    t,
   ]);
 
   const isLoading = processing || loading;
   const buttonText = processing
-    ? "Procesando..."
+    ? t("common.processing")
     : loading
-    ? "Generando..."
-    : "Generar guion";
+    ? t("scriptsForm.buttons.generating")
+    : t("scriptsForm.buttons.generate");
 
-  // Opciones memoizadas
+  // Opciones traducidas (recalcular al cambiar de idioma)
   const toneOptions = useMemo(
-    () => [
-      { value: "motivador", label: "Motivador" },
-      { value: "educativo", label: "Educativo" },
-      { value: "humoristico", label: "Humorístico" },
-      { value: "serio", label: "Serio" },
-      { value: "inspirador", label: "Inspirador" },
-      { value: "emocional", label: "Emocional" },
-      { value: "provocador", label: "Provocador" },
-    ],
-    []
+    () => TONE_KEYS.map((key) => ({ value: key, label: toneLabel(key) })),
+    [t] // depende de t() para re-render al cambiar locale
   );
 
   const platformOptions = useMemo(
     () => [
-      { value: "instagram", label: "Instagram" },
-      { value: "tiktok", label: "TikTok" },
-      { value: "youtube", label: "YouTube Shorts" },
-      { value: "linkedin", label: "LinkedIn" },
+      { value: "instagram", label: t("scriptsForm.options.platforms.instagram") },
+      { value: "tiktok", label: t("scriptsForm.options.platforms.tiktok") },
+      { value: "youtube", label: t("scriptsForm.options.platforms.youtube") },
+      { value: "linkedin", label: t("scriptsForm.options.platforms.linkedin") },
     ],
-    []
+    [t]
   );
 
   const durationOptions = useMemo(
     () => [
-      { value: "0-15", label: "0–15 segundos" },
-      { value: "15-30", label: "15–30 segundos" },
-      { value: "30-45", label: "30–45 segundos" },
-      { value: "45-60", label: "45–60 segundos" },
+      { value: "0-15", label: t("scriptsForm.options.durations.0-15") },
+      { value: "15-30", label: t("scriptsForm.options.durations.15-30") },
+      { value: "30-45", label: t("scriptsForm.options.durations.30-45") },
+      { value: "45-60", label: t("scriptsForm.options.durations.45-60") },
     ],
-    []
+    [t]
   );
 
   const languageOptions = useMemo(
     () => [
-      { value: "es", label: "Español" },
-      { value: "en", label: "Inglés" },
-      { value: "fr", label: "Francés" },
+      { value: "es", label: t("scriptsForm.options.languages.es") },
+      { value: "en", label: t("scriptsForm.options.languages.en") },
+      { value: "fr", label: t("scriptsForm.options.languages.fr") },
     ],
-    []
+    [t]
   );
 
   const structureOptions = useMemo(
-    () => [
-      { value: "gancho-desarrollo-cierre", label: "Gancho – Desarrollo – Cierre" },
-      { value: "storytelling", label: "Storytelling" },
-      { value: "lista-tips", label: "Lista de tips" },
-      { value: "pregunta-retorica", label: "Pregunta retórica" },
-      { value: "comparativa-antes-despues", label: "Comparativa antes/después" },
-      { value: "mito-vs-realidad", label: "Mito vs realidad" },
-      { value: "problema-solucion", label: "Problema – Solución" },
-      { value: "testimonio", label: "Testimonio" },
-    ],
-    []
+    () =>
+      STRUCTURE_KEYS.map((key) => ({
+        value: key,
+        label: structureLabel(key),
+      })),
+    [t]
   );
+
+  // Para Select controlado: si todavía no tenemos una KEY válida, value=""
+  const toneValue = TONE_KEYS.includes(tone as any) ? tone : "";
+  const structureValue = STRUCTURE_KEYS.includes(structure as any) ? structure : "";
 
   return (
     <div className="w-full space-y-8">
-      {/* Título */}
+      {/* Header */}
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">Generación de guión</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("scriptsForm.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Completa los campos para crear un nuevo guión automáticamente.
+          {t("scriptsForm.header.subtitle")}
         </p>
       </header>
 
@@ -184,20 +221,20 @@ export function ScriptForm({
         {/* Columna izquierda */}
         <div className="space-y-6">
           <div className="space-y-2">
-            <Label>Descripción breve *</Label>
+            <Label>{t("scriptsForm.labels.description")}</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej: Reel motivador sobre productividad para emprendedores"
+              placeholder={t("scriptsForm.placeholders.description")}
               className="min-h-[120px] resize-none"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Tono *</Label>
-            <Select onValueChange={setTone} defaultValue={tone}>
+            <Label>{t("scriptsForm.labels.tone")}</Label>
+            <Select onValueChange={setTone} value={toneValue}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar un tono" />
+                <SelectValue placeholder={t("scriptsForm.placeholders.tone")} />
               </SelectTrigger>
               <SelectContent>
                 {toneOptions.map((opt) => (
@@ -210,10 +247,10 @@ export function ScriptForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Plataforma *</Label>
-            <Select onValueChange={setPlatform} defaultValue={platform}>
+            <Label>{t("scriptsForm.labels.platform")}</Label>
+            <Select onValueChange={setPlatform} value={platform}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una plataforma" />
+                <SelectValue placeholder={t("scriptsForm.placeholders.platform")} />
               </SelectTrigger>
               <SelectContent>
                 {platformOptions.map((opt) => (
@@ -229,10 +266,10 @@ export function ScriptForm({
         {/* Columna derecha */}
         <div className="space-y-6">
           <div className="space-y-2">
-            <Label>Duración *</Label>
-            <Select onValueChange={setDuration} defaultValue={duration}>
+            <Label>{t("scriptsForm.labels.duration")}</Label>
+            <Select onValueChange={setDuration} value={duration}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una duración" />
+                <SelectValue placeholder={t("scriptsForm.placeholders.duration")} />
               </SelectTrigger>
               <SelectContent>
                 {durationOptions.map((opt) => (
@@ -245,10 +282,10 @@ export function ScriptForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Idioma *</Label>
-            <Select onValueChange={setLanguage} defaultValue={language || "es"}>
+            <Label>{t("scriptsForm.labels.language")}</Label>
+            <Select onValueChange={setLanguage} value={language || "es"}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar un idioma" />
+                <SelectValue placeholder={t("scriptsForm.placeholders.language")} />
               </SelectTrigger>
               <SelectContent>
                 {languageOptions.map((opt) => (
@@ -261,10 +298,10 @@ export function ScriptForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Estructura *</Label>
-            <Select onValueChange={setStructure} defaultValue={structure}>
+            <Label>{t("scriptsForm.labels.structure")}</Label>
+            <Select onValueChange={setStructure} value={structureValue}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar una estructura" />
+                <SelectValue placeholder={t("scriptsForm.placeholders.structure")} />
               </SelectTrigger>
               <SelectContent>
                 {structureOptions.map((opt) => (
@@ -282,13 +319,13 @@ export function ScriptForm({
       <div className="pt-2 space-y-3">
         <div className="flex items-center space-x-2">
           <Checkbox checked={addCTA} onCheckedChange={(c) => setAddCTA(!!c)} />
-          <Label>Añadir llamada a la acción (CTA)</Label>
+          <Label>{t("scriptsForm.labels.addCTA")}</Label>
         </div>
         {addCTA && (
           <Input
             value={ctaText}
             onChange={(e) => setCtaText(e.target.value)}
-            placeholder="Ej: Sígueme para más consejos"
+            placeholder={t("scriptsForm.placeholders.ctaText")}
           />
         )}
       </div>
@@ -315,7 +352,7 @@ export function ScriptForm({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message={t("scriptsCreator.checkout.message")}
       />
     </div>
   );

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n";
 
 export default function ZohoDeskScript() {
+  const t = useT();
+
   useEffect(() => {
     // Cargar el script del widget
     const script = document.createElement("script");
@@ -13,9 +16,14 @@ export default function ZohoDeskScript() {
 
     // Función para aplicar estilo personalizado
     const tryUpdateButton = () => {
-      const label = document.getElementById("feedbacklabelspan");
+      const label = document.getElementById("feedbacklabelspan") as HTMLElement | null;
 
       if (label) {
+        // ✅ i18n: texto y accesibilidad
+        label.textContent = t("support.feedbackButton");
+        label.setAttribute("aria-label", t("support.feedbackAria"));
+
+        // Estilos existentes
         label.style.fontSize = "14px";
         label.style.fontWeight = "600";
         label.style.padding = "10px 16px";
@@ -36,7 +44,7 @@ export default function ZohoDeskScript() {
     };
 
     tryUpdateButton();
-  }, []);
+  }, [t]);
 
   return null;
 }

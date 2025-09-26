@@ -1,6 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
+import { useT } from "@/lib/i18n";
 import { Heart } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const VideoThumbEmbed: FC<{
   thumbnail: string;
   className?: string;
 }> = ({ videoId, title, thumbnail, className = "" }) => {
+  const t = useT();
   const [active, setActive] = useState(false);
   const embed = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
 
@@ -52,7 +54,7 @@ const VideoThumbEmbed: FC<{
       {!active && (
         <button
           type="button"
-          aria-label={`Reproducir: ${title}`}
+          aria-label={t("ideas.list.playLabel", { title })}
           onClick={() => setActive(true)}
           className="group absolute inset-0 grid place-items-center"
         >
@@ -65,7 +67,7 @@ const VideoThumbEmbed: FC<{
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
           <span className="absolute grid place-items-center rounded-full px-4 py-3 bg-white/90 backdrop-blur text-black text-sm font-semibold shadow-lg transition group-hover:scale-105">
-            ▶ Ver aquí
+            ▶ {t("ideas.list.playHere")}
           </span>
         </button>
       )}
@@ -94,6 +96,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
   onReplicate,
   viewOnYoutubeText,
 }) => {
+  const t = useT();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
 
@@ -122,7 +125,7 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
   return (
     <div ref={listRef} className="w-full">
       {loading ? (
-        <div className="flex justify-center items-center py-10">
+        <div className="flex justify-center items-center py-10" aria-label={t("ideas.list.loading")}>
           <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
       ) : (
@@ -151,9 +154,8 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       {video.channel}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {video.views.toLocaleString()} views
+                      {t("ideas.list.views", { count: video.views.toLocaleString() })}
                     </p>
-
                   </CardContent>
 
                   <CardFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 pt-0">
@@ -177,12 +179,17 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                         className="rounded-lg w-full sm:w-auto"
                         onClick={() => onReplicate(video)}
                       >
-                        Replicar video
+                        {t("ideas.list.replicate")}
                       </Button>
                     </div>
 
                     <button
                       onClick={() => onToggleFavorite(video)}
+                      aria-label={
+                        isFav
+                          ? t("ideas.list.removeFavorite")
+                          : t("ideas.list.addFavorite")
+                      }
                       className={`self-end sm:self-auto p-2 rounded-full transition ${
                         isFav
                           ? "text-red-500 hover:text-red-600"
@@ -195,8 +202,6 @@ export const IdeasViralesList: FC<IdeasViralesListProps> = ({
                       />
                     </button>
                   </CardFooter>
-
-
                 </Card>
               );
             })}

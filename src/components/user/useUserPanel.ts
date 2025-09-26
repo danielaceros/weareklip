@@ -1,3 +1,4 @@
+// src/components/user/useUserPanel.ts
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 
-// Definir un tipo para la suscripción sin usar any
+// Tipos
 interface Subscription {
   status: string;
   plan: string;
@@ -24,7 +25,7 @@ interface ClonacionVideo {
   url: string;
   thumbnail?: string;
   storagePath?: string;
-  uploading?: boolean; // 👈 para identificar temporales
+  uploading?: boolean;
 }
 
 export function useUserPanel() {
@@ -71,24 +72,24 @@ export function useUserPanel() {
       if (!res.ok) throw new Error("Error al cargar videos de clonación");
 
       const vids: ClonacionVideo[] = await res.json();
-      setClonacionVideos(vids.filter((v) => !!v.url)); // 👈 filtra los vacíos
+      setClonacionVideos(vids.filter((v) => !!v.url));
     } catch (err) {
       console.error("fetchClonacionVideos error:", err);
-      toast.error("Error cargando vídeos de clonación");
+      toast.error(t("clonacion.toasts.loadError"));
     }
   };
 
   // Subir vídeo (Optimistic UI)
   const handleUpload = async (file: File) => {
     if (!user) {
-      toast.error(t("clonacion.mustLogin"));
+      toast.error(t("clonacion.toasts.mustLogin"));
       return;
     }
 
     const id = crypto.randomUUID();
     const storagePath = `users/${user.uid}/clones/${id}`;
 
-    // 🔹 Añadimos preview inmediata
+    // Preview inmediata (optimistic)
     const tempVideo: ClonacionVideo = {
       id,
       url: URL.createObjectURL(file),
@@ -139,19 +140,16 @@ export function useUserPanel() {
 
       if (!res.ok) throw new Error(`Error guardando clonación (${res.status})`);
 
-      // 🔹 Reemplazamos temporal con definitivo
+      // Reemplazar temporal con definitivo
       setClonacionVideos((prev) =>
-        prev.map((v) =>
-          v.id === id ? { ...v, url, uploading: false } : v
-        )
+        prev.map((v) => (v.id === id ? { ...v, url, uploading: false } : v))
       );
 
-      toast.success(t("clonacion.uploadSuccess"));
+      toast.success(t("clonacion.toasts.uploadSuccess"));
     } catch (err) {
       console.error("❌ Upload error:", err);
-      toast.error(t("clonacion.uploadError"));
-
-      // 🔹 Revertimos quitando el temporal
+      toast.error(t("clonacion.toasts.uploadError"));
+      // Revertir temp
       setClonacionVideos((prev) => prev.filter((v) => v.id !== id));
     } finally {
       setUploading(false);
@@ -164,7 +162,7 @@ export function useUserPanel() {
     if (!user) return;
 
     const prevVideos = [...clonacionVideos];
-    // 🔹 Quitamos inmediatamente
+    // Quitar inmediatamente
     setClonacionVideos((prev) => prev.filter((v) => v.id !== videoId));
 
     try {
@@ -187,12 +185,11 @@ export function useUserPanel() {
         }
       }
 
-      toast.success(t("clonacion.deleteSuccess"));
+      toast.success(t("clonacion.toasts.deleteSuccess"));
     } catch (err) {
       console.error(err);
-      toast.error(t("clonacion.deleteError"));
-
-      // 🔹 Revertimos si falla
+      toast.error(t("clonacion.toasts.deleteError"));
+      // Revertir si falla
       setClonacionVideos(prevVideos);
     }
   };

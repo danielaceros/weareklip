@@ -90,10 +90,10 @@ export default function SettingsPage() {
       await setDoc(userRef, { photoURL: url }, { merge: true });
 
       setPhotoURL(url);
-      toast.success("📸 Foto actualizada");
+      toast.success(t("settings.photo.updated"));
     } catch (err) {
       console.error(err);
-      toast.error("❌ Error subiendo la foto");
+      toast.error(t("settings.photo.uploadError"));
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -136,7 +136,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-4">
           <img
             src={photoURL ?? "/default-avatar.png"}
-            alt="Avatar"
+            alt={t("settings.photo.alt")}
             className="w-16 h-16 rounded-full object-cover border"
           />
           <div className="space-y-2">
@@ -145,7 +145,7 @@ export default function SettingsPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPhoto}
             >
-              {uploadingPhoto ? "Subiendo..." : "Cambiar foto"}
+              {uploadingPhoto ? t("settings.photo.uploading") : t("settings.photo.change")}
             </Button>
             <input
               ref={fileInputRef}
@@ -164,11 +164,11 @@ export default function SettingsPage() {
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Tu nombre"
+              placeholder={t("settings.placeholders.name")}
             />
           </div>
           <div>
-            <Label>Email</Label>
+            <Label>{t("settings.labels.emailReadonly")}</Label>
             <Input value={user?.email ?? ""} disabled />
           </div>
         </div>
@@ -176,19 +176,19 @@ export default function SettingsPage() {
         {/* Instagram + Teléfono */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Instagram</Label>
+            <Label>{t("settings.labels.instagramUser")}</Label>
             <Input
               value={instagramUser}
               onChange={(e) => setInstagramUser(e.target.value)}
-              placeholder="@usuario"
+              placeholder={t("settings.placeholders.instagramUser")}
             />
           </div>
           <div>
-            <Label>Teléfono</Label>
+            <Label>{t("settings.labels.phone")}</Label>
             <Input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+34 600 000 000"
+              placeholder={t("settings.placeholders.phone")}
             />
           </div>
         </div>

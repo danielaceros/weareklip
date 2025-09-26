@@ -9,7 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 interface Props {
   open: boolean;
@@ -25,9 +26,24 @@ export default function DeleteAudioDialog({
   onClose,
   onConfirm,
   deleting,
-  title = "Eliminar audio",
-  description = "¿Estás seguro de que quieres eliminar este audio? Esta acción no se puede deshacer.",
+  title,
+  description,
 }: Props) {
+  const t = useTranslations();
+
+  // Textos por defecto desde i18n, permitiendo override vía props
+  const titleText = useMemo(
+    () => title ?? t("audiosPage.deleteDialog.titleOne"),
+    [title, t]
+  );
+  const descText = useMemo(
+    () => description ?? t("audiosPage.deleteDialog.descOne"),
+    [description, t]
+  );
+  const confirmText = t("audiosPage.deleteDialog.confirmOne");
+  const cancelText = t("common.cancel");
+  const deletingText = t("common.deleting");
+
   // 🔑 Escape = cancelar | Enter = confirmar
   useEffect(() => {
     if (!open) return;
@@ -45,12 +61,17 @@ export default function DeleteAudioDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent aria-busy={deleting}>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{titleText}</DialogTitle>
+          <DialogDescription>{descText}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={deleting}>
-            Cancelar
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={deleting}
+          >
+            {cancelText}
           </Button>
           <Button
             type="button"
@@ -58,7 +79,7 @@ export default function DeleteAudioDialog({
             onClick={onConfirm}
             disabled={deleting}
           >
-            {deleting ? "Eliminando..." : "Eliminar"}
+            {deleting ? deletingText : confirmText}
           </Button>
         </DialogFooter>
       </DialogContent>

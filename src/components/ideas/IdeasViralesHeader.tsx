@@ -1,6 +1,7 @@
 "use client";
 
 import { FC } from "react";
+import { useT } from "@/lib/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,19 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
   favoritesOnly,
   setFavoritesOnly,
 }) => {
+  const t = useT();
+
+  const countryLabel = (code: string) =>
+    t(`ideas.header.countries.${code}`) || code;
+
+  const rangeLabel = (r: string) => {
+    if (r === "today") return t("ideas.header.ranges.today");
+    if (r === "week") return t("ideas.header.ranges.week");
+    if (r === "month") return t("ideas.header.ranges.month");
+    if (r === "year") return t("ideas.header.ranges.year");
+    return r;
+  };
+
   return (
     <div className="space-y-4">
       {/* 📌 Título */}
@@ -44,29 +58,24 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
               size="sm"
               className="w-full sm:w-auto rounded-lg text-sm font-medium"
             >
-              Idioma:{" "}
-              {country === "ES"
-                ? "Español"
-                : country === "US"
-                ? "Inglés"
-                : country}
+              {t("ideas.header.language")}: {countryLabel(country)}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-40">
             <DropdownMenuItem onClick={() => setCountry("ES")}>
-              🇪🇸 Español
+              🇪🇸 {countryLabel("ES")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCountry("US")}>
-              🇺🇸 Inglés
+              🇺🇸 {countryLabel("US")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCountry("MX")}>
-              🇲🇽 México
+              🇲🇽 {countryLabel("MX")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCountry("AR")}>
-              🇦🇷 Argentina
+              🇦🇷 {countryLabel("AR")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCountry("FR")}>
-              🇫🇷 Francés
+              🇫🇷 {countryLabel("FR")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -79,28 +88,21 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
               size="sm"
               className="w-full sm:w-auto rounded-lg text-sm font-medium"
             >
-              Tiempo:{" "}
-              {range === "today"
-                ? "Hoy"
-                : range === "week"
-                ? "Última semana"
-                : range === "month"
-                ? "Último mes"
-                : "Último año"}
+              {t("ideas.header.time")}: {rangeLabel(range)}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-44">
             <DropdownMenuItem onClick={() => setRange("today")}>
-              📅 Hoy
+              📅 {t("ideas.header.ranges.today")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setRange("week")}>
-              🗓 Última semana
+              🗓 {t("ideas.header.ranges.week")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setRange("month")}>
-              📆 Último mes
+              📆 {t("ideas.header.ranges.month")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setRange("year")}>
-              📊 Último año
+              📊 {t("ideas.header.ranges.year")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -116,7 +118,7 @@ export const IdeasViralesHeader: FC<IdeasViralesHeaderProps> = ({
               favoritesOnly && "bg-primary text-white"
             )}
           >
-            Favoritos
+            {t("ideas.favorites.toggle")}
           </Button>
         )}
       </div>

@@ -13,6 +13,7 @@ import { Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useT } from "@/lib/i18n";
 
 interface ScriptModalProps {
   script: ScriptData | null;
@@ -44,11 +45,13 @@ interface ScriptData {
 }
 
 export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
+  const t = useT();
+
   const [localRating, setLocalRating] = useState<number>(script?.rating || 0);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  // 🔄 Sync rating cuando cambia el script
+  // Sync rating cuando cambia el script
   useEffect(() => {
     if (script?.rating !== undefined) {
       setLocalRating(script.rating);
@@ -58,23 +61,24 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
   const handleRate = useCallback(
     (star: number) => {
       if (!script) return;
-      setLocalRating(star); // UI inmediata
-      onRating(script.scriptId, star); // notificar padre
+      setLocalRating(star);
+      onRating(script.scriptId, star);
     },
     [script, onRating]
   );
 
-  // Memoizar estrellas para no recalcular array
   const stars = useMemo(() => [1, 2, 3, 4, 5], []);
 
   if (!script) return null;
+
+  const title = script.isAI ? script.description : script.videoTitle;
 
   return (
     <Dialog open={!!script} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            {script.isAI ? script.description : script.videoTitle}
+            {title}
           </DialogTitle>
         </DialogHeader>
 
@@ -88,7 +92,10 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
                 {script.structure && <Badge>{script.structure}</Badge>}
                 {script.tone && <Badge>{script.tone}</Badge>}
                 {script.addCTA && (
-                  <Badge>CTA: {script.ctaText || "Sí"}</Badge>
+                  <Badge>
+                    {t("scriptsModal.badges.ctaPrefix")}{" "}
+                    {script.ctaText || t("common.yes")}
+                  </Badge>
                 )}
               </div>
 
@@ -99,7 +106,7 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
                   return (
                     <motion.button
                       key={star}
-                      aria-label={`Valorar con ${star} estrellas`}
+                      aria-label={t("scriptsModal.ratingAria", { stars: star })}
                       whileTap={{ scale: 0.9 }}
                       whileHover={{ scale: 1.15 }}
                       onMouseEnter={() => setHoveredStar(star)}
@@ -133,7 +140,7 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
                   )}
                   <Image
                     src={script.videoThumbnail}
-                    alt={script.videoTitle || ""}
+                    alt={title || ""}
                     width={800}
                     height={450}
                     onLoadingComplete={() => setImgLoaded(true)}
@@ -144,13 +151,13 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
                 </div>
               ) : (
                 <div className="w-full h-40 flex items-center justify-center text-sm text-muted-foreground border rounded">
-                  Preview no disponible
+                  {t("scriptsModal.previewUnavailable")}
                 </div>
               )}
 
               <p className="text-sm text-gray-500 leading-snug">
-                Canal: {script.videoChannel || "Desconocido"} <br />
-                Publicado: {script.videoPublishedAt || "N/A"} <br />
+                {t("scriptsModal.channel")}: {script.videoChannel || t("common.unknown")} <br />
+                {t("scriptsModal.published")}: {script.videoPublishedAt || "N/A"} <br />
               </p>
 
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -164,7 +171,7 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
                   rel="noopener noreferrer"
                   className="text-blue-500 underline text-sm"
                 >
-                  Ver video original
+                  {t("scriptsModal.viewOriginal")}
                 </Link>
               )}
             </>
@@ -178,7 +185,7 @@ export function ScriptModal({ script, onClose, onRating }: ScriptModalProps) {
               )}`}
             >
               <Button className="rounded-lg w-full">
-                Clonar texto con voz
+                {t("scriptsModal.cloneWithVoice")}
               </Button>
             </Link>
           )}

@@ -1,3 +1,4 @@
+// src/app/dashboard/user/page.tsx (o ruta equivalente)
 "use client";
 
 import { useUserPanel } from "@/components/user/useUserPanel";
@@ -32,7 +33,10 @@ export default function UserPage() {
           progress={progress}
         />
         {/* Voces */}
-        <VoicesListContainer variant="card" title="Voces de clonación" />
+        <VoicesListContainer
+          variant="card"
+          title={t("userPage.clonacion.voicesTitle")}
+        />
       </div>
     </div>
   );

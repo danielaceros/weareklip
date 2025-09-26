@@ -20,8 +20,9 @@ import {
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
-// 👇 añadido para abrir el modal con ?new=1 y limpiar la URL
+// 👇 abrir el modal con ?new=1 y limpiar la URL
 import { useSearchParams, useRouter } from "next/navigation";
+import { useT } from "@/lib/i18n";
 
 export interface VideoData {
   projectId: string;
@@ -34,6 +35,8 @@ export interface VideoData {
 }
 
 export default function VideosPage() {
+  const t = useT();
+
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -49,8 +52,8 @@ export default function VideosPage() {
   const totalPages = Math.ceil(videos.length / perPage);
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
-  const searchParams = useSearchParams(); // 👈 añadido
-  const router = useRouter(); // 👈 añadido
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     const auth = getAuth();
@@ -80,20 +83,19 @@ export default function VideosPage() {
         );
       } catch (error) {
         console.error("Error cargando vídeos:", error);
-        toast.error("Error cargando vídeos");
+        toast.error(t("edit.page.toasts.loadError"));
       } finally {
         setLoading(false);
       }
     };
 
     fetchVideos();
-  }, [user]);
+  }, [user, t]);
 
-  // 👇 Auto-abrir modal si venimos con ?new=1 y limpiar la URL
+  // Auto-abrir modal si venimos con ?new=1 y limpiar la URL
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setShowCreateModal(true);
-      // limpiar el query param sin hacer scroll
       if (typeof window !== "undefined") {
         const url = new URL(window.location.href);
         url.searchParams.delete("new");
@@ -108,14 +110,13 @@ export default function VideosPage() {
     if (!user) return;
     setDeleting(true);
 
-    // 🔹 Guardamos estado previo por si falla
     const prevVideos = [...videos];
 
     try {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // 🟢 Optimistic: vaciamos lista al instante
+        // Optimistic: vaciamos lista al instante
         setVideos([]);
 
         const res = await fetch(`/api/firebase/users/${user.uid}/videos`, {
@@ -129,9 +130,9 @@ export default function VideosPage() {
 
         if (!res.ok) throw new Error("Error eliminando todos los vídeos");
 
-        toast.success("Todos los vídeos han sido eliminados");
+        toast.success(t("edit.page.toasts.deleteAllSuccess"));
       } else if (videoToDelete) {
-        // 🟢 Optimistic: quitamos de la lista antes del DELETE real
+        // Optimistic: quitamos de la lista antes del DELETE real
         setVideos((prev) =>
           prev.filter((v) => v.projectId !== videoToDelete.projectId)
         );
@@ -146,21 +147,18 @@ export default function VideosPage() {
 
         if (!res.ok) throw new Error("Error eliminando vídeo");
 
-        toast.success("Vídeo eliminado correctamente");
+        toast.success(t("edit.page.toasts.deleteOneSuccess"));
       }
     } catch (err) {
       console.error("Error eliminando vídeos:", err);
-      toast.error("No se pudieron eliminar los vídeos");
-
-      // 🔙 Rollback si falla
-      setVideos(prevVideos);
+      toast.error(t("edit.page.toasts.deleteError"));
+      setVideos(prevVideos); // rollback
     } finally {
       setDeleting(false);
       setVideoToDelete(null);
       setDeleteAll(false);
     }
   }
-
 
   if (loading) {
     return (
@@ -174,7 +172,7 @@ export default function VideosPage() {
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold">Ediciones</h1>
+        <h1 className="text-2xl font-bold">{t("edit.page.title")}</h1>
         <div className="flex gap-3">
           <Button
             variant="destructive"
@@ -183,21 +181,21 @@ export default function VideosPage() {
             disabled={videos.length === 0}
           >
             <Trash2 size={18} className="mr-2" />
-            Borrar todos
+            {t("edit.page.actions.deleteAll")}
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
             className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
           >
             <Plus size={18} className="mr-2" />
-            Crear vídeo
+            {t("edit.page.actions.create")}
           </Button>
         </div>
       </div>
 
       {/* Lista de vídeos */}
       {videos.length === 0 ? (
-        <p>No tienes vídeos aún.</p>
+        <p>{t("edit.page.empty")}</p>
       ) : (
         <>
           <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
@@ -265,11 +263,17 @@ export default function VideosPage() {
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+              aria-label={t("edit.page.actions.closeModal")}
             >
               <X size={20} />
             </button>
             <CreateVideoPage
-              onCreated={(video?: VideoData & { _optimistic?: boolean; _rollback?: boolean }) => {
+              onCreated={(
+                video?: VideoData & {
+                  _optimistic?: boolean;
+                  _rollback?: boolean;
+                }
+              ) => {
                 if (!video) {
                   setShowCreateModal(false);
                   setTimeout(() => window.location.reload(), 300);
@@ -277,13 +281,12 @@ export default function VideosPage() {
                 }
 
                 if (video._rollback) {
-                  // rollback: quitar el temp
-                  setVideos((prev) => prev.filter((v) => v.projectId !== video.projectId));
+                  setVideos((prev) =>
+                    prev.filter((v) => v.projectId !== video.projectId)
+                  );
                 } else if (video._optimistic) {
-                  // añadir provisional
                   setVideos((prev) => [...prev, video]);
                 } else {
-                  // caso normal (backend ya confirmó → refetch o reload)
                   setShowCreateModal(false);
                   setTimeout(() => window.location.reload(), 300);
                 }
@@ -302,13 +305,21 @@ export default function VideosPage() {
         }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
-        title={deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo"}
+        title={
+          deleteAll
+            ? t("edit.page.deleteDialog.titleAll")
+            : t("edit.page.deleteDialog.titleOne")
+        }
         description={
           deleteAll
-            ? "¿Seguro que quieres eliminar TODOS los vídeos? Esta acción no se puede deshacer."
-            : "¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
+            ? t("edit.page.deleteDialog.bodyAll")
+            : t("edit.page.deleteDialog.bodyOne")
         }
-        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
+        confirmText={
+          deleteAll
+            ? t("edit.page.deleteDialog.confirmAll")
+            : t("edit.page.deleteDialog.confirmOne")
+        }
       />
     </div>
   );

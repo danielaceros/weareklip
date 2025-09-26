@@ -315,7 +315,7 @@ export default function DashboardPage() {
         return;
       }
       if (sessionId) {
-        toast.success("🎉 Prueba iniciada con éxito");
+        toast.success(t("dashboard.toasts.trialStarted"));
         router.replace("/dashboard");
       }
       fetchData(user);
@@ -362,7 +362,7 @@ export default function DashboardPage() {
     <div className="p-6 space-y-8">
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold">{t("dashboard.title")}</h1>
-        <Badge variant="outline" className="uppercase" title="Idioma">
+        <Badge variant="outline" className="uppercase" title={t("dashboard.langBadge.title")}>
           {(langLabel as string) || "ES"}
         </Badge>
       </div>

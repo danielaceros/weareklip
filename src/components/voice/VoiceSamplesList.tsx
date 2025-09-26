@@ -1,3 +1,4 @@
+// src/components/voice/VoiceSamplesList.tsx
 "use client";
 
 import { useRef, useState } from "react";
@@ -11,6 +12,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useT } from "@/lib/i18n";
 
 // 🔹 Constantes para feedback
 const MIN_SAMPLE_DURATION = 5;   // evitar audios demasiado cortos (<5s casi inútiles)
@@ -35,6 +37,7 @@ export function VoiceSamplesList({
   onRemove,
   perPage = 2,
 }: VoiceSamplesListProps) {
+  const t = useT();
   const [playing, setPlaying] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
@@ -59,23 +62,24 @@ export function VoiceSamplesList({
   };
 
   const durationLabel = (duration: number) => {
+    const seconds = Math.round(duration);
     if (duration < MIN_SAMPLE_DURATION) {
       return (
         <span className="text-[11px] sm:text-xs text-destructive font-medium">
-          ⚠ {Math.round(duration)}s (muy corto)
+          {t("voices.samples.duration.short", { seconds })}
         </span>
       );
     }
     if (duration > MAX_SAMPLE_DURATION) {
       return (
         <span className="text-[11px] sm:text-xs text-yellow-600 font-medium">
-          {Math.round(duration)}s (muy largo)
+          {t("voices.samples.duration.long", { seconds })}
         </span>
       );
     }
     return (
       <span className="text-[11px] sm:text-xs text-muted-foreground">
-        {Math.round(duration)} segundos
+        {t("voices.samples.duration.normal", { seconds })}
       </span>
     );
   };
@@ -99,7 +103,7 @@ export function VoiceSamplesList({
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs sm:text-sm font-semibold truncate">
-                {name || "Muestra sin nombre"}
+                {name || t("voices.samples.untitled")}
               </h3>
               <button
                 onClick={() => onRemove(name)}

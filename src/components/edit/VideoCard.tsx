@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import ShareVideo from "@/components/shared/ShareVideo";
+import { useT } from "@/lib/i18n";
 
 /* ---------- Tipos ---------- */
 export interface VideoData {
@@ -36,6 +37,7 @@ const VideoThumbPlayer: FC<{
   thumbnail?: string;
 }> = ({ url, title, thumbnail }) => {
   const [active, setActive] = useState(false);
+  const t = useT();
 
   return (
     <div className="w-full flex justify-center">
@@ -44,7 +46,7 @@ const VideoThumbPlayer: FC<{
         {!active ? (
           <button
             type="button"
-            aria-label={`Reproducir: ${title}`}
+            aria-label={t("edit.card.ariaPlay", { title })}
             onClick={() => setActive(true)}
             className="group absolute inset-0 grid place-items-center"
           >
@@ -58,7 +60,7 @@ const VideoThumbPlayer: FC<{
               <div className="absolute inset-0 w-full h-full bg-black/40" />
             )}
             <span className="absolute grid place-items-center rounded-full px-4 py-3 bg-white/90 backdrop-blur text-black text-sm font-semibold shadow-lg transition group-hover:scale-105">
-              ▶ Ver aquí
+              {t("edit.card.playHere")}
             </span>
           </button>
         ) : (
@@ -77,12 +79,13 @@ const VideoThumbPlayer: FC<{
 /* ---------- Card principal ---------- */
 const VideoCard: FC<Props> = ({ video, onDelete }) => {
   const id = video.id ?? video.projectId ?? "";
+  const t = useT();
 
   return (
     <Card className="overflow-hidden rounded-xl border bg-card text-foreground flex flex-col">
       <CardHeader className="p-3 flex justify-between items-center">
         <h3 className="text-sm font-semibold truncate">
-          {video.title || "Sin título"}
+          {video.title || t("edit.card.untitled")}
         </h3>
 
         <Button
@@ -90,7 +93,7 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
           variant="ghost"
           onClick={() => onDelete(id, video.downloadUrl)}
           className="h-8 w-8 shrink-0"
-          aria-label="Eliminar vídeo"
+          aria-label={t("edit.card.actions.deleteAria")}
         >
           <Trash2 size={16} className="text-red-500" />
         </Button>
@@ -100,17 +103,17 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
         {video.downloadUrl && video.status === "completed" ? (
           <VideoThumbPlayer
             url={video.downloadUrl}
-            title={video.title}
+            title={video.title || t("edit.card.untitled")}
             thumbnail={video.thumbnail}
           />
         ) : (
           <div className="w-full flex justify-center">
             <div className="w-full max-w-[360px] sm:max-w-[380px] md:max-w-[420px] aspect-[9/16] flex items-center justify-center text-xs text-muted-foreground bg-black/30 rounded-md">
               {video.status === "processing"
-                ? "Procesando..."
+                ? t("edit.card.status.processing")
                 : video.status === "error"
-                ? "Error al generar"
-                : "En espera"}
+                ? t("edit.card.status.error")
+                : t("edit.card.status.pending")}
             </div>
           </div>
         )}
@@ -141,7 +144,7 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Descargar
+                {t("edit.card.actions.download")}
               </a>
             </Button>
 
@@ -155,7 +158,7 @@ const VideoCard: FC<Props> = ({ video, onDelete }) => {
                 )}`)
               }
             >
-              Autoeditar
+              {t("edit.card.actions.autoedit")}
             </Button>
           </div>
         )}

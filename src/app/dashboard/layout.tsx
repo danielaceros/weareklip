@@ -11,13 +11,15 @@ import FcmInit from "@/components/shared/FcmInit";
 import ApiErrorHandler from "@/components/shared/ApiErrorComponent";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 import DashboardTermsGuard from "@/components/shared/DashboardTermsGuard";
+import { useT } from "@/lib/i18n";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const t = useT();
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
+    const tmo = setTimeout(() => setLoading(false), 800);
+    return () => clearTimeout(tmo);
   }, []);
 
   if (loading) {
@@ -33,7 +35,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
         {/* Sidebar fijo */}
         <div className="hidden md:block fixed inset-y-0 left-0 w-20 border-r bg-sidebar border-sidebar-border z-40">
-          <Sidebar aria-label="Menú lateral del dashboard" />
+          <Sidebar aria-label={t("layout.sidebar.aria")} />
         </div>
 
         {/* Contenedor principal */}

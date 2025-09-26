@@ -35,12 +35,12 @@ import {
   Moon,
   Monitor,
   Languages,
-  User as UserIcon,
+  User as UserIcon, // (restaurado aunque no se use)
   CreditCard,
   PlayCircle,
   DollarSign,
 } from "lucide-react";
-import { FaMoneyBill } from "react-icons/fa";
+import { FaMoneyBill } from "react-icons/fa"; // (restaurado aunque no se use)
 
 interface Props {
   user: {
@@ -116,7 +116,7 @@ export default function UserDropdown({ user }: Props) {
           {user.photoURL ? (
             <Image
               src={user.photoURL}
-              alt="Avatar"
+              alt={t("dropdown.avatarAlt")}
               width={36}
               height={36}
               className="h-9 w-9 rounded-full object-cover"
@@ -155,12 +155,12 @@ export default function UserDropdown({ user }: Props) {
           )}
           {user.status === "trialing" && trialDaysLeft !== null && (
             <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-500 text-white">
-              {trialDaysLeft} días de prueba
+              {t("dropdown.trialDays", { days: trialDaysLeft })}
             </span>
           )}
           {user.cancelAtPeriodEnd && (
             <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
-              Cancelada (fin periodo)
+              {t("dropdown.cancelAtPeriodEnd")}
             </span>
           )}
         </div>
@@ -224,7 +224,7 @@ export default function UserDropdown({ user }: Props) {
           className="cursor-pointer"
         >
           <CreditCard className="mr-2 h-4 w-4 opacity-80" />
-          {t("dropdown.subscription") ?? "Suscripción"}
+          {t("dropdown.subscription")}
         </DropdownMenuItem>
 
         <DropdownMenuItem
@@ -232,7 +232,7 @@ export default function UserDropdown({ user }: Props) {
           className="cursor-pointer"
         >
           <DollarSign className="mr-2 h-4 w-4 opacity-80" />
-          Pricing
+          {t("dropdown.pricing")}
         </DropdownMenuItem>
 
         <DropdownMenuItem
@@ -246,10 +246,9 @@ export default function UserDropdown({ user }: Props) {
           className="cursor-pointer"
         >
           <PlayCircle className="mr-2 h-4 w-4 opacity-80" />
-          ¿Cómo utilizar Viralizalo.AI?
+          {t("dropdown.howTo")}
         </DropdownMenuItem>
         
-
         <DropdownMenuItem
           onClick={() => router.push("/dashboard/settings")}
           className="cursor-pointer"

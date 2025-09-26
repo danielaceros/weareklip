@@ -1,3 +1,4 @@
+// src/components/voice/VoicesListContainer.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -17,6 +18,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import NewVoiceContainer from "./NewVoiceContainer";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import { useT } from "@/lib/i18n";
 
 interface VoiceData {
   voiceId: string;
@@ -32,8 +34,10 @@ interface Props {
 
 export default function VoicesListContainer({
   variant = "default",
-  title = "Audios para la clonación",
+  title,
 }: Props) {
+  const t = useT();
+
   const [user, setUser] = useState<User | null>(null);
   const [voices, setVoices] = useState<VoiceData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,9 +138,13 @@ export default function VoicesListContainer({
       }`}
     >
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <h2 className="text-xl font-semibold">
+          {title ?? t("userPage.clonacion.voicesTitle")}
+        </h2>
         <Button onClick={() => setOpen(true)} disabled={quotaExceeded}>
-          {quotaExceeded ? "Límite: 1 voz" : "+ Nueva voz"}
+          {quotaExceeded
+            ? t("voices.list.buttons.limit")
+            : t("voices.list.buttons.new")}
         </Button>
       </div>
 
@@ -145,7 +153,7 @@ export default function VoicesListContainer({
           <Spinner size="lg" variant="ellipsis" />
         </div>
       ) : voices.length === 0 ? (
-        <p className="text-muted-foreground">No tienes voces aún.</p>
+        <p className="text-muted-foreground">{t("voices.list.empty")}</p>
       ) : (
         <div className="flex flex-col h-full space-y-6">
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -212,8 +220,8 @@ export default function VoicesListContainer({
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         deleting={deleting}
-        title="Eliminar voz"
-        description="¿Seguro que quieres eliminar esta voz? Esta acción no se puede deshacer."
+        title={t("voices.deleteDialog.title")}
+        description={t("voices.deleteDialog.description")}
       />
     </section>
   );
@@ -227,6 +235,7 @@ function VoiceCard({
   voice: VoiceData;
   onDelete: () => void;
 }) {
+  const t = useT();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -273,7 +282,7 @@ function VoiceCard({
     <Card className="p-4 flex flex-col rounded-2xl bg-card border border-border shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold truncate">
-          {voice.name || "Sin nombre"}
+          {voice.name || t("voices.card.untitled")}
         </h3>
         <button
           onClick={onDelete}
@@ -292,12 +301,10 @@ function VoiceCard({
           <button
             onClick={togglePlay}
             className="flex items-center justify-center w-10 h-10 rounded-full border border-border hover:bg-muted transition shrink-0"
+            aria-label={isPlaying ? "Pausar" : "Reproducir"}
+            title={isPlaying ? "Pausar" : "Reproducir"}
           >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </button>
 
           <div className="flex-1 w-full">
@@ -308,6 +315,7 @@ function VoiceCard({
               value={progress}
               readOnly
               className="w-full accent-primary"
+              aria-label="Progreso"
             />
           </div>
 
@@ -328,7 +336,7 @@ function VoiceCard({
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          🎧 Preview no disponible
+          {t("voices.card.previewUnavailable")}
         </p>
       )}
     </Card>

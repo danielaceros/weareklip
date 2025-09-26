@@ -10,10 +10,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useT } from "@/lib/i18n";
 
 export interface VideoData {
   projectId: string;
-  title: string; // 👈 obligatorio
+  title: string; // obligatorio
   status: string;
   downloadUrl?: string;
   duration?: number;
@@ -30,12 +31,13 @@ export function LipsyncVideoList({
   perPage = 5,
   onDelete,
 }: LipsyncVideoListProps) {
+  const t = useT();
   const [page, setPage] = useState(1);
 
-  const totalPages = Math.ceil(videos.length / perPage);
+  const totalPages = Math.ceil(videos.length / perPage) || 1;
   const paginated = videos.slice((page - 1) * perPage, page * perPage);
 
-  if (videos.length === 0) return <p>No tienes vídeos aún.</p>;
+  if (videos.length === 0) return <p>{t("lipsyncList.empty")}</p>;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -49,6 +51,7 @@ export function LipsyncVideoList({
           />
         ))}
       </div>
+
       {/* Paginación */}
       {totalPages > 1 && (
         <div className="mt-auto">

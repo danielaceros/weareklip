@@ -28,7 +28,10 @@ import {
 import { ScriptForm } from "./ScriptForm";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
-/* Opciones (puedes alinearlas con las del <ScriptForm>) */
+// ✅ i18n
+import { useT } from "@/lib/i18n";
+
+/* Opciones (alineadas con ScriptForm) */
 const TONE_OPTIONS = [
   "Motivador",
   "Educativo",
@@ -51,14 +54,16 @@ const STRUCTURE_OPTIONS = [
 ];
 
 interface ScriptCreatorContainerProps {
-  onClose?: () => void; // 👈 para cerrar el modal padre también
-  onCreated?: (newScript: any) => void; // 👈 pasa el objeto creado
+  onClose?: () => void;
+  onCreated?: (newScript: any) => void;
 }
 
 export default function ScriptCreatorContainer({
   onClose,
   onCreated,
 }: ScriptCreatorContainerProps) {
+  const t = useT();
+
   const [user, setUser] = useState<User | null>(null);
 
   // Campos del formulario
@@ -95,11 +100,11 @@ export default function ScriptCreatorContainer({
   // 🚀 Generar script
   const handleGenerate = useCallback(async () => {
     if (!description || !tone || !platform || !duration || !structure) {
-      toast.error("⚠️ Por favor, completa todos los campos obligatorios.");
+      toast.error(t("scriptsCreator.toasts.fillAll"));
       return;
     }
     if (!user) {
-      toast.error("Debes iniciar sesión para crear guiones.");
+      toast.error(t("scriptsCreator.toasts.mustLogin"));
       return;
     }
 
@@ -136,7 +141,7 @@ export default function ScriptCreatorContainer({
     } catch (err: unknown) {
       console.error(err);
       toast.error(
-        err instanceof Error ? err.message : "No se pudo generar el guion."
+        err instanceof Error ? err.message : t("scriptsCreator.toasts.generateError")
       );
     } finally {
       setLoading(false);
@@ -151,20 +156,21 @@ export default function ScriptCreatorContainer({
     addCTA,
     ctaText,
     user,
+    t,
   ]);
 
-  // 🔄 Regenerar script (acepta overrides desde el mini-diálogo)
+  // 🔄 Regenerar script
   const regenerateScript = useCallback(
     async (overrides?: { tone?: string; structure?: string }) => {
       if (scriptRegens >= 2) {
-        toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+        toast.error(t("scriptsCreator.toasts.regenLimit"));
         return;
       }
 
       const toneToSend = overrides?.tone ?? tone;
       const structToSend = overrides?.structure ?? structure;
 
-      const loadingId = toast.loading("🔄 Regenerando guion...");
+      const loadingId = toast.loading(t("scriptsCreator.toasts.regenerating"));
       try {
         if (!user) throw new Error("No autenticado");
         const idToken = await user.getIdToken();
@@ -192,17 +198,18 @@ export default function ScriptCreatorContainer({
         if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
 
         setScript(parsed.script || "");
-        setScriptRegens((c) => c + 1); // ✅ cuenta solo si salió bien
-        setTone(toneToSend); // ✅ reflejamos cambios en el form
+        setScriptRegens((c) => c + 1);
+        setTone(toneToSend);
         setStructure(structToSend);
 
         toast.success(
+          // Si prefieres contar en el texto, podemos añadir {count} al i18n
           `✅ Guion regenerado (${Math.min(scriptRegens + 1, 2)}/2)`,
           { id: loadingId }
         );
       } catch (err) {
         console.error(err);
-        toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
+        toast.error(t("scriptsCreator.toasts.regenError"), { id: loadingId });
       } finally {
         toast.dismiss(loadingId);
       }
@@ -218,6 +225,7 @@ export default function ScriptCreatorContainer({
       structure,
       addCTA,
       ctaText,
+      t,
     ]
   );
 
@@ -225,7 +233,7 @@ export default function ScriptCreatorContainer({
   const acceptScript = useCallback(async () => {
     if (!user) return;
 
-    const toastId = toast.loading("💾 Guardando guion...");
+    const toastId = toast.loading(t("scriptsCreator.toasts.saving"));
 
     try {
       const idToken = await user.getIdToken();
@@ -262,12 +270,12 @@ export default function ScriptCreatorContainer({
         throw new Error(err.error || `Error ${res.status}`);
       }
 
-      toast.success("✅ Guion guardado correctamente", { id: toastId });
+      toast.success(t("scriptsCreator.toasts.saved"), { id: toastId });
 
       // 1️⃣ Cerrar modal secundario
       setShowModal(false);
 
-      // 2️⃣ Notificar al padre que se creó un guion
+      // 2️⃣ Notificar al padre
       if (typeof onCreated === "function") {
         onCreated({
           scriptId,
@@ -286,20 +294,20 @@ export default function ScriptCreatorContainer({
         });
       }
 
-      // 3️⃣ Cerrar modal principal si hay `onClose`
+      // 3️⃣ Cerrar modal principal
       if (typeof onClose === "function") {
         onClose();
       }
 
       // 4️⃣ Refrescar/navegar
       if (window.location.pathname === "/dashboard/script") {
-        router.refresh(); // asegura sincronización con server
+        router.refresh();
       } else {
         router.push("/dashboard/script");
       }
     } catch (err) {
       console.error("❌ Error al guardar guion:", err);
-      toast.error("No se pudo guardar el guion.", { id: toastId });
+      toast.error(t("scriptsCreator.toasts.saveError"), { id: toastId });
     }
   }, [
     user,
@@ -315,12 +323,14 @@ export default function ScriptCreatorContainer({
     scriptRegens,
     router,
     onClose,
+    onCreated,
+    t,
   ]);
 
   /* Abre el mini-diálogo con los valores actuales */
   const openRegenDialog = () => {
     if (scriptRegens >= 2) {
-      toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+      toast.error(t("scriptsCreator.toasts.regenLimit"));
       return;
     }
     setRegenTone(tone || TONE_OPTIONS[0]);
@@ -356,7 +366,7 @@ export default function ScriptCreatorContainer({
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Guion generado</DialogTitle>
+            <DialogTitle>{t("scriptsCreator.dialog.generatedTitle")}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={script}
@@ -369,9 +379,11 @@ export default function ScriptCreatorContainer({
               onClick={openRegenDialog}
               disabled={scriptRegens >= 2}
             >
-              Regenerar ({scriptRegens}/2)
+              {t("scriptsCreator.buttons.regenerate", { count: scriptRegens })}
             </Button>
-            <Button onClick={acceptScript}>Aceptar y guardar</Button>
+            <Button onClick={acceptScript}>
+              {t("scriptsCreator.buttons.accept")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -380,20 +392,22 @@ export default function ScriptCreatorContainer({
       <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Modificar antes de regenerar</DialogTitle>
+            <DialogTitle>{t("scriptsCreator.regenDialog.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <div className="text-sm font-medium mb-1">Tono</div>
+              <div className="text-sm font-medium mb-1">
+                {t("scriptsCreator.regenDialog.labels.tone")}
+              </div>
               <Select value={regenTone} onValueChange={setRegenTone}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona tono" />
+                  <SelectValue placeholder={t("scriptsCreator.regenDialog.placeholders.tone")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TONE_OPTIONS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                  {TONE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -401,15 +415,17 @@ export default function ScriptCreatorContainer({
             </div>
 
             <div>
-              <div className="text-sm font-medium mb-1">Estructura</div>
+              <div className="text-sm font-medium mb-1">
+                {t("scriptsCreator.regenDialog.labels.structure")}
+              </div>
               <Select value={regenStructure} onValueChange={setRegenStructure}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona estructura" />
+                  <SelectValue placeholder={t("scriptsCreator.regenDialog.placeholders.structure")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {STRUCTURE_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
+                  {STRUCTURE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -419,7 +435,7 @@ export default function ScriptCreatorContainer({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegenDialogOpen(false)}>
-              Cancelar
+              {t("scriptsCreator.regenDialog.actions.cancel")}
             </Button>
             <Button
               onClick={async () => {
@@ -430,7 +446,7 @@ export default function ScriptCreatorContainer({
                 });
               }}
             >
-              Aceptar y regenerar
+              {t("scriptsCreator.regenDialog.actions.accept")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -441,7 +457,7 @@ export default function ScriptCreatorContainer({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar guiones. Empieza tu prueba GRATUITA de 7 días."
+        message={t("scriptsCreator.checkout.message")}
       />
     </>
   );

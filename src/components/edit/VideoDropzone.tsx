@@ -1,8 +1,10 @@
+// src/app/dashboard/edit/VideoDropzone.tsx
 "use client";
 
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, VideoIcon } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   file: File | null;
@@ -12,12 +14,17 @@ interface Props {
 }
 
 export function VideoDropzone({ file, setFile, videoUrl, setVideoUrl }: Props) {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles[0]) {
-      setFile(acceptedFiles[0]);
-      setVideoUrl(null);
-    }
-  }, [setFile, setVideoUrl]);
+  const t = useT();
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles[0]) {
+        setFile(acceptedFiles[0]);
+        setVideoUrl(null);
+      }
+    },
+    [setFile, setVideoUrl]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -51,7 +58,9 @@ export function VideoDropzone({ file, setFile, videoUrl, setVideoUrl }: Props) {
         <>
           <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
           <p className="text-sm text-muted-foreground text-center">
-            {isDragActive ? "Suelta el vídeo aquí..." : "Arrastra un vídeo o haz click"}
+            {isDragActive
+              ? t("edit.create.dropzone.active")
+              : t("edit.create.dropzone.idle")}
           </p>
         </>
       )}

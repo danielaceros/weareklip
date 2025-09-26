@@ -25,13 +25,15 @@ import {
 } from "@/components/ui/tooltip";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 
+// ✅ i18n
+import { useTranslations } from "next-intl";
+
 interface Voice {
   id: string;
   name: string;
 }
 
 interface AudioFormProps {
-  // ⬇️ NUEVO: título opcional (si el padre lo pasa, mostramos el input)
   title?: string;
   setTitle?: (v: string) => void;
 
@@ -79,20 +81,18 @@ export function AudioForm({
   onGenerate,
   loading,
 }: AudioFormProps) {
+  const t = useTranslations();
   const { ensureSubscribed } = useSubscriptionGate();
   const [processing, setProcessing] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
   const isLoading = processing || loading;
-  const buttonText = useMemo(
-    () =>
-      processing
-        ? "Procesando..."
-        : loading
-        ? "Generando audio..."
-        : "Generar audio",
-    [processing, loading]
-  );
+
+  const buttonText = useMemo(() => {
+    if (processing) return t("audioForm.buttons.processing");
+    if (loading) return t("audioForm.buttons.generating");
+    return t("audioForm.buttons.generate");
+  }, [processing, loading, t]);
 
   const handleGenerateClick = async () => {
     setProcessing(true);
@@ -105,7 +105,7 @@ export function AudioForm({
     }
 
     if (!text.trim() || !voiceId || !languageCode) {
-      toast.error("⚠️ Completa texto, voz e idioma.");
+      toast.error(t("audioForm.toasts.fillAll"));
       setProcessing(false);
       return;
     }
@@ -133,19 +133,21 @@ export function AudioForm({
   return (
     <TooltipProvider>
       <div className="w-full max-w-2xl mx-auto rounded-2xl space-y-6">
-        <h2 className="text-xl font-semibold">Generación de audio</h2>
+        <h2 className="text-xl font-semibold">
+          {t("audioForm.title")}
+        </h2>
 
         {/* Título opcional */}
         {typeof title === "string" && typeof setTitle === "function" && (
           <div>
             <Label className="text-sm font-medium" htmlFor="audio-title">
-              Nombre (opcional)
+              {t("audioForm.labels.nameOptional")}
             </Label>
             <Input
               id="audio-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Intro vídeo landing ES"
+              placeholder={t("audioForm.placeholders.name")}
               className="mt-2"
               maxLength={80}
             />
@@ -155,13 +157,13 @@ export function AudioForm({
         {/* Texto */}
         <div>
           <Label className="text-sm font-medium" htmlFor="audio-text">
-            Texto *
+            {t("audioForm.labels.text")}
           </Label>
           <Textarea
             id="audio-text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Escribe el texto..."
+            placeholder={t("audioForm.placeholders.text")}
             className="mt-2 min-h-[120px]"
           />
         </div>
@@ -169,10 +171,12 @@ export function AudioForm({
         {/* Voz / Idioma */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <Label className="text-sm font-medium">Voz *</Label>
+            <Label className="text-sm font-medium">
+              {t("audioForm.labels.voice")}
+            </Label>
             <Select value={voiceId} onValueChange={setVoiceId}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Selecciona una voz" />
+                <SelectValue placeholder={t("audioForm.placeholders.voice")} />
               </SelectTrigger>
               <SelectContent>
                 {voices.map((v) => (
@@ -185,7 +189,9 @@ export function AudioForm({
           </div>
 
           <div>
-            <Label className="text-sm font-medium">Idioma *</Label>
+            <Label className="text-sm font-medium">
+              {t("audioForm.labels.language")}
+            </Label>
             <Select value={languageCode} onValueChange={setLanguageCode}>
               <SelectTrigger className="mt-2">
                 <SelectValue />
@@ -203,7 +209,7 @@ export function AudioForm({
             <TooltipTrigger asChild>
               <label htmlFor="stability">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>Estabilidad</span>
+                  <span>{t("audioForm.labels.stability")}</span>
                   <span>{stability.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
@@ -217,7 +223,7 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Consistencia de la voz.</p>
+              <p>{t("audioForm.tooltips.stability")}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -225,7 +231,7 @@ export function AudioForm({
             <TooltipTrigger asChild>
               <label htmlFor="similarity">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>Similaridad</span>
+                  <span>{t("audioForm.labels.similarity")}</span>
                   <span>{similarityBoost.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
@@ -239,7 +245,7 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Parecido con la voz base.</p>
+              <p>{t("audioForm.tooltips.similarity")}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -247,7 +253,7 @@ export function AudioForm({
             <TooltipTrigger asChild>
               <label htmlFor="style">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>Estilo</span>
+                  <span>{t("audioForm.labels.style")}</span>
                   <span>{style.toFixed(2)} / 1.00</span>
                 </div>
                 <Slider
@@ -261,7 +267,7 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Expresividad.</p>
+              <p>{t("audioForm.tooltips.style")}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -269,7 +275,7 @@ export function AudioForm({
             <TooltipTrigger asChild>
               <label htmlFor="speed">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>Velocidad</span>
+                  <span>{t("audioForm.labels.speed")}</span>
                   <span>{speed.toFixed(2)} / 2.00</span>
                 </div>
                 <Slider
@@ -283,7 +289,7 @@ export function AudioForm({
               </label>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Rapidez de la locución.</p>
+              <p>{t("audioForm.tooltips.speed")}</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -295,7 +301,9 @@ export function AudioForm({
             checked={speakerBoost}
             onCheckedChange={(c) => setSpeakerBoost(!!c)}
           />
-          <Label htmlFor="speaker-boost">Usar Speaker Boost</Label>
+          <Label htmlFor="speaker-boost">
+            {t("audioForm.labels.speakerBoost")}
+          </Label>
         </div>
 
         <Button
@@ -312,7 +320,7 @@ export function AudioForm({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message={t("audioForm.checkout.message")}
       />
     </TooltipProvider>
   );

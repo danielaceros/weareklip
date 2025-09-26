@@ -13,23 +13,20 @@ import { toast } from "sonner";
 import { ref, deleteObject } from "firebase/storage";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
+import { useT } from "@/lib/i18n";
 
 export interface VideoData {
   projectId: string;
-  title: string; // 👈 obligatorio
+  title: string; // obligatorio
   status: string;
   downloadUrl?: string;
   duration?: number;
 }
 
-interface Props {
-  onClose?: () => void;
-  onCreated?: (video?: OptimisticVideoData) => void;
-}
-
 type OptimisticVideoData = VideoData & { _rollback?: boolean };
 
 export default function LipsyncVideosPage() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -48,7 +45,7 @@ export default function LipsyncVideosPage() {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-  // 🟢 Autoabrir modal con ?new=1 y limpiar la URL
+  // Autoabrir modal con ?new=1 y limpiar la URL
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setIsNewOpen(true);
@@ -77,27 +74,27 @@ export default function LipsyncVideosPage() {
         setVideos(mapped);
       } catch (error) {
         console.error("Error fetching lipsync videos:", error);
-        toast.error("❌ No se pudieron cargar los vídeos");
+        toast.error(t("lipsyncPage.toasts.loadError"));
       } finally {
         setLoading(false);
       }
     };
 
     fetchVideos();
-  }, [user]);
+  }, [user, t]);
 
   async function handleConfirmDelete() {
     if (!user) return;
     setDeleting(true);
 
-    // 🔹 Guardamos estado previo por si falla
+    // Guardamos estado previo por si falla
     const prevVideos = [...videos];
 
     try {
       const token = await user.getIdToken();
 
       if (deleteAll) {
-        // 🟢 Optimistic: vaciamos lista al instante
+        // Optimistic: vaciamos lista al instante
         setVideos([]);
 
         await Promise.all(
@@ -112,6 +109,7 @@ export default function LipsyncVideosPage() {
             if (!res.ok)
               throw new Error(`Error borrando doc ${video.projectId}`);
 
+            // Borrar archivo en Storage si aplica
             if (video.downloadUrl?.includes("firebasestorage")) {
               try {
                 const path = decodeURIComponent(
@@ -127,9 +125,9 @@ export default function LipsyncVideosPage() {
           })
         );
 
-        toast.success("Todos los vídeos han sido eliminados ✅");
+        toast.success(t("lipsyncPage.toasts.deleteAllSuccess"));
       } else if (videoToDelete) {
-        // 🟢 Optimistic: quitamos de la lista antes del DELETE real
+        // Optimistic: quitamos de la lista antes del DELETE real
         setVideos((prev) =>
           prev.filter((v) => v.projectId !== videoToDelete.projectId)
         );
@@ -157,13 +155,13 @@ export default function LipsyncVideosPage() {
           }
         }
 
-        toast.success("Vídeo eliminado correctamente ✅");
+        toast.success(t("lipsyncPage.toasts.deleteOneSuccess"));
       }
     } catch (err) {
       console.error("❌ Error eliminando vídeos:", err);
-      toast.error("No se pudieron eliminar los vídeos");
+      toast.error(t("lipsyncPage.toasts.deleteError"));
 
-      // 🔙 Revertimos si falla
+      // Revertimos si falla
       setVideos(prevVideos);
     } finally {
       setDeleting(false);
@@ -172,7 +170,7 @@ export default function LipsyncVideosPage() {
     }
   }
 
-  // ✅ Loader
+  // Loader
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] w-full">
@@ -185,7 +183,7 @@ export default function LipsyncVideosPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold">Clones</h1>
+        <h1 className="text-2xl font-bold">{t("lipsyncPage.title")}</h1>
         <div className="flex gap-3">
           <Button
             variant="destructive"
@@ -194,7 +192,7 @@ export default function LipsyncVideosPage() {
             disabled={videos.length === 0}
           >
             <Trash2 size={18} className="mr-2" />
-            Borrar todos
+            {t("lipsyncPage.buttons.deleteAll")}
           </Button>
 
           <Button
@@ -202,7 +200,7 @@ export default function LipsyncVideosPage() {
             onClick={() => setIsNewOpen(true)}
           >
             <Plus size={18} className="mr-2" />
-            Crear vídeo
+            {t("lipsyncPage.buttons.create")}
           </Button>
         </div>
       </div>
@@ -252,14 +250,20 @@ export default function LipsyncVideosPage() {
         onConfirm={handleConfirmDelete}
         deleting={deleting}
         title={
-          deleteAll ? "Eliminar todos los vídeos" : "Eliminar vídeo Lipsync"
+          deleteAll
+            ? t("lipsyncPage.confirm.deleteAllTitle")
+            : t("lipsyncPage.confirm.deleteOneTitle")
         }
         description={
           deleteAll
-            ? "¿Seguro que quieres eliminar TODOS los vídeos? Esta acción no se puede deshacer."
-            : "¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer."
+            ? t("lipsyncPage.confirm.deleteAllDesc")
+            : t("lipsyncPage.confirm.deleteOneDesc")
         }
-        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
+        confirmText={
+          deleteAll
+            ? t("lipsyncPage.confirm.confirmAll")
+            : t("lipsyncPage.confirm.confirmOne")
+        }
       />
     </div>
   );
