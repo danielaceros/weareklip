@@ -1,5 +1,8 @@
 "use client";
+
+import { useId } from "react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useT } from "@/lib/i18n";
 
 interface VideoItem {
   id: string;
@@ -12,23 +15,28 @@ interface VideoSelectProps {
 }
 
 export function VideoSelect({ videos, onChange }: VideoSelectProps) {
+  const t = useT();
+  const labelId = useId();
+
   return (
     <div>
-      <p className="mb-1">Selecciona vídeo de clonación</p>
-      <Select onValueChange={onChange}>
+      <p id={labelId} className="mb-1 text-sm font-medium">
+        {t("video.select.label")}
+      </p>
+      <Select onValueChange={onChange} aria-labelledby={labelId}>
         <SelectTrigger>
-          <SelectValue placeholder="Elige un vídeo" />
+          <SelectValue placeholder={t("video.select.placeholder")} />
         </SelectTrigger>
         <SelectContent>
           {videos.length > 0 ? (
             videos.map((v) => (
               <SelectItem key={v.id} value={v.id}>
-                {v.name}
+                {v.name || t("video.select.unnamed")}
               </SelectItem>
             ))
           ) : (
             <SelectItem value="none" disabled>
-              No tienes vídeos de clonación
+              {t("video.select.empty")}
             </SelectItem>
           )}
         </SelectContent>

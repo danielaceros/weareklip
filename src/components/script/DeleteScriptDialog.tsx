@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -27,35 +28,34 @@ export default function DeleteScriptDialog({
   deleting,
   script,
 }: Props) {
-  // 🔹 Memorizar para evitar renders innecesarios
-  const title = useMemo(
-    () => script?.description || script?.videoTitle || "este guion",
-    [script?.description, script?.videoTitle]
+  const t = useT();
+
+  const computedTitle = useMemo(
+    () => script?.description || script?.videoTitle || t("scriptsDeleteDialog.thisScript"),
+    [script?.description, script?.videoTitle, t]
   );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md animate-in fade-in-0 zoom-in-95">
         <DialogHeader>
-          <DialogTitle>Eliminar guion</DialogTitle>
+          <DialogTitle>{t("scriptsDeleteDialog.title")}</DialogTitle>
           <DialogDescription>
-            ¿Seguro que quieres eliminar{" "}
-            <strong className="text-foreground">{title}</strong>? <br />
-            Esta acción no se puede deshacer.
+            {t("scriptsDeleteDialog.description", { title: computedTitle })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-3">
           <Button variant="secondary" onClick={onClose}>
-            Cancelar
+            {t("scriptsDeleteDialog.cancel")}
           </Button>
           <Button
             variant="destructive"
             onClick={onConfirm}
             disabled={deleting}
-            aria-label={`Eliminar ${title}`}
+            aria-label={t("scriptsDeleteDialog.ariaDelete", { title: computedTitle })}
           >
             {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {deleting ? "Eliminando..." : "Eliminar"}
+            {deleting ? t("scriptsDeleteDialog.deleting") : t("scriptsDeleteDialog.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

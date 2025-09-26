@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/CreatePipelineVideoPage.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -31,6 +32,7 @@ import {
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { track } from "@/lib/analytics-events";
 import { TemplateSelector } from "./TemplateSelector";
+import { useT } from "@/lib/i18n";
 
 // -------- utilidades --------
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -84,7 +86,7 @@ interface Props {
   preloadedVideos?: VideoOption[];
   audioUrl: string; // obligatorio
   onComplete?: () => void;
-  onCreated?: (video?: OptimisticVideoData) => void; // ✅ corregido para aceptar optimistic
+  onCreated?: (video?: OptimisticVideoData) => void; // ✅ acepta optimistic
 }
 
 export default function CreatePipelineVideoPage({
@@ -93,6 +95,7 @@ export default function CreatePipelineVideoPage({
   onComplete,
   onCreated,
 }: Props) {
+  const t = useT();
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
@@ -127,24 +130,28 @@ export default function CreatePipelineVideoPage({
     try {
       const sec = await getVideoDurationFromFile(f);
       if (!sec) {
-        toast.error("No se pudo leer la duración del vídeo.");
+        toast.error(t("edit.create.errors.readVideoDuration"));
         return;
       }
       if (sec > MAX_SEC) {
         toast.error(
-          `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+          t("edit.create.toasts.durationExceeded", {
+            sec: Math.round(sec),
+            max: MAX_SEC,
+          })
         );
         return;
       }
       setFile(f);
       setVideoSec(sec);
       setVideoUrl(null);
-      toast.success(`📹 Vídeo "${f.name}" cargado`);
+      toast.success(t("edit.create.toasts.loadedVideo"));
       track("video_uploaded", { fileName: f.name, seconds: Math.round(sec) });
     } catch {
-      toast.error("❌ No se pudo analizar el vídeo.");
+      toast.error(t("edit.create.toasts.analyzeError"));
     }
-  }, []);
+  }, [t]);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "video/*": [] },
@@ -157,15 +164,15 @@ export default function CreatePipelineVideoPage({
     fetch("/api/submagic/languages")
       .then((res) => res.json())
       .then((data) => setLanguages(data.languages || []))
-      .catch(() => toast.error("❌ Error cargando idiomas"))
+      .catch(() => toast.error(t("edit.create.toasts.loadLangError")))
       .finally(() => setLoadingLang(false));
 
     fetch("/api/submagic/templates")
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
-      .catch(() => toast.error("❌ Error cargando templates"))
+      .catch(() => toast.error(t("edit.create.toasts.loadTplError")))
       .finally(() => setLoadingTpl(false));
-  }, []);
+  }, [t]);
 
   const handleSubmit = async () => {
     flushSync(() => setProcessing(true));
@@ -179,18 +186,18 @@ export default function CreatePipelineVideoPage({
 
     const user = auth.currentUser;
     if (!user) {
-      toast.error("⚠️ Debes iniciar sesión");
+      toast.error(t("edit.create.toasts.mustLogin"));
       setProcessing(false);
       return;
     }
 
     if (!videoUrl && !file && preloadedVideos.length === 0) {
-      toast.error("⚠️ Debes subir o seleccionar un vídeo");
+      toast.error(t("edit.create.toasts.mustSelectVideo"));
       setProcessing(false);
       return;
     }
     if (!language) {
-      toast.error("⚠️ Debes seleccionar un idioma");
+      toast.error(t("edit.create.toasts.mustSelectLanguage"));
       setProcessing(false);
       return;
     }
@@ -206,19 +213,22 @@ export default function CreatePipelineVideoPage({
         }
       }
       if (!sec) {
-        toast.error("No se pudo leer la duración del vídeo.");
+        toast.error(t("edit.create.errors.readVideoDuration"));
         setProcessing(false);
         return;
       }
       if (sec > MAX_SEC) {
         toast.error(
-          `⏱️ Máximo ${MAX_SEC}s. Este vídeo dura ${Math.round(sec)}s.`
+          t("edit.create.toasts.durationExceeded", {
+            sec: Math.round(sec),
+            max: MAX_SEC,
+          })
         );
         setProcessing(false);
         return;
       }
     } catch {
-      toast.error("No se pudo validar la duración del vídeo.");
+      toast.error(t("edit.create.errors.readVideoDuration"));
       setProcessing(false);
       return;
     }
@@ -241,7 +251,7 @@ export default function CreatePipelineVideoPage({
     try {
       let finalVideoUrl = videoUrl;
       if (!finalVideoUrl && file) {
-        toast("☁️ Subiendo vídeo a la nube...");
+        toast(t("edit.create.toasts.uploading"));
         const { downloadURL } = await uploadVideo(
           file,
           user.uid,
@@ -251,9 +261,9 @@ export default function CreatePipelineVideoPage({
         track("video_uploaded_cloud", { url: downloadURL });
       }
       if (!finalVideoUrl)
-        throw new Error("No se pudo obtener la URL del vídeo");
+        throw new Error(t("edit.create.errors.noVideoUrl"));
 
-      toast("⚙️ Procesando tu reel...");
+      toast(t("edit.create.toasts.processing"));
       const idToken = await user.getIdToken(true);
       const idem = uuidv4();
 
@@ -282,7 +292,7 @@ export default function CreatePipelineVideoPage({
         throw new Error(msg || `HTTP ${res.status}`);
       }
 
-      toast.success("🎬 Reel enviado al pipeline correctamente");
+      toast.success(t("edit.pipeline.toasts.submitted"));
       track("pipeline_reel_submitted", {
         language,
         template,
@@ -295,7 +305,7 @@ export default function CreatePipelineVideoPage({
       router.push("/dashboard/edit");
     } catch (error) {
       console.error(error);
-      toast.error("❌ Error en el pipeline");
+      toast.error(t("edit.pipeline.toasts.error"));
       track("pipeline_error", { error: String(error) });
     } finally {
       setSubmitting(false);
@@ -304,18 +314,19 @@ export default function CreatePipelineVideoPage({
   };
 
   const isLoading = processing || submitting;
-  const buttonText = isLoading ? "Generando..." : "Crear Reel";
+  const buttonText = isLoading
+    ? t("edit.create.buttons.generating")
+    : t("edit.pipeline.buttons.create");
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto p-4 sm:p-6">
       {/* Título */}
       <div className="lg:col-span-2 mb-2 sm:mb-4">
         <h2 className="text-xl sm:text-2xl font-bold">
-          🎬 Crear Reel con Pipeline
+          {t("edit.pipeline.title")}
         </h2>
         <p className="text-muted-foreground text-xs sm:text-sm">
-          Sube o selecciona un vídeo y combínalo con tu audio para enviarlo al
-          pipeline.
+          {t("edit.pipeline.subtitle")}
         </p>
       </div>
 
@@ -330,26 +341,29 @@ export default function CreatePipelineVideoPage({
                   try {
                     const sec = await getVideoDurationFromUrl(v.url);
                     if (!sec) {
-                      toast.error("No se pudo leer la duración del vídeo.");
+                      toast.error(t("edit.create.errors.readVideoDuration"));
                       return;
                     }
                     if (sec > MAX_SEC) {
                       toast.error(
-                        `⏱️ El vídeo dura ${Math.round(
-                          sec
-                        )}s y el máximo es ${MAX_SEC}s.`
+                        t("edit.create.toasts.durationExceeded", {
+                          sec: Math.round(sec),
+                          max: MAX_SEC,
+                        })
                       );
                       return;
                     }
                     setVideoUrl(v.url);
                     setVideoSec(sec);
-                    toast.success(`🎥 Vídeo "${v.name}" seleccionado`);
+                    toast.success(
+                      t("edit.create.toasts.selectedVideo", { name: v.name })
+                    );
                     track("video_selected", {
                       name: v.name,
                       seconds: Math.round(sec),
                     });
                   } catch {
-                    toast.error("❌ No se pudo analizar el vídeo.");
+                    toast.error(t("edit.create.toasts.analyzeError"));
                   }
                 }}
                 className={`border rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-105 ${
@@ -399,8 +413,8 @@ export default function CreatePipelineVideoPage({
                 <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10 mb-2 text-muted-foreground" />
                 <p className="text-xs sm:text-sm text-muted-foreground text-center">
                   {isDragActive
-                    ? "Suelta el vídeo aquí..."
-                    : "Arrastra un vídeo o haz click"}
+                    ? t("edit.create.dropzone.active")
+                    : t("edit.create.dropzone.idle")}
                 </p>
               </>
             )}
@@ -418,34 +432,40 @@ export default function CreatePipelineVideoPage({
       <div className="space-y-4 sm:space-y-6">
         {/* Templates */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Template</Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">
+            {t("edit.create.labels.template")}
+          </Label>
           {loadingTpl ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando templates...
+              <Loader2 className="animate-spin h-4 w-4" />{" "}
+              {t("edit.create.loading.templates")}
             </div>
           ) : (
             <TemplateSelector
-            templates={templates}
-            selected={template}
-            onSelect={(t) => {
-              setTemplate(t);
-              track("template_selected", { template: t });
-            }}
-          />
+              templates={templates}
+              selected={template}
+              onSelect={(tpl) => {
+                setTemplate(tpl);
+                track("template_selected", { template: tpl });
+              }}
+            />
           )}
         </div>
 
         {/* Idioma */}
         <div>
-          <Label className="mb-1 sm:mb-2 block text-sm">Idioma</Label>
+          <Label className="mb-1 sm:mb-2 block text-sm">
+            {t("edit.create.labels.language")}
+          </Label>
           {loadingLang ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="animate-spin h-4 w-4" /> Cargando idiomas...
+              <Loader2 className="animate-spin h-4 w-4" />{" "}
+              {t("edit.create.loading.languages")}
             </div>
           ) : (
             <Select value={language} onValueChange={setLanguage}>
               <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Seleccionar un idioma" />
+                <SelectValue placeholder={t("edit.create.placeholders.language")} />
               </SelectTrigger>
               <SelectContent>
                 {languages.map((l) => (
@@ -458,10 +478,10 @@ export default function CreatePipelineVideoPage({
           )}
         </div>
 
-        {/* Diccionario */}
+        {/* Descripción */}
         <div>
           <Label className="mb-1 sm:mb-2 block text-sm">
-            Descripción breve
+            {t("edit.create.labels.describe")}
           </Label>
           <Input
             value={dictionary}
@@ -469,7 +489,7 @@ export default function CreatePipelineVideoPage({
               setDictionary(e.target.value);
               track("dictionary_updated");
             }}
-            placeholder="Escribe una breve descripción..."
+            placeholder={t("edit.pipeline.placeholders.description")}
             className="text-sm"
           />
         </div>
@@ -487,11 +507,13 @@ export default function CreatePipelineVideoPage({
                       track("magic_zooms_toggled", { enabled: !!c });
                     }}
                   />
-                  <Label className="text-sm">Magic Zooms</Label>
+                  <Label className="text-sm">
+                    {t("edit.create.options.magicZooms")}
+                  </Label>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Agrega acercamientos automáticos para más dinamismo.</p>
+                <p>{t("edit.create.tooltips.magicZooms")}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -505,11 +527,13 @@ export default function CreatePipelineVideoPage({
                       track("magic_brolls_toggled", { enabled: !!c });
                     }}
                   />
-                  <Label className="text-sm">Magic B-rolls</Label>
+                  <Label className="text-sm">
+                    {t("edit.create.options.magicBrolls")}
+                  </Label>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Inserta B-rolls automáticos relevantes en tu vídeo.</p>
+                <p>{t("edit.create.tooltips.magicBrolls")}</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -517,7 +541,9 @@ export default function CreatePipelineVideoPage({
           {magicBrolls && (
             <div>
               <Label className="mb-1 block text-sm">
-                Porcentaje de B-rolls: {magicBrollsPercentage}%
+                {t("edit.create.labels.brollsPercentage", {
+                  value: magicBrollsPercentage,
+                })}
               </Label>
               <Slider
                 defaultValue={[magicBrollsPercentage]}
@@ -539,11 +565,12 @@ export default function CreatePipelineVideoPage({
           {buttonText}
         </Button>
       </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message={t("edit.create.checkout.message")}
       />
     </div>
   );

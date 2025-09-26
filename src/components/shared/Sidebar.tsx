@@ -34,7 +34,7 @@ export function Sidebar() {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setUserInfo({
-          email: user.email ?? "—",
+          email: user.email ?? t("common.unknown"),
           photoURL: user.photoURL ?? "",
           plan: t("sidebar.noPlan"),
         });

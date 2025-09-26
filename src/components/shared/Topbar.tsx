@@ -15,6 +15,7 @@ import {
 import CreateReelGlobalButton from "@/components/wizard/CreateReelGlobalButton";
 import { toast } from "sonner";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useT } from "@/lib/i18n";
 
 type Summary = {
   subscriptions: {
@@ -48,6 +49,7 @@ type Summary = {
 };
 
 export function Topbar() {
+  const t = useT();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
@@ -127,18 +129,16 @@ export function Topbar() {
         window.location.reload();
       } else {
         if (data.error === "El cliente no tiene un periodo de prueba activo") {
-          toast.error(
-            "Para reclamar créditos primero activa tu prueba gratuita desde Stripe."
-          );
+          toast.error(t("topbar.trial.activateFirst"));
           setCheckoutModalOpen(true); // 👈 abre el modal
         } else {
           console.error("Error claimTrial:", data);
-          toast.error(data.error || "No se pudo reclamar la prueba.");
+          toast.error(t("topbar.trial.claimError"));
         }
       }
     } catch (e) {
       console.error("Error claimTrial:", e);
-      toast.error("Ocurrió un error inesperado al reclamar los créditos.");
+      toast.error(t("topbar.trial.unexpectedError"));
     } finally {
       setClaiming(false);
     }
@@ -146,44 +146,37 @@ export function Topbar() {
 
   const isOnboarding = pathname?.startsWith("/onboarding");
 
-  console.log(summary)
-
   return (
     <>
       {/* 📱 Banner solo en móvil */}
       <div className="w-full bg-yellow-100 text-yellow-900 text-sm py-2 px-4 md:hidden">
         <p className="text-center whitespace-normal break-words leading-snug">
-          🚀 Es mucho mejor usar <b>Viralizalo.AI</b> en PC para una mejor experiencia.
+          {t("topbar.mobileBanner")}
         </p>
       </div>
 
       {/* 🎁 Banner si hay créditos regalo disponibles y el usuario ya entró en trial */}
-        {!isOnboarding &&
-          summary?.trial?.available &&
-          !summary?.trial?.used &&
-          summary?.subscriptions?.monthly?.status === "trialing" && (
-            <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
-              <span>
-                Tienes créditos de prueba disponibles. Reclámalos para empezar a usar
-                la plataforma sin coste.
-              </span>
-              <button
-                onClick={claimTrial}
-                disabled={claiming}
-                className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {claiming ? "Reclamando..." : "Reclamar créditos"}
-              </button>
-            </div>
-          )}
+      {!isOnboarding &&
+        summary?.trial?.available &&
+        !summary?.trial?.used &&
+        summary?.subscriptions?.monthly?.status === "trialing" && (
+          <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
+            <span>{t("topbar.trial.banner")}</span>
+            <button
+              onClick={claimTrial}
+              disabled={claiming}
+              className="ml-4 rounded-md bg-black text-white px-3 py-1 text-sm hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {claiming ? t("topbar.trial.claiming") : t("topbar.trial.claim")}
+            </button>
+          </div>
+        )}
 
       {/* 🔴 Banner si hay deuda */}
       {summary?.hasOverdue && (
         <div className="w-full bg-white text-black text-sm py-2 px-4 flex justify-between items-center border-b border-border">
           <span>
-            ⚠️ Tienes una deuda pendiente de{" "}
-            <b>{overdueCredits} créditos</b>. Por favor regulariza tu pago para
-            seguir usando la plataforma.
+            {t("topbar.overdue.banner", { credits: overdueCredits })}
           </span>
           <a
             href={process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL}
@@ -191,7 +184,7 @@ export function Topbar() {
             rel="noopener noreferrer"
             className="ml-4 rounded-md bg-red-600 text-white px-3 py-1 text-sm hover:bg-red-700 transition"
           >
-            Pagar ahora
+            {t("topbar.overdue.payNow")}
           </a>
         </div>
       )}
@@ -218,8 +211,8 @@ export function Topbar() {
                   }`}
                 >
                   {summary.hasOverdue
-                    ? `Deuda: ${overdueCredits} créditos`
-                    : `Uso total: ${usageCredits} créditos`}
+                    ? t("topbar.badge.debt", { credits: overdueCredits })
+                    : t("topbar.badge.usage", { credits: usageCredits })}
                 </Badge>
               </PopoverTrigger>
               <PopoverContent
@@ -227,30 +220,37 @@ export function Topbar() {
                 className="w-72 rounded-2xl border border-neutral-800 bg-black text-white p-6 shadow-lg space-y-6"
               >
                 <div>
-                  <h4 className="text-sm text-neutral-400">Uso total del mes</h4>
+                  <h4 className="text-sm text-neutral-400">
+                    {t("topbar.popover.monthUsage")}
+                  </h4>
                   <div className="text-4xl font-semibold mt-1">
                     {usageCredits}{" "}
-                    <span className="text-lg font-normal">créditos</span>
+                    <span className="text-lg font-normal">
+                      {t("topbar.popover.creditsUnit")}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <p className="text-neutral-400 text-sm">
-                    Créditos disponibles (incluye prueba)
+                    {t("topbar.popover.available")}
                   </p>
                   <div className="text-2xl font-semibold">
                     {availableCredits}{" "}
-                    <span className="text-lg font-normal">créditos</span>
+                    <span className="text-lg font-normal">
+                      {t("topbar.popover.creditsUnit")}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-2 border-t border-neutral-800">
-                  <p className="text-neutral-400 text-sm">Hoy</p>
+                  <p className="text-neutral-400 text-sm">{t("topbar.popover.today")}</p>
                   <p className="text-sm text-neutral-500">
-                    Cargo hoy a las 23:59 (Europa/Madrid)
+                    {t("topbar.popover.chargeAt")}
                   </p>
                   <div className="text-lg font-medium mt-1">
-                    {dailyChargeEuros}€ · {dailyChargeCredits} créditos
+                    {dailyChargeEuros}€ · {dailyChargeCredits}{" "}
+                    {t("topbar.popover.creditsUnit")}
                   </div>
                 </div>
               </PopoverContent>
@@ -259,7 +259,7 @@ export function Topbar() {
 
           {user && (
             <div id="user-dropdown">
-              <UserDropdown user={{ email: user.email ?? "—" }} />
+              <UserDropdown user={{ email: user.email ?? t("common.unknown") }} />
             </div>
           )}
         </div>
@@ -270,7 +270,7 @@ export function Topbar() {
         open={checkoutModalOpen}
         onClose={() => setCheckoutModalOpen(false)}
         plan="ACCESS"
-        message="Debes activar tu prueba gratuita para recibir los créditos."
+        message={t("billing.checkoutModal.activateTrialMessage")}
       />
     </>
   );

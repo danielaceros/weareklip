@@ -1,3 +1,4 @@
+// src/app/dashboard/edit/DeleteVideoDialog.tsx
 "use client";
 
 import {
@@ -9,12 +10,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { db, storage } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 interface VideoData {
   projectId: string;
@@ -35,14 +34,16 @@ export default function DeleteVideoDialog({
   video,
   onDeleted,
 }: Props) {
+  const t = useT();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
     if (!video) return;
+
     const auth = getAuth();
     const user = auth.currentUser;
     if (!user) {
-      toast.error("Debes iniciar sesión para eliminar vídeos");
+      toast.error(t("edit.create.toasts.mustLogin"));
       return;
     }
 
@@ -65,37 +66,36 @@ export default function DeleteVideoDialog({
         throw new Error(err.error || `Error ${res.status}`);
       }
 
-      toast.success("✅ Vídeo eliminado correctamente");
+      toast.success(t("edit.page.toasts.deleteOneSuccess"));
       onDeleted?.();
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error("❌ No se pudo eliminar el vídeo");
+      toast.error(t("edit.page.toasts.deleteError"));
     } finally {
       setDeleting(false);
     }
   };
 
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Eliminar vídeo</DialogTitle>
+          <DialogTitle>{t("edit.page.deleteDialog.titleOne")}</DialogTitle>
           <DialogDescription>
-            ¿Seguro que quieres eliminar este vídeo? Esta acción no se puede deshacer.
+            {t("edit.page.deleteDialog.bodyOne")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button
             variant="destructive"
             onClick={handleDelete}
             disabled={deleting}
           >
-            {deleting ? "Eliminando..." : "Eliminar"}
+            {deleting ? t("common.deleting") : t("common.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -22,7 +22,13 @@ import { Plus, Trash2 } from "lucide-react";
 import { AudiosList, type AudioData } from "@/components/audio/AudiosList";
 import AudioCreatorContainer from "@/components/audio/AudioCreatorContainer";
 
+// ✅ i18n
+import { useTranslations } from "next-intl";
+// Si prefieres tu wrapper, usa:
+// import { useT as useTranslations } from "@/lib/i18n";
+
 export default function AudiosContainer() {
+  const t = useTranslations();
   const searchParams = useSearchParams();
 
   const [audios, setAudios] = useState<AudioData[]>([]);
@@ -68,11 +74,11 @@ export default function AudiosContainer() {
       setAudios(mapped);
     } catch (err) {
       console.error("Error fetching audios:", err);
-      toast.error("❌ No se pudieron cargar los audios");
+      toast.error(t("audiosPage.toasts.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => {
     fetchAudios();
@@ -94,13 +100,13 @@ export default function AudiosContainer() {
     if (deleting) return;
     setDeleting(true);
 
-    const prev = audios; // 👈 guardamos estado previo por si toca rollback
+    const prev = audios; // guardamos estado previo por si toca rollback
 
     try {
       const idToken = await user.getIdToken();
 
       if (deleteAll) {
-        // 🔹 UI optimista: vaciamos la lista de inmediato
+        // UI optimista: vaciamos la lista de inmediato
         setAudios([]);
 
         await Promise.all(
@@ -112,9 +118,9 @@ export default function AudiosContainer() {
           )
         );
 
-        toast.success("🗑️ Todos los audios eliminados");
+        toast.success(t("audiosPage.toasts.deleteAllSuccess"));
       } else if (audioToDelete) {
-        // 🔹 UI optimista: quitamos el audio antes de la respuesta del servidor
+        // UI optimista: quitamos el audio antes de la respuesta del servidor
         setAudios((s) => s.filter((a) => a.audioId !== audioToDelete.audioId));
 
         const res = await fetch(
@@ -126,21 +132,20 @@ export default function AudiosContainer() {
         );
 
         if (!res.ok) throw new Error("Error en borrado");
-        toast.success("Audio eliminado ✅");
+        toast.success(t("audiosPage.toasts.deleteOneSuccess"));
       }
     } catch (err) {
       console.error("Error eliminando audio:", err);
-      toast.error("❌ No se pudo eliminar el audio");
+      toast.error(t("audiosPage.toasts.deleteError"));
 
-      // 🔄 rollback si algo salió mal
+      // rollback si algo salió mal
       setAudios(prev);
     } finally {
       setDeleting(false);
       setAudioToDelete(null);
       setDeleteAll(false);
     }
-  }, [user, audios, deleteAll, audioToDelete, deleting]);
-
+  }, [user, audios, deleteAll, audioToDelete, deleting, t]);
 
   /* 🔢 Paginación */
   const totalPages = Math.max(1, Math.ceil(audios.length / perPage));
@@ -162,7 +167,7 @@ export default function AudiosContainer() {
     <div className="flex flex-col h-full space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Mis Audios</h1>
+        <h1 className="text-2xl font-bold">{t("audiosPage.title")}</h1>
         <div className="flex gap-3">
           <Button
             variant="destructive"
@@ -171,14 +176,16 @@ export default function AudiosContainer() {
             disabled={audios.length === 0 || deleting}
           >
             <Trash2 size={18} className="mr-2" />
-            {deleting && deleteAll ? "Eliminando..." : "Borrar todos"}
+            {deleting && deleteAll
+              ? t("audiosPage.buttons.deleting")
+              : t("audiosPage.buttons.deleteAll")}
           </Button>
           <Button
             onClick={() => setIsNewOpen(true)}
             className="rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition"
           >
             <Plus size={18} className="mr-2" />
-            Nuevo audio
+            {t("audiosPage.buttons.new")}
           </Button>
         </div>
       </div>
@@ -240,7 +247,7 @@ export default function AudiosContainer() {
               setIsNewOpen(false);
               // Optimistic UI: añadimos el nuevo audio a la lista
               setAudios((prev) => [newAudio, ...prev]);
-              // ⚡ opcional: aún así refrescamos desde backend en background
+              // Aun así refrescamos desde backend
               fetchAudios();
             }}
             onCancel={() => setIsNewOpen(false)}
@@ -257,13 +264,21 @@ export default function AudiosContainer() {
         }}
         onConfirm={handleConfirmDelete}
         deleting={deleting}
-        title={deleteAll ? "Eliminar todos los audios" : "Eliminar audio"}
+        title={
+          deleteAll
+            ? t("audiosPage.deleteDialog.titleAll")
+            : t("audiosPage.deleteDialog.titleOne")
+        }
         description={
           deleteAll
-            ? "¿Seguro que quieres eliminar TODOS los audios? Esta acción no se puede deshacer."
-            : "¿Seguro que quieres eliminar este audio? Esta acción no se puede deshacer."
+            ? t("audiosPage.deleteDialog.descAll")
+            : t("audiosPage.deleteDialog.descOne")
         }
-        confirmText={deleteAll ? "Eliminar todos" : "Eliminar"}
+        confirmText={
+          deleteAll
+            ? t("audiosPage.deleteDialog.confirmAll")
+            : t("audiosPage.deleteDialog.confirmOne")
+        }
       />
     </div>
   );

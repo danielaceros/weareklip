@@ -12,8 +12,10 @@ import {
 import { checkIsAdmin } from "@/lib/users";
 import { Bell } from "lucide-react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 export default function NotificationFloating() {
+  const t = useT();
   const [logs, setLogs] = useState<Log[]>([]);
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -89,20 +91,20 @@ export default function NotificationFloating() {
       {open && (
         <div className="absolute bottom-14 right-0 w-80 max-h-96 bg-card border border-border rounded-xl shadow-xl flex flex-col">
           <div className="p-4 border-b flex justify-between items-center">
-            <h4 className="font-semibold text-sm">Notificaciones</h4>
+            <h4 className="font-semibold text-sm">{t("notifications.title")}</h4>
             {logs.length > 0 && (
               <button
                 onClick={handleMarkAsRead}
                 className="text-xs text-blue-600 hover:underline"
               >
-                Marcar todas
+                {t("notifications.markAll")}
               </button>
             )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {logs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin alertas nuevas</p>
+              <p className="text-sm text-muted-foreground">{t("notifications.empty")}</p>
             ) : (
               logs.map((log) => (
                 <div
@@ -118,6 +120,8 @@ export default function NotificationFloating() {
                   <button
                     onClick={() => handleMarkSingle(log)}
                     className="text-xs text-blue-500 hover:underline"
+                    aria-label={t("notifications.markOne")}
+                    title={t("notifications.markOne")}
                   >
                     ✓
                   </button>
@@ -131,7 +135,7 @@ export default function NotificationFloating() {
               href={isAdmin ? "/admin/notifications" : "/dashboard/mynotifications"}
               className="text-xs text-blue-500 hover:underline"
             >
-              Ver todas →
+              {t("notifications.viewAll")}
             </Link>
           </div>
         </div>

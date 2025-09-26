@@ -12,13 +12,16 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
+// ✅ i18n
+import { useTranslations } from "next-intl";
+
 export interface AudioData {
   audioId: string;
   name?: string;
   description?: string;
   createdAt?: { seconds: number; nanoseconds: number };
   url: string;
-  duration?: number; // 👈 ahora es number
+  duration?: number;
   language?: string;
 }
 
@@ -33,6 +36,7 @@ export function AudiosList({
   onDelete,
   perPage = 16,
 }: AudiosListProps) {
+  const t = useTranslations();
   const [page, setPage] = useState(1);
 
   const totalPages = Math.ceil(audios.length / perPage);
@@ -43,7 +47,11 @@ export function AudiosList({
   );
 
   if (audios.length === 0) {
-    return <p className="text-muted-foreground">No tienes audios aún.</p>;
+    return (
+      <p className="text-muted-foreground">
+        {t("audiosList.empty")}
+      </p>
+    );
   }
 
   return (
@@ -111,10 +119,13 @@ function AudioCard({
   audio: AudioData;
   onDelete: (a: AudioData) => void;
 }) {
+  const t = useTranslations();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const frameRef = useRef<number | null>(null);
+
+  const title = audio.name || t("audioCard.untitled");
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -127,7 +138,7 @@ function AudioCard({
     }
   }, [isPlaying]);
 
-  // 🔹 actualizar progreso con RAF (más fluido que onTimeUpdate)
+  // 🔹 actualizar progreso con RAF
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -156,9 +167,7 @@ function AudioCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col">
-          <h3 className="text-sm font-semibold truncate">
-            {audio.name || "Sin título"}
-          </h3>
+          <h3 className="text-sm font-semibold truncate">{title}</h3>
           {audio.description && (
             <p className="text-xs text-muted-foreground truncate">
               {audio.description}
@@ -166,7 +175,7 @@ function AudioCard({
           )}
         </div>
         <button
-          aria-label="Eliminar audio"
+          aria-label={t("audioCard.aria.delete")}
           onClick={() => onDelete(audio)}
           className="p-2 rounded-full hover:bg-muted transition"
         >
@@ -177,15 +186,11 @@ function AudioCard({
       {/* Player */}
       <div className="flex items-center gap-3">
         <button
-          aria-label={isPlaying ? "Pausar" : "Reproducir"}
+          aria-label={isPlaying ? t("audioCard.aria.pause") : t("audioCard.aria.play")}
           onClick={togglePlay}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </button>
 
         <div className="flex-1">

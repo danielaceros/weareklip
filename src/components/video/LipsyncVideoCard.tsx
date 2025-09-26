@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import ShareVideo from "@/components/shared/ShareVideo";
+import { useT } from "@/lib/i18n";
 
 /* ---------- Tipos ---------- */
 interface VideoData {
@@ -31,6 +32,7 @@ const VideoThumbPlayer: FC<{
   title: string;
   thumbnail?: string;
 }> = ({ url, title, thumbnail }) => {
+  const t = useT();
   const [active, setActive] = useState(false);
 
   return (
@@ -38,7 +40,7 @@ const VideoThumbPlayer: FC<{
       {!active && (
         <button
           type="button"
-          aria-label={`Reproducir: ${title}`}
+          aria-label={t("lipsyncCard.ariaPlay", { title })}
           onClick={() => setActive(true)}
           className="group absolute inset-0 grid place-items-center"
         >
@@ -52,7 +54,7 @@ const VideoThumbPlayer: FC<{
             <div className="absolute inset-0 w-full h-full bg-black/40" />
           )}
           <span className="absolute grid place-items-center rounded-full px-4 py-3 bg-white/90 backdrop-blur text-black text-sm font-semibold shadow-lg transition group-hover:scale-105">
-            ▶ Ver aquí
+            {t("lipsyncCard.playHere")}
           </span>
         </button>
       )}
@@ -74,19 +76,27 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
   video,
   onDelete,
 }) => {
+  const t = useT();
+
+  const title = video.title || t("lipsyncCard.untitled");
+  const statusNode =
+    video.status === "processing"
+      ? t("lipsyncCard.status.processing")
+      : video.status === "error"
+      ? t("lipsyncCard.status.error")
+      : t("lipsyncCard.status.pending");
+
   return (
     <Card className="overflow-hidden rounded-xl border bg-card text-foreground flex flex-col">
       <CardHeader className="p-3 flex justify-between items-center">
-        <h3 className="text-sm font-semibold truncate">
-          {video.title || "Sin título"}
-        </h3>
+        <h3 className="text-sm font-semibold truncate">{title}</h3>
         <Button
           size="icon"
           variant="ghost"
           onClick={() => onDelete(video.projectId, video.downloadUrl)}
           className="h-8 w-8 shrink-0"
-          aria-label="Eliminar vídeo"
-          title="Eliminar vídeo"
+          aria-label={t("lipsyncCard.ariaDelete")}
+          title={t("lipsyncCard.titleDelete")}
         >
           <Trash2 size={16} className="text-red-500" />
         </Button>
@@ -96,23 +106,19 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
         {video.downloadUrl && video.status === "completed" ? (
           <VideoThumbPlayer
             url={video.downloadUrl}
-            title={video.title}
+            title={title}
             thumbnail={video.thumbnail}
           />
         ) : (
           <div className="w-full aspect-[9/16] flex items-center justify-center text-xs text-muted-foreground bg-black/30 rounded-md">
-            {video.status === "processing"
-              ? "Procesando..."
-              : video.status === "error"
-              ? "Error al generar"
-              : "En espera"}
+            {statusNode}
           </div>
         )}
       </CardContent>
 
       {video.downloadUrl && video.status === "completed" && (
         <CardFooter className="p-3 flex items-center gap-2 flex-wrap">
-          {/* ✅ Chip de compartir como en guiones */}
+          {/* Chip de compartir */}
           <ShareVideo
             docId={video.projectId}
             kind="lipsync"
@@ -134,7 +140,7 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Descargar
+                {t("lipsyncCard.download")}
               </a>
             </Button>
 
@@ -148,7 +154,7 @@ export const LipsyncVideoCard: FC<LipsyncVideoCardProps> = ({
                 )}`)
               }
             >
-              Autoeditar
+              {t("lipsyncCard.autoedit")}
             </Button>
           </div>
         </CardFooter>

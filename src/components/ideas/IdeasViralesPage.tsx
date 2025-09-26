@@ -3,20 +3,15 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useT } from "@/lib/i18n";
-import { auth, db } from "@/lib/firebase"; // <-- ahora importamos también db
+import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 import { IdeasViralesHeader } from "@/components/ideas/IdeasViralesHeader";
 import { IdeasViralesSearch } from "@/components/ideas/IdeasViralesSearch";
-import {
-  IdeasViralesList,
-  ShortVideo,
-} from "@/components/ideas/IdeasViralesList";
+import { IdeasViralesList, ShortVideo } from "@/components/ideas/IdeasViralesList";
 import { IdeasViralesFavorites } from "@/components/ideas/IdeasViralesFavorites";
-
-// <-- nuevo: hook centralizado de favoritos (LocalStorage + Firestore)
 import { useFavorites } from "@/hooks/useFavorites";
 
 export default function IdeasViralesPage() {
@@ -52,51 +47,45 @@ export default function IdeasViralesPage() {
   // Buscar vídeos virales
   const fetchVideos = async () => {
     if (!query.trim()) {
-      toast.error("Escribe un nicho antes de buscar");
+      toast.error(t("viralIdeasPage.toasts.enterNiche"));
       return;
     }
 
     const userToken = user ? await user.getIdToken() : null;
     if (!userToken) {
-      toast.error("Debes iniciar sesión para buscar vídeos");
+      toast.error(t("viralIdeasPage.toasts.mustLoginSearch"));
       return;
     }
 
     setLoading(true);
     setHasSearched(true);
 
-    const loadingToast = toast.loading("Buscando vídeos virales...");
+    const loadingToast = toast.loading(t("viralIdeasPage.toasts.loading"));
 
     try {
       const res = await fetch(
         `/api/youtube/trends?country=${country}&range=${range}&query=${encodeURIComponent(
           query
         )}`,
-        {
-          headers: { Authorization: `Bearer ${userToken}` },
-        }
+        { headers: { Authorization: `Bearer ${userToken}` } }
       );
       const data = await res.json();
 
       // Defensivo si la API no devuelve array
       const normalized: ShortVideo[] = (Array.isArray(data) ? data : []).map(
-        (d: any) => ({
-          ...d,
-          views: Number(d.views) || 0,
-        })
+        (d: any) => ({ ...d, views: Number(d.views) || 0 })
       );
 
       setVideos(normalized);
 
-      // ✅ Si hay resultados, mostramos success; si no, ningún toast (solo mensaje abajo)
       if (normalized.length > 0) {
-        toast.success("Vídeos cargados correctamente", { id: loadingToast });
+        toast.success(t("viralIdeasPage.toasts.loaded"), { id: loadingToast });
       } else {
         toast.dismiss(loadingToast);
       }
     } catch (err) {
       console.error("Error fetching shorts:", err);
-      toast.error("Error al cargar los vídeos", { id: loadingToast });
+      toast.error(t("viralIdeasPage.toasts.loadError"), { id: loadingToast });
       setVideos([]); // para que aparezca el estado vacío
     } finally {
       setLoading(false);
@@ -116,7 +105,7 @@ export default function IdeasViralesPage() {
   // Replicar vídeo (igual que antes)
   const replicateVideo = async (video: ShortVideo) => {
     if (!user) {
-      toast.error("Debes iniciar sesión para replicar vídeos");
+      toast.error(t("viralIdeasPage.toasts.mustLoginReplicate"));
       return;
     }
 
@@ -125,13 +114,15 @@ export default function IdeasViralesPage() {
       const data = await res.json();
 
       if (!data.transcript) {
-        toast.error("No se encontró transcripción");
+        toast.error(t("viralIdeasPage.toasts.noTranscript"));
         return;
       }
 
       const newScript = {
         id: `temp-${video.id}`,
-        description: `Guion replicado de ${video.title}`,
+        description: t("viralIdeasPage.replicatedScriptDescription", {
+          title: video.title,
+        }),
         platform: "youtube",
         script: data.transcript,
         isAI: false,
@@ -159,7 +150,7 @@ export default function IdeasViralesPage() {
       router.push("/dashboard/script");
     } catch (err) {
       console.error("Error replicando vídeo:", err);
-      toast.error("Error al replicar vídeo");
+      toast.error(t("viralIdeasPage.toasts.replicateError"));
     }
   };
 
@@ -192,7 +183,7 @@ export default function IdeasViralesPage() {
         favorites={favorites as ShortVideo[]}
         onToggleFavorite={(v) => {
           if (!user) {
-            toast.error("Debes iniciar sesión para guardar favoritos");
+            toast.error(t("viralIdeasPage.toasts.mustLoginFavorite"));
             return;
           }
           toggleFavorite(v);
@@ -204,15 +195,13 @@ export default function IdeasViralesPage() {
       {/* Empty states bajo la lista */}
       {showEmptyFromSearch && (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No hay vídeos en tendencia para{" "}
-          <span className="font-medium">“{query}”</span> con los filtros
-          actuales. Prueba otro término, idioma o intervalo.
+          {t("viralIdeasPage.empty.noResultsForFilters", { query })}
         </div>
       )}
 
       {showEmptyFromFilter && (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No hay coincidencias con el filtro actual.
+          {t("viralIdeasPage.empty.noMatchesForFilter")}
         </div>
       )}
 
@@ -220,7 +209,7 @@ export default function IdeasViralesPage() {
         favorites={favorites as ShortVideo[]}
         onToggleFavorite={(v) => {
           if (!user) {
-            toast.error("Debes iniciar sesión para guardar favoritos");
+            toast.error(t("viralIdeasPage.toasts.mustLoginFavorite"));
             return;
           }
           toggleFavorite(v);

@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import CreatePipelineVideoPage from "../edit/CreatePipelineVideoPage";
 import { track, withTiming } from "@/lib/analytics-events";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useT } from "@/lib/i18n";
 
 import {
   Dialog,
@@ -47,29 +48,31 @@ type ReelData = {
 
 type CreateReelWizardProps = { onComplete: (data: ReelData) => void };
 
-// === Opciones iguales a ScriptCreatorContainer ===
-const TONE_OPTIONS = [
-  "Motivador",
-  "Educativo",
-  "Humorístico",
-  "Serio",
-  "Inspirador",
-  "Emocional",
-  "Provocador",
-];
+/** ===== Opciones i18n basadas en KEYS estables (no etiquetas) ===== */
+const TONE_KEYS = [
+  "motivational",
+  "educational",
+  "humorous",
+  "serious",
+  "inspirational",
+  "emotional",
+  "provocative",
+] as const;
+type ToneKey = typeof TONE_KEYS[number];
 
-const STRUCTURE_OPTIONS = [
-  "Gancho – Desarrollo – Cierre",
-  "Storytelling",
-  "Lista de tips",
-  "Pregunta retórica",
-  "Comparativa antes/después",
-  "Mito vs realidad",
-  "Problema – Solución",
-  "Testimonio",
-];
+const STRUCTURE_KEYS = [
+  "hook_body_close",
+  "storytelling",
+  "tips_list",
+  "rhetorical_question",
+  "before_after",
+  "myth_vs_reality",
+  "problem_solution",
+  "testimonial",
+] as const;
+type StructureKey = typeof STRUCTURE_KEYS[number];
 
-// === Helper para voces (id puede venir como id o voice_id) ===
+/** === Helper para voces (id puede venir como id o voice_id) === */
 const getVoiceId = (v: any) => v?.voice_id ?? v?.id ?? "";
 
 const SPEED_MIN = 0.7;
@@ -79,25 +82,24 @@ const clampSpeed = (x: number) =>
 
 /* ---------------------------------------------------------
    Helpers de “nombres bonitos” para los vídeos de clonación
-   - Evita mostrar rutas tipo "users/xxx/archivo.mp4"
-   - Si no hay título humano, muestra fecha de subida
-   - Si tampoco hay fecha, muestra "Vídeo #N"
 --------------------------------------------------------- */
 function looksLikeStoragePath(s?: string) {
   if (!s) return false;
-  return /(^users\/|^gs:\/\/|\/)/i.test(s); // contiene rutas o separadores
+  return /(^users\/|^gs:\/\/|\/)/i.test(s);
 }
 function toDate(v: any): Date | null {
   if (!v) return null;
-  // Firestore Timestamp
   if (typeof v === "object" && typeof v.seconds === "number") {
     return new Date(v.seconds * 1000);
   }
-  // ISO string / millis
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d;
 }
-function displayCloneName(d: any, index: number) {
+function displayCloneName(
+  d: any,
+  index: number,
+  t: (k: string, v?: any) => string
+) {
   const human =
     d?.titulo || d?.title || d?.name || d?.displayName || d?.filename;
   if (typeof human === "string" && human.trim() && !looksLikeStoragePath(human))
@@ -109,37 +111,62 @@ function displayCloneName(d: any, index: number) {
     toDate(d?.timestamp) ||
     null;
   if (dts) {
-    // fecha corta legible
-    return dts.toLocaleString("es-ES", {
+    // Usa el locale del navegador/entorno en vez de fijar "es-ES"
+    return new Intl.DateTimeFormat(undefined, {
       dateStyle: "short",
       timeStyle: "short",
-    });
+    }).format(dts);
   }
-
-  return `Vídeo #${index + 1}`;
+  return t("wizard.video.fallbackName", { n: index + 1 });
 }
 
-export default function CreateReelWizard({
-  onComplete,
-}: CreateReelWizardProps) {
+export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) {
+  const t = useT();
+
+  // Helpers que dependen de t()
+  const toneLabel = (k?: string) =>
+    k ? (t(`wizard.toneOptions.${k}`) ?? k) : "";
+  const structureLabel = (k?: string) =>
+    k ? (t(`wizard.structureOptions.${k}`) ?? k) : "";
+  const uiLangLabel = (code?: string) =>
+    code
+      ? t(`scriptsForm.options.languages.${code}`) ?? code.toUpperCase()
+      : "—";
+
+  // Si llega una etiqueta (no key), intenta mapearla a key en el locale actual; si falla, usa defaults
+  const toneToKey = (value: string): ToneKey =>
+    (TONE_KEYS.find((k) => t(`wizard.toneOptions.${k}`) === value) ??
+      (TONE_KEYS.includes(value as any) ? (value as ToneKey) : TONE_KEYS[0])) as ToneKey;
+
+  const structureToKey = (value: string): StructureKey =>
+    (STRUCTURE_KEYS.find((k) => t(`wizard.structureOptions.${k}`) === value) ??
+      (STRUCTURE_KEYS.includes(value as any)
+        ? (value as StructureKey)
+        : STRUCTURE_KEYS[0])) as StructureKey;
+
+  // Si el valor ya es key, devuelve etiqueta traducida; si ya es etiqueta, devuélvela tal cual
+  const toneToLabel = (value: string) =>
+    TONE_KEYS.includes(value as any) ? toneLabel(value) : value;
+
+  const structureToLabel = (value: string) =>
+    STRUCTURE_KEYS.includes(value as any) ? structureLabel(value) : value;
+
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   const [step, setStep] = useState(1);
-  const [modalType, setModalType] = useState<"main" | "script" | "audio">(
-    "main"
-  );
+  const [modalType, setModalType] = useState<"main" | "script" | "audio">("main");
 
   // 🏷️ SOLO PARA EL AUDIO DEL WIZARD
   const [audioTitle, setAudioTitle] = useState("");
 
   // Paso 1 - Guion
   const [description, setDescription] = useState("");
-  const [tone, setTone] = useState("");
+  const [tone, setTone] = useState<string>(""); // guarda KEY o etiqueta (compat)
   const [platform, setPlatform] = useState("");
   const [duration, setDuration] = useState("");
   const [language, setLanguage] = useState("es");
-  const [structure, setStructure] = useState("");
+  const [structure, setStructure] = useState<string>(""); // guarda KEY o etiqueta (compat)
   const [addCTA, setAddCTA] = useState(false);
   const [ctaText, setCtaText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -151,9 +178,9 @@ export default function CreateReelWizard({
   const [audioId, setAudioId] = useState<string | null>(null);
 
   // Paso 3 - Vídeos clonación
-  const [videos, setVideos] = useState<
-    { id: string; name: string; url: string }[]
-  >([]);
+  const [videos, setVideos] = useState<{ id: string; name: string; url: string }[]>(
+    []
+  );
   const [loadingVideos, setLoadingVideos] = useState(false);
 
   // Regens
@@ -165,10 +192,10 @@ export default function CreateReelWizard({
 
   // ==== Mini-diálogo Script ====
   const [regenScriptOpen, setRegenScriptOpen] = useState(false);
-  const [regenTone, setRegenTone] = useState("");
-  const [regenStructure, setRegenStructure] = useState("");
+  const [regenTone, setRegenTone] = useState<ToneKey>(TONE_KEYS[0]);
+  const [regenStructure, setRegenStructure] = useState<StructureKey>(STRUCTURE_KEYS[0]);
 
-  // ==== Mini-diálogo Audio (todos los campos) ====
+  // ==== Mini-diálogo Audio ====
   const [regenAudioOpen, setRegenAudioOpen] = useState(false);
   const [rText, setRText] = useState("");
   const [rVoiceId, setRVoiceId] = useState("");
@@ -180,9 +207,7 @@ export default function CreateReelWizard({
 
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (currentUser) =>
-      setUser(currentUser)
-    );
+    const unsub = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
     track("wizard_opened");
     return () => unsub();
   }, []);
@@ -200,16 +225,16 @@ export default function CreateReelWizard({
       return;
     }
     if (!description || !tone || !platform || !duration || !structure) {
-      toast.error("Por favor, completa todos los campos obligatorios.");
+      toast.error(t("wizard.errors.fillAll"));
       track("script_generate_validation_error");
       return;
     }
     if (!user) {
-      toast.error("Debes iniciar sesión para continuar.");
+      toast.error(t("wizard.errors.mustLogin"));
       track("script_generate_noauth");
       return;
     }
-    const loadingId = toast.loading("✍️ Generando guion...");
+    const loadingId = toast.loading(t("wizard.script.generate.loading"));
     setLoading(true);
     track("script_generate_clicked", {
       tone,
@@ -222,6 +247,11 @@ export default function CreateReelWizard({
 
     try {
       const token = await user.getIdToken();
+
+      // Convertimos posibles KEYS a etiquetas traducidas para el backend
+      const toneOut = toneToLabel(tone);
+      const structureOut = structureToLabel(structure);
+
       const res = await withTiming("script_generate", async () =>
         fetch("/api/chatgpt/scripts/create", {
           method: "POST",
@@ -231,11 +261,11 @@ export default function CreateReelWizard({
           },
           body: JSON.stringify({
             description,
-            tone,
+            tone: toneOut,
             platform,
             duration,
             language,
-            structure,
+            structure: structureOut,
             addCTA,
             ctaText,
           }),
@@ -245,38 +275,37 @@ export default function CreateReelWizard({
       if (!res.ok) throw new Error(parsed.error || "Error generando guion");
       setScript(parsed.script || "");
       setModalType("script");
-      toast.success("✅ Guion generado correctamente", { id: loadingId });
-      track("script_generate_succeeded", {
-        length: (parsed.script || "").length,
-      });
+      toast.success(t("wizard.script.generate.success"), { id: loadingId });
+      track("script_generate_succeeded", { length: (parsed.script || "").length });
     } catch (err: any) {
       console.error(err);
-      toast.error("❌ No se pudo generar el guion.", { id: loadingId });
+      toast.error(t("wizard.script.generate.error"), { id: loadingId });
       track("script_generate_failed", { error: String(err?.message || err) });
     } finally {
       setLoading(false);
     }
   };
 
-  // Abre el mini-diálogo con valores actuales
   const openScriptRegenDialog = () => {
     if (scriptRegens >= 2) {
-      toast.error("⚠️ Ya has regenerado el guion 2 veces.");
+      toast.error(t("wizard.script.regen.limit"));
       track("script_regenerate_limit_reached");
       return;
     }
-    setRegenTone(tone || TONE_OPTIONS[0]);
-    setRegenStructure(structure || STRUCTURE_OPTIONS[0]);
+    // Si venían etiquetas (no keys), intenta mapear; si no, usa defaults
+    setRegenTone(tone ? toneToKey(tone) : TONE_KEYS[0]);
+    setRegenStructure(structure ? structureToKey(structure) : STRUCTURE_KEYS[0]);
     setRegenScriptOpen(true);
   };
 
-  const doRegenerateScript = async (
-    toneOverride: string,
-    structureOverride: string
-  ) => {
-    const loadingId = toast.loading("🔄 Regenerando guion...");
+  const doRegenerateScript = async (toneOverrideKey: string, structureOverrideKey: string) => {
+    const loadingId = toast.loading(t("wizard.script.regen.loading"));
     try {
       const token = await user?.getIdToken();
+
+      const toneOut = toneToLabel(toneOverrideKey);
+      const structureOut = structureToLabel(structureOverrideKey);
+
       const res = await withTiming("script_regenerate", async () =>
         fetch("/api/chatgpt/scripts/regenerate", {
           method: "POST",
@@ -286,11 +315,11 @@ export default function CreateReelWizard({
           },
           body: JSON.stringify({
             description,
-            tone: toneOverride,
+            tone: toneOut,
             platform,
             duration,
             language,
-            structure: structureOverride,
+            structure: structureOut,
             addCTA,
             ctaText,
           }),
@@ -299,23 +328,24 @@ export default function CreateReelWizard({
       const parsed = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(parsed.error || "Error regenerando guion");
       setScript(parsed.script || "");
-      setTone(toneOverride);
-      setStructure(structureOverride);
+
+      // En estado guardamos la KEY (mejor para i18n)
+      setTone(toneOverrideKey);
+      setStructure(structureOverrideKey);
+
       setScriptRegens((c) => c + 1);
-      toast.success(`✅ Guion regenerado`, { id: loadingId });
-      track("script_regenerate_succeeded", {
-        length: (parsed.script || "").length,
-      });
+      toast.success(t("wizard.script.regen.success"), { id: loadingId });
+      track("script_regenerate_succeeded", { length: (parsed.script || "").length });
     } catch (err: any) {
       console.error(err);
-      toast.error("❌ No se pudo regenerar el guion.", { id: loadingId });
+      toast.error(t("wizard.script.regen.error"), { id: loadingId });
       track("script_regenerate_failed", { error: String(err?.message || err) });
     }
   };
 
   const acceptScript = () => {
     audioForm.setText(script);
-    toast.success("📜 Guion aceptado. Vamos al audio.");
+    toast.success(t("wizard.script.accepted"));
     track("script_accepted", { length: script.length });
     setModalType("main");
     setStep(2);
@@ -330,16 +360,16 @@ export default function CreateReelWizard({
       return;
     }
     if (!audioForm.voiceId) {
-      toast.error("Selecciona una voz antes de continuar.");
+      toast.error(t("wizard.errors.selectVoiceFirst"));
       track("audio_generate_validation_error");
       return;
     }
     if (!user) {
-      toast.error("Debes iniciar sesión.");
+      toast.error(t("wizard.errors.mustLoginShort"));
       track("audio_generate_noauth");
       return;
     }
-    const loadingId = toast.loading("🎙 Generando audio...");
+    const loadingId = toast.loading(t("wizard.audio.generate.loading"));
     audioForm.setLoading(true);
     track("audio_generate_clicked", {
       voiceId: audioForm.voiceId,
@@ -370,7 +400,6 @@ export default function CreateReelWizard({
               speed: clampSpeed(audioForm.speed),
               use_speaker_boost: audioForm.speakerBoost,
             },
-            // nombre del audio en ElevenLabs/Firebase
             name: audioTitle?.trim() || undefined,
             title: audioTitle?.trim() || undefined,
           }),
@@ -381,28 +410,25 @@ export default function CreateReelWizard({
       setAudioUrl(parsed.audioUrl || null);
       setAudioId(parsed.audioId || null);
       setModalType("audio");
-      toast.success("✅ Audio generado correctamente", { id: loadingId });
-      track("audio_generate_succeeded", {
-        audioId: parsed.audioId ? "yes" : "no",
-      });
+      toast.success(t("wizard.audio.generate.success"), { id: loadingId });
+      track("audio_generate_succeeded", { audioId: parsed.audioId ? "yes" : "no" });
     } catch (err: any) {
       console.error(err);
-      toast.error("❌ No se pudo generar el audio.", { id: loadingId });
+      toast.error(t("wizard.audio.generate.error"), { id: loadingId });
       track("audio_generate_failed", { error: String(err?.message || err) });
     } finally {
       audioForm.setLoading(false);
     }
   };
 
-  // Abre mini-diálogo audio con valores actuales
   const openAudioRegenDialog = () => {
     if (!audioId) {
-      toast.error("No hay audio base para regenerar.");
+      toast.error(t("wizard.audio.regen.noBase"));
       track("audio_regenerate_no_base");
       return;
     }
     if (audioRegens >= 2) {
-      toast.error("⚠️ Ya has regenerado el audio 2 veces.");
+      toast.error(t("wizard.audio.regen.limit"));
       track("audio_regenerate_limit_reached");
       return;
     }
@@ -418,11 +444,11 @@ export default function CreateReelWizard({
 
   const doRegenerateAudio = async () => {
     const token = await user?.getIdToken();
-    const loadingId = toast.loading("🔄 Regenerando audio...");
+    const loadingId = toast.loading(t("wizard.audio.regen.loading"));
 
     const clamped = clampSpeed(rSpeed);
     if (clamped !== rSpeed) {
-      toast.message("⚙️ Ajustamos la velocidad a 0.7–1.2 (límite ElevenLabs).");
+      toast.message(t("wizard.audio.regen.adjustSpeed"));
       setRSpeed(clamped);
     }
 
@@ -452,7 +478,6 @@ export default function CreateReelWizard({
       if (!res.ok) throw new Error(parsed.error || "Error regenerando audio");
       setAudioUrl(parsed.audioUrl || null);
 
-      // Reflejar cambios en el form principal
       audioForm.setText(rText);
       audioForm.setVoiceId(rVoiceId);
       audioForm.setStability(rStability);
@@ -462,17 +487,17 @@ export default function CreateReelWizard({
       audioForm.setSpeakerBoost(rSpeakerBoost);
 
       setAudioRegens((c) => c + 1);
-      toast.success("✅ Audio regenerado", { id: loadingId });
+      toast.success(t("wizard.audio.regen.success"), { id: loadingId });
       track("audio_regenerate_succeeded");
     } catch (err: any) {
       console.error(err);
-      toast.error("❌ No se pudo regenerar el audio.", { id: loadingId });
+      toast.error(t("wizard.audio.regen.error"), { id: loadingId });
       track("audio_regenerate_failed", { error: String(err?.message || err) });
     }
   };
 
   const acceptAudio = () => {
-    toast.success("🎧 Audio aceptado. Vamos al paso de vídeo.");
+    toast.success(t("wizard.audio.accepted"));
     track("audio_accepted", { hasAudio: !!audioUrl });
     setModalType("main");
     setStep(3);
@@ -492,10 +517,9 @@ export default function CreateReelWizard({
       if (!res.ok) throw new Error("Error al cargar vídeos de clonación");
       const data = await res.json();
 
-      // 👉 nombres limpios (fecha o #n si no hay título)
       const list = (data || []).map((d: any, i: number) => ({
         id: d.id,
-        name: displayCloneName(d, i),
+        name: displayCloneName(d, i, t),
         url: d.url ?? d.downloadUrl ?? "",
       }));
 
@@ -503,14 +527,18 @@ export default function CreateReelWizard({
       track("clonacion_videos_loaded", { count: list.length });
     } catch (err) {
       console.error(err);
-      toast.error("❌ No se pudieron cargar los vídeos de clonación.");
+      toast.error(t("wizard.video.loadError"));
       track("clonacion_videos_load_failed", { error: String(err) });
     } finally {
       setLoadingVideos(false);
     }
   };
 
-  const steps = ["Guion", "Audio", "Video"];
+  const steps = [
+    t("wizard.steps.script"),
+    t("wizard.steps.audio"),
+    t("wizard.steps.video"),
+  ];
 
   return (
     <div className="w-full max-w-4xl mx-auto rounded-xl shadow p-4 sm:p-6 bg-white dark:bg-neutral-900 transition-colors overflow-y-auto">
@@ -520,7 +548,7 @@ export default function CreateReelWizard({
           const current = i + 1 === step;
           const completed = i + 1 < step;
           return (
-            <div key={label} className="flex items-center flex-1 min-w-[100px]">
+            <div key={`${label}-${i}`} className="flex items-center flex-1 min-w-[100px]">
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
               ${
@@ -553,11 +581,11 @@ export default function CreateReelWizard({
         <>
           <ScriptForm
             description={description}
-            tone={tone}
+            tone={tone}                // <-- KEY o etiqueta (compat)
             platform={platform}
             duration={duration}
             language={language}
-            structure={structure}
+            structure={structure}      // <-- KEY o etiqueta (compat)
             addCTA={addCTA}
             ctaText={ctaText}
             loading={loading}
@@ -566,7 +594,7 @@ export default function CreateReelWizard({
               track("script_description_changed");
             }}
             setTone={(v) => {
-              setTone(v);
+              setTone(v); // Ideal: que ScriptForm envíe la KEY
               track("script_tone_changed", { tone: v });
             }}
             setPlatform={(v) => {
@@ -582,7 +610,7 @@ export default function CreateReelWizard({
               track("script_language_changed", { language: v });
             }}
             setStructure={(v) => {
-              setStructure(v);
+              setStructure(v); // Ideal: que ScriptForm envíe la KEY
               track("script_structure_changed", { structure: v });
             }}
             setAddCTA={(v) => {
@@ -601,7 +629,7 @@ export default function CreateReelWizard({
               disabled
               onClick={() => track("wizard_back_disabled")}
             >
-              Atrás
+              {t("common.back")}
             </Button>
           </div>
         </>
@@ -624,7 +652,7 @@ export default function CreateReelWizard({
                 track("wizard_back_clicked", { to: 1 });
               }}
             >
-              Atrás
+              {t("common.back")}
             </Button>
           </div>
         </>
@@ -635,7 +663,7 @@ export default function CreateReelWizard({
         <>
           {loadingVideos ? (
             <p className="text-gray-600 dark:text-gray-300">
-              Cargando vídeos...
+              {t("wizard.video.loading")}
             </p>
           ) : (
             <CreatePipelineVideoPage
@@ -643,7 +671,7 @@ export default function CreateReelWizard({
               audioUrl={audioUrl!}
               onComplete={() => {
                 track("wizard_completed");
-                toast.success("🎬 Reel enviado al pipeline");
+                toast.success(t("wizard.video.pipelineSuccess"));
                 router.push("/dashboard/edit");
               }}
             />
@@ -656,7 +684,7 @@ export default function CreateReelWizard({
                 track("wizard_back_clicked", { to: 2 });
               }}
             >
-              Atrás
+              {t("common.back")}
             </Button>
           </div>
         </>
@@ -666,7 +694,7 @@ export default function CreateReelWizard({
       {modalType === "script" && (
         <div>
           <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">
-            Guion generado
+            {t("wizard.script.modal.title")}
           </h2>
           <Textarea
             value={script}
@@ -684,7 +712,7 @@ export default function CreateReelWizard({
                 track("script_modal_back");
               }}
             >
-              Atrás
+              {t("common.back")}
             </Button>
             <div className="flex gap-2">
               <Button
@@ -692,9 +720,9 @@ export default function CreateReelWizard({
                 onClick={openScriptRegenDialog}
                 disabled={scriptRegens >= 2}
               >
-                Regenerar ({scriptRegens}/2)
+                {t("common.regenerate")} ({scriptRegens}/2)
               </Button>
-              <Button onClick={acceptScript}>Aceptar guion</Button>
+              <Button onClick={acceptScript}>{t("wizard.script.modal.accept")}</Button>
             </div>
           </div>
         </div>
@@ -704,7 +732,7 @@ export default function CreateReelWizard({
       {modalType === "audio" && (
         <div>
           <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">
-            Audio generado
+            {t("wizard.audio.modal.title")}
           </h2>
           {audioUrl ? (
             <audio
@@ -716,7 +744,7 @@ export default function CreateReelWizard({
             />
           ) : (
             <p className="text-gray-600 dark:text-gray-300">
-              No se ha generado audio.
+              {t("wizard.audio.modal.empty")}
             </p>
           )}
           <div className="flex flex-col sm:flex-row justify-between mt-4 gap-2">
@@ -727,7 +755,7 @@ export default function CreateReelWizard({
                 track("audio_modal_back");
               }}
             >
-              Atrás
+              {t("common.back")}
             </Button>
             <div className="flex gap-2">
               <Button
@@ -735,9 +763,9 @@ export default function CreateReelWizard({
                 onClick={openAudioRegenDialog}
                 disabled={audioRegens >= 2}
               >
-                Regenerar ({audioRegens}/2)
+                {t("common.regenerate")} ({audioRegens}/2)
               </Button>
-              <Button onClick={acceptAudio}>Aceptar audio</Button>
+              <Button onClick={acceptAudio}>{t("wizard.audio.modal.accept")}</Button>
             </div>
           </div>
         </div>
@@ -747,20 +775,22 @@ export default function CreateReelWizard({
       <Dialog open={regenScriptOpen} onOpenChange={setRegenScriptOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Modificar antes de regenerar</DialogTitle>
+            <DialogTitle>{t("wizard.regenScript.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <div className="text-sm font-medium mb-1">Tono</div>
-              <Select value={regenTone} onValueChange={setRegenTone}>
+              <div className="text-sm font-medium mb-1">
+                {t("wizard.regenScript.toneLabel")}
+              </div>
+              <Select value={regenTone} onValueChange={(v) => setRegenTone(v as ToneKey)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona tono" />
+                  <SelectValue placeholder={t("wizard.regenScript.tonePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TONE_OPTIONS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                  {TONE_KEYS.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {toneLabel(key)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -768,15 +798,22 @@ export default function CreateReelWizard({
             </div>
 
             <div>
-              <div className="text-sm font-medium mb-1">Estructura</div>
-              <Select value={regenStructure} onValueChange={setRegenStructure}>
+              <div className="text-sm font-medium mb-1">
+                {t("wizard.regenScript.structureLabel")}
+              </div>
+              <Select
+                value={regenStructure}
+                onValueChange={(v) => setRegenStructure(v as StructureKey)}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona estructura" />
+                  <SelectValue
+                    placeholder={t("wizard.regenScript.structurePlaceholder")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {STRUCTURE_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
+                  {STRUCTURE_KEYS.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {structureLabel(key)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -786,7 +823,7 @@ export default function CreateReelWizard({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegenScriptOpen(false)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={async () => {
@@ -794,7 +831,7 @@ export default function CreateReelWizard({
                 await doRegenerateScript(regenTone, regenStructure);
               }}
             >
-              Aceptar y regenerar
+              {t("common.acceptAndRegenerate")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -804,14 +841,14 @@ export default function CreateReelWizard({
       <Dialog open={regenAudioOpen} onOpenChange={setRegenAudioOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Modificar parámetros antes de regenerar</DialogTitle>
+            <DialogTitle>{t("wizard.regenAudio.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Texto */}
             <div>
               <Label className="text-sm font-medium" htmlFor="r-text">
-                Texto *
+                {t("wizard.regenAudio.textLabel")}
               </Label>
               <Textarea
                 id="r-text"
@@ -825,11 +862,11 @@ export default function CreateReelWizard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium" htmlFor="r-voice">
-                  Voz *
+                  {t("wizard.regenAudio.voiceLabel")}
                 </Label>
                 <Select value={rVoiceId} onValueChange={setRVoiceId}>
                   <SelectTrigger id="r-voice">
-                    <SelectValue placeholder="Selecciona una voz" />
+                    <SelectValue placeholder={t("wizard.regenAudio.voicePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(audioForm.voices || []).map((v: any) => {
@@ -844,11 +881,11 @@ export default function CreateReelWizard({
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Idioma</Label>
+                <Label className="text-sm font-medium">
+                  {t("wizard.regenAudio.languageLabel")}
+                </Label>
                 <div className="mt-2 text-sm text-muted-foreground">
-                  {audioForm.languageCode === "es"
-                    ? "Español"
-                    : audioForm.languageCode?.toUpperCase() || "—"}
+                  {uiLangLabel(audioForm.languageCode)}
                 </div>
               </div>
             </div>
@@ -857,7 +894,7 @@ export default function CreateReelWizard({
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between mb-1">
-                  <Label>Estabilidad</Label>
+                  <Label>{t("wizard.regenAudio.stabilityLabel")}</Label>
                   <span className="text-sm text-muted-foreground">
                     {rStability.toFixed(2)} / 1.00
                   </span>
@@ -873,7 +910,7 @@ export default function CreateReelWizard({
 
               <div>
                 <div className="flex justify-between mb-1">
-                  <Label>Similaridad</Label>
+                  <Label>{t("wizard.regenAudio.similarityLabel")}</Label>
                   <span className="text-sm text-muted-foreground">
                     {rSimilarity.toFixed(2)} / 1.00
                   </span>
@@ -889,7 +926,7 @@ export default function CreateReelWizard({
 
               <div>
                 <div className="flex justify-between mb-1">
-                  <Label>Estilo</Label>
+                  <Label>{t("wizard.regenAudio.styleLabel")}</Label>
                   <span className="text-sm text-muted-foreground">
                     {rStyle.toFixed(2)} / 1.00
                   </span>
@@ -905,7 +942,7 @@ export default function CreateReelWizard({
 
               <div>
                 <div className="flex justify-between mb-1">
-                  <Label>Velocidad</Label>
+                  <Label>{t("wizard.regenAudio.speedLabel")}</Label>
                   <span className="text-sm text-muted-foreground">
                     {rSpeed.toFixed(2)} / 2.00
                   </span>
@@ -918,8 +955,7 @@ export default function CreateReelWizard({
                   onValueChange={([v]) => setRSpeed(v)}
                 />
                 <div className="mt-1 text-xs text-muted-foreground">
-                  ElevenLabs acepta 0.7–1.2. Ajustaremos automáticamente si
-                  sales de ese rango.
+                  {t("wizard.regenAudio.speedHint")}
                 </div>
               </div>
 
@@ -929,30 +965,30 @@ export default function CreateReelWizard({
                   checked={rSpeakerBoost}
                   onCheckedChange={(c) => setRSpeakerBoost(!!c)}
                 />
-                <Label htmlFor="r-sb">Usar Speaker Boost</Label>
+                <Label htmlFor="r-sb">{t("wizard.regenAudio.speakerBoost")}</Label>
               </div>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegenAudioOpen(false)}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={async () => {
                 if (!rText.trim()) {
-                  toast.error("El texto no puede estar vacío");
+                  toast.error(t("wizard.errors.textRequired"));
                   return;
                 }
                 if (!rVoiceId) {
-                  toast.error("Debes seleccionar una voz");
+                  toast.error(t("wizard.errors.voiceRequired"));
                   return;
                 }
                 setRegenAudioOpen(false);
                 await doRegenerateAudio();
               }}
             >
-              Aceptar y regenerar
+              {t("common.acceptAndRegenerate")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -963,7 +999,7 @@ export default function CreateReelWizard({
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+        message={t("dashboard.checkout.voiceCloneMessage")}
       />
     </div>
   );

@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { validateFileSize } from "@/lib/fileLimits";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -19,7 +20,7 @@ interface Props {
   handleUpload: (file: File) => Promise<void>;
   uploading: boolean;
   progress: number;
-   children?: React.ReactNode   // 👈 añadir
+  children?: React.ReactNode;
 }
 
 export default function UploadClonacionVideoDialog({
@@ -29,6 +30,8 @@ export default function UploadClonacionVideoDialog({
   uploading,
   progress,
 }: Props) {
+  const t = useT();
+
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -44,13 +47,15 @@ export default function UploadClonacionVideoDialog({
       setFileName(null);
       setValidAspect(false);
       setValidSize(false);
+      setAnalyzing(false);
     }
   }, [open]);
 
   // Validar archivo
   const validateFile = async (f: File) => {
     setAnalyzing(true);
-    const sizeOK = validateFileSize(f, 300).ok;
+    const MAX_MB = 300;
+    const sizeOK = validateFileSize(f, MAX_MB).ok;
     setValidSize(sizeOK);
 
     // validar aspecto
@@ -94,10 +99,10 @@ export default function UploadClonacionVideoDialog({
     if (!file || !validAspect || !validSize) return;
     try {
       await handleUpload(file);
-      toast.success("✅ Vídeo subido correctamente");
+      toast.success(t("video.uploadDialog.uploadedToast"));
       onOpenChange(false);
     } catch {
-      toast.error("❌ Error al subir el vídeo");
+      toast.error(t("video.uploadDialog.uploadErrorToast"));
     }
   };
 
@@ -107,7 +112,7 @@ export default function UploadClonacionVideoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full">
         <DialogHeader>
-          <DialogTitle>Subir vídeo de clonación</DialogTitle>
+          <DialogTitle>{t("video.uploadDialog.title")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -123,9 +128,10 @@ export default function UploadClonacionVideoDialog({
               className="w-full h-full object-cover"
             />
           </div>
+
           {/* Requisitos */}
           <div className="space-y-2 text-sm">
-            <p className="font-medium">Requisitos del vídeo:</p>
+            <p className="font-medium">{t("video.uploadDialog.requirementsTitle")}</p>
             <ul className="space-y-1">
               <li className="flex items-center gap-2">
                 <CheckCircle2
@@ -133,7 +139,7 @@ export default function UploadClonacionVideoDialog({
                     validAspect ? "text-green-500" : "text-muted-foreground"
                   }`}
                 />
-                Formato vertical (9:16)
+                {t("video.uploadDialog.requirements.aspect")}
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2
@@ -141,15 +147,15 @@ export default function UploadClonacionVideoDialog({
                     validSize ? "text-green-500" : "text-muted-foreground"
                   }`}
                 />
-                Máximo 300MB
+                {t("video.uploadDialog.requirements.size", { mb: 300 })}
               </li>
               <li className="flex items-center gap-2 text-muted-foreground">
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
-                Fondo liso y buena iluminación
+                {t("video.uploadDialog.requirements.background")}
               </li>
               <li className="flex items-center gap-2 text-muted-foreground">
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
-                Hablar de frente y con claridad
+                {t("video.uploadDialog.requirements.clarity")}
               </li>
             </ul>
           </div>
@@ -164,7 +170,7 @@ export default function UploadClonacionVideoDialog({
             >
               <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
               <span className="text-sm font-medium">
-                Arrastra tu vídeo aquí o haz click para seleccionarlo
+                {t("video.uploadDialog.dropHint")}
               </span>
               <input
                 type="file"
@@ -182,9 +188,12 @@ export default function UploadClonacionVideoDialog({
             <div className="rounded-lg border overflow-hidden">
               <div className="relative">
                 {analyzing && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                  <div
+                    className="absolute inset-0 flex items-center justify-center bg-black/50 text-white"
+                    aria-live="polite"
+                  >
                     <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                    Analizando vídeo...
+                    {t("video.uploadDialog.analyzing")}
                   </div>
                 )}
                 <video
@@ -207,7 +216,7 @@ export default function UploadClonacionVideoDialog({
                   }}
                   disabled={uploading}
                 >
-                  Reemplazar
+                  {t("video.uploadDialog.replace")}
                 </Button>
               </div>
             </div>
@@ -223,20 +232,20 @@ export default function UploadClonacionVideoDialog({
               {uploading ? (
                 <>
                   <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                  Subiendo...
+                  {t("video.uploadDialog.uploading")}
                 </>
               ) : (
-                "Subir"
+                t("video.uploadDialog.upload")
               )}
             </Button>
           )}
 
           {/* Progreso */}
           {uploading && (
-            <div>
+            <div aria-live="polite">
               <Progress value={progress} className="w-full" />
               <p className="text-xs mt-1 text-muted-foreground text-center">
-                {progress}% subido
+                {t("video.uploadDialog.progress", { value: progress })}
               </p>
             </div>
           )}

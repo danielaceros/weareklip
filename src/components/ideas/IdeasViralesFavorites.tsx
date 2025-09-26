@@ -1,6 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
+import { useT } from "@/lib/i18n";
 import { Heart, X } from "lucide-react";
 import Image from "next/image";
 import { ShortVideo } from "./IdeasViralesList";
@@ -25,9 +26,11 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
   favorites,
   onToggleFavorite,
 }) => {
+  const t = useT();
   const [page, setPage] = useState(1);
 
-  const itemsPerPage = typeof window !== "undefined" && window.innerWidth < 640 ? 2 : 3;
+  const itemsPerPage =
+    typeof window !== "undefined" && window.innerWidth < 640 ? 2 : 3;
   const totalPages = Math.ceil(favorites.length / itemsPerPage);
 
   const currentFavorites = favorites.slice(
@@ -43,7 +46,14 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
       if (page <= 3) {
         pages.push(1, 2, 3, 4, "…", totalPages);
       } else if (page >= totalPages - 2) {
-        pages.push(1, "…", totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        pages.push(
+          1,
+          "…",
+          totalPages - 3,
+          totalPages - 2,
+          totalPages - 1,
+          totalPages
+        );
       } else {
         pages.push(1, "…", page - 1, page, page + 1, "…", totalPages);
       }
@@ -57,13 +67,15 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Heart className="text-red-500 w-5 h-5" />
-          Favoritos
+          {t("ideas.favorites.title")}
         </h2>
       </div>
 
       {/* Lista */}
       {favorites.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No tienes vídeos guardados</p>
+        <p className="text-sm text-muted-foreground">
+          {t("ideas.favorites.empty")}
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -82,8 +94,12 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
                 </div>
 
                 <CardContent className="p-3 flex-1">
-                  <h4 className="text-sm font-medium line-clamp-2">{video.title}</h4>
-                  <p className="text-xs text-muted-foreground">{video.channel}</p>
+                  <h4 className="text-sm font-medium line-clamp-2">
+                    {video.title}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    {video.channel}
+                  </p>
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between gap-2 p-3 pt-0">
@@ -94,13 +110,14 @@ export const IdeasViralesFavorites: FC<IdeasViralesFavoritesProps> = ({
                     className="h-8 px-3 text-xs w-full sm:w-auto"
                   >
                     <a href={video.url} target="_blank" rel="noopener noreferrer">
-                      Ver
+                      {t("viralIdeasPage.viewOnYoutube")}
                     </a>
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onToggleFavorite(video)}
+                    aria-label={t("ideas.list.removeFavorite")}
                     className="h-8 w-8 text-muted-foreground hover:text-red-500"
                   >
                     <X className="w-4 h-4" />

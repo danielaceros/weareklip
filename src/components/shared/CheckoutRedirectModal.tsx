@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getAuth } from "firebase/auth";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -14,17 +15,18 @@ interface Props {
 
 export default function CheckoutRedirectModal({ open, onClose, plan, message }: Props) {
   const [loading, setLoading] = useState(false);
+  const t = useT();
 
   const startCheckout = async () => {
     try {
       setLoading(true);
       const user = getAuth().currentUser;
-      if (!user) throw new Error("Debes iniciar sesión primero");
+      if (!user) throw new Error(t("billing.checkoutModal.errors.mustLogin"));
 
       const idToken = await user.getIdToken();
       const email = user.email ?? undefined;
 
-      const nextPath = window.location.pathname + window.location.search; 
+      const nextPath = window.location.pathname + window.location.search;
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: {
@@ -35,13 +37,13 @@ export default function CheckoutRedirectModal({ open, onClose, plan, message }: 
       });
 
       const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || "Error en checkout");
+      if (!res.ok || !data.url) throw new Error(data.error || t("billing.checkoutModal.errors.checkout"));
 
       if (typeof window !== "undefined" && typeof window.fbq === "function") {
         window.fbq("track", "StartTrial", {
-          value: 0.00,
-          currency: "EUR",      // cámbialo a "EUR" si prefieres
-          predicted_ltv: 29.99, // valor estimado tras la prueba
+          value: 0.0,
+          currency: "EUR",
+          predicted_ltv: 29.99,
           plan,
           email,
         });
@@ -65,17 +67,17 @@ export default function CheckoutRedirectModal({ open, onClose, plan, message }: 
           </div>
         )}
 
-        <h2 className="text-lg font-bold mb-2">Empieza tu prueba gratuita 🎉</h2>
+        <h2 className="text-lg font-bold mb-2">{t("billing.checkoutModal.title")}</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Para usar esta función necesitas una suscripción activa.
+          {t("billing.checkoutModal.description")}
         </p>
 
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancelar
+            {t("billing.checkoutModal.cancel")}
           </Button>
           <Button onClick={startCheckout} disabled={loading}>
-            {loading ? "Redirigiendo..." : "Continuar"}
+            {loading ? t("billing.checkoutModal.redirecting") : t("billing.checkoutModal.continue")}
           </Button>
         </div>
       </DialogContent>

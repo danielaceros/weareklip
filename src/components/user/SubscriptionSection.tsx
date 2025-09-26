@@ -1,3 +1,4 @@
+// src/components/billing/SubscriptionSection.tsx
 "use client";
 
 import { Card } from "@/components/ui/card";
@@ -42,24 +43,24 @@ export default function SubscriptionSection({
   const renderStatusLabel = (status: string) => {
     switch (status) {
       case "active":
-        return t("subscription.status.active");
+        return t("billing.status.active");
       case "trialing":
-        return t("subscription.status.trialing");
+        return t("billing.status.trialing");
       case "incomplete":
-        return t("subscription.status.incomplete");
+        return t("billing.status.incomplete");
       case "canceled":
-        return t("subscription.status.canceled");
+        return t("billing.status.canceled");
       case "no_active":
-        return t("subscription.status.none");
+        return t("billing.status.none");
       default:
-        return t("subscription.status.unknown");
+        return t("common.unknown");
     }
   };
 
   return (
     <Card className="p-6 shadow-sm bg-card text-card-foreground">
       <h2 className="text-xl font-semibold mb-4">
-        {t("subscription.sectionTitle")}
+        {t("billing.title")}
       </h2>
 
       {loadingSub && (
@@ -75,7 +76,7 @@ export default function SubscriptionSection({
           {/* Estado */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {t("subscription.labels.status")}
+              {t("billing.summary.status")}
             </span>
             <Badge className={getStatusStyle(sub.status)}>
               {renderStatusLabel(sub.status)}
@@ -84,14 +85,14 @@ export default function SubscriptionSection({
 
           {/* Plan */}
           <p className="text-sm">
-            <span className="font-medium">{t("subscription.labels.plan")}: </span>
-            {sub.plan || t("subscription.labels.unknown")}
+            <span className="font-medium">{t("billing.summary.plan")}: </span>
+            {sub.plan || t("billing.summary.unknown")}
           </p>
 
           {/* Renovación */}
           <p className="text-sm">
-            <span className="font-medium">{t("subscription.labels.renewal")}: </span>
-            {sub.renovacion || t("subscription.labels.unknown")}
+            <span className="font-medium">{t("billing.summary.renewal")}: </span>
+            {sub.renovacion || t("billing.summary.unknown")}
           </p>
 
           {/* Portal de Stripe */}
@@ -106,7 +107,7 @@ export default function SubscriptionSection({
                 )
               }
             >
-              {t("subscription.actions.manage")}
+              {t("billing.actions.manage")}
             </Button>
           </div>
         </div>

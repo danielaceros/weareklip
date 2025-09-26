@@ -1,3 +1,4 @@
+// src/components/user/UserPanel.tsx
 "use client";
 
 import { useState, useRef, ChangeEvent } from "react";
@@ -26,14 +27,14 @@ export default function UserPanel() {
     <div className="p-6 max-w-6xl mx-auto space-y-10">
       {/* Encabezado */}
       <header className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">{userPanel.t("title")}</h1>
+        <h1 className="text-3xl font-bold">{userPanel.t("userPanel.title")}</h1>
         <p className="text-muted-foreground text-sm">
-          {userPanel.t("subtitle")}
+          {userPanel.t("userPanel.subtitle")}
         </p>
       </header>
 
       {/* Perfil */}
-      <section aria-label={userPanel.t("profile.sectionTitle")}>
+      <section aria-label={userPanel.t("settings.profile")}>
         <UserProfileSection
           t={userPanel.t}
           name={name}
@@ -53,7 +54,7 @@ export default function UserPanel() {
       </section>
 
       {/* Suscripción */}
-      <section aria-label={userPanel.t("subscription.sectionTitle")}>
+      <section aria-label={userPanel.t("billing.title")}>
         <SubscriptionSection
           t={userPanel.t}
           loadingSub={userPanel.loadingSub}

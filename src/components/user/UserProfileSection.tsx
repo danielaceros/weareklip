@@ -1,3 +1,4 @@
+// src/components/user/UserProfileSection.tsx
 "use client";
 
 import { useEffect, useRef, useState, ChangeEvent, RefObject } from "react";
@@ -29,7 +30,6 @@ export interface UserProfileSectionProps {
   setPhone?: (value: string) => void;
   userData?: { email?: string } | null;
   uploadingPhoto?: boolean;
-  // 👇 ajuste de tipo: ref nullable
   fileInputRef?: RefObject<HTMLInputElement | null>;
   handlePhotoClick?: () => void;
   handlePhotoChange?: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -166,7 +166,7 @@ export default function UserProfileSection({
   return (
     <Card className="p-6 bg-card text-card-foreground shadow-sm space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">{t("profile.sectionTitle")}</h2>
+        <h2 className="text-xl font-semibold">{t("settings.profile")}</h2>
         <p className="text-sm text-muted-foreground">{t("profile.sectionSubtitle")}</p>
       </div>
 
@@ -183,7 +183,7 @@ export default function UserProfileSection({
           onClick={handlePhotoClick}
         >
           {photoURL ? (
-            <Image src={photoURL} alt="Profile photo" fill className="object-cover" sizes="112px" />
+            <Image src={photoURL} alt={t("settings.photo.alt")} fill className="object-cover" sizes="112px" />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-muted text-muted-foreground text-4xl font-bold">
               {name ? name[0].toUpperCase() : "?"}
@@ -191,7 +191,7 @@ export default function UserProfileSection({
           )}
 
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm">
-            {t("profile.actions.changePhoto")}
+            {t("settings.photo.change")}
           </div>
         </div>
 
@@ -211,53 +211,53 @@ export default function UserProfileSection({
         {/* Formulario */}
         <div className="flex-1 space-y-4">
           <div>
-            <Label htmlFor="name">{t("profile.labels.name")}</Label>
+            <Label htmlFor="name">{t("settings.name")}</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName?.(e.target.value)}
-              placeholder={t("profile.placeholders.name")}
+              placeholder={t("settings.placeholders.name")}
               className="mt-1"
             />
           </div>
 
           <div>
-            <Label htmlFor="instagramUser">{t("profile.labels.instagramUser")}</Label>
+            <Label htmlFor="instagramUser">{t("settings.labels.instagramUser")}</Label>
             <Input
               id="instagramUser"
               value={instagramUser}
               onChange={handleInstagramUserChange}
-              placeholder={t("profile.placeholders.instagramUser")}
+              placeholder={t("settings.placeholders.instagramUser")}
               className="mt-1"
             />
           </div>
 
           <div>
-            <Label htmlFor="phone">{t("profile.labels.phone")}</Label>
+            <Label htmlFor="phone">{t("settings.labels.phone")}</Label>
             <Input
               id="phone"
               value={phone}
               onChange={(e) => setPhone?.(e.target.value)}
-              placeholder={t("profile.placeholders.phone")}
+              placeholder={t("settings.placeholders.phone")}
               className="mt-1"
             />
           </div>
 
           <div>
-            <Label>{t("profile.labels.emailReadonly")}</Label>
+            <Label>{t("settings.labels.emailReadonly")}</Label>
             <Input value={userData?.email ?? ""} disabled className="mt-1" />
           </div>
 
           <div className="mt-4 flex items-center gap-3">
             <Button onClick={onSave} disabled={uploadingPhoto} className="flex items-center gap-2">
               <Save className="w-4 h-4" />
-              {uploadingPhoto ? t("profile.actions.savingPhoto") : t("profile.actions.save")}
+              {uploadingPhoto ? t("settings.photo.uploading") : t("settings.save")}
             </Button>
 
             {justSaved && (
               <span className="inline-flex items-center gap-1 text-sm text-green-500">
                 <CheckCircle2 className="w-4 h-4" />
-                {t("profile.actions.saved") || "Guardado"}
+                {t("settings.savedProfile")}
               </span>
             )}
           </div>
@@ -268,7 +268,7 @@ export default function UserProfileSection({
       <Dialog open={cropOpen} onOpenChange={setCropOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>{t("profile.crop.title") || "Recortar foto"}</DialogTitle>
+            <DialogTitle>{t("settings.photo.cropTitle")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -284,7 +284,7 @@ export default function UserProfileSection({
               {imgSrc && (
                 <img
                   src={imgSrc}
-                  alt="To crop"
+                  alt={t("settings.photo.alt")}
                   onLoad={onImgLoaded}
                   style={{
                     position: "absolute",
@@ -303,18 +303,25 @@ export default function UserProfileSection({
 
             <div className="px-1">
               <Label className="text-xs text-muted-foreground">
-                {t("profile.crop.zoom") || "Zoom"}
+                {t("settings.photo.zoom")}
               </Label>
-              <Slider className="mt-2" min={0.5} max={2} step={0.01} value={[zoom]} onValueChange={(v) => setZoom(v[0] ?? 1)} />
+              <Slider
+                className="mt-2"
+                min={0.5}
+                max={2}
+                step={0.01}
+                value={[zoom]}
+                onValueChange={(v) => setZoom(v[0] ?? 1)}
+              />
             </div>
           </div>
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setCropOpen(false)} disabled={uploadingPhoto}>
-              {t("common.cancel") || "Cancelar"}
+              {t("common.cancel")}
             </Button>
             <Button onClick={doCropAndUpload} disabled={uploadingPhoto}>
-              {t("profile.crop.confirm") || "Recortar y subir"}
+              {t("settings.photo.cropConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -8,8 +8,10 @@ import NotificationFloatingPanel from "@/components/shared/NotificationFloatingP
 import ChatbotPanel from "@/components/shared/ChatbotPanel";
 import { usePushInbox } from "@/lib/pushInbox";
 import { AnimatePresence, motion } from "framer-motion";
+import { useT } from "@/lib/i18n";
 
 export default function CreateReelGlobalButton() {
+  const t = useT();
   const [openNotif, setOpenNotif] = useState(false);
   const [openChat, setOpenChat] = useState(false);
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
@@ -17,11 +19,7 @@ export default function CreateReelGlobalButton() {
   const { unread } = usePushInbox();
 
   const redirectToSupport = () => {
-    // Redirigir a la URL de Notion
-    window.open(
-      "https://wa.me/34694224731",
-      "_blank"
-    );
+    window.open("https://wa.me/34694224731", "_blank");
   };
 
   return (
@@ -101,7 +99,7 @@ export default function CreateReelGlobalButton() {
                   className="rounded-lg bg-white text-black hover:bg-neutral-100 shadow px-4 py-2 flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
-                  Crear Reel
+                  {t("reel.globalButton.create")}
                 </Button>
               </motion.div>
             )}
@@ -128,7 +126,7 @@ export default function CreateReelGlobalButton() {
           className="rounded-lg bg-white text-black hover:bg-neutral-100 shadow px-4 py-2 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Crear reel
+          {t("reel.globalButton.create")}
         </Button>
 
         {/* Botón Notificaciones */}

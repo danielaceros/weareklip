@@ -3,19 +3,19 @@
 import { useEffect, useState, useRef } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import useSubscriptionGate from "@/hooks/useSubscriptionGate";
 import { Card } from "@/components/ui/card";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
+import { useT } from "@/lib/i18n";
 
 type AudioItem = { id: string; audioUrl: string; name?: string };
 type VideoItem = { id: string; url: string; name?: string };
 
 const PAGE_SIZE = 1;
-const MAX_SEC = 60; // ⏱️ límite duro
+const MAX_SEC = 60;
 
 export interface VideoData {
   projectId: string;
@@ -24,8 +24,6 @@ export interface VideoData {
   downloadUrl?: string;
   duration?: number;
 }
-
-// ✅ Usamos este extendido para el flujo optimista
 export type OptimisticVideoData = VideoData & { _rollback?: boolean };
 
 // Helpers para leer duración desde URL remota
@@ -35,8 +33,7 @@ const getAudioDurationFromUrl = (url: string) =>
     a.preload = "metadata";
     a.src = url;
     a.onloadedmetadata = () => resolve(a.duration || 0);
-    a.onerror = () =>
-      reject(new Error("No se pudo leer la duración del audio"));
+    a.onerror = () => reject(new Error("audio"));
   });
 
 const getVideoDurationFromUrl = (url: string) =>
@@ -45,8 +42,7 @@ const getVideoDurationFromUrl = (url: string) =>
     v.preload = "metadata";
     v.src = url;
     v.onloadedmetadata = () => resolve(v.duration || 0);
-    v.onerror = () =>
-      reject(new Error("No se pudo leer la duración del vídeo"));
+    v.onerror = () => reject(new Error("video"));
   });
 
 interface Props {
@@ -55,6 +51,8 @@ interface Props {
 }
 
 export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
+  const t = useT();
+
   const [user, setUser] = useState<User | null>(null);
   const [audios, setAudios] = useState<AudioItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -70,15 +68,11 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
 
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const [showCheckout, setShowCheckout] = useState(false); // 👈 modal
+  const [showCheckout, setShowCheckout] = useState(false);
 
-  const router = useRouter();
   const { ensureSubscribed } = useSubscriptionGate();
 
-  // 🔘 botón de cierre oculto (DialogClose)
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-
-  // ⏱️ estados de duración de lo seleccionado (cache simple)
+  // ⏱️ cache simple de duración
   const [audioSec, setAudioSec] = useState<number | null>(null);
   const [videoSec, setVideoSec] = useState<number | null>(null);
 
@@ -93,22 +87,18 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   useEffect(() => {
     if (videos.length > 0) {
       const current = videos[videoPage * PAGE_SIZE];
-      if (current && current.id !== selectedVideoId) {
-        setSelectedVideoId(current.id);
-      }
+      if (current && current.id !== selectedVideoId) setSelectedVideoId(current.id);
     }
   }, [videoPage, videos, selectedVideoId]);
 
   useEffect(() => {
     if (audios.length > 0) {
       const current = audios[audioPage * PAGE_SIZE];
-      if (current && current.id !== selectedAudioId) {
-        setSelectedAudioId(current.id);
-      }
+      if (current && current.id !== selectedAudioId) setSelectedAudioId(current.id);
     }
   }, [audioPage, audios, selectedAudioId]);
 
-  // ⏱️ medir duración cuando cambia el audio seleccionado
+  // medir duración audio seleccionado
   useEffect(() => {
     const a = audios.find((x) => x.id === selectedAudioId);
     if (!a?.audioUrl) {
@@ -122,7 +112,10 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
           setAudioSec(sec || 0);
           if (sec > MAX_SEC) {
             toast.error(
-              `⏱️ El audio dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+              t("lipsyncCreate.toasts.durationAudioExceeded", {
+                sec: Math.round(sec),
+                max: MAX_SEC,
+              })
             );
           }
         }
@@ -133,9 +126,9 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedAudioId, audios]);
+  }, [selectedAudioId, audios, t]);
 
-  // ⏱️ medir duración cuando cambia el vídeo seleccionado
+  // medir duración vídeo seleccionado
   useEffect(() => {
     const v = videos.find((x) => x.id === selectedVideoId);
     if (!v?.url) {
@@ -149,7 +142,10 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
           setVideoSec(sec || 0);
           if (sec > MAX_SEC) {
             toast.error(
-              `⏱️ El vídeo dura ${Math.round(sec)}s y el máximo es ${MAX_SEC}s.`
+              t("lipsyncCreate.toasts.durationVideoExceeded", {
+                sec: Math.round(sec),
+                max: MAX_SEC,
+              })
             );
           }
         }
@@ -160,38 +156,35 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedVideoId, videos]);
+  }, [selectedVideoId, videos, t]);
 
   async function loadMedia(uid: string) {
     try {
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error("No autenticado");
+      if (!currentUser) throw new Error("auth");
 
       const idToken = await currentUser.getIdToken();
 
-      // 🔹 Fetch audios
       const resAudios = await fetch(`/api/firebase/users/${uid}/audios`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!resAudios.ok) throw new Error("Error cargando audios");
-      const audios: any[] = await resAudios.json();
+      if (!resAudios.ok) throw new Error("audios");
+      const auds: any[] = await resAudios.json();
 
-      // 🔹 Fetch clones
       const resClones = await fetch(`/api/firebase/users/${uid}/clones`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!resClones.ok) throw new Error("Error cargando vídeos");
+      if (!resClones.ok) throw new Error("videos");
       const clones: any[] = await resClones.json();
 
       setAudios(
-        audios.map((a) => ({
+        auds.map((a) => ({
           id: a.id,
           audioUrl: a.audioUrl ?? "",
           name: a.name || a.id,
         })) as AudioItem[]
       );
-
       setVideos(
         clones.map((v) => ({
           id: v.id,
@@ -199,135 +192,140 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
           name: v.titulo || v.id,
         })) as VideoItem[]
       );
-    } catch (err) {
-      console.error("loadMedia error:", err);
-      toast.error("Error cargando audios/vídeos");
+    } catch {
+      toast.error(t("lipsyncCreate.toasts.loadMediaError"));
     }
   }
 
   async function handleGenerate() {
-  flushSync(() => setProcessing(true));
+    flushSync(() => setProcessing(true));
 
-  const ok = await ensureSubscribed({ feature: "lipsync" }); // 👈 check paywall
-  if (!ok) {
-    setProcessing(false);
-    setShowCheckout(true);
-    return;
-  }
+    const ok = await ensureSubscribed({ feature: "lipsync" });
+    if (!ok) {
+      setProcessing(false);
+      setShowCheckout(true);
+      return;
+    }
 
-  if (!user) {
-    toast.error("Debes iniciar sesión.");
-    setProcessing(false);
-    return;
-  }
+    if (!user) {
+      toast.error(t("lipsyncCreate.errors.auth"));
+      setProcessing(false);
+      return;
+    }
 
-  const audio = audios.find((a) => a.id === selectedAudioId);
-  const video = videos.find((v) => v.id === selectedVideoId);
+    const audio = audios.find((a) => a.id === selectedAudioId);
+    const video = videos.find((v) => v.id === selectedVideoId);
 
-  if (!audio?.audioUrl) {
-    toast.error("Debes seleccionar un audio válido.");
-    setProcessing(false);
-    return;
-  }
-  if (!video?.url) {
-    toast.error("Debes seleccionar un vídeo válido.");
-    setProcessing(false);
-    return;
-  }
-  if (!title.trim()) {
-    toast.error("Debes escribir un título para el vídeo.");
-    setProcessing(false);
-    return;
-  }
+    if (!audio?.audioUrl) {
+      toast.error(t("lipsyncCreate.errors.selectAudio"));
+      setProcessing(false);
+      return;
+    }
+    if (!video?.url) {
+      toast.error(t("lipsyncCreate.errors.selectVideo"));
+      setProcessing(false);
+      return;
+    }
+    if (!title.trim()) {
+      toast.error(t("lipsyncCreate.errors.title"));
+      setProcessing(false);
+      return;
+    }
 
-  // ⏱️ Validación dura de duración
-  try {
-    const aSec =
-      audioSec ??
-      (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
-    const vSec =
-      videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
+    // Validaciones de duración
+    try {
+      const aSec =
+        audioSec ?? (await getAudioDurationFromUrl(audio.audioUrl).catch(() => 0));
+      const vSec = videoSec ?? (await getVideoDurationFromUrl(video.url).catch(() => 0));
 
-    if (!aSec) throw new Error("No se pudo leer la duración del audio.");
-    if (!vSec) throw new Error("No se pudo leer la duración del vídeo.");
-    if (aSec > MAX_SEC)
-      throw new Error(
-        `⏱️ El audio dura ${Math.round(aSec)}s y el máximo es ${MAX_SEC}s.`
-      );
-    if (vSec > MAX_SEC)
-      throw new Error(
-        `⏱️ El vídeo dura ${Math.round(vSec)}s y el máximo es ${MAX_SEC}s.`
-      );
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : "Validación fallida");
-    setProcessing(false);
-    return;
-  }
+      if (!aSec) throw new Error("readAudio");
+      if (!vSec) throw new Error("readVideo");
+      if (aSec > MAX_SEC)
+        throw new Error(
+          t("lipsyncCreate.errors.audioDuration", { sec: Math.round(aSec), max: MAX_SEC })
+        );
+      if (vSec > MAX_SEC)
+        throw new Error(
+          t("lipsyncCreate.errors.videoDuration", { sec: Math.round(vSec), max: MAX_SEC })
+        );
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message === "readAudio"
+            ? t("lipsyncCreate.errors.readAudioDuration")
+            : err.message === "readVideo"
+            ? t("lipsyncCreate.errors.readVideoDuration")
+            : err.message
+          : t("lipsyncCreate.errors.validation");
+      toast.error(msg);
+      setProcessing(false);
+      return;
+    }
 
-  // ⚡ Optimistic UI: placeholder
-  const optimisticId = `optimistic-${Date.now()}`;
-      onCreated?.({
-      projectId: "temp-" + Date.now(),
+    // ⚡ Optimistic placeholder (se revertirá desde onCreated con _rollback)
+    onCreated?.({
+      projectId: `temp-${Date.now()}`,
       title: "Temporal",
       status: "processing",
-      downloadUrl: "", 
+      downloadUrl: "",
       _rollback: true,
     });
 
-  toast.info(
-    `Generando vídeo: "${title}" con audio "${audio.name}" y vídeo "${video.name}"`
-  );
-
-  setLoading(true);
-  try {
-    const token = await user.getIdToken();
-    const res = await fetch("/api/sync/create", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        audioUrl: audio.audioUrl,
-        videoUrl: video.url,
+    toast.info(
+      t("lipsyncCreate.toasts.creating", {
         title,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error creando vídeo");
-
-    toast.success("✅ Vídeo en proceso. Te avisaremos cuando esté listo.");
-
-    // 1️⃣ cerrar modal secundario
-    onClose?.();
-
-    // 2️⃣ actualizar/reemplazar el placeholder
-    onCreated?.({
-      projectId: data.id,
-      title: data.title || title,
-      status: "processing",
-      downloadUrl: data.downloadUrl,
-    } as any);
-  } catch (err) {
-    console.error(err);
-    toast.error(
-      err instanceof Error ? err.message : "No se pudo crear el lipsync"
+        audio: audio.name ?? audio.id,
+        video: video.name ?? video.id,
+      })
     );
-    // ❌ revertir optimista
-    onCreated?.({ projectId: optimisticId, _rollback: true } as any);
-  } finally {
-    setLoading(false);
-    setProcessing(false);
+
+    setLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/sync/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          audioUrl: audio.audioUrl,
+          videoUrl: video.url,
+          title,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "create");
+
+      toast.success(t("lipsyncCreate.toasts.created"));
+
+      onClose?.(); // cerrar modal
+      onCreated?.({
+        projectId: data.id,
+        title: data.title || title,
+        status: "processing",
+        downloadUrl: data.downloadUrl,
+      } as any);
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message !== "create"
+          ? err.message
+          : t("lipsyncCreate.toasts.createError")
+      );
+      onCreated?.({ projectId: "rollback", _rollback: true } as any);
+    } finally {
+      setLoading(false);
+      setProcessing(false);
+    }
   }
-}
 
   const isLoading = processing || loading;
   const buttonText = processing
-    ? "Procesando..."
+    ? t("lipsyncCreate.buttons.processing")
     : loading
-    ? "Generando..."
-    : "Generar video";
+    ? t("lipsyncCreate.buttons.generating")
+    : t("lipsyncCreate.buttons.generate");
 
   const togglePlay = (id: string) => {
     const current = audioRefs.current[id];
@@ -357,18 +355,16 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
   return (
     <>
       <div className="w-full max-w-6xl mx-auto rounded-2xl space-y-8 p-4 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-bold">Videos clonados</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">{t("lipsyncCreate.title")}</h2>
 
-        {/* Carrusel de videos */}
+        {/* Carrusel de vídeos */}
         <div className="relative">
           <div className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/30 rounded-lg justify-center">
             {paginatedVideos.map((v) => (
               <Card
                 key={v.id}
                 className={`flex-shrink-0 w-32 h-48 sm:w-40 sm:h-60 rounded-lg cursor-pointer border-2 ${
-                  selectedVideoId === v.id
-                    ? "border-primary"
-                    : "border-transparent"
+                  selectedVideoId === v.id ? "border-primary" : "border-transparent"
                 }`}
                 onClick={() => setSelectedVideoId(v.id)}
               >
@@ -380,7 +376,8 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
               </Card>
             ))}
           </div>
-          {/* Botones navegación video */}
+
+          {/* Navegación vídeos */}
           <div className="absolute inset-y-0 left-0 flex items-center">
             <Button
               size="icon"
@@ -398,9 +395,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
               variant="ghost"
               className="bg-background/70 sm:bg-transparent"
               onClick={() =>
-                setVideoPage((p) =>
-                  (p + 1) * PAGE_SIZE < videos.length ? p + 1 : p
-                )
+                setVideoPage((p) => ((p + 1) * PAGE_SIZE < videos.length ? p + 1 : p))
               }
               disabled={(videoPage + 1) * PAGE_SIZE >= videos.length}
             >
@@ -416,9 +411,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
               <Card
                 key={a.id}
                 className={`flex-shrink-0 w-36 sm:w-48 p-3 rounded-lg cursor-pointer border-2 ${
-                  selectedAudioId === a.id
-                    ? "border-primary"
-                    : "border-transparent"
+                  selectedAudioId === a.id ? "border-primary" : "border-transparent"
                 }`}
                 onClick={() => a.audioUrl && setSelectedAudioId(a.id)}
               >
@@ -435,11 +428,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
                         }}
                         className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border hover:bg-muted"
                       >
-                        {playing === a.id ? (
-                          <Pause className="w-4 h-4" />
-                        ) : (
-                          <Play className="w-4 h-4" />
-                        )}
+                        {playing === a.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       </button>
                       <audio
                         ref={(el) => {
@@ -447,21 +436,20 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
                         }}
                         src={a.audioUrl || undefined}
                         onEnded={() => setPlaying(null)}
-                        onPause={() =>
-                          setPlaying((prev) => (prev === a.id ? null : prev))
-                        }
+                        onPause={() => setPlaying((prev) => (prev === a.id ? null : prev))}
                       />
                     </>
                   ) : (
                     <div className="text-xs text-muted-foreground">
-                      Sin audio
+                      {t("lipsyncCreate.carousel.noAudio")}
                     </div>
                   )}
                 </div>
               </Card>
             ))}
           </div>
-          {/* Botones navegación audio */}
+
+          {/* Navegación audios */}
           <div className="absolute inset-y-0 left-0 flex items-center">
             <Button
               size="icon"
@@ -479,9 +467,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
               variant="ghost"
               className="bg-background/70 sm:bg-transparent"
               onClick={() =>
-                setAudioPage((p) =>
-                  (p + 1) * PAGE_SIZE < audios.length ? p + 1 : p
-                )
+                setAudioPage((p) => ((p + 1) * PAGE_SIZE < audios.length ? p + 1 : p))
               }
               disabled={(audioPage + 1) * PAGE_SIZE >= audios.length}
             >
@@ -496,7 +482,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título del video"
+            placeholder={t("lipsyncCreate.placeholders.title")}
             className="flex-1 px-3 py-2 sm:px-4 sm:py-2 rounded-lg border border-border bg-background text-sm sm:text-base"
           />
           <Button
@@ -515,7 +501,7 @@ export default function LipsyncCreatePage({ onClose, onCreated }: Props) {
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Necesitas una suscripción activa para generar audios."
+        message={t("lipsyncCreate.checkout.message")}
       />
     </>
   );

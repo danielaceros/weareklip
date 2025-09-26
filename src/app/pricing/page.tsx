@@ -10,48 +10,51 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Check, Lock, ArrowLeft } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 export default function PricingPage() {
+  const t = useT();
+
   const credits = [
-    { module: "Script AI®", credits: 2 },
-    { module: "Audio AI®", credits: 10 },
-    { module: "Video AI®", credits: 105 },
-    { module: "Edit AI®", credits: 33 },
-    { module: "Video completo", credits: 150 },
+    { module: t("pricing.credits.scriptAI"), credits: 2 },
+    { module: t("pricing.credits.audioAI"), credits: 10 },
+    { module: t("pricing.credits.videoAI"), credits: 105 },
+    { module: t("pricing.credits.editAI"), credits: 33 },
+    { module: t("pricing.credits.fullVideo"), credits: 150 },
   ];
 
   const faqs = [
     {
-      q: "¿Hay cargos variables además de la suscripción?",
-      a: "Sí. Pagas solo lo que generes según la tabla de precios por uso (vídeo completo, Video Ai®, Edit AI®, Audio AI®, Script AI®, etc.).",
+      q: t("pricing.faq.items.0.q"),
+      a: t("pricing.faq.items.0.a"),
     },
     {
-      q: "¿Cómo y cuándo se cobra el uso?",
-      a: "Agrupamos todo tu consumo en un único cargo diario a las 23:59 de la zona horaria de tu cuenta (por defecto, Europa/Madrid). Si no generas, 0 € variables ese día.",
+      q: t("pricing.faq.items.1.q"),
+      a: t("pricing.faq.items.1.a"),
     },
     {
-      q: "¿Cómo veo el importe en euros de lo que llevo gastado hoy?",
-      a: "Arriba a la derecha verás tu contador de créditos. Al pulsarlo se abre un panel con tu importe de hoy en € (IVA incl.) y lo usado este mes.",
+      q: t("pricing.faq.items.2.q"),
+      a: t("pricing.faq.items.2.a"),
     },
     {
-      q: "¿Qué incluye “vídeo completo”?",
-      a: "Video Ai® + Edit AI® + Audio AI® + Script AI® para un vídeo hasta 1 minuto. Incluye 2 regeneraciones de Script AI® y 3 de Audio AI®.",
+      q: t("pricing.faq.items.3.q"),
+      a: t("pricing.faq.items.3.a"),
     },
     {
-      q: "¿Puedo usar módulos por separado?",
-      a: "Sí. Puedes generar solo Video Ai®, Edit AI®, Audio AI® o Script AI®; se cobra cada módulo según la tabla. Si eliges “vídeo completo”, cobramos la suma de módulos en un paso.",
+      q: t("pricing.faq.items.4.q"),
+      a: t("pricing.faq.items.4.a"),
     },
     {
-      q: "¿Qué pasa si un render falla?",
-      a: "No se cobra. Reponemos los importes en tu liquidación o ajustamos el cargo diario automáticamente.",
+      q: t("pricing.faq.items.5.q"),
+      a: t("pricing.faq.items.5.a"),
     },
     {
-      q: "¿Cómo funciona la prueba gratuita de 7 días?",
-      a: "Durante los 7 días de prueba dispones de todas las funciones y no pagas la cuota mensual. Incluye 200 créditos; si los superas, el consumo adicional se cobra a precio normal por uso (con un único cargo diario a las 23:59). Si cancelas antes de que termine el trial, no se te cobra la cuota, pero se mantienen los cargos por uso que hayas hecho. Los créditos no utilizados del trial caducan al finalizar.",
+      q: t("pricing.faq.items.6.q"),
+      a: t("pricing.faq.items.6.a"),
     },
     {
-      q: "¿Cómo activo y se aplican los 200 créditos de prueba?",
-      a: "Durante el trial verás un banner “Activar 200 créditos” y debes pulsarlo para recibirlos; hasta entonces, el uso se cobra a precio normal. Si los activas ese mismo día, se descuentan primero sobre el consumo de hoy (no retroactivos) y, si los superas, el resto se cobra según tarifa; caducan al finalizar el trial.",
+      q: t("pricing.faq.items.7.q"),
+      a: t("pricing.faq.items.7.a"),
     },
   ];
 
@@ -62,13 +65,13 @@ export default function PricingPage() {
         <Button asChild variant="ghost" className="gap-2">
           <Link href="/">
             <ArrowLeft className="h-4 w-4" />
-            Volver al inicio
+            {t("pricing.back")}
           </Link>
         </Button>
       </div>
 
       {/* Título */}
-      <h1 className="text-4xl font-bold mb-12">Precios</h1>
+      <h1 className="text-4xl font-bold mb-12">{t("pricing.title")}</h1>
 
       {/* Planes */}
       <div className="grid md:grid-cols-3 gap-8 max-w-6xl w-full">
@@ -79,24 +82,29 @@ export default function PricingPage() {
           </div>
 
           <CardHeader className="relative z-20">
-            <CardTitle className="text-lg font-semibold">Basic</CardTitle>
+            <CardTitle className="text-lg font-semibold">
+              {t("pricing.plans.basic.name")}
+            </CardTitle>
             <p className="text-3xl font-bold mt-2">
-              19,99€ <span className="text-base font-normal">/mes + uso</span>
+              {t("pricing.plans.basic.price")}{" "}
+              <span className="text-base font-normal">
+                {t("pricing.plans.basic.per")}
+              </span>
             </p>
           </CardHeader>
           <CardContent className="space-y-3 text-sm filter">
             <Button className="w-full mt-2" variant="secondary" disabled>
-              Próximamente
+              {t("pricing.plans.basic.cta")}
             </Button>
             <ul className="mt-6 space-y-2">
-              <li>✔️ 1 voz/avatar</li>
-              <li>✔️ Vídeos en 720p</li>
-              <li>✔️ Cola estándar</li>
-              <li>✔️ 1 regeneración Audio AI®</li>
-              <li>✔️ 1 regeneración Script AI®</li>
-              <li>✔️ Vídeos hasta 30s</li>
-              <li>✔️ Pago por uso</li>
-              <li>✔️ Marca de agua incluida</li>
+              <li>✔️ {t("pricing.plans.basic.features.0")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.1")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.2")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.3")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.4")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.5")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.6")}</li>
+              <li>✔️ {t("pricing.plans.basic.features.7")}</li>
             </ul>
           </CardContent>
         </Card>
@@ -104,12 +112,17 @@ export default function PricingPage() {
         {/* Card central - Access */}
         <Card className="relative bg-zinc-900 border border-white text-white rounded-2xl overflow-hidden scale-105 shadow-2xl z-20">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Access</CardTitle>
+            <CardTitle className="text-lg font-semibold">
+              {t("pricing.plans.access.name")}
+            </CardTitle>
             <p className="text-3xl font-bold mt-2">
-              29,99€ <span className="text-base font-normal">/mes + uso</span>
+              {t("pricing.plans.access.price")}{" "}
+              <span className="text-base font-normal">
+                {t("pricing.plans.access.per")}
+              </span>
             </p>
             <p className="text-sm text-zinc-400 mt-2">
-              Incluye 7 días de prueba + 200 créditos
+              {t("pricing.plans.access.trialNote")}
             </p>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -120,46 +133,46 @@ export default function PricingPage() {
                 (window.location.href = "https://app.viralizalo.ai")
               }
             >
-              Empieza GRATIS
+              {t("pricing.plans.access.cta")}
             </Button>
 
             {/* Botón adicional para ir al inicio de la web */}
             <Button asChild variant="outline" className="w-full">
-              <Link href="/">Ir al inicio</Link>
+              <Link href="/">{t("pricing.plans.access.goHome")}</Link>
             </Button>
 
             <ul className="mt-6 space-y-2">
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>1 voz/avatar</span>
+                <span>{t("pricing.plans.access.features.0")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>Vídeos en 1080p</span>
+                <span>{t("pricing.plans.access.features.1")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>Cola estándar</span>
+                <span>{t("pricing.plans.access.features.2")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>3 regeneraciones Audio AI®</span>
+                <span>{t("pricing.plans.access.features.3")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>2 regeneraciones Script AI®</span>
+                <span>{t("pricing.plans.access.features.4")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>Vídeos hasta 1 min</span>
+                <span>{t("pricing.plans.access.features.5")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>Pago por uso</span>
+                <span>{t("pricing.plans.access.features.6")}</span>
               </li>
               <li className="flex items-center gap-1">
                 <Check className="w-4 h-4 text-white" />
-                <span>Sin marca de agua</span>
+                <span>{t("pricing.plans.access.features.7")}</span>
               </li>
             </ul>
           </CardContent>
@@ -173,24 +186,29 @@ export default function PricingPage() {
           </div>
 
           <CardHeader className="relative z-20">
-            <CardTitle className="text-lg font-semibold">Pro</CardTitle>
+            <CardTitle className="text-lg font-semibold">
+              {t("pricing.plans.pro.name")}
+            </CardTitle>
             <p className="text-3xl font-bold mt-2">
-              59,99€ <span className="text-base font-normal">/mes + uso</span>
+              {t("pricing.plans.pro.price")}{" "}
+              <span className="text-base font-normal">
+                {t("pricing.plans.pro.per")}
+              </span>
             </p>
           </CardHeader>
           <CardContent className="relative z-20 space-y-3 text-sm">
             <Button className="w-full mt-2" variant="secondary" disabled>
-              Próximamente
+              {t("pricing.plans.pro.cta")}
             </Button>
             <ul className="mt-6 space-y-2">
-              <li>✔️ 3 voces/avatares</li>
-              <li>✔️ Vídeos en 4K</li>
-              <li>✔️ Cola prioritaria</li>
-              <li>✔️ Regeneraciones ilimitadas Audio AI®</li>
-              <li>✔️ Regeneraciones ilimitadas Script AI®</li>
-              <li>✔️ Vídeos hasta 5 min</li>
-              <li>✔️ Pago por uso</li>
-              <li>✔️ Sin marca de agua</li>
+              <li>✔️ {t("pricing.plans.pro.features.0")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.1")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.2")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.3")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.4")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.5")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.6")}</li>
+              <li>✔️ {t("pricing.plans.pro.features.7")}</li>
             </ul>
           </CardContent>
         </Card>
@@ -202,7 +220,9 @@ export default function PricingPage() {
           {credits.map((c) => (
             <div key={c.module} className="flex flex-col items-center">
               <p className="text-white font-semibold">{c.module}</p>
-              <p className="mt-2 text-zinc-400">{c.credits} créditos</p>
+              <p className="mt-2 text-zinc-400">
+                {c.credits} {t("pricing.credits.unit")}
+              </p>
             </div>
           ))}
         </div>
@@ -210,7 +230,7 @@ export default function PricingPage() {
 
       {/* FAQs */}
       <div className="mt-16 max-w-4xl w-full">
-        <h2 className="text-2xl font-bold mb-6">Preguntas frecuentes</h2>
+        <h2 className="text-2xl font-bold mb-6">{t("pricing.faq.title")}</h2>
         <Accordion type="single" collapsible className="space-y-4">
           {faqs.map((faq, i) => (
             <AccordionItem

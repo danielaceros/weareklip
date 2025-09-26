@@ -15,6 +15,7 @@ import {
   Scissors,
   Sparkles,
 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 /** Ajusta aquí las rutas si en tu app son otras */
 const ROUTES = {
@@ -25,18 +26,20 @@ const ROUTES = {
 };
 
 export default function QuickActionsCard() {
+  const t = useT();
+
   return (
     <Card className="h-full">
       {/* Título con icono y tamaño como las otras cards */}
       <CardHeader className="pb-0">
         <h2 className="font-semibold text-base lg:text-lg mb-2 flex items-center gap-2">
           <Sparkles className="size-5 text-muted-foreground" aria-hidden />
-          <span>Acciones rápidas</span>
+          <span>{t("dashboard.quickActions.title")}</span>
         </h2>
-        <CardDescription>Empieza en un clic</CardDescription>
+        <CardDescription>{t("dashboard.quickActions.subtitle")}</CardDescription>
       </CardHeader>
 
-      {/* 🔻 Botones: sin cambios */}
+      {/* Botones */}
       <CardContent>
         <div className="grid gap-3 sm:grid-cols-2">
           <Button
@@ -47,7 +50,7 @@ export default function QuickActionsCard() {
           >
             <Link href={ROUTES.generarGuion}>
               <FilePlus2 className="mr-2 h-5 w-5" />
-              Generar guion
+              {t("dashboard.quickActions.buttons.generateScript")}
             </Link>
           </Button>
 
@@ -59,7 +62,7 @@ export default function QuickActionsCard() {
           >
             <Link href={ROUTES.nuevoAudio}>
               <Music2 className="mr-2 h-5 w-5" />
-              Nuevo audio
+              {t("dashboard.quickActions.buttons.newAudio")}
             </Link>
           </Button>
 
@@ -71,7 +74,7 @@ export default function QuickActionsCard() {
           >
             <Link href={ROUTES.crearVideo}>
               <Clapperboard className="mr-2 h-5 w-5" />
-              Crear vídeo
+              {t("dashboard.quickActions.buttons.createVideo")}
             </Link>
           </Button>
 
@@ -83,7 +86,7 @@ export default function QuickActionsCard() {
           >
             <Link href={ROUTES.editarVideo}>
               <Scissors className="mr-2 h-5 w-5" />
-              Editar vídeo
+              {t("dashboard.quickActions.buttons.editVideo")}
             </Link>
           </Button>
         </div>

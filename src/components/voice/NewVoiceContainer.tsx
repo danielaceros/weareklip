@@ -1,3 +1,4 @@
+// src/components/voice/NewVoiceContainer.tsx
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -29,17 +30,18 @@ import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-
 import { validateFileSizeAs } from "@/lib/fileLimits";
+import { useT } from "@/lib/i18n";
 
 type VoiceCreateOk = { voice_id: string; requires_verification?: boolean };
 type VoiceCreateErr = { error?: string; message?: string };
 
-// 🔹 Nuevos límites
+// 🔹 Límites
 const MIN_DURATION = 180;   // 3 minutos
 const MAX_DURATION = 1800;  // 30 minutos
 
 export default function NewVoiceContainer() {
+  const t = useT();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [samples, setSamples] = useState<
@@ -47,9 +49,9 @@ export default function NewVoiceContainer() {
   >([]);
 
   const totalDuration = useMemo(
-   () => samples.reduce((acc, s) => acc + (s.duration || 0), 0),
-   [samples]
-   );
+    () => samples.reduce((acc, s) => acc + (s.duration || 0), 0),
+    [samples]
+  );
   const [recording, setRecording] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
     {}
@@ -68,12 +70,12 @@ export default function NewVoiceContainer() {
   useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
 
   const getAudioDurationFromURL = (url: string): Promise<number> =>
-  new Promise((resolve, reject) => {
-    const audio = document.createElement("audio");
-    audio.src = url;
-    audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
-    audio.addEventListener("error", (e) => reject(e));
-  });
+    new Promise((resolve, reject) => {
+      const audio = document.createElement("audio");
+      audio.src = url;
+      audio.addEventListener("loadedmetadata", () => resolve(audio.duration));
+      audio.addEventListener("error", (e) => reject(e));
+    });
 
   const getAudioDurationFromFile = (file: File): Promise<number> =>
     new Promise((resolve) => {
@@ -82,22 +84,18 @@ export default function NewVoiceContainer() {
       audio.src = url;
       audio.addEventListener("loadedmetadata", () => {
         resolve(audio.duration);
-        URL.revokeObjectURL(url); // liberar memoria
+        URL.revokeObjectURL(url);
       });
       audio.addEventListener("error", () => {
-        resolve(0); // fallback optimista
+        resolve(0);
         URL.revokeObjectURL(url);
       });
     });
 
-
-  // ❌ Eliminada la carga automática desde Firebase
-  // Sólo se usaría si implementas "reanudar proceso" manual
-
   const uploadToFirebase = useCallback(
     async (file: File) => {
       if (!user) {
-        toast.error("Debes iniciar sesión");
+        toast.error(t("edit.create.toasts.mustLogin"));
         return;
       }
 
@@ -107,11 +105,11 @@ export default function NewVoiceContainer() {
       const storagePath = `users/${user.uid}/voices/${fileName}`;
       const storageRef = ref(storage, storagePath);
 
-      // ✅ duración optimista
+      // Duración optimista
       const tempUrl = URL.createObjectURL(file);
       const localDuration = await getAudioDurationFromFile(file);
 
-      // ✅ añadimos el sample como si ya estuviera
+      // Añadir sample optimista
       setSamples((prev) => [
         ...prev,
         {
@@ -122,7 +120,7 @@ export default function NewVoiceContainer() {
         },
       ]);
 
-      // 🔄 marcador de “sincronizando”
+      // marcador “sincronizando”
       setUploadProgress((prev) => ({ ...prev, [fileName]: -1 }));
 
       const uploadTask = uploadBytesResumable(storageRef, file);
@@ -130,9 +128,11 @@ export default function NewVoiceContainer() {
       return new Promise<void>((resolve, reject) => {
         uploadTask.on(
           "state_changed",
-          null, // no actualizamos cada %
+          null,
           (error) => {
-            toast.error(`Error al subir ${file.name}`);
+            toast.error(
+              t("voices.new.toasts.uploadError", { name: file.name })
+            );
             setUploadProgress((prev) => {
               const next = { ...prev };
               delete next[fileName];
@@ -151,74 +151,69 @@ export default function NewVoiceContainer() {
                 s.storagePath === storagePath ? { ...s, url, duration } : s
               )
             );
-            // ✅ marcar como “ok”
             setUploadProgress((prev) => {
               const next = { ...prev };
               next[fileName] = 100;
               return next;
             });
-            toast.success(`✅ ${file.name} subida correctamente`);
+            toast.success(
+              t("voices.new.toasts.uploaded", { name: file.name })
+            );
             resolve();
           }
         );
       });
     },
-    [user, storage]
+    [user, storage, t]
   );
-
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (!user) {
-        toast.error("Debes iniciar sesión");
+        toast.error(t("edit.create.toasts.mustLogin"));
         return;
       }
       for (const file of acceptedFiles) {
         try {
           const v = validateFileSizeAs(file, "audio");
           if (!v.ok) {
-            toast.error("Archivo demasiado grande", { description: v.message });
+            toast.error(t("edit.create.dropzone.fileTooLarge"), {
+              description: v.message,
+            });
             continue;
           }
           await uploadToFirebase(file);
         } catch (err) {
           console.error(err);
-          toast.error(`Error procesando ${file.name}`);
+          toast.error(t("voices.new.toasts.processError", { name: file.name }));
         }
       }
     },
-    [user, uploadToFirebase]
+    [user, uploadToFirebase, t]
   );
 
-  const validator = (file: File) => {
-    const v = validateFileSizeAs(file, "audio");
-    return v.ok ? null : { code: "file-too-large", message: v.message };
-  };
-
-  // ⬇️ Cambia el hook del dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     onDropRejected: (rejs) => {
       rejs.forEach((r) =>
-        toast.error("Archivo inválido", {
+        toast.error(t("voices.new.toasts.invalidFile"), {
           description: r.errors?.[0]?.message,
         })
       );
     },
-    accept: { "audio/*": [] }, // ⬅️ solo audio
+    accept: { "audio/*": [] },
     multiple: true,
     validator: (file: File) => {
-      const maxSize = 9 * 1024 * 1024; // 9 MB en bytes
+      const maxSize = 9 * 1024 * 1024; // 9 MB
       if (file.size > maxSize) {
         return {
           code: "file-too-large",
-          message: "El archivo supera los 9 MB permitidos.",
+          message: t("voices.new.errors.maxSize", { mb: 9 }),
         };
       }
       return null;
     },
   });
-
 
   const startRecording = async () => {
     try {
@@ -238,7 +233,9 @@ export default function NewVoiceContainer() {
 
         const v = validateFileSizeAs(file, "audio");
         if (!v.ok) {
-          toast.error("Audio demasiado grande", { description: v.message });
+          toast.error(t("voices.new.toasts.audioTooLarge"), {
+            description: v.message,
+          });
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
@@ -249,9 +246,9 @@ export default function NewVoiceContainer() {
 
       mediaRecorderRef.current.start();
       setRecording(true);
-      toast("🎙 Grabando... habla claro");
+      toast(t("voices.new.toasts.recording"));
     } catch {
-      toast.error("No se pudo acceder al micrófono");
+      toast.error(t("voices.new.toasts.micAccessError"));
     }
   };
 
@@ -268,12 +265,12 @@ export default function NewVoiceContainer() {
   const removeSample = async (sampleName: string) => {
     if (!user) return;
     setSamples((prev) => prev.filter((s) => s.name !== sampleName));
-      try {
-        await deleteObject(ref(storage, `users/${user.uid}/voices/${sampleName}`));
-        toast("🗑 Muestra eliminada");
-      } catch {
-        toast.error("Error al eliminar muestra");
-      }
+    try {
+      await deleteObject(ref(storage, `users/${user.uid}/voices/${sampleName}`));
+      toast("🗑 " + t("voices.new.toasts.sampleDeleted"));
+    } catch {
+      toast.error(t("voices.new.toasts.sampleDeleteError"));
+    }
   };
 
   const createVoice = async () => {
@@ -283,11 +280,11 @@ export default function NewVoiceContainer() {
 
     try {
       if (!user) {
-        toast.error("Debes iniciar sesión");
+        toast.error(t("edit.create.toasts.mustLogin"));
         return;
       }
       if (samples.length === 0) {
-        toast.error("Debes subir al menos una muestra de voz");
+        toast.error(t("voices.new.toasts.needAtLeastOneSample"));
         return;
       }
 
@@ -303,7 +300,7 @@ export default function NewVoiceContainer() {
       });
       const list = (await resList.json().catch(() => [])) as any[];
       if (Array.isArray(list) && list.length >= 1) {
-        toast.error("Has alcanzado el límite de 1 voz por cuenta.");
+        toast.error(t("voices.new.toasts.limitReached"));
         return;
       }
 
@@ -311,7 +308,7 @@ export default function NewVoiceContainer() {
       const paths = samples.map((s) => s.storagePath);
       const finalName = (voiceTitle || "").trim() || `Voz-${Date.now()}`;
 
-      toast.loading("Creando voz en ElevenLabs...");
+      toast.loading(t("voices.new.toasts.creating"));
 
       const res = await fetch("/api/elevenlabs/voice/create", {
         method: "POST",
@@ -324,7 +321,7 @@ export default function NewVoiceContainer() {
       });
 
       if (res.status === 409) {
-        toast.message("Ya estamos creando tu voz…");
+        toast.message(t("voices.new.toasts.alreadyCreating"));
         return;
       }
 
@@ -333,7 +330,7 @@ export default function NewVoiceContainer() {
         data = (await res.json()) as VoiceCreateOk | VoiceCreateErr;
       } catch {
         const txt = await res.text().catch(() => "");
-        data = { error: txt || "Respuesta no JSON" };
+        data = { error: txt || t("voices.new.toasts.invalidResponse") };
       }
 
       toast.dismiss();
@@ -342,13 +339,13 @@ export default function NewVoiceContainer() {
         const msg =
           ("error" in data && data.error) ||
           ("message" in data && data.message) ||
-          `HTTP ${res.status} al crear voz`;
+          `HTTP ${res.status}`;
         toast.error(msg);
         return;
       }
 
       if (!("voice_id" in data) || typeof data.voice_id !== "string") {
-        toast.error("Respuesta inválida del servidor");
+        toast.error(t("voices.new.toasts.invalidResponse"));
         return;
       }
 
@@ -380,14 +377,12 @@ export default function NewVoiceContainer() {
         throw new Error(`Error guardando voz: ${errText}`);
       }
 
-      toast.success(`✅ Voz creada y guardada`);
+      toast.success(t("voices.new.toasts.created"));
       router.push("/dashboard/clones");
     } catch (err) {
       console.error(err);
       toast.dismiss();
-      toast.error(
-        (err as Error).message || "Error de conexión al crear la voz"
-      );
+      toast.error(t("voices.new.toasts.createConnectionError"));
     } finally {
       inFlight.current = false;
       setSubmitting(false);
@@ -399,7 +394,7 @@ export default function NewVoiceContainer() {
   const totalPages = Math.ceil(samples.length / perPage);
   const paginated = samples.slice((page - 1) * perPage, page * perPage);
 
-  // 🔹 Estado visual de duración
+  // Estado visual de duración
   const durationState = useMemo(() => {
     if (totalDuration < MIN_DURATION) return "insuficiente";
     if (totalDuration <= 600) return "optimo";
@@ -410,19 +405,19 @@ export default function NewVoiceContainer() {
   return (
     <div className="max-w-6xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
-        Clonación de voz
+        {t("voices.new.title")}
       </h1>
 
       {/* Nombre de la voz */}
       <div className="mb-6">
         <Label className="text-sm font-medium" htmlFor="voice-title">
-          Nombre de la voz (opcional)
+          {t("voices.new.labels.nameOptional")}
         </Label>
         <Input
           id="voice-title"
           value={voiceTitle}
           onChange={(e) => setVoiceTitle(e.target.value)}
-          placeholder="Ej: Voz Eneko – iPhone mic"
+          placeholder={t("voices.new.placeholders.name")}
           className="mt-2"
           maxLength={80}
         />
@@ -434,23 +429,29 @@ export default function NewVoiceContainer() {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-2">
               <VolumeX className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
-              <h3 className="font-medium text-sm">Evita entornos ruidosos</h3>
+              <h3 className="font-medium text-sm">
+                {t("voices.new.tips.noise.title")}
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Los sonidos de fondo interfieren con la calidad.
+                {t("voices.new.tips.noise.body")}
               </p>
             </div>
             <div className="p-2">
               <Mic className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
-              <h3 className="font-medium text-sm">Usa equipo consistente</h3>
+              <h3 className="font-medium text-sm">
+                {t("voices.new.tips.gear.title")}
+              </h3>
               <p className="text-xs text-muted-foreground">
-                No cambies el equipo entre muestras.
+                {t("voices.new.tips.gear.body")}
               </p>
             </div>
             <div className="p-2">
               <CheckCircle2 className="mx-auto h-5 w-5 mb-1 text-muted-foreground" />
-              <h3 className="font-medium text-sm">Comprueba la calidad</h3>
+              <h3 className="font-medium text-sm">
+                {t("voices.new.tips.quality.title")}
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Escucha y revisa la grabación antes de subirla.
+                {t("voices.new.tips.quality.body")}
               </p>
             </div>
           </div>
@@ -464,12 +465,14 @@ export default function NewVoiceContainer() {
             <input {...getInputProps()} />
             <UploadCloud className="h-8 w-8 mb-2 text-muted-foreground" />
             <p className="text-sm font-medium">
-              Haz clic para subir o arrastra y suelta
+              {t("voices.new.dropzone.title")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Audios (como muestra) hasta 9&nbsp;MB
+              {t("voices.new.dropzone.hint", { mb: 9 })}
             </p>
-            <span className="mt-2 text-xs text-muted-foreground">o</span>
+            <span className="mt-2 text-xs text-muted-foreground">
+              {t("voices.new.dropzone.or")}
+            </span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -477,7 +480,9 @@ export default function NewVoiceContainer() {
               }}
               className="mt-3 px-4 py-2 rounded-lg border hover:bg-muted transition text-sm"
             >
-              {recording ? "⏹ Detener" : "🎙 Grabar audio"}
+              {recording
+                ? t("voices.new.buttons.stopRecording")
+                : t("voices.new.buttons.startRecording")}
             </button>
           </div>
 
@@ -489,32 +494,33 @@ export default function NewVoiceContainer() {
                 className="flex-1"
               />
               <span className="text-sm font-medium whitespace-nowrap">
-                {Math.round(totalDuration)}s / {MAX_DURATION}s
+                {t("voices.samples.progressLabel", {
+                  seconds: Math.round(totalDuration),
+                  max: MAX_DURATION,
+                })}
               </span>
             </div>
             {durationState === "insuficiente" && (
               <p className="text-sm text-destructive">
-                ⚠ Necesitas al menos 180 segundos para una clonación de calidad.
+                {t("voices.new.duration.hints.insufficient", { min: MIN_DURATION })}
               </p>
             )}
             {durationState === "optimo" && (
               <p className="text-sm text-green-600">
-                ✅ Duración óptima alcanzada.
+                {t("voices.new.duration.hints.optimal")}
               </p>
             )}
             {durationState === "exceso" && (
               <p className="text-sm text-yellow-600">
-                ℹ️ Ya tienes suficiente, subir más no mejora la calidad.
+                {t("voices.new.duration.hints.excess")}
               </p>
             )}
             {durationState === "bloqueado" && (
               <p className="text-sm text-destructive">
-                ❌ Has superado el máximo de 30 minutos de muestras.
+                {t("voices.new.duration.hints.blocked", { minutes: 30 })}
               </p>
             )}
           </div>
-
-          {/* Botón generar */}
         </div>
 
         {/* derecha */}
@@ -567,28 +573,32 @@ export default function NewVoiceContainer() {
           )}
         </div>
       </div>
-          <div className="p-5 w-full flex justify-center lg:justify-center">
-          <Button
-            onClick={createVoice}
-            disabled={
-              submitting ||
-              samples.length === 0 ||
-              totalDuration > MAX_DURATION
-            }
-            aria-busy={submitting}
-            className="w-full sm:w-auto"
-            data-paywall
-            data-paywall-feature="elevenlabs-voice"
-          >
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {submitting ? "Creando voz..." : "Generar audio"}
-          </Button>
-        </div>
+
+      <div className="p-5 w-full flex justify-center lg:justify-center">
+        <Button
+          onClick={createVoice}
+          disabled={
+            submitting ||
+            samples.length === 0 ||
+            totalDuration > MAX_DURATION
+          }
+          aria-busy={submitting}
+          className="w-full sm:w-auto"
+          data-paywall
+          data-paywall-feature="elevenlabs-voice"
+        >
+          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {submitting
+            ? t("voices.new.buttons.creating")
+            : t("voices.new.buttons.generate")}
+        </Button>
+      </div>
+
       <CheckoutRedirectModal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         plan="ACCESS"
-        message="Para clonar tu voz necesitas suscripción activa, empieza tu prueba GRATUITA de 7 días"
+        message={t("audioCreator.paywall")}
       />
     </div>
   );

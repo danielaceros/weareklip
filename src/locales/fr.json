@@ -1,113 +1,53 @@
 {
-  "account": "Mon compte",
-  "theme": "Thème",
-  "light": "Clair",
-  "dark": "Sombre",
-  "system": "Système",
-  "color": "Couleur",
-  "language": "Langue",
-  "settings": "Paramètres",
-  "logout": "Se déconnecter",
-  "accents": {
-    "blue": "Bleu",
-    "green": "Vert",
-    "orange": "Orange",
-    "rose": "Rose"
-  },
-  "sidebar": {
-    "title": "Tableau de bord Client",
-    "clientTitle": "Tableau de bord Client",
-    "home": "Accueil",
-    "adminHome": "Accueil Admin",
-    "scripts": "Mes Scénarios",
-    "videos": "Mes Vidéos",
-    "notifications": "Mes Notifications",
-    "calendar": "Calendrier",
-    "brandAI": "IA de Marque",
-    "viralIdeas": "Idées Virales",
-    "requestReel": "Demander un Reel",
-    "requestExtraReel": "Demander un Reel Supplémentaire",
-    "filesResources": "Fichiers et Ressources",
-    "assets": "Assets",
-    "stats": "Statistiques",
-    "billing": "Facturation / Abonnements",
-    "support": "Support / Tickets",
-    "account": "Mon Compte",
-    "planLabel": "Forfait",
-    "noPlan": "Sans forfait",
-    "notAuthenticated": "Non authentifié",
-    "adminTitle": "Tableau de bord Admin",
-    "clients": "Clients",
-    "tasks": "Tâches",
-    "adminNotifications": "Notifications"
-  },
-  "common": {
-    "unknown": "Inconnu"
-  },
   "status": {
     "new": "🆕 Nouveau",
     "changes": "✏️ Modifications",
     "approved": "✅ Approuvé"
   },
-  "scripts": {
-    "title": "Mes Scénarios",
-    "untitled": "Sans titre",
-    "empty": "Aucun scénario.",
-    "noNotes": "Sans notes",
-    "loading": {
-      "loadingScripts": "Chargement des scénarios...",
-      "updatingScript": "Mise à jour du scénario...",
-      "deletingScript": "Suppression du scénario...",
-      "deleting": "Suppression..."
-    },
-    "toast": {
-      "noScriptsYet": "Vous n’avez pas encore de scénarios. Lorsqu’ils seront créés, ils apparaîtront ici.",
-      "saved": "Modifications enregistrées avec succès",
-      "deleted": "Scénario supprimé définitivement"
-    },
-    "errors": {
-      "loadScripts": "Erreur lors du chargement des scénarios",
-      "mustLogin": "Vous devez vous connecter pour voir vos scénarios.",
-      "saveScript": "Erreur lors de l’enregistrement du scénario",
-      "deleteScript": "Erreur lors de la suppression du scénario"
-    },
-    "state": {
-      "new": "🆕 Nouveau",
-      "changes": "✏️ Modifications demandées",
-      "approved": "✅ Approuvé"
-    },
-    "deleteDialog": {
-      "title": "Supprimer le scénario ?",
-      "body": "Êtes-vous sûr de vouloir supprimer le scénario « {title} » ? Cette action est irréversible."
-    },
-    "actions": {
-      "cancel": "Annuler",
-      "delete": "Supprimer"
-    },
-    "email": {
-      "updatedSubject": "✍️ Scénario mis à jour par {email}",
-      "updatedBody": "Le scénario « {title} » a été mis à jour.\n\nÉtat : {stateText}\nNotes : {notes}",
-      "deletedSubject": "🗑️ Scénario supprimé par {email}",
-      "deletedBody": "Le client a supprimé le scénario intitulé : « {title} »."
+  "common": {
+    "unknown": "Inconnu",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleting": "Suppression...",
+    "yes": "Oui",
+    "processing": "Traitement...",
+    "back": "Retour",
+    "regenerate": "Régénérer",
+    "acceptAndRegenerate": "Accepter et régénérer"
+  },
+  "layout": {
+    "sidebar": {
+      "aria": "Menu latéral du tableau de bord"
     }
   },
-  "videos": {
-    "untitled": "Sans titre"
+  "sidebar": {
+    "clientTitle": "Navigation du tableau de bord",
+    "home": "Accueil",
+    "viralIdeas": "Idées virales",
+    "scripts": "Scripts",
+    "audio": "Audio",
+    "lipsync": "Vidéo",
+    "video": "Montage",
+    "clones": "Clonage",
+    "noPlan": "Sans offre"
   },
   "dashboard": {
-    "title": "Bonjour ! 👋 Bienvenue sur ton Tableau de bord",
-    "subtitle": "Consulte ici l’état de ton projet et les dates de livraison. Reste à jour ! 🚀",
-    "loading": "Chargement de ton tableau...",
+    "title": "Bienvenue sur votre tableau de bord",
+    "subtitle": "Créez quelque chose de nouveau ou consultez vos dernières créations. Restez à jour !",
+    "loading": "Chargement du tableau de bord...",
     "authError": {
       "title": "Non authentifié",
-      "description": "Vous devez vous connecter pour voir votre tableau."
+      "description": "Vous devez vous connecter pour voir votre tableau de bord."
     },
     "subscription": {
-      "unknownPlan": "Forfait inconnu",
+      "unknownPlan": "Offre inconnue",
       "unknownRenewal": "Inconnu",
       "loadError": "Impossible de charger l’abonnement",
       "unknown": "Erreur inconnue",
       "none": "Inactive"
+    },
+    "langBadge": {
+      "title": "Langue"
     },
     "calendar": {
       "title": "Calendrier",
@@ -118,1009 +58,1171 @@
         "done": "Fait"
       }
     },
+    "quickActions": {
+      "title": "Actions rapides",
+      "subtitle": "Démarrez en un clic",
+      "buttons": {
+        "generateScript": "Générer un script",
+        "newAudio": "Nouvel audio",
+        "createVideo": "Créer une vidéo",
+        "editVideo": "Monter une vidéo"
+      }
+    },
     "latestScript": {
-      "title": "Dernier Scénario",
-      "viewAll": "Voir tous les scénarios",
-      "emptyTitle": "Vous n’avez pas encore de scénarios",
+      "title": "Dernier script",
+      "viewAll": "Voir tous les scripts",
+      "emptyTitle": "Vous n’avez pas encore de scripts",
       "emptySubtitle": "Lorsqu’ils seront générés, ils apparaîtront ici",
-      "view": "Voir les scénarios"
+      "view": "Voir les scripts"
     },
     "latestVideo": {
-      "title": "Dernière Vidéo",
+      "title": "Dernière vidéo",
       "viewAll": "Voir toutes les vidéos",
       "emptyTitle": "Vous n’avez pas encore de vidéos",
       "emptySubtitle": "Lorsqu’elles seront prêtes, vous les verrez ici",
       "view": "Voir les vidéos"
-    }
-  },
-  "scriptsModal": {
-    "title": "Modifier le Scénario",
-    "statusLabel": "État",
-    "save": "Enregistrer les modifications",
-    "saving": "Enregistrement...",
-    "loading": "Enregistrement du scénario...",
-    "saved": "Scénario enregistré avec succès",
-    "saveError": "Erreur lors de l’enregistrement du scénario",
-    "taskAssigned": "Tâche assignée pour revoir les modifications",
-    "assignTaskError": "Erreur lors de l’assignation de la tâche",
-    "taskDescriptionPrefix": "Vérifier les modifications demandées pour le scénario :",
-    "log": {
-      "requestedChanges": "Le client {user} a demandé des modifications sur le scénario : « {title} »",
-      "approved": "Le client {user} a approuvé le scénario : « {title} »"
-    },
-    "placeholders": {
-      "title": "Titre",
-      "content": "Contenu du scénario",
-      "notes": "Décrivez les modifications souhaitées",
-      "selectStatus": "Sélectionner l’état"
-    },
-    "a11y": {
-      "editTitle": "Modifier le titre du scénario",
-      "editContent": "Modifier le contenu du scénario",
-      "selectStatus": "Sélectionner l’état",
-      "notes": "Notes pour les modifications"
-    }
-  },
-  "scriptsPage": {
-    "title": "Mes Scénarios",
-    "loading": "Chargement des scénarios...",
-    "emptyToast": "Vous n’avez pas encore de scénarios. Lorsqu’ils seront créés, ils apparaîtront ici.",
-    "empty": "Aucun scénario.",
-    "errors": {
-      "load": "Erreur lors du chargement des scénarios",
-      "authRequired": "Vous devez vous connecter pour voir vos scénarios.",
-      "save": "Erreur lors de l’enregistrement du scénario"
-    },
-    "update": {
-      "loading": "Mise à jour du scénario...",
-      "success": "Modifications enregistrées avec succès"
-    },
-    "delete": {
-      "loading": "Suppression du scénario...",
-      "success": "Scénario supprimé définitivement",
-      "error": "Erreur lors de la suppression du scénario",
-      "title": "Supprimer le scénario ?",
-      "confirmPrefix": "Êtes-vous sûr de vouloir supprimer le scénario",
-      "confirmSuffix": " ? Cette action est irréversible.",
-      "cancel": "Annuler",
-      "deleting": "Suppression...",
-      "delete": "Supprimer"
-    }
-  },
-  "videosPage": {
-    "title": "Mes Vidéos",
-    "untitled": "Sans titre",
-    "empty": "Aucune vidéo.",
-    "toast": {
-      "noVideosYet": "Vous n’avez pas encore de vidéos. Lorsqu’elles seront prêtes, vous les verrez ici.",
-      "saved": "Modifications enregistrées avec succès",
-      "deleted": "Vidéo supprimée définitivement"
-    },
-    "loading": {
-      "loadingVideos": "Chargement des vidéos...",
-      "saving": "Enregistrement des modifications...",
-      "deleting": "Suppression...",
-      "preparing": "Préparation..."
     },
     "errors": {
-      "loadVideos": "Erreur lors du chargement des vidéos",
-      "mustLogin": "Vous devez vous connecter pour accéder à vos vidéos.",
-      "updateVideo": "Impossible de mettre à jour la vidéo",
-      "deleteVideo": "Erreur lors de la suppression de la vidéo",
-      "downloadVideo": "Impossible de télécharger la vidéo",
-      "missingUserOrVideo": "Données utilisateur ou vidéo manquantes.",
-      "titleEmpty": "Le titre ne peut pas être vide."
-    },
-    "state": {
-      "new": "🆕 Nouveau",
-      "changes": "✏️ Modifications demandées",
-      "approved": "✅ Approuvée"
-    },
-    "deleteDialog": {
-      "title": "Supprimer la vidéo ?",
-      "body": "Êtes-vous sûr de vouloir supprimer la vidéo « {title} » ? Cette action est irréversible."
-    },
-    "actions": {
-      "cancel": "Annuler",
-      "delete": "Supprimer"
-    },
-    "download": {
-      "preparing": "Préparation du téléchargement..."
-    },
-    "aria": {
-      "selectVideo": "Sélectionner la vidéo {title}",
-      "videoLabel": "Vidéo : {title}"
-    },
-    "common": {
-      "unknown": "Inconnu"
-    }
-  },
-  "videosModal": {
-    "title": "Modifier la Vidéo",
-    "statusLabel": "État",
-    "taskAssigned": "Tâche assignée pour revoir les modifications",
-    "taskDescriptionPrefix": "Vérifier les modifications demandées pour la vidéo :",
-    "loading": {
-      "saving": "Enregistrement de la vidéo...",
-      "downloading": "Téléchargement de la vidéo..."
+      "load": "Erreur lors du chargement du tableau de bord"
     },
     "toasts": {
-      "saveSuccess": "Vidéo enregistrée avec succès",
-      "downloadSuccess": "Vidéo téléchargée avec succès"
+      "trialStarted": "🎉 Essai démarré avec succès"
+    },
+    "checkout": {
+      "message": "Vous avez besoin d’un abonnement actif pour continuer.",
+      "voiceCloneMessage": "Pour cloner votre voix, vous avez besoin d’un abonnement actif. Commencez votre essai GRATUIT de 7 jours."
+    }
+  },
+  "wizard": {
+    "steps": {
+      "script": "Script",
+      "audio": "Audio",
+      "video": "Vidéo"
     },
     "errors": {
-      "save": "Erreur lors de l’enregistrement de la vidéo",
-      "download": "Erreur lors du téléchargement de la vidéo",
-      "assignTask": "Erreur lors de l’assignation de la tâche"
+      "fillAll": "Veuillez remplir tous les champs obligatoires.",
+      "mustLogin": "Vous devez vous connecter pour continuer.",
+      "mustLoginShort": "Vous devez vous connecter.",
+      "selectVoiceFirst": "Sélectionnez une voix avant de continuer.",
+      "textRequired": "Le texte ne peut pas être vide",
+      "voiceRequired": "Vous devez sélectionner une voix"
     },
-    "actions": {
-      "download": "Télécharger la vidéo",
-      "downloading": "Téléchargement...",
-      "delete": "🗑 Supprimer la vidéo",
-      "save": "💾 Enregistrer les modifications",
-      "saving": "Enregistrement...",
-      "replace": "Remplacer la vidéo"
+    "script": {
+      "generate": {
+        "loading": "✍️ Génération du script...",
+        "success": "✅ Script généré avec succès",
+        "error": "❌ Impossible de générer le script."
+      },
+      "regen": {
+        "limit": "⚠️ Vous avez déjà régénéré le script 2 fois.",
+        "loading": "🔄 Régénération du script...",
+        "success": "✅ Script régénéré",
+        "error": "❌ Impossible de régénérer le script."
+      },
+      "accepted": "📜 Script accepté. Passons à l’audio.",
+      "modal": {
+        "title": "Script généré",
+        "accept": "Accepter le script"
+      }
     },
-    "placeholders": {
-      "title": "Titre de la vidéo",
-      "selectStatus": "Sélectionner l’état",
-      "notes": "Décrivez les modifications souhaitées",
-      "notesLabel": "Notes pour les modifications"
+    "audio": {
+      "generate": {
+        "loading": "🎙 Génération de l’audio...",
+        "success": "✅ Audio généré avec succès",
+        "error": "❌ Impossible de générer l’audio."
+      },
+      "regen": {
+        "noBase": "Aucun audio de base à régénérer.",
+        "limit": "⚠️ Vous avez déjà régénéré l’audio 2 fois.",
+        "loading": "🔄 Régénération de l’audio...",
+        "adjustSpeed": "⚙️ Nous ajusterons la vitesse à 0,7–1,2 (limite ElevenLabs).",
+        "success": "✅ Audio régénéré",
+        "error": "❌ Impossible de régénérer l’audio."
+      },
+      "accepted": "🎧 Audio accepté. Passons à l’étape vidéo.",
+      "modal": {
+        "title": "Audio généré",
+        "empty": "Aucun audio généré.",
+        "accept": "Accepter l’audio"
+      }
     },
-    "a11y": {
-      "editTitle": "Modifier le titre de la vidéo",
-      "selectStatus": "Sélectionner l’état",
-      "notes": "Notes pour les modifications",
-      "preview": "Aperçu de la vidéo {title}"
+    "video": {
+      "loading": "Chargement des vidéos...",
+      "loadError": "❌ Impossible de charger les vidéos de clonage.",
+      "pipelineSuccess": "🎬 Reel envoyé au pipeline",
+      "fallbackName": "Vidéo #{n}"
+    },
+    "regenScript": {
+      "title": "Modifier avant de régénérer",
+      "toneLabel": "Ton",
+      "tonePlaceholder": "Sélectionner le ton",
+      "structureLabel": "Structure",
+      "structurePlaceholder": "Sélectionner la structure"
+    },
+    "regenAudio": {
+      "title": "Modifier les paramètres avant de régénérer",
+      "textLabel": "Texte *",
+      "voiceLabel": "Voix *",
+      "voicePlaceholder": "Sélectionner une voix",
+      "languageLabel": "Langue",
+      "stabilityLabel": "Stabilité",
+      "similarityLabel": "Similarité",
+      "styleLabel": "Style",
+      "speedLabel": "Vitesse",
+      "speedHint": "ElevenLabs accepte 0,7–1,2. Nous ajusterons automatiquement si vous sortez de cette plage.",
+      "speakerBoost": "Utiliser Speaker Boost"
+    },
+    "toneOptions": {
+      "motivational": "Motivant",
+      "educational": "Éducatif",
+      "humorous": "Humoristique",
+      "serious": "Sérieux",
+      "inspirational": "Inspirant",
+      "emotional": "Émotionnel",
+      "provocative": "Provocateur"
+    },
+    "structureOptions": {
+      "hook_body_close": "Accroche – Corps – Conclusion",
+      "storytelling": "Storytelling",
+      "tips_list": "Liste de conseils",
+      "rhetorical_question": "Question rhétorique",
+      "before_after": "Comparatif avant/après",
+      "myth_vs_reality": "Mythe vs réalité",
+      "problem_solution": "Problème – Solution",
+      "testimonial": "Témoignage"
     }
   },
-  "notificationsPage": {
-    "title": "Mes Notifications",
-    "subtitle": "{unread} non lues • {today} aujourd’hui",
-    "subtitleAllClear": "Tout est propre ! ✨",
-    "markAll": "Tout marquer comme lu",
-    "stats": {
-      "total": "Total",
-      "unread": "Non lues",
-      "today": "Aujourd’hui"
-    },
-    "lastUpdate": "Dernière mise à jour : {timeAgo} • 🟢 Mise à jour en temps réel",
-    "filters": {
-      "title": "Filtres",
-      "searchPlaceholder": "🔍 Rechercher des notifications...",
-      "type": "Filtrer par type",
-      "allTypes": "Tous les types",
-      "readState": "État de lecture",
-      "read": {
-        "all": "Toutes",
-        "unread": "Non lues",
-        "read": "Lues"
-      }
-    },
-    "types": {
-      "guion": "Scénario",
-      "video": "Vidéo",
-      "clonacion": "Clonage",
-      "tarea": "Tâche",
-      "sistema": "Système"
-    },
-    "empty": {
-      "title": "Aucune notification",
-      "hintFiltered": "Ajustez les filtres pour voir plus de résultats",
-      "hint": "Lorsqu’il y aura des nouveautés dans vos projets, elles apparaîtront ici"
-    },
-    "badges": {
-      "unread": "Non lue"
-    },
-    "markRead": "Marquer comme lue",
-    "toast": {
-      "markedRead": "Marqué comme lu",
-      "markedAll": "{count} notifications marquées comme lues"
-    },
-    "errors": {
-      "realtime": "Erreur dans la mise à jour en temps réel",
-      "markRead": "Erreur lors du marquage comme lu",
-      "markAll": "Erreur lors du marquage de tout comme lu"
-    },
-    "authRequired": "Connectez-vous pour voir vos notifications",
-    "time": {
-      "now": "À l’instant",
-      "minutes": "Il y a {count} min",
-      "hours": "Il y a {count} h",
-      "days": "Il y a {count} jours"
-    },
-    "friendly": {
-      "guion": {
-        "approvedWith": "✅ Vous avez approuvé le scénario : « {title} »",
-        "approved": "✅ Vous avez approuvé un scénario",
-        "requestedWith": "💬 Vous avez demandé des modifications pour le scénario : « {title} »",
-        "requested": "💬 Vous avez demandé des modifications pour un scénario"
-      },
-      "video": {
-        "approvedWith": "✅ Vous avez approuvé la vidéo : « {title} »",
-        "approved": "✅ Vous avez approuvé une vidéo",
-        "requestedWith": "💬 Vous avez demandé des modifications pour la vidéo : « {title} »",
-        "requested": "💬 Vous avez demandé des modifications pour une vidéo",
-        "uploaded": "🎥 Une nouvelle vidéo a été mise à votre disposition"
-      },
-      "clone": {
-        "uploaded": "📦 Vous avez téléversé du matériel de clonage",
-        "processed": "✅ Votre clonage a été traité"
-      },
-      "task": {
-        "completed": "✅ Vous avez terminé une tâche",
-        "assigned": "📋 Une nouvelle tâche vous a été assignée"
-      },
-      "system": {
-        "maintenance": "🔧 Maintenance programmée",
-        "updated": "🆙 Système mis à jour"
-      }
-    },
-    "footer": "Affichage de {count} sur {total} notifications • 🟢 Mise à jour en temps réel"
-  },
-  "userPage": {
-    "dialog": {
-      "videoTitle": "Vidéo"
-    },
-    "title": "Mon Tableau Utilisateur",
-    "common": {
-      "unknown": "Inconnu"
-    },
-    "profile": {
-      "sectionTitle": "Données de l’Utilisateur",
-      "labels": {
-        "name": "Nom",
-        "instagramUser": "Utilisateur Instagram",
-        "phone": "Téléphone",
-        "emailReadonly": "E-mail (lecture seule)"
-      },
-      "placeholders": {
-        "name": "Votre nom complet",
-        "instagramUser": "@utilisateur",
-        "phone": "+33 6 00 12 34 56"
-      },
-      "photo": {
-        "changeTooltip": "Cliquez pour changer la photo",
-        "uploadingTooltip": "Téléversement de la photo...",
-        "uploadLoading": "Téléversement de la photo de profil...",
-        "uploadError": "Erreur lors du téléversement de la photo",
-        "saveToDbError": "Erreur lors de l’enregistrement de la photo en base",
-        "updated": "Photo de profil mise à jour",
-        "onlyImages": "Images uniquement",
-        "maxSize": "L’image doit peser moins de 5 Mo"
-      },
-      "actions": {
-        "save": "Enregistrer les modifications",
-        "savingPhoto": "Téléversement de la photo...",
-        "saved": "Données mises à jour avec succès",
-        "saveError": "Erreur lors de l’enregistrement des données"
-      },
-      "authRequired": "Utilisateur non authentifié"
-    },
-    "subscription": {
-      "sectionTitle": "Mon Abonnement",
-      "loading": "Chargement de l’abonnement...",
-      "noActive": "Vous n’avez pas d’abonnement actif.",
-      "labels": {
-        "status": "État",
-        "plan": "Forfait",
-        "price": "Prix",
-        "renewal": "Renouvellement",
-        "cancelAtPeriodEnd": "Annuler à la fin de la période"
-      },
-      "yes": "Oui",
-      "no": "Non",
-      "openBillingPortal": "Ouvrir le portail de facturation",
-      "statusMap": {
-        "active": "Actif",
-        "trialing": "En essai",
-        "past_due": "En retard de paiement",
-        "unpaid": "Impayé",
-        "canceled": "Annulé"
-      }
-    },
-    "cloning": {
-      "sectionTitle": "Mes Vidéos de Clonage",
-      "limitBadge": "{count}/{max}",
-      "dropzone": {
-        "aria": {
-          "limitReached": "Limite de vidéos atteinte",
-          "dropArea": "Glissez-déposez des vidéos pour téléverser"
-        },
-        "placeholder": "Glissez vos vidéos ici ou cliquez pour sélectionner",
-        "limitReachedTitle": "Limite de vidéos atteinte !",
-        "limitReachedSubtitle": "Vous avez téléversé le maximum de {max} vidéos autorisées."
-      },
-      "upload": {
-        "uploadingFile": "Téléversement de {name}...",
-        "onlyVideos": "Seuls les fichiers vidéo sont autorisés",
-        "loadingError": "Erreur de chargement des vidéos",
-        "maxSize": "La vidéo doit peser moins de 100 Mo",
-        "slotsWarning": "Vous ne pouvez téléverser que {count} vidéo(s) de plus",
-        "success": "{name} téléversée avec succès",
-        "uploadError": "Erreur lors du téléversement de {name}",
-        "saveError": "Erreur lors de l’enregistrement de la vidéo en base",
-        "createTaskError": "Erreur lors de la création de la tâche de révision",
-        "loadingVideos": "Chargement des vidéos...",
-        "none": "Vous n’avez pas téléversé de vidéos."
-      },
-      "grid": {
-        "aria": {
-          "deleteVideo": "Supprimer la vidéo {title}",
-          "closeVideo": "Fermer la vidéo"
-        }
-      },
-      "deleteModal": {
-        "title": "Confirmer la suppression",
-        "body": "Êtes-vous sûr de vouloir supprimer la vidéo « {title} » ?",
-        "cancel": "Annuler",
-        "delete": "Supprimer"
-      },
-      "delete": {
-        "deleting": "Suppression de la vidéo...",
-        "success": "Vidéo supprimée avec succès",
-        "error": "Erreur lors de la suppression de la vidéo",
-        "notSelectedOrAuth": "Utilisateur non authentifié ou vidéo non sélectionnée"
-      },
-      "dialog": {
-        "videoTitle": "Vidéo"
-      }
-    }
-  },
-  "calendarPage": {
-    "title": "Calendrier de Publication",
-    "description": "Consultez les dates programmées pour vos vidéos (Reels).\nIntégration Metricool prochainement.",
-    "noVideos": "Aucune vidéo programmée pour ce jour.",
-    "selectDay": "Sélectionnez un jour pour voir les vidéos programmées."
-  },
-  "brandAIPage": {
-    "title": "IA de Marque",
-    "description": "Complétez l’ADN de votre marque.\nNous générerons des scénarios totalement personnalisés pour vous.",
-    "toneLabel": "Ton de voix",
-    "tonePlaceholder": "Ex. : Proche, Professionnel, Inspirant...",
-    "audienceLabel": "Public cible",
-    "audiencePlaceholder": "Ex. : Jeunes créatifs, Entreprises tech...",
-    "valuesLabel": "Valeurs clés",
-    "customValuePlaceholder": "Ajoutez votre propre valeur",
-    "addButton": "Ajouter",
-    "websiteLabel": "Site / Réseaux sociaux",
-    "websitePlaceholder": "Ex. : www.votremarque.com",
-    "networksPlaceholder": "Réseaux sociaux (Instagram, TikTok, etc.)",
-    "saveButton": "Enregistrer l’ADN de marque",
-    "successMessage": "ADN de marque enregistré !"
-  },
-  "viralIdeasPage": {
-    "title": "Idées Virales pour vos vidéos",
-    "description": "Découvrez des idées virales générées par IA ou inspirées des tendances TikTok, Instagram et YouTube.\nMarquez vos favorites et créez un scénario en 1 clic.",
-    "useIdea": "Utiliser cette idée",
-    "favoritesTitle": "Vos Idées Favorites",
-    "noFavorites": "Marquez des idées comme favorites pour les voir ici.",
-    "addFavorite": "Ajouter aux favoris",
-    "removeFavorite": "Retirer des favoris",
-    "generatedTitle": "Scénario généré !",
-    "generatedDescription": "Basé sur l’idée :",
-    "ideas": {
-      "trend": {
-        "title": "Tendance : Laquelle préférez-vous ? 🔥",
-        "description": "Mettez votre audience au défi avec des questions rapides « Tu préfères ? ». Idéal pour Reels et TikTok.",
-        "category": "Défi"
-      },
-      "storytime": {
-        "title": "Storytime percutante",
-        "description": "Racontez une anecdote brève et surprenante. Utilisez des coupes rapides et du texte à l’écran pour garder l’attention.",
-        "category": "Storytelling"
-      },
-      "beforeAfter": {
-        "title": "Avant vs Après",
-        "description": "Montrez un processus de transformation (physique, setup, relooking). Le format « avant/après » fonctionne toujours.",
-        "category": "Transformation"
-      },
-      "quickTip": {
-        "title": "Astuce rapide en 30 secondes",
-        "description": "Donnez un conseil concret de votre niche — très court et visuel.",
-        "category": "Conseil"
-      },
-      "imitate": {
-        "title": "Imitez une célébrité virale",
-        "description": "Faites une imitation d’un audio/mème récent. Utilisez des effets vocaux ou un filtre.",
-        "category": "Humour"
-      }
-    }
-  },
-  "extraReelPage": {
-    "title": "Demander un Reel Supplémentaire",
-    "limitReached": "Vous avez atteint votre limite de reels ce mois-ci. Vous pouvez en demander un supplémentaire en payant individuellement ou en utilisant des crédits supplémentaires selon votre forfait.",
-    "creditsRemaining": "Il vous reste encore des reels disponibles ce mois-ci.",
-    "reelsUsed": "Reels utilisés ce mois : {used}/{limit}",
-    "noCredits": "Aucun crédit disponible",
-    "processing": "Traitement...",
-    "requestButton": "Demander un Reel Supplémentaire",
-    "price": "({price} €)",
-    "requestSentTitle": "Demande envoyée !",
-    "requestSentBody": "Notre équipe s’en chargera sous peu.",
-    "creditsAvailable": "Vous pouvez encore utiliser vos crédits ce mois-ci."
-  },
-  "assetsPage": {
-    "title": "Fichiers et Ressources de Marque",
-    "description": "Téléversez vos logos, modèles ou matériel audiovisuel. Tous les fichiers sont stockés en toute sécurité et vous seul pouvez les voir.",
-    "categories": {
-      "logo": "Logo",
-      "plantilla": "Modèle de marque",
-      "audiovisual": "Matériel audiovisuel"
-    },
-    "upload": {
-      "cta": "Téléverser un fichier",
-      "uploading": "Téléversement...",
-      "progress": "{percent}%",
-      "error": "Erreur lors du téléversement : {message}",
-      "success": "Fichier téléversé avec succès"
-    },
-    "list": {
-      "title": "Fichiers téléversés :",
-      "empty": "Aucun fichier dans cette catégorie."
-    },
-    "delete": {
-      "confirm": "Êtes-vous sûr de vouloir supprimer ce fichier ?",
-      "success": "Fichier supprimé",
-      "error": "Erreur lors de la suppression du fichier"
-    }
-  },
-  "statsPage": {
-    "title": "Vos Statistiques de Contenu",
-    "description": "Consultez la performance simulée de vos publications.\nUne fois Metricool activé, vous verrez ici vos statistiques réelles.",
-    "kpi": {
-      "reach": {
-        "label": "Portée réelle",
-        "meta": "Estimé : {value}",
-        "info": "La portée mesure le nombre de personnes ayant vu vos vidéos."
-      },
-      "engagement": {
-        "label": "Engagement",
-        "meta": "Objectif : 5%",
-        "info": "L’engagement reflète l’interaction réelle de vos abonnés."
-      },
-      "frequency": {
-        "label": "Fréquence de publication",
-        "meta": "Recommandé : 3/semaine",
-        "info": "La fréquence recommandée pour croître est de 3–5 publications par semaine."
-      },
-      "followers": {
-        "label": "Abonnés simulés",
-        "info": "Abonnés simulés sur votre compte de test."
-      }
-    },
-    "history": {
-      "title": "Historique des publications par semaine",
-      "note": "* Données d’exemple. Intégrez Metricool pour voir vos statistiques réelles."
+  "reel": {
+    "globalButton": {
+      "create": "Créer un Reel",
+      "creating": "Création...",
+      "openWizard": "Créer un Reel",
+      "aria": "Ouvrir l’assistant pour créer un Reel"
     }
   },
   "billing": {
-    "title": "Facturation et Abonnements",
-    "subtitle": "Consultez et gérez votre abonnement, téléchargez vos factures et changez facilement de forfait.",
-    "mySubscription": "Mon abonnement",
-    "loadingSubscription": "Chargement de l’abonnement...",
-    "noSubscription": "Vous n’avez aucun abonnement actif.",
-    "status": "État",
-    "cancelAtPeriodEnd": "Annuler à la fin de la période",
-    "plan": "Forfait",
-    "price": "Prix",
-    "renewal": "Renouvellement",
-    "notAvailable": "Non disponible",
-    "manageSubscription": "Gérer l’abonnement dans Stripe",
-    "pause": "Mettre l’abonnement en pause",
-    "cancel": "Annuler l’abonnement",
-    "recentInvoices": "Factures récentes",
-    "loadingInvoices": "Chargement des factures...",
-    "noInvoices": "Aucune facture disponible.",
-    "date": "Date",
-    "amount": "Montant",
-    "download": "Télécharger",
-    "upgradeTitle": "Vous voulez améliorer votre forfait ?",
-    "changePlan": "Changer de forfait"
-  },
-  "supportPage": {
-    "title": "Support et Tickets",
-    "description": "Des doutes ou des problèmes ? Contactez notre équipe de support.",
-    "instructions": "Vous pouvez consulter l’état de votre ticket ou en ouvrir un nouveau avec le bouton d’aide (en haut à droite).",
-    "tipTitle": "Rappel :",
-    "tipText": "Sélectionnez le module concerné (Scénarios, Vidéos, Facturation, etc.) et décrivez votre demande pour une réponse plus rapide.",
-    "createTicket": "Créer un nouveau ticket de support"
-  },
-  "admin": {
-    "clients": {
-      "title": "Clients",
-      "subtitle": "Clients avec abonnement actif",
-      "search": "Rechercher par e-mail...",
-      "loading": "Chargement des clients...",
-      "empty": "Aucun client à afficher.",
-      "table": {
-        "email": "E-mail",
-        "name": "Nom",
-        "plan": "Forfait",
-        "status": "État",
-        "createdAt": "Créé",
-        "lang": "Langue",
-        "actions": "Actions",
-        "loading": "Chargement...",
-        "subscription": "Abonnement",
-        "subEnd": "Fin",
-        "loadMore": "Charger plus"
-      },
-      "toast": {
-        "loadError": "Erreur lors du chargement des clients"
-      },
-      "scheduledMailSent": "E-mail de programmation envoyé",
-      "scheduledMailError": "Erreur lors de l’envoi de l’e-mail de programmation"
+    "title": "Abonnement",
+    "subtitle": "Gérez votre offre, vos crédits et vos factures.",
+    "billingPeriod": "Période de facturation",
+    "period": "{start} - {end}",
+    "usage": {
+      "totalCredits": "{value} crédits",
+      "totalUsage": "Utilisation totale",
+      "availableCredits": "{value} crédits",
+      "availableHint": "Crédits disponibles (inclut l’essai)",
+      "creditsUnit": "crédits"
     },
-    "common": {
-      "loadError": "Erreur lors du chargement des données",
-      "saveError": "Erreur lors de l’enregistrement des modifications"
+    "pricePerMonth": "{price}/mois",
+    "planBlurb": "Accès à la plateforme. Essai de 7 jours.",
+    "summary": {
+      "plan": "Offre",
+      "status": "Statut",
+      "renewal": "Renouvellement",
+      "unknown": "—"
     },
-    "tasks": {
-      "title": "Tâches",
-      "inboxTitle": "Boîte de tâches",
-      "newTask": "Nouvelle tâche",
-      "showCompleted": "Afficher les terminées",
-      "hideCompleted": "Masquer les terminées",
-      "mustBeAdmin": "Vous devez être admin pour voir les tâches.",
-      "empty": "Aucune tâche",
-      "createTitle": "Créer une tâche",
-      "editTitle": "Modifier la tâche",
-      "fields": {
-        "title": "Titre",
-        "description": "Description",
-        "dueDate": "Échéance",
-        "assignee": "Assigné à"
-      },
-      "actions": {
-        "save": "Enregistrer",
-        "cancel": "Annuler",
-        "delete": "Supprimer"
-      },
-      "errors": {
-        "noAdminDoc": "Votre document admin est introuvable."
-      },
-      "loading": {
-        "title": "Chargement du titre…",
-        "list": "Chargement de la liste des tâches…"
-      },
-      "dialog": {
-        "title": "Nouvelle tâche",
-        "descriptionPlaceholder": "Description de la tâche...",
-        "dueDate": "Date d’échéance",
-        "cancel": "Annuler",
-        "save": "Enregistrer"
-      }
-    },
-    "notifications": {
-      "title": "Panneau Admin - Toutes les notifications",
-      "subtitle": "{unread} non lues • {today} aujourd’hui",
-      "subtitleAllClear": "Tout est propre ! ✨",
-      "markAll": "Tout marquer comme lu",
-      "realtime": "Mise à jour en temps réel",
-      "stats": {
-        "total": "Total",
-        "unread": "Non lues",
-        "today": "Aujourd’hui"
-      },
-      "lastUpdate": "Dernière mise à jour : {timeAgo}",
-      "filters": {
-        "title": "Filtres",
-        "searchPlaceholder": "🔍 Rechercher des notifications...",
-        "type": "Filtrer par type",
-        "allTypes": "Tous les types",
-        "user": "Filtrer par utilisateur",
-        "allUsers": "Tous les utilisateurs",
-        "readState": "État de lecture",
-        "read": {
-          "all": "Toutes",
-          "unread": "Non lues",
-          "read": "Lues"
-        }
-      },
-      "types": {
-        "guion": "Scénario",
-        "video": "Vidéo",
-        "clonacion": "Clonage",
-        "tarea": "Tâche",
-        "sistema": "Système"
-      },
-      "empty": {
-        "title": "Aucune notification",
-        "hintFiltered": "Ajustez les filtres pour voir plus de résultats",
-        "hint": "Lorsqu’il y aura de l’activité dans le système, elle apparaîtra ici"
-      },
-      "badges": {
-        "unread": "Non lue"
-      },
-      "markRead": "Marquer comme lu",
-      "unknownUser": "Utilisateur {id}...",
-      "toast": {
-        "markedRead": "Marqué comme lu",
-        "markedAll": "{count} notifications marquées comme lues"
-      },
-      "errors": {
-        "realtime": "Erreur dans la mise à jour en temps réel",
-        "markRead": "Erreur lors du marquage comme lu",
-        "markAll": "Erreur lors du marquage de tout comme lu"
-      },
-      "time": {
-        "now": "À l’instant",
-        "minutes": "Il y a {count} min",
-        "hours": "Il y a {count} h",
-        "days": "Il y a {count} jours"
-      },
-      "friendly": {
-        "guion": {
-          "approved": "✅ Scénario approuvé",
-          "edited": "✏️ Scénario modifié",
-          "created": "📝 Nouveau scénario créé",
-          "requested": "💬 Modifications demandées pour le scénario"
-        },
-        "video": {
-          "approved": "✅ Vidéo approuvée",
-          "uploaded": "🎥 Nouvelle vidéo disponible",
-          "edited": "✏️ Vidéo modifiée"
-        },
-        "clone": {
-          "uploaded": "📦 Matériel de clonage téléversé",
-          "processed": "✅ Clonage traité"
-        },
-        "task": {
-          "completed": "✅ Tâche terminée",
-          "assigned": "📋 Nouvelle tâche assignée"
-        },
-        "system": {
-          "maintenance": "🔧 Maintenance programmée",
-          "updated": "🆙 Système mis à jour"
-        }
-      },
-      "footer": "Affichage de {count} sur {total} notifications • 🟢 Mise à jour en temps réel"
-    }
-  },
-  "clientPage": {
-    "title": "👤 Client : {email}",
-    "notFound": "Client introuvable.",
-    "viewInStripe": "Voir dans Stripe",
-    "subscriptionBadge": "{plan}",
-    "calendarTitle": "📅 Calendrier de Publication",
-    "errors": {
-      "subscriptionLoad": "Erreur lors du chargement de l’abonnement",
-      "loadClient": "Erreur lors du chargement du client",
-      "saveClient": "Erreur lors de l’enregistrement des données du client",
-      "missingClientData": "Utilisateur non authentifié ou données client manquantes",
-      "missingScriptFields": "Le titre et le contenu sont obligatoires",
-      "saveScript": "Erreur lors de l’enregistrement du scénario",
-      "missingScriptToUpdate": "Aucun scénario sélectionné pour la mise à jour",
-      "updateScript": "Erreur lors de la mise à jour du scénario",
-      "missingVideoFields": "Fichier vidéo et titre obligatoires",
-      "maxFile": "Le fichier dépasse 100 Mo",
-      "uploadVideo": "Erreur lors du téléversement de la vidéo",
-      "saveVideo": "Erreur lors de l’enregistrement de la vidéo",
-      "missingVideoToUpdate": "Aucune vidéo sélectionnée pour la mise à jour",
-      "updateVideo": "Erreur lors de la mise à jour de la vidéo",
-      "delete": "Erreur lors de la suppression",
-      "emailSend": "Erreur lors de l’envoi de l’e-mail",
-      "invalidUid": "ID utilisateur invalide"
-    },
-    "subscription": {
-      "error": "Impossible d’obtenir l’abonnement",
-      "none": "Inactive"
-    },
-    "loading": {
-      "savingClient": "Enregistrement du client...",
-      "creatingScript": "Création du scénario...",
-      "updatingScript": "Mise à jour du scénario...",
-      "uploadingVideo": "Téléversement de la vidéo...",
-      "updatingVideo": "Mise à jour de la vidéo...",
-      "deleting": "Suppression..."
-    },
-    "success": {
-      "clientSaved": "Client mis à jour avec succès",
-      "scriptCreated": "Scénario créé avec succès",
-      "scriptUpdated": "Scénario mis à jour avec succès",
-      "videoUploaded": "Vidéo téléversée avec succès",
-      "videoUpdated": "Vidéo mise à jour avec succès",
-      "deleted": "Supprimé avec succès"
-    }
-  },
-  "clientForm": {
-    "title": "Données du Client",
-    "copyEmail": "Copier l’e-mail",
-    "emailCopied": "E-mail copié",
-    "labels": {
-      "name": "Nom",
-      "phone": "Téléphone",
-      "instagram": "Instagram",
-      "workFolder": "Lien vers le dossier de travail",
-      "emailReadonly": "E-mail (lecture seule)",
-      "instagramUser": "Instagram",
-      "internalNotes": "Notes internes"
-    },
-    "placeholders": {
-      "name": "Nom complet",
-      "phone": "+33 6 00 12 34 56",
-      "instagram": "@utilisateur",
-      "instagramUser": "@utilisateur",
-      "workFolder": "https://...",
-      "internalNotes": "Notes internes"
-    },
-    "notesPlaceholder": "Notes internes",
-    "save": "Enregistrer les modifications",
-    "alts": {
-      "gmail": "Logo Gmail",
-      "instagram": "Logo Instagram"
+    "status": {
+      "none": "Sans abonnement",
+      "trialing": "En essai",
+      "active": "Active",
+      "cancelAtPeriodEnd": "Annulation en fin de période",
+      "past_due": "En retard de paiement",
+      "unpaid": "Impayé",
+      "canceled": "Annulée"
     },
     "actions": {
-      "copyEmail": "Copier l’e-mail",
-      "saveChanges": "Enregistrer les modifications"
-    }
-  },
-  "clientScripts": {
-    "title": "📜 Scénarios",
-    "createBtn": "+ Créer",
-    "modal": {
-      "title": "Titre",
-      "content": "Contenu",
-      "save": "Enregistrer"
-    },
-    "status": {
-      "new": "Nouveau",
-      "changes": "Modifications",
-      "approved": "Approuvé"
-    },
-    "unknown": "Inconnu",
-    "emptyTitle": "Il n’y a pas encore de scénarios pour ce client.",
-    "emptyHint": "Utilisez le bouton pour ajouter le premier."
-  },
-  "clientVideos": {
-    "title": "🎬 Vidéos",
-    "createBtn": "+ Créer",
-    "uploadDialogTitle": "Téléverser une vidéo",
-    "titlePlaceholder": "Titre de la vidéo",
-    "dropzone": {
-      "prompt": "Glissez une vidéo ici ou cliquez pour sélectionner (max 100 Mo)",
-      "fileTooLarge": "Le fichier est trop volumineux. Maximum autorisé : 100 Mo",
-      "invalidType": "Type de fichier invalide. Vidéos uniquement.",
-      "genericError": "Impossible de traiter le fichier",
-      "selected": "Fichier « {name} » sélectionné"
-    },
-    "status": {
-      "new": "Nouveau",
-      "changes": "Modifications",
-      "approved": "Approuvé"
-    },
-    "upload": "Téléverser",
-    "uploading": "Téléversement... {percent}%",
-    "emptyTitle": "Il n’y a pas encore de vidéos pour ce client.",
-    "emptyHint": "Utilisez le bouton pour ajouter la première.",
-    "unknown": "Inconnu"
-  },
-  "clientScriptModal": {
-    "title": "Modifier le Scénario",
-    "status": "État",
-    "notesPlaceholder": "Décrivez les modifications souhaitées ou les instructions pour refaire le scénario",
-    "delete": "Supprimer",
-    "save": "Enregistrer les modifications",
-    "saving": "Enregistrement...",
-    "tasksCreated": "Tâches créées pour Rubén et Hello",
-    "placeholders": {
-      "title": "Titre",
-      "content": "Contenu",
-      "selectStatus": "Sélectionner l’état"
-    }
-  },
-  "clientVideoModal": {
-    "title": "Modifier la Vidéo",
-    "titleInputPlaceholder": "Titre de la vidéo",
-    "statusLabel": "État :",
-    "status": {
-      "new": "Nouveau",
-      "changes": "Nécessite des modifications",
-      "approved": "Approuvée"
-    },
-    "notesLabel": "Notes pour corrections :",
-    "notesPlaceholder": "Écrivez les corrections nécessaires...",
-    "replace": "Remplacer la vidéo",
-    "delete": "Supprimer",
-    "save": "Enregistrer",
-    "fileTooLarge": "Le fichier dépasse {max} Mo. Téléversez une vidéo plus petite.",
-    "previewAria": "Aperçu de la vidéo {title}",
-    "deleteTooltip": "Supprimer la vidéo",
-    "saveTooltip": "Enregistrer les modifications"
-  },
-  "clientClone": {
-    "title": "🎭 Vidéos de Clonage",
-    "dropzoneIdle": "Glissez ici ou cliquez pour téléverser (max 100 Mo chacun)",
-    "dropzoneUploading": "Téléversement des vidéos...",
-    "progress": "{name} - {percent}%",
-    "empty": "Il n’y a pas encore de vidéos.",
-    "confirmDeleteTitle": "Confirmer la suppression",
-    "confirmDeleteBody": "Êtes-vous sûr de vouloir supprimer cette vidéo ? Cette action est irréversible.",
-    "cancel": "Annuler",
-    "delete": "Supprimer",
-    "viewerTitle": "Vidéo",
-    "deleting": "Suppression..."
-  },
-  "clientCalendar": {
-    "addEvent": "➕ Ajouter un événement",
-    "how": "Quoi",
-    "type": {
-      "guion": "Scénario",
-      "video": "Vidéo"
-    },
-    "selectX": "Sélectionnez {type}",
-    "date": "Date",
-    "time": "Heure",
-    "add": "Ajouter",
-    "publishOnSocial": "📢 Publier sur les réseaux sociaux",
-    "eventsOn": "Événements du {date}",
-    "selectDay": "Sélectionnez un jour pour voir les événements",
-    "noneForDay": "Aucun événement pour ce jour.",
-    "plannedOnSocial": "📱 Programmé sur les réseaux",
-    "platform": "Plateforme",
-    "status": "État",
-    "delete": "Supprimer",
-    "states": {
-      "por_hacer": "À faire",
-      "en_proceso": "En cours",
-      "completado": "Fait"
-    },
-    "toast": {
-      "added": "Événement ajouté avec succès",
-      "addedAndScheduled": "Événement ajouté et programmé sur les réseaux",
-      "synchError": "Événement créé mais erreur de synchronisation avec Metricool",
-      "deleted": "Événement supprimé",
-      "stateUpdated": "État mis à jour"
+      "startTrial": "Commencer l’essai GRATUIT",
+      "manage": "Gérer l’abonnement",
+      "openingPortal": "Ouverture de votre portail client"
     },
     "errors": {
-      "selectItemAndDate": "Sélectionnez un élément et une date",
-      "itemNotFound": "Élément introuvable",
-      "load": "Erreur lors du chargement des événements du calendrier",
-      "create": "Impossible de créer l’événement",
-      "delete": "Erreur lors de la suppression de l’événement",
-      "update": "Erreur lors de la mise à jour de l’état",
-      "loadProviders": "Erreur lors de l’obtention des fournisseurs Metricool"
+      "notAuthenticated": "Non authentifié",
+      "checkout": "Erreur de paiement",
+      "openCheckout": "❌ Impossible d’ouvrir le checkout",
+      "openPortal": "Erreur lors de l’ouverture du portail",
+      "mustLogin": "Vous devez vous connecter"
+    },
+    "filters": {
+      "type": "Type",
+      "range": "Période",
+      "all": "Tous",
+      "script": "Scripts",
+      "audio": "Audios",
+      "video": "Vidéos",
+      "edit": "Montages",
+      "week": "Semaine en cours",
+      "month": "Mois en cours",
+      "allHistory": "Historique complet"
+    },
+    "table": {
+      "type": "Type",
+      "jobId": "ID de tâche",
+      "cost": "Coût",
+      "processedAt": "Traitée le",
+      "empty": "Aucune tâche enregistrée sur cette période."
+    },
+    "kinds": {
+      "script": "Script",
+      "audio": "Audio",
+      "video": "Vidéo",
+      "edit": "Montage"
+    },
+    "toasts": {
+      "portalOpened": "Portail ouvert",
+      "portalError": "Impossible d’ouvrir le portail"
+    },
+    "checkoutModal": {
+      "title": "Commencez votre essai gratuit 🎉",
+      "description": "Vous avez besoin d’un abonnement actif pour utiliser cette fonctionnalité.",
+      "cancel": "Annuler",
+      "continue": "Continuer",
+      "redirecting": "Redirection...",
+      "activateTrialMessage": "Vous devez activer votre essai gratuit pour recevoir les crédits.",
+      "errors": {
+        "mustLogin": "Vous devez d’abord vous connecter",
+        "checkout": "Erreur de paiement"
+      }
+    },
+    "renewModal": {
+      "title": "Votre offre est annulée",
+      "description": "Voulez-vous réactiver votre abonnement et retrouver tous les avantages ?",
+      "actions": {
+        "no": "Non",
+        "yes": "Oui, réactiver",
+        "processing": "Réactivation..."
+      },
+      "toasts": {
+        "success": "Abonnement réactivé",
+        "error": "Erreur lors de la réactivation de l’abonnement"
+      }
     }
   },
-  "clientGuionesSection": {
-    "title": "Scénarios",
-    "create": "Créer",
-    "placeholders": {
-      "title": "Titre",
-      "content": "Contenu"
+  "pricing": {
+    "back": "Retour à l’accueil",
+    "title": "Tarifs",
+    "plans": {
+      "basic": {
+        "name": "Basic",
+        "price": "19,99 €",
+        "per": "/mois + usage",
+        "cta": "Bientôt disponible",
+        "features": [
+          "1 voix/avatar",
+          "Vidéos en 720p",
+          "File d’attente standard",
+          "1 régénération Audio AI®",
+          "1 régénération Script AI®",
+          "Vidéos jusqu’à 30 s",
+          "Paiement à l’usage",
+          "Filigrane inclus"
+        ]
+      },
+      "access": {
+        "name": "Access",
+        "price": "29,99 €",
+        "per": "/mois + usage",
+        "trialNote": "Inclut 7 jours d’essai + 200 crédits",
+        "cta": "Commencer GRATUITEMENT",
+        "goHome": "Aller à l’accueil",
+        "features": [
+          "1 voix/avatar",
+          "Vidéos en 1080p",
+          "File d’attente standard",
+          "3 régénérations Audio AI®",
+          "2 régénérations Script AI®",
+          "Vidéos jusqu’à 1 min",
+          "Paiement à l’usage",
+          "Sans filigrane"
+        ]
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "59,99 €",
+        "per": "/mois + usage",
+        "cta": "Bientôt disponible",
+        "features": [
+          "3 voix/avatars",
+          "Vidéos en 4K",
+          "File d’attente prioritaire",
+          "Régénérations Audio AI® illimitées",
+          "Régénérations Script AI® illimitées",
+          "Vidéos jusqu’à 5 min",
+          "Paiement à l’usage",
+          "Sans filigrane"
+        ]
+      }
     },
+    "credits": {
+      "unit": "crédits",
+      "scriptAI": "Script AI®",
+      "audioAI": "Audio AI®",
+      "videoAI": "Video AI®",
+      "editAI": "Edit AI®",
+      "fullVideo": "Vidéo complète"
+    },
+    "faq": {
+      "title": "Foire aux questions",
+      "items": [
+        {
+          "q": "Y a-t-il des frais variables en plus de l’abonnement ?",
+          "a": "Oui. Vous ne payez que ce que vous générez selon la grille à l’usage (vidéo complète, Video Ai®, Edit AI®, Audio AI®, Script AI®, etc.)."
+        },
+        {
+          "q": "Comment et quand l’usage est-il facturé ?",
+          "a": "Nous regroupons votre consommation en un seul prélèvement quotidien à 23:59 dans le fuseau horaire de votre compte (par défaut, Europe/Madrid). Si vous ne générez rien, 0 € variables ce jour-là."
+        },
+        {
+          "q": "Comment voir le montant dépensé aujourd’hui en euros ?",
+          "a": "En haut à droite, votre compteur de crédits. En cliquant, vous verrez un panneau avec le montant du jour en € (TVA incl.) et votre usage du mois."
+        },
+        {
+          "q": "Que comprend « vidéo complète » ?",
+          "a": "Video Ai® + Edit AI® + Audio AI® + Script AI® pour une vidéo jusqu’à 1 minute. Inclut 2 régénérations Script AI® et 3 Audio AI®."
+        },
+        {
+          "q": "Puis-je utiliser les modules séparément ?",
+          "a": "Oui. Vous pouvez générer uniquement Video Ai®, Edit AI®, Audio AI® ou Script AI® ; chaque module est facturé selon la grille. Si vous choisissez « vidéo complète », nous facturons la somme en une seule étape."
+        },
+        {
+          "q": "Que se passe-t-il si un rendu échoue ?",
+          "a": "Vous n’êtes pas facturé. Nous rétablissons les montants dans votre relevé ou ajustons automatiquement la facturation quotidienne."
+        },
+        {
+          "q": "Comment fonctionne l’essai gratuit de 7 jours ?",
+          "a": "Pendant 7 jours, vous avez toutes les fonctionnalités sans payer la mensualité. Inclut 200 crédits ; si vous les dépassez, l’excédent est facturé à l’usage (prélèvement quotidien à 23:59). Si vous annulez avant la fin, pas de mensualité, mais l’usage consommé reste dû. Les crédits non utilisés expirent à la fin de l’essai."
+        },
+        {
+          "q": "Comment activer et utiliser les 200 crédits d’essai ?",
+          "a": "Pendant l’essai, un bandeau « Activer 200 crédits ». Cliquez pour les recevoir ; avant cela, l’usage est facturé au tarif normal. Activés le jour même, ils s’appliquent d’abord à la consommation du jour (non rétroactif) ; au-delà, tarif normal. Ils expirent à la fin de l’essai."
+        }
+      ]
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "profile": "Profil",
+    "name": "Nom",
     "save": "Enregistrer",
-    "empty": {
-      "title": "Il n’y a pas encore de scénarios pour ce client.",
-      "hint": "Utilisez le bouton pour ajouter le premier."
+    "resetPassword": "Réinitialiser le mot de passe",
+    "resetPasswordSent": "Un e-mail de réinitialisation a été envoyé",
+    "errorResetPassword": "Impossible d’envoyer l’e-mail de réinitialisation",
+    "savedProfile": "Profil mis à jour",
+    "errorProfile": "Impossible de mettre à jour le profil",
+    "subscription": "Abonnement",
+    "subscriptionDesc": "Gérez votre offre et vos paiements via le portail sécurisé Stripe.",
+    "manageSubscription": "Gérer l’abonnement",
+    "deleteAccount": "Supprimer mon compte",
+    "confirmDelete": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.",
+    "accountDeleted": "Votre compte a été supprimé",
+    "errorDeleteAccount": "Impossible de supprimer le compte",
+    "photo": {
+      "alt": "Avatar",
+      "change": "Changer la photo",
+      "uploading": "Téléversement...",
+      "updated": "📸 Photo mise à jour",
+      "uploadError": "❌ Erreur lors du téléversement"
     },
-    "a11y": {
-      "selectScript": "Sélectionner le scénario {title}"
+    "labels": {
+      "emailReadonly": "E-mail",
+      "instagramUser": "Instagram",
+      "phone": "Téléphone"
+    },
+    "placeholders": {
+      "name": "Votre nom",
+      "instagramUser": "@utilisateur",
+      "phone": "+33 6 00 00 00 00"
     }
   },
-  "clientVideosSection": {
-    "title": "Vidéos",
-    "create": "Créer",
+  "profile": {
+    "sectionTitle": "Profil",
+    "sectionSubtitle": "Gérez vos informations de base et votre photo de compte.",
+    "labels": {
+      "name": "Nom",
+      "instagramUser": "Instagram",
+      "phone": "Téléphone",
+      "emailReadonly": "E-mail"
+    },
+    "placeholders": {
+      "name": "Votre nom",
+      "instagramUser": "@utilisateur",
+      "phone": "+33 6 00 00 00 00"
+    },
+    "actions": {
+      "changePhoto": "Changer la photo",
+      "save": "Enregistrer",
+      "savingPhoto": "Enregistrement...",
+      "saved": "Profil enregistré"
+    },
+    "crop": {
+      "title": "Recadrer la photo",
+      "zoom": "Zoom",
+      "confirm": "Recadrer et téléverser"
+    }
+  },
+  "subscription": {
+    "sectionTitle": "Abonnement",
+    "labels": {
+      "status": "Statut",
+      "plan": "Offre",
+      "renewal": "Renouvellement",
+      "unknown": "Inconnu"
+    },
+    "status": {
+      "active": "Active",
+      "trialing": "En essai",
+      "incomplete": "Incomplète",
+      "canceled": "Annulée",
+      "none": "Sans abonnement",
+      "unknown": "Inconnu"
+    },
+    "actions": {
+      "manage": "Gérer l’abonnement"
+    }
+  },
+  "scripts": {
+    "untitled": "Sans titre"
+  },
+  "videos": {
+    "untitled": "Sans titre"
+  },
+  "topbar": {
+    "mobileBanner": "🚀 Viralizalo.AI est bien meilleur sur ordinateur pour une meilleure expérience.",
+    "trial": {
+      "banner": "Vous avez des crédits d’essai disponibles. Réclamez-les pour commencer gratuitement.",
+      "claim": "Réclamer les crédits",
+      "claiming": "Réclamation...",
+      "activateFirst": "Pour les réclamer, activez d’abord votre essai gratuit sur Stripe.",
+      "claimError": "Impossible de réclamer l’essai.",
+      "unexpectedError": "Une erreur inattendue est survenue lors de la réclamation."
+    },
+    "overdue": {
+      "banner": "⚠️ Vous avez une dette de {credits} crédits. Veuillez régulariser votre paiement pour continuer à utiliser la plateforme.",
+      "payNow": "Payer maintenant"
+    },
+    "badge": {
+      "debt": "Dette : {credits} crédits",
+      "usage": "Utilisation totale : {credits} crédits"
+    },
+    "popover": {
+      "monthUsage": "Utilisation totale du mois",
+      "available": "Crédits disponibles (inclut l’essai)",
+      "today": "Aujourd’hui",
+      "chargeAt": "Prélèvement aujourd’hui à 23:59 (Europe/Madrid)",
+      "creditsUnit": "crédits"
+    }
+  },
+  "dropdown": {
+    "account": "Mon compte",
+    "subscription": "Abonnement",
+    "settings": "Paramètres",
+    "logout": "Se déconnecter",
+    "theme": "Thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système",
+    "language": "Langue",
+    "pricing": "Tarifs",
+    "howTo": "Comment utiliser Viralizalo.AI ?",
+    "trialDays": "{days} jours d’essai",
+    "cancelAtPeriodEnd": "Annulée (fin de période)",
+    "avatarAlt": "Avatar"
+  },
+  "viralIdeasPage": {
+    "title": "Idées virales",
+    "toasts": {
+      "enterNiche": "Saisissez une niche avant de rechercher",
+      "mustLoginSearch": "Vous devez vous connecter pour rechercher des vidéos",
+      "loading": "Recherche de vidéos virales...",
+      "loaded": "Vidéos chargées avec succès",
+      "loadError": "Erreur lors du chargement des vidéos",
+      "mustLoginFavorite": "Vous devez vous connecter pour enregistrer des favoris",
+      "mustLoginReplicate": "Vous devez vous connecter pour répliquer des vidéos",
+      "noTranscript": "Aucune transcription trouvée",
+      "replicateError": "Erreur lors de la réplication de la vidéo"
+    },
+    "replicatedScriptDescription": "Script répliqué depuis {title}",
+    "empty": {
+      "noResultsForFilters": "Aucune vidéo tendance pour « {query} » avec les filtres actuels. Essayez un autre terme, une autre langue ou période.",
+      "noMatchesForFilter": "Aucune correspondance avec le filtre actuel."
+    },
+    "viewsLabel": "vues",
+    "playHere": "Lire ici",
+    "favoritesHeader": "Favoris",
+    "favoritesEmpty": "Vous n’avez pas de vidéos enregistrées",
+    "view": "Voir",
+    "viewOnYoutube": "Voir sur YouTube"
+  },
+  "ideas": {
+    "header": {
+      "country": "Pays",
+      "range": "Période",
+      "language": "Langue",
+      "time": "Temps",
+      "countries": {
+        "ES": "Espagnol",
+        "US": "Anglais",
+        "MX": "Mexique",
+        "AR": "Argentine",
+        "FR": "Français"
+      },
+      "ranges": {
+        "day": "Aujourd’hui",
+        "today": "Aujourd’hui",
+        "week": "Dernière semaine",
+        "month": "Dernier mois",
+        "year": "Dernière année"
+      }
+    },
+    "search": {
+      "placeholder": "Saisissez une niche ou un sujet (ex. : fitness, recettes, marketing)",
+      "button": "Rechercher",
+      "simplePlaceholder": "Recherchez votre niche"
+    },
+    "list": {
+      "viewOnYoutube": "Voir sur YouTube",
+      "useIdea": "Utiliser cette idée",
+      "replicate": "Répliquer la vidéo",
+      "addFavorite": "Ajouter aux favoris",
+      "removeFavorite": "Retirer des favoris",
+      "loading": "Chargement des idées...",
+      "noItems": "Aucun résultat à afficher.",
+      "noPreview": "Aperçu indisponible"
+    },
+    "favorites": {
+      "title": "Vos idées favorites",
+      "empty": "Marquez des idées comme favorites pour les voir ici.",
+      "toggle": "Favoris"
+    }
+  },
+  "scriptsPage": {
+    "title": "Scripts",
+    "generate": "Générer un script",
+    "deleteAll": "Tout supprimer",
+    "sort": {
+      "placeholder": "Trier par",
+      "dateDesc": "Date ↓",
+      "dateAsc": "Date ↑",
+      "ratingDesc": "Note ↓",
+      "ratingAsc": "Note ↑"
+    },
+    "empty": "Vous n’avez pas encore de scripts.",
+    "toasts": {
+      "loadError": "Impossible de charger les scripts",
+      "deleteAllSuccess": "Tous les scripts ont été supprimés ✅",
+      "deleteOneSuccess": "Script supprimé avec succès ✅",
+      "deleteError": "Impossible de supprimer le script",
+      "rateError": "Impossible de mettre à jour la note",
+      "refreshError": "Erreur lors de la confirmation des scripts, rafraîchissez la page"
+    },
+    "deleteDialog": {
+      "titleAll": "Supprimer tous les scripts",
+      "titleOne": "Supprimer le script",
+      "bodyAll": "Voulez-vous vraiment supprimer TOUS les scripts ? Cette action est irréversible.",
+      "bodyOne": "Voulez-vous vraiment supprimer ce script ? Cette action est irréversible.",
+      "confirmAll": "Tout supprimer",
+      "confirmOne": "Supprimer"
+    }
+  },
+  "scriptCard": {
+    "untitledAI": "Sans titre",
+    "untitledReplicated": "Vidéo répliquée",
+    "unrated": "Non noté",
+    "noContent": "Aucun contenu",
+    "noPreview": "Aperçu indisponible",
+    "thumbnailAlt": "Miniature de la vidéo",
+    "view": "Voir",
+    "delete": "Supprimer",
+    "ariaView": "Voir le script : {title}",
+    "ariaDelete": "Supprimer le script : {title}"
+  },
+  "scriptsDeleteDialog": {
+    "title": "Supprimer le script",
+    "description": "Voulez-vous vraiment supprimer « {title} » ? Cette action est irréversible.",
+    "thisScript": "ce script",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleting": "Suppression...",
+    "ariaDelete": "Supprimer {title}"
+  },
+  "scriptsModal": {
+    "badges": {
+      "ctaPrefix": "CTA :"
+    },
+    "ratingAria": "Noter avec {stars} étoiles",
+    "previewUnavailable": "Aperçu indisponible",
+    "channel": "Chaîne",
+    "published": "Publié",
+    "viewOriginal": "Voir la vidéo originale",
+    "cloneWithVoice": "Cloner le texte avec la voix"
+  },
+  "scriptsCreator": {
+    "dialog": {
+      "generatedTitle": "Script généré"
+    },
+    "buttons": {
+      "regenerate": "Régénérer ({count}/2)",
+      "accept": "Accepter et enregistrer"
+    },
+    "toasts": {
+      "fillAll": "⚠️ Veuillez remplir tous les champs obligatoires.",
+      "mustLogin": "Vous devez vous connecter pour créer des scripts.",
+      "generateError": "Impossible de générer le script.",
+      "regenerating": "🔄 Régénération du script...",
+      "regenLimit": "⚠️ Vous avez déjà régénéré le script 2 fois.",
+      "regenError": "❌ Impossible de régénérer le script.",
+      "saving": "💾 Enregistrement du script...",
+      "saved": "✅ Script enregistré avec succès",
+      "saveError": "Impossible d’enregistrer le script."
+    },
+    "regenDialog": {
+      "title": "Modifier avant de régénérer",
+      "labels": {
+        "tone": "Ton",
+        "structure": "Structure"
+      },
+      "placeholders": {
+        "tone": "Sélectionner le ton",
+        "structure": "Sélectionner la structure"
+      },
+      "actions": {
+        "cancel": "Annuler",
+        "accept": "Accepter et régénérer"
+      }
+    },
+    "checkout": {
+      "message": "Vous avez besoin d’un abonnement actif pour générer des scripts. Commencez votre essai GRATUIT de 7 jours."
+    }
+  },
+  "scriptsForm": {
+    "title": "Génération de script",
+    "header": {
+      "subtitle": "Remplissez les champs pour créer automatiquement un nouveau script."
+    },
+    "labels": {
+      "description": "Brève description *",
+      "tone": "Ton *",
+      "platform": "Plateforme *",
+      "duration": "Durée *",
+      "language": "Langue *",
+      "structure": "Structure *",
+      "addCTA": "Ajouter un appel à l’action (CTA)",
+      "ctaText": "Texte du CTA"
+    },
+    "placeholders": {
+      "description": "Ex. : Reel motivant sur la productivité pour les entrepreneurs",
+      "tone": "Sélectionner un ton",
+      "platform": "Sélectionner une plateforme",
+      "duration": "Sélectionner une durée",
+      "language": "Sélectionner une langue",
+      "structure": "Sélectionner une structure",
+      "ctaText": "Ex. : Suivez-moi pour plus de conseils"
+    },
+    "buttons": {
+      "generate": "Générer un script",
+      "generating": "Génération..."
+    },
+    "options": {
+      "platforms": {
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "youtube": "YouTube Shorts",
+        "linkedin": "LinkedIn",
+        "shorts": "YouTube Shorts",
+        "reels": "Instagram Reels"
+      },
+      "durations": {
+        "0-15": "0–15 secondes",
+        "15-30": "15–30 secondes",
+        "30-45": "30–45 secondes",
+        "45-60": "45–60 secondes",
+        "15s": "15 s",
+        "30s": "30 s",
+        "60s": "60 s"
+      },
+      "languages": {
+        "es": "Espagnol",
+        "en": "Anglais",
+        "fr": "Français"
+      }
+    }
+  },
+  "audiosPage": {
+    "title": "Mes audios",
+    "buttons": {
+      "deleteAll": "Tout supprimer",
+      "deleting": "Suppression...",
+      "new": "Nouvel audio"
+    },
+    "toasts": {
+      "loadError": "❌ Impossible de charger les audios",
+      "deleteAllSuccess": "🗑️ Tous les audios supprimés",
+      "deleteOneSuccess": "Audio supprimé ✅",
+      "deleteError": "❌ Impossible de supprimer l’audio"
+    },
+    "deleteDialog": {
+      "titleAll": "Supprimer tous les audios",
+      "titleOne": "Supprimer l’audio",
+      "descAll": "Voulez-vous vraiment supprimer TOUS les audios ? Cette action est irréversible.",
+      "descOne": "Voulez-vous vraiment supprimer cet audio ? Cette action est irréversible.",
+      "confirmAll": "Tout supprimer",
+      "confirmOne": "Supprimer"
+    }
+  },
+  "audioCreator": {
+    "dialog": {
+      "title": "🎧 Audio généré"
+    },
+    "buttons": {
+      "regenerate": "Régénérer ({count}/2)",
+      "accept": "Accepter et enregistrer"
+    },
+    "regenDialog": {
+      "title": "Modifier avant de régénérer",
+      "labels": {
+        "text": "Texte *",
+        "voice": "Voix *",
+        "language": "Langue",
+        "stability": "Stabilité",
+        "similarity": "Similarité",
+        "style": "Style",
+        "speed": "Vitesse",
+        "speakerBoost": "Utiliser Speaker Boost"
+      },
+      "placeholders": {
+        "text": "Écrivez le texte à convertir en audio",
+        "voice": "Sélectionnez une voix"
+      },
+      "actions": {
+        "cancel": "Annuler"
+      }
+    },
+    "player": {
+      "play": "Lire l’audio",
+      "pause": "Mettre en pause"
+    },
+    "toasts": {
+      "durationExceeded": "⏱️ L’audio dure {duration} et le maximum autorisé est {max}s. Raccourcissez le texte ou augmentez la vitesse.",
+      "enterText": "Vous devez écrire le texte à convertir.",
+      "textTooLongEst": "⏱️ Le texte est trop long (~{seconds}s). Maximum {max}s.",
+      "selectVoice": "Vous devez sélectionner une voix.",
+      "mustLogin": "Vous devez vous connecter pour générer des audios.",
+      "generating": "🎙️ Génération de l’audio...",
+      "generated": "✅ Audio généré",
+      "generateError": "❌ Impossible de générer l’audio",
+      "noBaseAudio": "Aucun audio de base à régénérer.",
+      "regenLimit": "⚠️ 2 régénérations maximum autorisées.",
+      "regenerating": "🔄 Régénération de l’audio...",
+      "regenerated": "✅ Audio régénéré",
+      "regenError": "❌ Impossible de régénérer",
+      "saved": "📂 Audio enregistré dans votre bibliothèque",
+      "durationExceededBeforeSave": "⏱️ L’audio dure {duration} (> {max}s). Veuillez le raccourcir avant d’enregistrer."
+    },
+    "paywall": "Pour cloner votre voix, vous avez besoin d’un abonnement actif. Commencez votre essai GRATUIT de 7 jours"
+  },
+  "audioForm": {
+    "title": "Génération d’audio",
+    "labels": {
+      "nameOptional": "Nom (optionnel)",
+      "text": "Texte *",
+      "voice": "Voix *",
+      "language": "Langue *",
+      "stability": "Stabilité",
+      "similarity": "Similarité",
+      "style": "Style",
+      "speed": "Vitesse",
+      "speakerBoost": "Utiliser Speaker Boost"
+    },
+    "placeholders": {
+      "name": "Ex. : Intro vidéo landing FR",
+      "text": "Écrivez le texte...",
+      "voice": "Sélectionnez une voix"
+    },
+    "tooltips": {
+      "stability": "Cohérence de la voix.",
+      "similarity": "Ressemblance avec la voix de base.",
+      "style": "Expressivité.",
+      "speed": "Débit de parole."
+    },
+    "buttons": {
+      "processing": "Traitement...",
+      "generating": "Génération de l’audio...",
+      "generate": "Générer l’audio"
+    },
+    "toasts": {
+      "fillAll": "⚠️ Complétez texte, voix et langue.",
+      "noVoices": "Vous n’avez pas encore de voix, créez ou clonez-en une d’abord.",
+      "loadVoicesError": "Erreur lors du chargement des voix depuis le serveur.",
+      "loadedFromScript": "Texte chargé depuis le script sélectionné ✨"
+    },
+    "checkout": {
+      "message": "Vous avez besoin d’un abonnement actif pour générer des audios."
+    }
+  },
+  "audiosList": {
+    "empty": "Aucun audio pour le moment."
+  },
+  "audioCard": {
+    "untitled": "Sans titre",
+    "aria": {
+      "play": "Lire l’audio",
+      "pause": "Mettre l’audio en pause",
+      "download": "Télécharger l’audio",
+      "delete": "Supprimer l’audio"
+    },
+    "titles": {
+      "download": "Télécharger",
+      "delete": "Supprimer"
+    },
+    "toasts": {
+      "reloginToDownload": "Vous devez vous reconnecter pour télécharger.",
+      "downloadError": "Impossible de télécharger l’audio."
+    }
+  },
+  "video": {
+    "generateButton": {
+      "generate": "Générer la vidéo",
+      "generating": "Génération..."
+    },
+    "select": {
+      "label": "Sélectionner une vidéo de clonage",
+      "placeholder": "Choisissez une vidéo",
+      "empty": "Vous n’avez pas de vidéos de clonage",
+      "unnamed": "Sans titre"
+    },
     "uploadDialog": {
-      "title": "Téléverser une vidéo"
+      "title": "Téléverser une vidéo de clonage",
+      "requirementsTitle": "Exigences de la vidéo :",
+      "requirements": {
+        "aspect": "Format vertical (9:16)",
+        "size": "Maximum {mb} Mo",
+        "background": "Fond uni et bonne luminosité",
+        "clarity": "Parler face caméra et clairement"
+      },
+      "dropHint": "Glissez votre vidéo ici ou cliquez pour sélectionner",
+      "analyzing": "Analyse de la vidéo...",
+      "replace": "Remplacer",
+      "upload": "Téléverser",
+      "uploading": "Téléversement...",
+      "uploadedToast": "✅ Vidéo téléversée avec succès",
+      "uploadErrorToast": "❌ Erreur lors du téléversement",
+      "progress": "{value}% téléversé"
+    }
+  },
+  "lipsyncPage": {
+    "title": "Clones",
+    "buttons": {
+      "deleteAll": "Tout supprimer",
+      "create": "Créer une vidéo"
+    },
+    "toasts": {
+      "loadError": "❌ Impossible de charger les vidéos",
+      "deleteAllSuccess": "Toutes les vidéos ont été supprimées ✅",
+      "deleteOneSuccess": "Vidéo supprimée avec succès ✅",
+      "deleteError": "Impossible de supprimer les vidéos"
+    },
+    "confirm": {
+      "deleteAllTitle": "Supprimer toutes les vidéos",
+      "deleteOneTitle": "Supprimer la vidéo Lipsync",
+      "deleteAllDesc": "Voulez-vous vraiment supprimer TOUTES les vidéos ? Cette action est irréversible.",
+      "deleteOneDesc": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "confirmAll": "Tout supprimer",
+      "confirmOne": "Supprimer"
+    }
+  },
+  "lipsyncList": {
+    "empty": "Vous n’avez pas encore de vidéos."
+  },
+  "lipsyncCard": {
+    "untitled": "Sans titre",
+    "ariaDelete": "Supprimer la vidéo",
+    "titleDelete": "Supprimer la vidéo",
+    "playHere": "▶ Lire ici",
+    "ariaPlay": "Lire : {title}",
+    "status": {
+      "processing": "Traitement...",
+      "error": "Erreur lors de la génération",
+      "pending": "En attente"
+    },
+    "download": "Télécharger",
+    "autoedit": "Auto-monter"
+  },
+  "lipsyncCreate": {
+    "title": "Vidéos clonées",
+    "errors": {
+      "auth": "Vous devez vous connecter.",
+      "selectAudio": "Vous devez sélectionner un audio valide.",
+      "selectVideo": "Vous devez sélectionner une vidéo valide.",
+      "title": "Vous devez saisir un titre pour la vidéo.",
+      "audioDuration": "⏱️ L’audio dure {sec}s et le maximum est {max}s.",
+      "videoDuration": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
+      "readAudioDuration": "Impossible de lire la durée de l’audio.",
+      "readVideoDuration": "Impossible de lire la durée de la vidéo.",
+      "validation": "Échec de la validation"
+    },
+    "buttons": {
+      "generate": "Générer la vidéo",
+      "processing": "Traitement...",
+      "generating": "Génération..."
     },
     "placeholders": {
       "title": "Titre de la vidéo"
     },
-    "dropzone": {
-      "placeholder": "Glissez une vidéo ici ou cliquez pour sélectionner (max {max} Mo)"
-    },
-    "errors": {
-      "fileTooLarge": "Le fichier est trop volumineux. Maximum autorisé : {max} Mo",
-      "fileInvalidType": "Type de fichier invalide. Vidéos uniquement.",
-      "fileProcess": "Impossible de traiter le fichier"
-    },
     "toasts": {
-      "fileSelected": "Fichier « {name} » sélectionné"
+      "creating": "Génération de la vidéo : « {title} » avec l’audio « {audio} » et la vidéo « {video} »",
+      "created": "✅ Vidéo en cours. Nous vous préviendrons quand elle sera prête.",
+      "loadMediaError": "Erreur lors du chargement des audios/vidéos",
+      "durationAudioExceeded": "⏱️ L’audio dure {sec}s et le maximum est {max}s.",
+      "durationVideoExceeded": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
+      "createError": "Impossible de créer le lipsync"
     },
-    "upload": "Téléverser",
-    "uploading": "Téléversement... {percent}%",
-    "empty": {
-      "title": "Il n’y a pas encore de vidéos pour ce client.",
-      "hint": "Utilisez le bouton pour ajouter la première."
+    "carousel": {
+      "noAudio": "Sans audio"
     },
-    "a11y": {
-      "selectVideo": "Sélectionner la vidéo {title}",
-      "videoLabel": "Vidéo : {title}"
+    "checkout": {
+      "message": "Vous avez besoin d’un abonnement actif pour créer des lipsyncs. Commencez votre essai GRATUIT de 7 jours."
     }
   },
-  "calendarWidget": {
-    "addEventTitle": "Ajouter un événement",
-    "form": {
-      "typeLabel": "Quoi",
-      "itemLabel": "Sélectionnez {type}",
-      "dateLabel": "Date",
-      "timeLabel": "Heure",
-      "addButton": "Ajouter",
-      "publishSwitch": "📢 Publier sur les réseaux sociaux"
+  "edit": {
+    "page": {
+      "title": "Montages",
+      "empty": "Vous n’avez pas encore de vidéos.",
+      "actions": {
+        "create": "Créer une vidéo",
+        "deleteAll": "Tout supprimer",
+        "closeModal": "Fermer"
+      },
+      "toasts": {
+        "loadError": "Erreur lors du chargement des vidéos",
+        "deleteAllSuccess": "Toutes les vidéos ont été supprimées",
+        "deleteOneSuccess": "Vidéo supprimée avec succès",
+        "deleteError": "Impossible de supprimer les vidéos"
+      },
+      "deleteDialog": {
+        "titleAll": "Supprimer toutes les vidéos",
+        "titleOne": "Supprimer la vidéo",
+        "bodyAll": "Voulez-vous vraiment supprimer TOUTES les vidéos ? Cette action est irréversible.",
+        "bodyOne": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+        "confirmAll": "Tout supprimer",
+        "confirmOne": "Supprimer"
+      }
     },
-    "types": {
-      "guion": "Scénario",
-      "video": "Vidéo"
+    "card": {
+      "untitled": "Sans titre",
+      "status": {
+        "processing": "Traitement...",
+        "error": "Erreur lors de la génération",
+        "pending": "En attente",
+        "completed": "Terminé"
+      },
+      "actions": {
+        "deleteAria": "Supprimer la vidéo",
+        "download": "Télécharger",
+        "autoedit": "Auto-monter",
+        "generateVideo": "Générer la vidéo"
+      },
+      "playHere": "▶ Lire ici",
+      "ariaPlay": "Lire : {title}"
     },
+    "create": {
+      "title": "🎥 Montage vidéo IA",
+      "subtitle": "Téléversez ou sélectionnez une vidéo et appliquez des modèles automatiques avec l’IA.",
+      "dropzone": {
+        "active": "Déposez la vidéo ici...",
+        "idle": "Glissez une vidéo ou cliquez",
+        "limit": "Jusqu’à {secs}s et {mb} Mo",
+        "fileTooLarge": "Fichier trop volumineux"
+      },
+      "labels": {
+        "title": "Titre (optionnel)",
+        "template": "Modèle",
+        "language": "Langue",
+        "describe": "Décrivez la vidéo en 3–4 mots",
+        "brollsPercentage": "Pourcentage de B-rolls : {value}%"
+      },
+      "placeholders": {
+        "title": "Ex. : Lancement produit – vertical",
+        "tags": "Tapez un tag puis Entrée ou virgule...",
+        "language": "Sélectionner une langue"
+      },
+      "tooltips": {
+        "magicZooms": "Ajoute des zooms automatiques pour plus de dynamisme.",
+        "magicBrolls": "Insère des B-rolls automatiques pertinents dans votre vidéo."
+      },
+      "options": {
+        "magicZooms": "Magic Zooms",
+        "magicBrolls": "Magic B-rolls"
+      },
+      "loading": {
+        "templates": "Chargement des modèles...",
+        "languages": "Chargement des langues..."
+      },
+      "buttons": {
+        "seeMore": "Voir plus",
+        "seeLess": "Voir moins",
+        "create": "Créer la vidéo",
+        "generateEdit": "Générer le montage vidéo",
+        "processing": "Traitement...",
+        "generating": "Génération..."
+      },
+      "toasts": {
+        "loadedVideo": "📹 Vidéo chargée",
+        "selectedVideo": "🎥 Vidéo « {name} » sélectionnée",
+        "uploading": "☁️ Téléversement de la vidéo dans le cloud...",
+        "processing": "⚙️ Traitement de votre vidéo...",
+        "created": "🎬 Vidéo créée avec succès",
+        "uploadOrProcessError": "❌ Erreur lors du téléversement ou du traitement",
+        "analyzeError": "Impossible d’analyser la vidéo.",
+        "mustLogin": "⚠️ Vous devez vous connecter",
+        "mustSelectVideo": "⚠️ Vous devez téléverser ou sélectionner une vidéo",
+        "loadLangError": "❌ Erreur lors du chargement des langues",
+        "loadTplError": "❌ Erreur lors du chargement des modèles",
+        "durationExceeded": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
+        "templateSelected": "📑 Modèle « {name} » sélectionné"
+      },
+      "errors": {
+        "readVideoDuration": "Impossible de lire la durée de la vidéo",
+        "noVideoUrl": "Impossible d’obtenir l’URL de la vidéo"
+      },
+      "checkout": {
+        "message": "Vous avez besoin d’un abonnement actif pour générer des montages vidéo."
+      },
+      "previewUnavailable": "Aperçu indisponible"
+    }
+  },
+  "voices": {
     "list": {
-      "titleForDay": "Événements du {date}",
-      "selectADay": "Sélectionnez un jour pour voir les événements",
-      "noneForDay": "Aucun événement pour ce jour.",
-      "scheduledBadge": "📱 Programmé sur les réseaux",
-      "platformStatus": "Plateforme : {platform} • État : {status}",
-      "statusUnknown": "Inconnu"
+      "title": "Audios pour le clonage",
+      "empty": "Vous n’avez pas encore de voix.",
+      "loading": "Chargement des voix...",
+      "buttons": {
+        "new": "+ Nouvelle voix",
+        "limit": "Limite : 1 voix"
+      }
     },
-    "states": {
-      "por_hacer": "À faire",
-      "en_proceso": "En cours",
-      "completado": "Fait"
-    },
-    "actions": {
-      "delete": "Supprimer"
-    },
-    "alerts": {
-      "selectItemAndDate": "Sélectionnez un élément et une date",
-      "itemNotFound": "Élément introuvable"
-    },
-    "errors": {
-      "loadEvents": "Erreur lors du chargement des événements du calendrier",
-      "deleteOrphan": "Erreur lors de la suppression d’un événement orphelin",
-      "syncMetricool": "Événement créé mais erreur de synchronisation avec Metricool",
-      "create": "Impossible de créer l’événement",
-      "delete": "Erreur lors de la suppression de l’événement",
-      "updateStatus": "Erreur lors de la mise à jour de l’état"
-    },
-    "success": {
-      "added": "Événement ajouté avec succès",
-      "addedAndScheduled": "Événement ajouté et programmé sur les réseaux",
-      "deleted": "Événement supprimé",
-      "stateUpdated": "État mis à jour"
-    }
-  },
-  "login": {
-    "titleLogin": "Se connecter",
-    "subtitle": "Accédez à votre compte pour continuer",
-    "email": "E-mail",
-    "password": "Mot de passe",
-    "continue": "Continuer",
-    "signIn": "Se connecter",
-    "signInWithGoogle": "Se connecter avec Google",
-    "forgotPassword": "Mot de passe oublié ?",
-    "noAccount": "Vous n’avez pas de compte ?",
-    "createAccount": "Créer un compte",
-    "mfa": {
-      "title": "Vérification en deux étapes",
-      "subtitle": "Saisissez le code de vérification à 6 chiffres",
-      "codeLabel": "Code",
-      "codePlaceholder": "123 456",
-      "sendCode": "Envoyer le code",
-      "resendCode": "Renvoyer le code",
-      "verify": "Vérifier",
-      "verifying": "Vérification...",
-      "verified": "Vérification terminée",
-      "invalidCode": "Code invalide ou expiré",
-      "tooManyAttempts": "Trop de tentatives. Réessayez plus tard.",
-      "smsSent": "Nous avons envoyé un SMS avec votre code",
-      "callSent": "Nous vous appellerons avec votre code",
+    "deleteDialog": {
+      "title": "Supprimer la voix",
+      "description": "Voulez-vous vraiment supprimer cette voix ? Cette action est irréversible.",
       "cancel": "Annuler",
-      "back": "Retour"
+      "confirm": "Supprimer"
+    },
+    "card": {
+      "previewUnavailable": "🎧 Aperçu indisponible"
     }
   },
-  "auth": {
-    "title": "Bienvenue chez KLIP",
-    "subtitle": "🤖 Nous automatisons TOUT votre contenu sur les réseaux.",
-    "email": "E-mail",
-    "password": "Mot de passe",
-    "loading": "Chargement...",
-    "login": "Se connecter",
-    "register": "Créer un compte",
-    "orContinue": "ou continuer avec",
-    "google": "Google",
-    "noAccount": "Vous n’avez pas de compte ?",
-    "haveAccount": "Vous avez déjà un compte ?",
-    "goRegister": "S’inscrire",
-    "goLogin": "Se connecter"
+  "clonacion": {
+    "sectionTitle": "Vidéos de clonage",
+    "sectionSubtitle": "Téléversez vos vidéos de référence pour entraîner votre clone.",
+    "noVideos": "Vous n’avez pas encore de vidéos de clonage.",
+    "previewTitle": "Aperçu",
+    "addVideoButton": "+ Ajouter une vidéo de clonage",
+    "mustLogin": "Vous devez vous connecter",
+    "uploadSuccess": "✅ Vidéo téléversée avec succès",
+    "uploadError": "❌ Erreur lors du téléversement",
+    "deleteSuccess": "✅ Vidéo supprimée avec succès",
+    "deleteError": "❌ Impossible de supprimer la vidéo",
+    "deleteDialog": {
+      "title": "Supprimer la vidéo",
+      "description": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "cancel": "Annuler",
+      "confirm": "Supprimer"
+    },
+    "deleteDialog?": {
+      "title": "Supprimer la vidéo",
+      "description": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "cancel": "Annuler",
+      "confirm": "Supprimer"
+    }
+  },
+  "userPage": {
+    "clonacion": {
+      "voicesTitle": "Voix de clonage"
+    }
+  },
+  "tour": {
+    "dashboard": {
+      "sidebar": {
+        "home": {
+          "title": "🏠 Accueil",
+          "description": "Aperçu général de votre compte et de vos livraisons."
+        },
+        "viralIdeas": {
+          "title": "✨ Idées virales",
+          "description": "Découvrez des tendances de reels et des contenus pour vous inspirer."
+        },
+        "scripts": {
+          "title": "📜 Scripts",
+          "description": "Gérez les scripts générés par l’IA et demandez des modifications."
+        },
+        "audio": {
+          "title": "🎤 Audio",
+          "description": "Convertissez votre script en voix réaliste grâce à l’IA."
+        },
+        "lipsync": {
+          "title": "🎭 Vidéo",
+          "description": "Générez un avatar qui synchronise les lèvres avec votre audio."
+        },
+        "video": {
+          "title": "🎬 Montage",
+          "description": "Éditez et améliorez vos vidéos avec sous-titres et branding."
+        },
+        "clones": {
+          "title": "🧑‍🎤 Clonage",
+          "description": "Téléversez vos vidéos de référence pour entraîner votre clone."
+        }
+      },
+      "badges": {
+        "consumo": {
+          "title": "💳 Consommation",
+          "description": "Consultez votre consommation actuelle, vos crédits d’essai et vos opérations."
+        }
+      },
+      "userMenu": {
+        "title": "👤 Utilisateur",
+        "description": "Gérez ici votre compte, la langue et la déconnexion."
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAll": "Tout marquer",
+    "empty": "Aucune nouvelle alerte",
+    "viewAll": "Tout voir →",
+    "defaultTitle": "Notification",
+    "unreadSummary": "{count} non lues",
+    "allCaughtUp": "Tout est à jour",
+    "buttons": {
+      "close": "Fermer"
+    },
+    "aria": {
+      "open": "Ouvrir les notifications",
+      "close": "Fermer les notifications"
+    },
+    "footer": {
+      "allRead": "Tout est à jour",
+      "unread": "{count} non lues"
+    }
+  },
+  "notificationsFloating": {
+    "title": "Notifications",
+    "markAll": "Tout marquer",
+    "empty": "Aucune nouvelle alerte",
+    "viewAll": "Tout voir →"
+  },
+  "notificationsPanel": {
+    "title": "Notifications",
+    "markAll": "Tout marquer",
+    "empty": "Aucune nouvelle alerte",
+    "defaultTitle": "Notification",
+    "unreadSummary": "{count} non lues",
+    "allCaughtUp": "Tout est à jour",
+    "buttons": {
+      "close": "Fermer"
+    }
+  },
+  "support": {
+    "widget": {
+      "label": "Aide",
+      "ariaOpen": "Ouvrir le support",
+      "ariaClose": "Fermer le support"
+    }
   }
 }
