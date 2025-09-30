@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Trash2, Play, Pause } from "lucide-react";
+import { Trash2, Play, Pause, Download } from "lucide-react";
 import { useRef, useState, useCallback, useMemo, useEffect, memo } from "react";
 import {
   Pagination,
@@ -47,11 +47,7 @@ export function AudiosList({
   );
 
   if (audios.length === 0) {
-    return (
-      <p className="text-muted-foreground">
-        {t("audiosList.empty")}
-      </p>
-    );
+    return <p className="text-muted-foreground">{t("audiosList.empty")}</p>;
   }
 
   return (
@@ -138,6 +134,27 @@ function AudioCard({
     }
   }, [isPlaying]);
 
+  // ⬇️ Descargar vía endpoint propio (misma-origin) → evita cross-origin/DNS
+  const handleDownload = useCallback(() => {
+    if (!audio?.url) return;
+
+    const safeBase =
+      (audio.name?.trim() || "audio").replace(/[^\w\-\. ]+/g, "") || "audio";
+
+    // El servidor decide la extensión correcta (desde path o content-type)
+    const href = `/api/download-audio?u=${encodeURIComponent(
+      audio.url
+    )}&filename=${encodeURIComponent(safeBase)}`;
+
+    const a = document.createElement("a");
+    a.href = href;
+    // Podemos sugerir un nombre; Content-Disposition del servidor manda.
+    a.download = `${safeBase}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, [audio?.url, audio?.name]);
+
   // 🔹 actualizar progreso con RAF
   useEffect(() => {
     const el = audioRef.current;
@@ -174,19 +191,32 @@ function AudioCard({
             </p>
           )}
         </div>
-        <button
-          aria-label={t("audioCard.aria.delete")}
-          onClick={() => onDelete(audio)}
-          className="p-2 rounded-full hover:bg-muted transition"
-        >
-          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            aria-label={t("audioCard.aria.download")}
+            title={t("audioCard.titles.download")}
+            onClick={handleDownload}
+            className="p-2 rounded-full hover:bg-muted transition"
+            disabled={!audio.url}
+          >
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            aria-label={t("audioCard.aria.delete")}
+            onClick={() => onDelete(audio)}
+            className="p-2 rounded-full hover:bg-muted transition"
+          >
+            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+          </button>
+        </div>
       </div>
 
       {/* Player */}
       <div className="flex items-center gap-3">
         <button
-          aria-label={isPlaying ? t("audioCard.aria.pause") : t("audioCard.aria.play")}
+          aria-label={
+            isPlaying ? t("audioCard.aria.pause") : t("audioCard.aria.play")
+          }
           onClick={togglePlay}
           className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted transition"
         >
