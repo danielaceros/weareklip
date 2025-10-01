@@ -21,26 +21,61 @@ import { toast } from "sonner";
 import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 import { useT } from "@/lib/i18n";
 
-interface ScriptFormProps {
-  description: string;
-  tone: string;        // guardamos la KEY (ideal) o un legacy label
-  platform: string;
-  duration: string;
-  language: string;
-  structure: string;   // guardamos la KEY (ideal) o un legacy label
-  addCTA: boolean;
-  ctaText: string;
-  loading: boolean;
-  setDescription: (val: string) => void;
-  setTone: (val: string) => void;
-  setPlatform: (val: string) => void;
-  setDuration: (val: string) => void;
-  setLanguage: (val: string) => void;
-  setStructure: (val: string) => void;
-  setAddCTA: (val: boolean) => void;
-  setCtaText: (val: string) => void;
-  onSubmit: () => void | Promise<void>;
-  onClose?: () => void;
+/** ===== LÍMITE DE DURACIÓN DEL GUIÓN (≤ 60 s) =====
+ * Calculamos una duración estimada en función de:
+ * - nº de palabras (WPM por idioma)
+ * - pausas por puntuación (comas, puntos, saltos)
+ * Presupuesto del formulario asume velocidad 1.0×.
+ */
+type Locale = "es" | "en" | "fr";
+const MAX_TTS_SEC = 60;
+const SPEED_FOR_BUDGET = 1.0;
+
+const BASE_WPM: Record<Locale, number> = {
+  es: 160,
+  en: 170,
+  fr: 150,
+};
+const PAUSE_SECONDS = {
+  comma: 0.25,
+  period: 0.6,
+  newline: 0.6,
+  colonSemicolon: 0.35,
+};
+// pausa media conservadora por palabra para invertir el cálculo de presupuesto
+const AVG_PAUSE_PER_WORD = 0.25 / 15;
+
+function normalizeLocale(lang?: string): Locale {
+  return (["es", "en", "fr"].includes(String(lang)) ? lang : "es") as Locale;
+}
+function countWords(text: string) {
+  const cleaned = text.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return 0;
+  return cleaned.split(" ").length;
+}
+function countPauses(text: string) {
+  const commas = (text.match(/,/g) || []).length;
+  const periods = (text.match(/[.!?]/g) || []).length;
+  const colons = (text.match(/[:;]/g) || []).length;
+  const newlines = (text.match(/\n/g) || []).length;
+  return (
+    commas * PAUSE_SECONDS.comma +
+    periods * PAUSE_SECONDS.period +
+    colons * PAUSE_SECONDS.colonSemicolon +
+    newlines * PAUSE_SECONDS.newline
+  );
+}
+function estimateSpeechSeconds(text: string, locale: Locale, speed = 1.0) {
+  const words = countWords(text);
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const speech = (words / wpm) * 60;
+  const pauses = countPauses(text);
+  return { seconds: speech + pauses, words, wpm, pauses };
+}
+function maxWordsFor(maxSec: number, locale: Locale, speed = 1.0) {
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const a = 60 / wpm + AVG_PAUSE_PER_WORD; // seg por palabra
+  return Math.max(0, Math.floor(maxSec / a));
 }
 
 /** ===== KEYS i18n (estables) ===== */
@@ -66,6 +101,28 @@ const STRUCTURE_KEYS = [
   "testimonial",
 ] as const;
 type StructureKey = typeof STRUCTURE_KEYS[number];
+
+interface ScriptFormProps {
+  description: string;
+  tone: string; // guardamos la KEY (ideal) o un legacy label
+  platform: string;
+  duration: string;
+  language: string;
+  structure: string; // guardamos la KEY (ideal) o un legacy label
+  addCTA: boolean;
+  ctaText: string;
+  loading: boolean;
+  setDescription: (val: string) => void;
+  setTone: (val: string) => void;
+  setPlatform: (val: string) => void;
+  setDuration: (val: string) => void;
+  setLanguage: (val: string) => void;
+  setStructure: (val: string) => void;
+  setAddCTA: (val: boolean) => void;
+  setCtaText: (val: string) => void;
+  onSubmit: () => void | Promise<void>;
+  onClose?: () => void;
+}
 
 export function ScriptForm({
   description,
@@ -93,12 +150,15 @@ export function ScriptForm({
   const [processing, setProcessing] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
 
-  // Helpers de etiquetas traducidas
-  const toneLabel = (k: string) =>
-    k ? (t(`wizard.toneOptions.${k}`) ?? k) : "";
-
-  const structureLabel = (k: string) =>
-    k ? (t(`wizard.structureOptions.${k}`) ?? k) : "";
+  // Helpers de etiquetas traducidas (memoizados para evitar avisos de deps)
+  const toneLabel = useCallback(
+    (k: string) => (k ? (t(`wizard.toneOptions.${k}`) ?? k) : ""),
+    [t]
+  );
+  const structureLabel = useCallback(
+    (k: string) => (k ? (t(`wizard.structureOptions.${k}`) ?? k) : ""),
+    [t]
+  );
 
   // Normalización: si llega un label legacy, lo convertimos a KEY
   useEffect(() => {
@@ -117,6 +177,24 @@ export function ScriptForm({
     }
   }, [structure, setStructure, t]);
 
+  /** ===== Presupuesto dinámico por idioma (velocidad fija 1.0× en guion) ===== */
+  const locale = normalizeLocale(language || "es");
+
+  const { estSeconds, wordCount, budgetWords, overBudget } = useMemo(() => {
+    const budget = maxWordsFor(MAX_TTS_SEC, locale, SPEED_FOR_BUDGET);
+    const est = estimateSpeechSeconds(description || "", locale, SPEED_FOR_BUDGET);
+    return {
+      estSeconds: est.seconds,
+      wordCount: est.words,
+      budgetWords: budget,
+      overBudget: est.seconds > MAX_TTS_SEC,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, locale, t]);
+
+  // Red de seguridad por caracteres (aprox 6 chars por palabra)
+  const approxCharsBudget = Math.max(0, Math.ceil(budgetWords * 6));
+
   const handleSubmit = useCallback(async () => {
     flushSync(() => setProcessing(true));
 
@@ -129,6 +207,13 @@ export function ScriptForm({
 
     if (!description || !tone || !platform || !duration || !structure) {
       toast.error(t("scriptsCreator.toasts.fillAll"));
+      setProcessing(false);
+      return;
+    }
+
+    // Validación dura de duración estimada (≤ 60 s)
+    if (overBudget) {
+      toast.error(t("scriptsCreator.form.errors.durationTooLong", { max: MAX_TTS_SEC }));
       setProcessing(false);
       return;
     }
@@ -146,6 +231,7 @@ export function ScriptForm({
     platform,
     duration,
     structure,
+    overBudget,
     onSubmit,
     onClose,
     t,
@@ -161,7 +247,7 @@ export function ScriptForm({
   // Opciones traducidas (recalcular al cambiar de idioma)
   const toneOptions = useMemo(
     () => TONE_KEYS.map((key) => ({ value: key, label: toneLabel(key) })),
-    [t] // depende de t() para re-render al cambiar locale
+    [toneLabel]
   );
 
   const platformOptions = useMemo(
@@ -199,7 +285,7 @@ export function ScriptForm({
         value: key,
         label: structureLabel(key),
       })),
-    [t]
+    [structureLabel]
   );
 
   // Para Select controlado: si todavía no tenemos una KEY válida, value=""
@@ -227,7 +313,29 @@ export function ScriptForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("scriptsForm.placeholders.description")}
               className="min-h-[120px] resize-none"
+              maxLength={approxCharsBudget || undefined}
+              aria-invalid={overBudget ? true : undefined}
             />
+            {/* Indicadores de presupuesto */}
+            <div className="mt-1 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {t("common.counter", { count: wordCount, max: budgetWords })}
+              </span>
+              <span
+                className={
+                  overBudget ? "text-destructive font-medium" : "text-muted-foreground"
+                }
+              >
+                {Math.ceil(estSeconds)}s / {MAX_TTS_SEC}s
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("scriptsCreator.form.hints.durationBudget", {
+                wordBudget: budgetWords,
+                secondsCap: MAX_TTS_SEC,
+                maxSec: MAX_TTS_SEC,
+              })}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -335,9 +443,9 @@ export function ScriptForm({
         <Button
           type="button"
           onClick={handleSubmit}
-          disabled={isLoading}
+          disabled={isLoading || overBudget}
           aria-busy={isLoading}
-          aria-disabled={isLoading}
+          aria-disabled={isLoading || overBudget}
           className="w-full"
           data-paywall
           data-paywall-feature="script"
@@ -345,6 +453,11 @@ export function ScriptForm({
           {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           {buttonText}
         </Button>
+        {overBudget && (
+          <p className="mt-2 text-xs text-destructive" role="alert">
+            {t("scriptsCreator.form.errors.durationTooLong", { max: MAX_TTS_SEC })}
+          </p>
+        )}
       </div>
 
       {/* Modal paywall */}

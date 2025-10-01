@@ -13,7 +13,8 @@
     "processing": "Procesando...",
     "back": "Atrás",
     "regenerate": "Regenerar",
-    "acceptAndRegenerate": "Aceptar y regenerar"
+    "acceptAndRegenerate": "Aceptar y regenerar",
+    "counter": "{count}/{max}"
   },
   "layout": {
     "sidebar": {
@@ -634,6 +635,13 @@
     "ariaView": "Ver guion: {title}",
     "ariaDelete": "Eliminar guion: {title}"
   },
+  "scriptsCard": {
+    "unrated": "Sin valorar",
+    "view": "Ver",
+    "viewAria": "Ver guion: {title}",
+    "deleteAria": "Eliminar guion: {title}",
+    "deleteTitle": "Eliminar guion"
+  },
   "scriptsDeleteDialog": {
     "title": "Eliminar guion",
     "description": "¿Seguro que quieres eliminar \"{title}\"? Esta acción no se puede deshacer.",
@@ -686,6 +694,14 @@
       "actions": {
         "cancel": "Cancelar",
         "accept": "Aceptar y regenerar"
+      }
+    },
+    "form": {
+      "hints": {
+        "durationBudget": "Usa 0–15, 15–30, 30–45 o 45–60. Máximo 60s."
+      },
+      "errors": {
+        "durationTooLong": "⏱️ La duración excede el máximo permitido ({max}s)."
       }
     },
     "checkout": {
@@ -1223,6 +1239,15 @@
       "label": "Ayuda",
       "ariaOpen": "Abrir asistencia",
       "ariaClose": "Cerrar asistencia"
+    }
+  },
+  "upload": {
+    "errors": {
+      "notVideo": "El archivo no es un video.",
+      "cantRead": "No se pudo validar el video.",
+      "notVertical": "El video no es vertical (9:16).",
+      "notAspect916": "El video no tiene aspecto 9:16.",
+      "tooBigResolution": "Resolución demasiado grande: {w}×{h}. Máximo 1080×1920."
     }
   }
 }

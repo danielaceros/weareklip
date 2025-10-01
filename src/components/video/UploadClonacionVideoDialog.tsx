@@ -23,6 +23,12 @@ interface Props {
   children?: React.ReactNode;
 }
 
+// Reglas de validación de vídeo
+const VIDEO_MAX_WIDTH = 1080;
+const VIDEO_MAX_HEIGHT = 1920;
+const VIDEO_ASPECT = 9 / 16; // 0.5625
+const VIDEO_ASPECT_TOLERANCE = 0.02; // ~2%
+
 export default function UploadClonacionVideoDialog({
   open,
   onOpenChange,
@@ -39,9 +45,17 @@ export default function UploadClonacionVideoDialog({
   const [validAspect, setValidAspect] = useState(false);
   const [validSize, setValidSize] = useState(false);
 
+  // Revocar URL de preview al cambiar o desmontar
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   // Limpiar estado al cerrar modal
   useEffect(() => {
     if (!open) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       setFile(null);
       setPreviewUrl(null);
       setFileName(null);
@@ -49,44 +63,117 @@ export default function UploadClonacionVideoDialog({
       setValidSize(false);
       setAnalyzing(false);
     }
-  }, [open]);
+  }, [open, previewUrl]);
 
-  // Validar archivo
+  // Leer metadatos de vídeo
+  const readVideoMetadata = (f: File) =>
+    new Promise<{ width: number; height: number; duration: number; aspect: number }>(
+      (resolve, reject) => {
+        try {
+          const url = URL.createObjectURL(f);
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.muted = true;
+
+          const cleanup = () => URL.revokeObjectURL(url);
+
+          video.onloadedmetadata = () => {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            const duration = Number.isFinite(video.duration)
+              ? Math.round(video.duration)
+              : 0;
+            cleanup();
+            resolve({
+              width,
+              height,
+              duration,
+              aspect: height > 0 ? width / height : 0,
+            });
+          };
+
+          video.onerror = () => {
+            cleanup();
+            reject(new Error("cantRead"));
+          };
+
+          video.src = url;
+        } catch {
+          reject(new Error("cantRead"));
+        }
+      }
+    );
+
+  // Validar archivo seleccionado
   const validateFile = async (f: File) => {
     setAnalyzing(true);
+
+    // 0) Tipo
+    if (!f.type || !f.type.startsWith("video/")) {
+      setAnalyzing(false);
+      setValidAspect(false);
+      toast.error(t("upload.errors.notVideo"));
+      return;
+    }
+
+    // 1) Tamaño
     const MAX_MB = 300;
     const sizeOK = validateFileSize(f, MAX_MB).ok;
     setValidSize(sizeOK);
 
-    // validar aspecto
-    const url = URL.createObjectURL(f);
-    const video = document.createElement("video");
-    video.src = url;
-    video.preload = "metadata";
+    // 2) Metadatos + validaciones (vertical 9:16 + resolución)
+    try {
+      const meta = await readVideoMetadata(f);
 
-    return new Promise<void>((resolve) => {
-      video.onloadedmetadata = () => {
-        const ratio = video.videoWidth / video.videoHeight;
-        const is916 = Math.abs(ratio - 9 / 16) < 0.05;
-        setValidAspect(is916);
-        setAnalyzing(false);
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      video.onerror = () => {
+      // Debe ser vertical (no horizontal)
+      if (meta.width >= meta.height) {
         setValidAspect(false);
+        toast.error(t("upload.errors.notVertical"));
         setAnalyzing(false);
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-    });
+        return;
+      }
+
+      // Aspect 9:16 con tolerancia
+      const diff = Math.abs(meta.aspect - VIDEO_ASPECT);
+      if (diff > VIDEO_ASPECT_TOLERANCE) {
+        setValidAspect(false);
+        toast.error(t("upload.errors.notAspect916"));
+        setAnalyzing(false);
+        return;
+      }
+
+      // Resolución máxima 1080×1920
+      if (meta.width > VIDEO_MAX_WIDTH || meta.height > VIDEO_MAX_HEIGHT) {
+        setValidAspect(false);
+        toast.error(
+          t("upload.errors.tooBigResolution", { w: meta.width, h: meta.height })
+        );
+        setAnalyzing(false);
+        return;
+      }
+
+      // OK
+      setValidAspect(true);
+    } catch {
+      setValidAspect(false);
+      toast.error(t("upload.errors.cantRead"));
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const onSelectFile = (f: File) => {
+    // Si no es vídeo, abortamos antes de crear preview
+    if (!f.type || !f.type.startsWith("video/")) {
+      toast.error(t("upload.errors.notVideo"));
+      return;
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
+    const url = URL.createObjectURL(f);
+    setPreviewUrl(url);
     setFileName(f.name);
-    validateFile(f);
+    void validateFile(f);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -106,7 +193,7 @@ export default function UploadClonacionVideoDialog({
     }
   };
 
-  const readyToConfirm = file && validAspect && validSize && !analyzing;
+  const readyToConfirm = !!file && validAspect && validSize && !analyzing;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -210,9 +297,12 @@ export default function UploadClonacionVideoDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    if (previewUrl) URL.revokeObjectURL(previewUrl);
                     setFile(null);
                     setPreviewUrl(null);
                     setFileName(null);
+                    setValidAspect(false);
+                    setValidSize(false);
                   }}
                   disabled={uploading}
                 >
