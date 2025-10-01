@@ -1240,5 +1240,14 @@
       "ariaOpen": "Open support",
       "ariaClose": "Close support"
     }
+  },
+  "upload": {
+    "errors": {
+      "notVideo": "The file is not a video.",
+      "cantRead": "Could not validate the video.",
+      "notVertical": "The video is not vertical (9:16).",
+      "notAspect916": "The video is not 9:16.",
+      "tooBigResolution": "Resolution too large: {w}×{h}. Maximum is 1080×1920."
+    }
   }
 }
