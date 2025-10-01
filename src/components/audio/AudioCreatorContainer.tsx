@@ -35,16 +35,59 @@ import CheckoutRedirectModal from "@/components/shared/CheckoutRedirectModal";
 // ✅ i18n
 import { useTranslations } from "next-intl";
 
+/** ================== LÍMITES ================== */
 const MAX_SEC = 60;
 const MIN_SPEED = 0.7;
 const MAX_SPEED = 1.2;
 
+/** ================== TTS ESTIMATION (idioma + pausas + velocidad) ================== */
+type Locale = "es" | "en" | "fr";
+
+const BASE_WPM: Record<Locale, number> = {
+  es: 160,
+  en: 170,
+  fr: 150,
+};
+
+const PAUSE_SECONDS = {
+  comma: 0.25,
+  period: 0.6,
+  newline: 0.6,
+  colonSemicolon: 0.35,
+};
+
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
-const estimateTtsSeconds = (text: string) => {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return words / 2.5;
+const normalizeLocale = (lang?: string): Locale =>
+  (["es", "en", "fr"].includes(String(lang)) ? (lang as Locale) : "es");
+
+const countWords = (text: string) => {
+  const cleaned = text.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return 0;
+  return cleaned.split(" ").length;
+};
+
+const countPauses = (text: string) => {
+  const commas = (text.match(/,/g) || []).length;
+  const periods = (text.match(/[.!?]/g) || []).length;
+  const colons = (text.match(/[:;]/g) || []).length;
+  const newlines = (text.match(/\n/g) || []).length;
+  return (
+    commas * PAUSE_SECONDS.comma +
+    periods * PAUSE_SECONDS.period +
+    colons * PAUSE_SECONDS.colonSemicolon +
+    newlines * PAUSE_SECONDS.newline
+  );
+};
+
+/** Estima segundos de locución considerando WPM del idioma, pausas y velocidad. */
+const estimateSpeechSeconds = (text: string, locale: Locale, speed: number) => {
+  const words = countWords(text);
+  const pauses = countPauses(text);
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const speech = (words / wpm) * 60;
+  return speech + pauses;
 };
 
 interface Props {
@@ -154,16 +197,22 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       toast.error(t("audioCreator.toasts.enterText"));
       return;
     }
-    const est = estimateTtsSeconds(form.text);
-    if (est > MAX_SEC) {
+
+    // Estimación precisa: idioma + pausas + velocidad (slider)
+    const locale = normalizeLocale(form.language || "es");
+    const safeSpeed = clampSpeed(form.speed ?? 1);
+    const estSeconds = estimateSpeechSeconds(form.text, locale, safeSpeed);
+
+    if (estSeconds > MAX_SEC) {
       toast.error(
         t("audioCreator.toasts.textTooLongEst", {
-          seconds: Math.round(est),
+          seconds: Math.round(estSeconds),
           max: MAX_SEC,
         })
       );
       return;
     }
+
     if (!form.voiceId) {
       toast.error(t("audioCreator.toasts.selectVoice"));
       return;
@@ -263,11 +312,15 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
     const textToUse = overrides?.text ?? form.text;
     const voiceToUse = overrides?.voiceId ?? form.voiceId;
 
-    const est = estimateTtsSeconds(textToUse);
-    if (est > MAX_SEC) {
+    // Estimación precisa para la regeneración (puede cambiar velocidad)
+    const locale = normalizeLocale(form.language || "es");
+    const speedToUse = clampSpeed(overrides?.speed ?? regenSpeed ?? form.speed ?? 1);
+    const estSeconds = estimateSpeechSeconds(textToUse, locale, speedToUse);
+
+    if (estSeconds > MAX_SEC) {
       toast.error(
         t("audioCreator.toasts.textTooLongEst", {
-          seconds: Math.round(est),
+          seconds: Math.round(estSeconds),
           max: MAX_SEC,
         })
       );
@@ -310,10 +363,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       if (overrides?.use_speaker_boost !== undefined)
         form.setSpeakerBoost(overrides.use_speaker_boost);
 
-      toast.success(
-        t("audioCreator.toasts.regenerated"), // Mensaje genérico
-        { id: loadingId }
-      );
+      toast.success(t("audioCreator.toasts.regenerated"), { id: loadingId });
     } catch (err) {
       console.error("❌ handleRegenerate error:", err);
       toast.error(t("audioCreator.toasts.regenError"), { id: loadingId });
@@ -340,6 +390,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       return;
     }
 
+    const locale = normalizeLocale(form.language || "es");
     const finalName = (title || "").trim() || form.text.slice(0, 30) + "...";
 
     const optimisticAudio: AudioData = {
@@ -349,7 +400,7 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
       description: form.text,
       createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
       duration,
-      language: "es",
+      language: locale,
     };
 
     if (onCreated) onCreated(optimisticAudio);
@@ -447,7 +498,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="regen-text">{t("audioCreator.regenDialog.labels.text")}</Label>
+              <Label htmlFor="regen-text">
+                {t("audioCreator.regenDialog.labels.text")}
+              </Label>
               <Textarea
                 id="regen-text"
                 value={regenText}
@@ -459,7 +512,9 @@ export default function AudioCreatorContainer({ onCreated }: Props) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="regen-voice">{t("audioCreator.regenDialog.labels.voice")}</Label>
+                <Label htmlFor="regen-voice">
+                  {t("audioCreator.regenDialog.labels.voice")}
+                </Label>
                 <Select value={regenVoiceId} onValueChange={setRegenVoiceId}>
                   <SelectTrigger id="regen-voice">
                     <SelectValue placeholder={t("audioCreator.regenDialog.placeholders.voice")} />

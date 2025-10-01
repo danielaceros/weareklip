@@ -1,7 +1,7 @@
 // src/app/dashboard/.../CreateReelWizard.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { toast } from "sonner";
 import { ScriptForm } from "@/components/script/ScriptForm";
@@ -75,6 +75,8 @@ type StructureKey = typeof STRUCTURE_KEYS[number];
 /** === Helper para voces (id puede venir como id o voice_id) === */
 const getVoiceId = (v: any) => v?.voice_id ?? v?.id ?? "";
 
+/** === LÍMITES y velocidad === */
+const MAX_SEC = 60;
 const SPEED_MIN = 0.7;
 const SPEED_MAX = 1.2;
 const clampSpeed = (x: number) =>
@@ -120,6 +122,55 @@ function displayCloneName(
   return t("wizard.video.fallbackName", { n: index + 1 });
 }
 
+/* ---------------------------------------------------------
+   Estimación de locución (idioma + pausas + velocidad)
+--------------------------------------------------------- */
+type Locale = "es" | "en" | "fr";
+
+const BASE_WPM: Record<Locale, number> = {
+  es: 160,
+  en: 170,
+  fr: 150,
+};
+
+const PAUSE_SECONDS = {
+  comma: 0.25,
+  period: 0.6,
+  newline: 0.6,
+  colonSemicolon: 0.35,
+};
+
+const normalizeLocale = (lang?: string): Locale =>
+  (["es", "en", "fr"].includes(String(lang)) ? (lang as Locale) : "es");
+
+const countWords = (text: string) => {
+  const cleaned = text.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return 0;
+  return cleaned.split(" ").length;
+};
+
+const countPauses = (text: string) => {
+  const commas = (text.match(/,/g) || []).length;
+  const periods = (text.match(/[.!?]/g) || []).length;
+  const colons = (text.match(/[:;]/g) || []).length;
+  const newlines = (text.match(/\n/g) || []).length;
+  return (
+    commas * PAUSE_SECONDS.comma +
+    periods * PAUSE_SECONDS.period +
+    colons * PAUSE_SECONDS.colonSemicolon +
+    newlines * PAUSE_SECONDS.newline
+  );
+};
+
+/** Estima segundos de locución considerando WPM del idioma, pausas y velocidad. */
+const estimateSpeechSeconds = (text: string, locale: Locale, speed: number) => {
+  const words = countWords(text);
+  const pauses = countPauses(text);
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const speech = (words / wpm) * 60;
+  return speech + pauses;
+};
+
 export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) {
   const t = useT();
 
@@ -135,11 +186,11 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
 
   // Si llega una etiqueta (no key), intenta mapearla a key en el locale actual; si falla, usa defaults
   const toneToKey = (value: string): ToneKey =>
-    (TONE_KEYS.find((k) => t(`wizard.toneOptions.${k}`) === value) ??
+    (TONE_KEYS.find((k) => t(`wizard.toneOptions.${k}`) === value) ?? 
       (TONE_KEYS.includes(value as any) ? (value as ToneKey) : TONE_KEYS[0])) as ToneKey;
 
   const structureToKey = (value: string): StructureKey =>
-    (STRUCTURE_KEYS.find((k) => t(`wizard.structureOptions.${k}`) === value) ??
+    (STRUCTURE_KEYS.find((k) => t(`wizard.structureOptions.${k}`) === value) ?? 
       (STRUCTURE_KEYS.includes(value as any)
         ? (value as StructureKey)
         : STRUCTURE_KEYS[0])) as StructureKey;
@@ -215,6 +266,17 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   useEffect(() => {
     track("wizard_step_viewed", { step, modalType });
   }, [step, modalType]);
+
+  /* ========= Estimación en tiempo real para el GUION (en modal) ========= */
+  const scriptEst = useMemo(() => {
+    const locale = normalizeLocale(language || audioForm.languageCode || "es");
+    const speed = clampSpeed(audioForm.speed);
+    const words = countWords(script);
+    const seconds = estimateSpeechSeconds(script, locale, speed);
+    const pct = Math.min(100, Math.max(0, (seconds / MAX_SEC) * 100));
+    const over = seconds > MAX_SEC;
+    return { locale, speed, words, seconds, pct, over };
+  }, [script, language, audioForm.languageCode, audioForm.speed]);
 
   // ------------------- Paso 1: Guion -------------------
   const generateScript = async () => {
@@ -344,6 +406,11 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
   };
 
   const acceptScript = () => {
+    // Bloquea si el guion supera 60s con la velocidad/idioma actuales
+    if (scriptEst.over) {
+      toast.error(`El guion supera ${MAX_SEC}s (≈${Math.round(scriptEst.seconds)}s). Recorta el texto o sube la velocidad del audio.`);
+      return;
+    }
     audioForm.setText(script);
     toast.success(t("wizard.script.accepted"));
     track("script_accepted", { length: script.length });
@@ -696,6 +763,40 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
           <h2 className="font-semibold mb-2 text-gray-900 dark:text-white">
             {t("wizard.script.modal.title")}
           </h2>
+
+          {/* Indicador en tiempo real */}
+          <div className="mb-3 p-3 rounded-lg border bg-muted/40">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+              <span className={scriptEst.over ? "text-destructive font-semibold" : "text-foreground"}>
+                ≈ {Math.round(scriptEst.seconds)}s
+              </span>
+              <span className="text-muted-foreground">
+                {scriptEst.words} palabras
+              </span>
+              <span className="text-muted-foreground">
+                {scriptEst.speed.toFixed(2)}×
+              </span>
+              <span className="text-muted-foreground">máx. {MAX_SEC}s</span>
+            </div>
+
+            <div className="mt-2 h-1 w-full rounded bg-muted">
+              <div
+                className={`h-1 rounded ${scriptEst.over ? "bg-destructive" : "bg-primary"}`}
+                style={{ width: `${scriptEst.pct}%` }}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(scriptEst.pct)}
+                role="progressbar"
+              />
+            </div>
+
+            {scriptEst.over && (
+              <p className="mt-2 text-xs text-destructive">
+                Supera 60s: recorta el guion o aumenta la velocidad al grabar el audio.
+              </p>
+            )}
+          </div>
+
           <Textarea
             value={script}
             onChange={(e) => {
@@ -722,7 +823,9 @@ export default function CreateReelWizard({ onComplete }: CreateReelWizardProps) 
               >
                 {t("common.regenerate")} ({scriptRegens}/2)
               </Button>
-              <Button onClick={acceptScript}>{t("wizard.script.modal.accept")}</Button>
+              <Button onClick={acceptScript} disabled={scriptEst.over}>
+                {t("wizard.script.modal.accept")}
+              </Button>
             </div>
           </div>
         </div>

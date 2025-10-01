@@ -7,14 +7,88 @@ import { sendEventPush } from "@/lib/sendEventPush";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** ================== LÍMITES Y ESTIMACIÓN ================== */
+const MAX_SEC = 60;
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
+
+type Locale = "es" | "en" | "fr";
+
+const BASE_WPM: Record<Locale, number> = {
+  es: 160,
+  en: 170,
+  fr: 150,
+};
+
+const PAUSE_SECONDS = {
+  comma: 0.25,
+  period: 0.6,
+  newline: 0.6,
+  colonSemicolon: 0.35,
+};
+
+// Pausa media conservadora (~1 pausa/15 palabras ≈ 0.25 s)
+const AVG_PAUSE_PER_WORD = 0.25 / 15;
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
+
+const normalizeLocale = (lang?: string): Locale =>
+  (["es", "en", "fr"].includes(String(lang)) ? (lang as Locale) : "es");
+
+const cleanText = (s: string) =>
+  s.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+
+const countWords = (text: string) => {
+  const cleaned = cleanText(text);
+  if (!cleaned) return 0;
+  return cleaned.split(" ").length;
+};
+
+const countPauses = (text: string) => {
+  const commas = (text.match(/,/g) || []).length;
+  const periods = (text.match(/[.!?]/g) || []).length;
+  const colons = (text.match(/[:;]/g) || []).length;
+  const newlines = (text.match(/\n/g) || []).length;
+  return (
+    commas * PAUSE_SECONDS.comma +
+    periods * PAUSE_SECONDS.period +
+    colons * PAUSE_SECONDS.colonSemicolon +
+    newlines * PAUSE_SECONDS.newline
+  );
+};
+
+function estimateSpeechSeconds(text: string, locale: Locale, speed: number) {
+  const words = countWords(text);
+  const pauses = countPauses(text);
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const speech = (words / wpm) * 60; // segundos puro habla
+  return {
+    seconds: speech + pauses,
+    words,
+    wpm,
+    pauses,
+  };
+}
+
+function maxWordsFor(maxSec: number, locale: Locale, speed: number) {
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const secPerWord = 60 / wpm + AVG_PAUSE_PER_WORD;
+  return Math.max(0, Math.floor(maxSec / secPerWord));
+}
+
+/** ================== BODY ================== */
 type Body = {
   voiceId: string;
   text: string;
   modelId?: string;
   format?: string;
-  // ⬇️ NUEVO: permitimos recibir título/nombre
+  // ⬇️ Título opcional
   name?: string;
   title?: string;
+  // ⬇️ Idioma (opcional). Si no viene, asumimos "es" (igual que la UI actual).
+  language?: string;
+  languageCode?: string;
   voice_settings?: {
     stability?: number;
     similarity_boost?: number;
@@ -45,8 +119,17 @@ export async function POST(req: Request) {
     const { uid } = await adminAuth.verifyIdToken(idToken);
 
     // 2) Body validation and sanitization
-    const { voiceId, text, modelId, format, voice_settings, name, title } =
-      (await req.json()) as Body;
+    const {
+      voiceId,
+      text,
+      modelId,
+      format,
+      voice_settings,
+      name,
+      title,
+      language,
+      languageCode,
+    } = (await req.json()) as Body;
 
     if (!voiceId || !text) {
       return NextResponse.json(
@@ -56,15 +139,76 @@ export async function POST(req: Request) {
     }
 
     const safeVoiceSettings = cleanVoiceSettings(voice_settings);
+    // Normalizamos velocidad en rango permitido
+    const rawSpeed =
+      typeof safeVoiceSettings.speed === "number" ? safeVoiceSettings.speed : 1;
+    const safeSpeed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED);
+    if (safeSpeed !== rawSpeed) {
+      (safeVoiceSettings as any).speed = safeSpeed;
+    }
+
+    // Normalizamos idioma (por ahora UI solo manda 'es', pero dejamos preparado)
+    const locale = normalizeLocale(language ?? languageCode ?? "es");
 
     // Normalizamos nombre (máx 80 chars)
     const rawTitle = (title ?? name ?? "").trim();
     const safeTitle = rawTitle ? rawTitle.slice(0, 80) : "";
 
+    // 2.1) Guard de duración (server-side)
+    const { seconds: estSeconds, words, wpm, pauses } = estimateSpeechSeconds(
+      text,
+      locale,
+      safeSpeed
+    );
+
+    if (estSeconds > MAX_SEC) {
+      const budgetWords = maxWordsFor(MAX_SEC, locale, safeSpeed);
+
+      // Evento bloqueado por límite
+      await gaServerEvent(
+        "voice_generation_blocked",
+        {
+          reason: "over_60s",
+          est_seconds: Math.round(estSeconds),
+          max_seconds: MAX_SEC,
+          words,
+          budget_words: budgetWords,
+          wpm,
+          pauses: Math.round(pauses * 100) / 100,
+          voiceId,
+        },
+        { userId: uid }
+      );
+
+      return NextResponse.json(
+        {
+          error: "TEXT_TOO_LONG_FOR_60S",
+          message:
+            "El texto estimado supera el máximo permitido de 60 segundos.",
+          details: {
+            estSeconds: Math.round(estSeconds),
+            maxSeconds: MAX_SEC,
+            words,
+            budgetWords,
+            locale,
+            speed: safeSpeed,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // 🔔 Evento: inicio de generación de audio
     await gaServerEvent(
       "voice_generation_started",
-      { simulate, voiceId, text_length: text.length },
+      {
+        simulate,
+        voiceId,
+        text_length: text.length,
+        est_seconds: Math.round(estSeconds),
+        locale,
+        speed: safeSpeed,
+      },
       { userId: uid }
     );
 
@@ -85,9 +229,10 @@ export async function POST(req: Request) {
           text,
           voice_settings: safeVoiceSettings,
           audioUrl: fakeUrl,
-          // ⬇️ guardamos el nombre/título si vino
           name: safeTitle,
           title: safeTitle,
+          language: locale,
+          durationHint: estSeconds,
           createdAt: new Date(),
           simulated: true,
         });
@@ -114,7 +259,13 @@ export async function POST(req: Request) {
 
       await gaServerEvent(
         "voice_generation_completed",
-        { simulate: true, audioId, voiceId, text_length: text.length },
+        {
+          simulate: true,
+          audioId,
+          voiceId,
+          text_length: text.length,
+          est_seconds: Math.round(estSeconds),
+        },
         { userId: uid }
       );
 
@@ -156,7 +307,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         text,
         model_id: modelId || "eleven_multilingual_v2",
-        voice_settings: safeVoiceSettings,
+        voice_settings: safeVoiceSettings, // speed ya viene clamped
       }),
     });
 
@@ -200,7 +351,7 @@ export async function POST(req: Request) {
       adminBucket.name
     }/o/${encodeURIComponent(filePath)}?alt=media&token=${audioId}`;
 
-    // 5) Guardar en Firestore (incluyendo nombre/título)
+    // 5) Guardar en Firestore (incluyendo nombre/título, idioma y estimación)
     await adminDB
       .collection("users")
       .doc(uid)
@@ -215,6 +366,8 @@ export async function POST(req: Request) {
         audioUrl,
         name: safeTitle,
         title: safeTitle,
+        language: locale,
+        durationHint: estSeconds,
         createdAt: new Date(),
       });
 
@@ -240,7 +393,13 @@ export async function POST(req: Request) {
 
     await gaServerEvent(
       "voice_generation_completed",
-      { simulate: false, audioId, voiceId, text_length: text.length },
+      {
+        simulate: false,
+        audioId,
+        voiceId,
+        text_length: text.length,
+        est_seconds: Math.round(estSeconds),
+      },
       { userId: uid }
     );
 

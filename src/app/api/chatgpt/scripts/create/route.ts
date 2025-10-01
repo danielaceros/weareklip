@@ -1,3 +1,4 @@
+// src/app/api/scripts/create/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
@@ -15,7 +16,147 @@ type UsageResp = {
   error?: string;
 };
 
-// --- Helpers ---
+/** ================== LÍMITES Y ESTIMACIÓN ================== */
+const MAX_SEC = 60;
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
+
+type Locale = "es" | "en" | "fr";
+
+const BASE_WPM: Record<Locale, number> = {
+  es: 160,
+  en: 170,
+  fr: 150,
+};
+
+const PAUSE_SECONDS = {
+  comma: 0.25,
+  period: 0.6,
+  newline: 0.6,
+  colonSemicolon: 0.35,
+};
+
+// Pausa media conservadora (~1 pausa/15 palabras ≈ 0.25 s)
+const AVG_PAUSE_PER_WORD = 0.25 / 15;
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
+
+const normalizeLocale = (lang?: string): Locale => {
+  const l = (lang || "").toLowerCase();
+  if (l.startsWith("es")) return "es";
+  if (l.startsWith("en")) return "en";
+  if (l.startsWith("fr")) return "fr";
+  return "es";
+};
+
+const cleanText = (s: string) =>
+  s.replace(/https?:\/\/\S+/g, " ").replace(/\s+/g, " ").trim();
+
+const countWords = (text: string) => {
+  const cleaned = cleanText(text);
+  if (!cleaned) return 0;
+  return cleaned.split(" ").length;
+};
+
+const countPauses = (text: string) => {
+  const commas = (text.match(/,/g) || []).length;
+  const periods = (text.match(/[.!?]/g) || []).length;
+  const colons = (text.match(/[:;]/g) || []).length;
+  const newlines = (text.match(/\n/g) || []).length;
+  return (
+    commas * PAUSE_SECONDS.comma +
+    periods * PAUSE_SECONDS.period +
+    colons * PAUSE_SECONDS.colonSemicolon +
+    newlines * PAUSE_SECONDS.newline
+  );
+};
+
+function estimateSpeechSeconds(text: string, locale: Locale, speed: number) {
+  const words = countWords(text);
+  const pauses = countPauses(text);
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const speech = (words / wpm) * 60; // segundos puro habla
+  return { seconds: speech + pauses, words, wpm, pauses };
+}
+
+function maxWordsFor(maxSec: number, locale: Locale, speed: number) {
+  const wpm = Math.max(1, BASE_WPM[locale] * Math.max(0.1, speed));
+  const secPerWord = 60 / wpm + AVG_PAUSE_PER_WORD;
+  return Math.max(0, Math.floor(maxSec / secPerWord));
+}
+
+// Interpreta "0-15", "15-30", "45-60" o "60" → segundos objetivo (cap a 60)
+function targetSecondsFrom(durationStr: string): number {
+  const s = (durationStr || "").trim();
+  if (!s) return MAX_SEC;
+  if (s.includes("-")) {
+    const parts = s.split("-").map((x) => parseInt(x, 10)).filter((n) => !isNaN(n));
+    if (parts.length >= 2) return Math.min(MAX_SEC, Math.max(1, parts[1]));
+  }
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? Math.min(MAX_SEC, Math.max(1, n)) : MAX_SEC;
+}
+
+/** Recorta el guion por líneas y palabras hasta encajar en el presupuesto. */
+function trimScriptToBudget(script: string, budgetWords: number): string {
+  const lines = script
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const out: string[] = [];
+  let acc = 0;
+
+  for (const line of lines) {
+    const w = countWords(line);
+    if (acc + w <= budgetWords) {
+      out.push(line);
+      acc += w;
+    } else {
+      // Intentar meter parte de la línea si cabe algo
+      const remaining = Math.max(0, budgetWords - acc);
+      if (remaining > 0) {
+        const words = cleanText(line).split(" ");
+        out.push(words.slice(0, remaining).join(" ") + "…");
+        acc = budgetWords;
+      }
+      break;
+    }
+  }
+
+  // Si no había líneas (o estaba vacío), devolvemos las primeras N palabras del texto original
+  if (out.length === 0) {
+    const words = cleanText(script).split(" ");
+    return words.slice(0, budgetWords).join(" ") + (words.length > budgetWords ? "…" : "");
+  }
+
+  return out.join("\n");
+}
+
+/** Aprieta por iteraciones si la estimación aún se pasa (quita última línea sucesivamente). */
+function tightenTo60s(script: string, locale: Locale, speed: number): string {
+  let current = script.trim();
+  for (let i = 0; i < 100; i++) {
+    const est = estimateSpeechSeconds(current, locale, speed).seconds;
+    if (est <= MAX_SEC) return current;
+
+    // Quitar la última línea
+    const lines = current.split(/\r?\n/).filter(Boolean);
+    if (lines.length <= 1) {
+      // última opción: recortar palabras
+      const words = cleanText(current).split(" ");
+      if (words.length <= 1) return current;
+      current = words.slice(0, Math.max(1, Math.floor(words.length * 0.9))).join(" ") + "…";
+    } else {
+      lines.pop();
+      current = lines.join("\n");
+    }
+  }
+  return current;
+}
+
+/** ================== BILLING HELPERS ================== */
 function sanitize(input: unknown, max = 200): string {
   return typeof input === "string"
     ? input.replace(/[\r\n]+/g, " ").slice(0, max).trim()
@@ -64,7 +205,7 @@ async function billingConfirm(
   }
 }
 
-// --- Handler ---
+/** ================== HANDLER ================== */
 export async function POST(req: NextRequest) {
   const idem = req.headers.get("x-idempotency-key") || randomUUID();
   const simulate = process.env.SIMULATE === "true";
@@ -107,11 +248,15 @@ export async function POST(req: NextRequest) {
     const description = sanitize(body.description, 300);
     const tone = sanitize(body.tone, 100);
     const platform = sanitize(body.platform, 50);
-    const duration = sanitize(body.duration, 10);
+    const duration = sanitize(body.duration, 10); // "0-15" | "15-30" | "45-60"
     const language = sanitize(body.language, 50);
     const structure = sanitize(body.structure, 100);
     const addCTA = Boolean(body.addCTA);
     const ctaText = sanitize(body.ctaText, 100);
+
+    // velocidad opcional (si la UI decide enviarla). Si no, 1.0
+    const rawSpeed = typeof body.speed === "number" ? body.speed : 1;
+    const speed = clamp(rawSpeed, MIN_SPEED, MAX_SPEED);
 
     if (!description || !tone || !platform || !duration || !language || !structure) {
       return NextResponse.json(
@@ -119,6 +264,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 3.1) Config estimación
+    const locale = normalizeLocale(language);
+    const targetSec = targetSecondsFrom(duration); // cap a 60
+    // Presupuesto base de palabras (deja ~3% margen)
+    const baseBudget = maxWordsFor(targetSec, locale, speed);
+    const hardBudget = Math.max(1, Math.floor(baseBudget * 0.97));
 
     // 4) Billing check (antes de gastar tokens reales)
     const check = await billingCheck(req, idToken, idem);
@@ -131,35 +283,42 @@ export async function POST(req: NextRequest) {
 
     // 🔁 RAMA A: Simulación
     if (simulate) {
-      script = `Este es un guion simulado para el tema "${description}" con tono ${tone}, plataforma ${platform}, duración ${duration}s, idioma ${language}, estructura ${structure}${addCTA ? ` y CTA "${ctaText || "Invita a seguir"}` : ""}.`;
+      script =
+        `Guion simulado (${Math.min(targetSec, MAX_SEC)}s máx, ~${hardBudget} palabras):\n` +
+        `Hook fuerte.\n` +
+        `Desarrollo breve con 2-3 frases.\n` +
+        (addCTA ? `Cierre con CTA: ${ctaText || "¡Sigue para más!"}\n` : `Cierre contundente.\n`);
     } else {
-      // 🔁 RAMA B: Real
+      // 🔁 RAMA B: Real — Prompt con presupuesto
       const prompt = `
-Eres un copywriter profesional especializado en guiones para vídeos cortos en redes sociales.
-Debes crear un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
+Eres un copywriter profesional de vídeos cortos (Reels, TikTok, Shorts).
+Genera un guion ORIGINAL y CREATIVO siguiendo estos parámetros:
 
 - Tema: ${description}
 - Tono: ${tone}
 - Plataforma: ${platform}
-- Duración estimada: ${duration} segundos
-- Idioma: ${language}
+- Idioma: ${language} (código interno: ${locale})
 - Estructura: ${structure}
-${addCTA ? `- Incluir llamada a la acción: "${ctaText || "Invita a seguir"}"` : ""}
+- Máximo absoluto de duración al locutar: ${Math.min(targetSec, MAX_SEC)} segundos
+- Presupuesto aproximado de palabras: ${hardBudget} (no lo superes)
+${addCTA ? `- Incluir CTA al final: "${ctaText || "¡Sigue para más!"}"` : ""}
 
 Reglas estrictas:
-1. No mencionar que eres una IA.
-2. Mantener un estilo humano y natural.
-3. Usar frases cortas y claras.
-4. Separar el guion en frases o líneas pensadas para ser leídas en voz alta.
-5. Optimizar para captar la atención en los primeros 3 segundos.
-6. Devuelve únicamente el guion, sin explicaciones, títulos ni comillas.
+1) No menciones que eres una IA.
+2) Estilo humano, natural y conversacional.
+3) Frases cortas y claras, separadas en líneas (una idea por línea).
+4) Usa signos de puntuación con moderación; evita demasiadas comas seguidas.
+5) Gancho potente en la primera línea (<= 12 palabras).
+6) En total, **NO superes ${hardBudget} palabras**.
+
+Devuelve únicamente el guion, sin títulos, sin comillas y sin explicaciones.
 `.trim();
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.9,
-        max_tokens: 500,
+        max_tokens: 500, // suficiente para ~hardBudget palabras
       });
 
       script =
@@ -169,26 +328,66 @@ Reglas estrictas:
           .trim() || "";
     }
 
-    // 5) Confirmar facturación (solo si hay script válido)
+    if (!script) throw new Error("OpenAI no devolvió guion");
+
+    // 5) Post-procesado: recorte/ajuste duro a ≤ 60s
+    // 5.1) Si excede el presupuesto de palabras, recortamos
+    const words = countWords(script);
+    if (words > hardBudget) {
+      script = trimScriptToBudget(script, hardBudget);
+    }
+
+    // 5.2) Estimación final y apriete iterativo si aún excede 60s
+    let est = estimateSpeechSeconds(script, locale, speed);
+    if (est.seconds > MAX_SEC) {
+      // Intentar apretar quitando líneas desde el final
+      script = tightenTo60s(script, locale, speed);
+      est = estimateSpeechSeconds(script, locale, speed);
+    }
+
+    // Safety net: si aún excede, hacemos un recorte por palabras extra-estricto
+    if (est.seconds > MAX_SEC) {
+      const tighterBudget = Math.max(1, Math.floor(hardBudget * 0.9));
+      script = trimScriptToBudget(script, tighterBudget);
+    }
+
+    // Recalcular estimación final
+    est = estimateSpeechSeconds(script, locale, speed);
+    if (est.seconds > MAX_SEC) {
+      // Último intento: cortar al presupuesto máximo teórico
+      const finalBudget = maxWordsFor(MAX_SEC, locale, speed);
+      script = trimScriptToBudget(script, finalBudget);
+    }
+
+    // 6) Confirmar facturación (solo si hay script válido)
     if (script) {
       await billingConfirm(req, idToken, idem);
     } else {
-      throw new Error("OpenAI no devolvió guion");
+      throw new Error("No se pudo generar un guion válido");
     }
 
-    // 6) Guardar log y notificar
+    // 7) Guardar log (opcional: podrías guardar locale/speed/budget/estimación)
     await logRef.set(
       {
         status: "success",
         simulated: simulate,
         script,
+        meta: {
+          locale,
+          speed,
+          targetSec,
+          hardBudget,
+          estSeconds: Math.round(estimateSpeechSeconds(script, locale, speed).seconds),
+        },
         completedAt: adminTimestamp.now(),
       },
       { merge: true }
     );
 
     if (uid) {
-      await sendEventPush(uid, "script_generated", { length: String(script.length) });
+      await sendEventPush(uid, "script_generated", {
+        length: String(script.length),
+      });
     }
 
     return NextResponse.json({ script, simulated: simulate });

@@ -1,7 +1,9 @@
+// src/components/audio/AudiosList.tsx
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Trash2, Play, Pause, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, Play, Pause, Download, Timer } from "lucide-react";
 import { useRef, useState, useCallback, useMemo, useEffect, memo } from "react";
 import {
   Pagination,
@@ -11,6 +13,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { toast } from "sonner";
 
 // ✅ i18n
 import { useTranslations } from "next-intl";
@@ -21,15 +24,17 @@ export interface AudioData {
   description?: string;
   createdAt?: { seconds: number; nanoseconds: number };
   url: string;
-  duration?: number;
-  language?: string;
+  duration?: number;     // duración guardada en backend (opcional)
+  language?: string;     // "es" | "en" | "fr" (opcional)
 }
 
 interface AudiosListProps {
-  audios: AudioData[];
+  audios: AudioData[];         // ← FIX: array, no objeto
   onDelete: (audio: AudioData) => void;
   perPage?: number;
 }
+
+const MAX_SEC = 60;
 
 export function AudiosList({
   audios,
@@ -41,7 +46,7 @@ export function AudiosList({
 
   const totalPages = Math.ceil(audios.length / perPage);
 
-  const paginated = useMemo(
+  const paginated = useMemo<AudioData[]>(
     () => audios.slice((page - 1) * perPage, page * perPage),
     [audios, page, perPage]
   );
@@ -108,6 +113,13 @@ export function AudiosList({
   );
 }
 
+function formatTime(totalSeconds?: number) {
+  if (!totalSeconds || isNaN(totalSeconds)) return "00:00";
+  const s = Math.floor(totalSeconds % 60);
+  const m = Math.floor(totalSeconds / 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function AudioCard({
   audio,
   onDelete,
@@ -117,53 +129,68 @@ function AudioCard({
 }) {
   const t = useTranslations();
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [progress, setProgress] = useState(0);
+  const [progressPct, setProgressPct] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState<number | undefined>(audio.duration);
   const frameRef = useRef<number | null>(null);
 
   const title = audio.name || t("audioCard.untitled");
+  const lang = (audio.language || "").toUpperCase();
+  const isOverCap = (duration ?? 0) > MAX_SEC;
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch((err) => {
-        console.warn("No se pudo reproducir:", err);
-      });
+      audioRef.current
+        .play()
+        .catch((err) => {
+          console.warn("No se pudo reproducir:", err);
+        });
     }
   }, [isPlaying]);
 
-  // ⬇️ Descargar vía endpoint propio (misma-origin) → evita cross-origin/DNS
+  // ⬇️ Descargar vía endpoint propio (misma-origin)
   const handleDownload = useCallback(() => {
     if (!audio?.url) return;
-
     const safeBase =
       (audio.name?.trim() || "audio").replace(/[^\w\-\. ]+/g, "") || "audio";
-
-    // El servidor decide la extensión correcta (desde path o content-type)
     const href = `/api/download-audio?u=${encodeURIComponent(
       audio.url
     )}&filename=${encodeURIComponent(safeBase)}`;
-
     const a = document.createElement("a");
     a.href = href;
-    // Podemos sugerir un nombre; Content-Disposition del servidor manda.
     a.download = `${safeBase}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
   }, [audio?.url, audio?.name]);
 
-  // 🔹 actualizar progreso con RAF
+  // 🔹 actualizar progreso con RAF y cortar a 60s
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
     const updateProgress = () => {
-      if (el.duration) {
-        setProgress((el.currentTime / el.duration) * 100);
+      const dur = el.duration || duration || 0;
+      const current = el.currentTime || 0;
+
+      // Cap de reproducción a 60s (para audios antiguos más largos)
+      if (current >= MAX_SEC) {
+        el.pause();
+        el.currentTime = MAX_SEC;
+        setIsPlaying(false);
+        setProgressPct(dur ? (MAX_SEC / dur) * 100 : 100);
+        try {
+          toast.warning(t("audioCard.toasts.capReached", { max: MAX_SEC }));
+        } catch {
+          toast.warning(`Se alcanzó el máximo de ${MAX_SEC}s`);
+        }
+      } else if (dur) {
+        setProgressPct((current / dur) * 100);
       }
+
       frameRef.current = requestAnimationFrame(updateProgress);
     };
 
@@ -177,21 +204,35 @@ function AudioCard({
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [isPlaying]);
+  }, [isPlaying, duration, t]);
 
   return (
     <Card className="p-4 flex flex-col rounded-xl bg-card/90 border border-border shadow-sm h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex flex-col">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold truncate">{title}</h3>
           {audio.description && (
             <p className="text-xs text-muted-foreground truncate">
               {audio.description}
             </p>
           )}
+          <div className="mt-1 flex items-center gap-2">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Timer className="h-3 w-3" />
+              <span>{formatTime(duration)}</span>
+              <span>•</span>
+              <span>{lang || "—"}</span>
+            </div>
+            {isOverCap && (
+              <Badge variant="destructive" className="h-5 px-2 text-[11px]">
+                {t("audioCard.badges.overCap", { max: MAX_SEC })}
+              </Badge>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center gap-1 shrink-0">
           <button
             aria-label={t("audioCard.aria.download")}
             title={t("audioCard.titles.download")}
@@ -228,10 +269,21 @@ function AudioCard({
             type="range"
             min={0}
             max={100}
-            value={progress}
+            value={progressPct}
             readOnly
             className="w-full accent-primary"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progressPct)}
           />
+          <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+            <span>
+              {formatTime(
+                Math.min(MAX_SEC, (audioRef.current?.currentTime ?? 0))
+              )}
+            </span>
+            <span>{formatTime(duration)}</span>
+          </div>
         </div>
       </div>
 
@@ -239,11 +291,16 @@ function AudioCard({
       <audio
         ref={audioRef}
         src={audio.url}
+        preload="metadata"
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration;
+          setDuration(isFinite(d) ? d : undefined);
+        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false);
-          setProgress(0);
+          setProgressPct(0);
         }}
       />
     </Card>
