@@ -13,11 +13,12 @@
     "processing": "Processing...",
     "back": "Back",
     "regenerate": "Regenerate",
-    "acceptAndRegenerate": "Accept and regenerate"
+    "acceptAndRegenerate": "Accept and regenerate",
+    "counter": "{count}/{max}"
   },
   "layout": {
     "sidebar": {
-      "aria": "Dashboard side menu"
+      "aria": "Dashboard sidebar menu"
     }
   },
   "sidebar": {
@@ -33,16 +34,16 @@
   },
   "dashboard": {
     "title": "Welcome to your Dashboard",
-    "subtitle": "Create something new or review your latest creations. Stay up to date!",
+    "subtitle": "Create something new or check your latest creations. Stay up to date!",
     "loading": "Loading your dashboard...",
     "authError": {
       "title": "Not authenticated",
-      "description": "You must sign in to view your dashboard."
+      "description": "You must log in to view your dashboard."
     },
     "subscription": {
       "unknownPlan": "Unknown plan",
       "unknownRenewal": "Unknown",
-      "loadError": "Subscription could not be loaded",
+      "loadError": "Failed to load subscription",
       "unknown": "Unknown error",
       "none": "Inactive"
     },
@@ -79,7 +80,7 @@
       "title": "Latest Video",
       "viewAll": "View all videos",
       "emptyTitle": "You don't have videos yet",
-      "emptySubtitle": "When they are ready, you'll see them here",
+      "emptySubtitle": "When they're ready, you'll see them here",
       "view": "View videos"
     },
     "errors": {
@@ -90,7 +91,7 @@
     },
     "checkout": {
       "message": "You need an active subscription to continue.",
-      "voiceCloneMessage": "To clone your voice you need an active subscription. Start your FREE 7-day trial."
+      "voiceCloneMessage": "To clone your voice you need an active subscription—start your 7-day FREE trial"
     }
   },
   "wizard": {
@@ -100,7 +101,7 @@
       "video": "Video"
     },
     "errors": {
-      "fillAll": "Please complete all required fields.",
+      "fillAll": "Please fill in all required fields.",
       "mustLogin": "You must log in to continue.",
       "mustLoginShort": "You must log in.",
       "selectVoiceFirst": "Select a voice before continuing.",
@@ -121,7 +122,7 @@
       },
       "accepted": "📜 Script accepted. Let's move to audio.",
       "modal": {
-        "title": "Script generated",
+        "title": "Generated script",
         "accept": "Accept script"
       }
     },
@@ -129,19 +130,19 @@
       "generate": {
         "loading": "🎙 Generating audio...",
         "success": "✅ Audio generated successfully",
-        "error": "❌ Could not generate audio."
+        "error": "❌ Could not generate the audio."
       },
       "regen": {
-        "noBase": "No base audio to regenerate.",
+        "noBase": "There is no base audio to regenerate.",
         "limit": "⚠️ You have already regenerated the audio 2 times.",
         "loading": "🔄 Regenerating audio...",
-        "adjustSpeed": "⚙️ We'll adjust speed to 0.7–1.2 (ElevenLabs limit).",
+        "adjustSpeed": "⚙️ Adjusting speed to 0.7–1.2 (ElevenLabs limit).",
         "success": "✅ Audio regenerated",
-        "error": "❌ Could not regenerate audio."
+        "error": "❌ Could not regenerate the audio."
       },
       "accepted": "🎧 Audio accepted. Let's move to the video step.",
       "modal": {
-        "title": "Audio generated",
+        "title": "Generated audio",
         "empty": "No audio has been generated.",
         "accept": "Accept audio"
       }
@@ -149,7 +150,7 @@
     "video": {
       "loading": "Loading videos...",
       "loadError": "❌ Could not load cloning videos.",
-      "pipelineSuccess": "🎬 Reel sent to pipeline",
+      "pipelineSuccess": "🎬 Reel sent to the pipeline",
       "fallbackName": "Video #{n}"
     },
     "regenScript": {
@@ -184,9 +185,9 @@
     "structureOptions": {
       "hook_body_close": "Hook – Body – Close",
       "storytelling": "Storytelling",
-      "tips_list": "Tips list",
+      "tips_list": "List of tips",
       "rhetorical_question": "Rhetorical question",
-      "before_after": "Before/After comparison",
+      "before_after": "Before/after comparison",
       "myth_vs_reality": "Myth vs reality",
       "problem_solution": "Problem – Solution",
       "testimonial": "Testimonial"
@@ -225,14 +226,14 @@
       "trialing": "Trialing",
       "active": "Active",
       "cancelAtPeriodEnd": "Cancels at period end",
-      "past_due": "Past due",
+      "past_due": "Payment overdue",
       "unpaid": "Unpaid",
       "canceled": "Canceled"
     },
     "actions": {
       "startTrial": "Start FREE trial",
       "manage": "Manage subscription",
-      "openingPortal": "Opening your Customer Portal"
+      "openingPortal": "Opening your Customer portal"
     },
     "errors": {
       "notAuthenticated": "Not authenticated",
@@ -246,7 +247,7 @@
       "range": "Range",
       "all": "All",
       "script": "Scripts",
-      "audio": "Audios",
+      "audio": "Audio",
       "video": "Videos",
       "edit": "Edits",
       "week": "Current week",
@@ -272,7 +273,7 @@
     },
     "checkoutModal": {
       "title": "Start your free trial 🎉",
-      "description": "You need an active subscription to use this feature.",
+      "description": "To use this feature you need an active subscription.",
       "cancel": "Cancel",
       "continue": "Continue",
       "redirecting": "Redirecting...",
@@ -307,7 +308,7 @@
         "cta": "Coming soon",
         "features": [
           "1 voice/avatar",
-          "Videos in 720p",
+          "720p videos",
           "Standard queue",
           "1 Audio AI® regeneration",
           "1 Script AI® regeneration",
@@ -325,7 +326,7 @@
         "goHome": "Go home",
         "features": [
           "1 voice/avatar",
-          "Videos in 1080p",
+          "1080p videos",
           "Standard queue",
           "3 Audio AI® regenerations",
           "2 Script AI® regenerations",
@@ -341,7 +342,7 @@
         "cta": "Coming soon",
         "features": [
           "3 voices/avatars",
-          "Videos in 4K",
+          "4K videos",
           "Priority queue",
           "Unlimited Audio AI® regenerations",
           "Unlimited Script AI® regenerations",
@@ -364,35 +365,35 @@
       "items": [
         {
           "q": "Are there variable charges besides the subscription?",
-          "a": "Yes. You only pay for what you generate according to the pay-as-you-go pricing table (full video, Video Ai®, Edit AI®, Audio AI®, Script AI®, etc.)."
+          "a": "Yes. You only pay for what you generate according to the usage pricing table (full video, Video AI®, Edit AI®, Audio AI®, Script AI®, etc.)."
         },
         {
           "q": "How and when is usage charged?",
-          "a": "We group your consumption into a single daily charge at 23:59 in your account's time zone (default: Europe/Madrid). If you don't generate, variable charge is €0 that day."
+          "a": "We group your usage into a single daily charge at 23:59 in your account’s time zone (by default, Europe/Madrid). If you don't generate, variable charge that day is €0."
         },
         {
-          "q": "How can I see the amount in euros I've spent today?",
-          "a": "At the top right you'll see your credits counter. Clicking it opens a panel with today's amount in € (VAT incl.) and your usage this month."
+          "q": "How can I see today's amount spent in euros?",
+          "a": "At the top right you'll see your credit counter. Clicking it opens a panel with today's amount in € (VAT incl.) and this month's usage."
         },
         {
           "q": "What does “full video” include?",
-          "a": "Video Ai® + Edit AI® + Audio AI® + Script AI® for a video up to 1 minute. Includes 2 Script AI® regenerations and 3 Audio AI® regenerations."
+          "a": "Video AI® + Edit AI® + Audio AI® + Script AI® for a video up to 1 minute. Includes 2 Script AI® and 3 Audio AI® regenerations."
         },
         {
           "q": "Can I use modules separately?",
-          "a": "Yes. You can generate only Video Ai®, Edit AI®, Audio AI® or Script AI®; each module is charged per the table. If you choose “full video”, we charge the sum of modules in one step."
+          "a": "Yes. You can generate only Video AI®, Edit AI®, Audio AI® or Script AI®; each module is billed as per the table. If you choose “full video”, we charge the sum of modules in one step."
         },
         {
           "q": "What if a render fails?",
-          "a": "You won't be charged. We restore the amounts in your settlement or adjust the daily charge automatically."
+          "a": "You won't be charged. We refund the amounts in your settlement or automatically adjust the daily charge."
         },
         {
           "q": "How does the 7-day free trial work?",
-          "a": "During the 7-day trial you have full access and the monthly fee isn't charged. Includes 200 credits; if you exceed them, extra usage is charged at normal pay-as-you-go rates (one daily charge at 23:59). If you cancel before the trial ends, the monthly fee isn't charged, but usage charges still apply. Unused trial credits expire at the end."
+          "a": "During the 7-day trial you have all features and pay no monthly fee. It includes 200 credits; if you exceed them, additional usage is billed at normal rates (with a single daily charge at 23:59). If you cancel before the trial ends, the monthly fee isn't charged, but usage you've incurred remains. Unused trial credits expire at the end."
         },
         {
           "q": "How do I activate and use the 200 trial credits?",
-          "a": "During the trial you'll see a “Activate 200 credits” banner — click it to receive them; until then, usage is charged at normal rates. If you activate the same day, they're applied first to today's usage (not retroactive) and if you exceed them, the rest is charged per rates; they expire at the end of the trial."
+          "a": "During the trial you'll see a “Activate 200 credits” banner—click it to receive them; until then, usage is billed at normal price. If you activate the same day, they are applied first to today's usage (not retroactive) and if you exceed them, the rest is billed per rates; they expire at the end of the trial."
         }
       ]
     }
@@ -403,23 +404,23 @@
     "name": "Name",
     "save": "Save",
     "resetPassword": "Reset password",
-    "resetPasswordSent": "A reset email has been sent",
-    "errorResetPassword": "Password reset email could not be sent",
+    "resetPasswordSent": "A password reset email has been sent",
+    "errorResetPassword": "Couldn't send reset email",
     "savedProfile": "Profile updated successfully",
-    "errorProfile": "Profile could not be updated",
+    "errorProfile": "Couldn't update your profile",
     "subscription": "Subscription",
-    "subscriptionDesc": "Manage your plan and payments from Stripe's secure portal.",
+    "subscriptionDesc": "Manage your plan and payments in Stripe's secure portal.",
     "manageSubscription": "Manage subscription",
     "deleteAccount": "Delete my account",
     "confirmDelete": "Are you sure you want to delete your account? This action cannot be undone.",
     "accountDeleted": "Your account has been deleted",
-    "errorDeleteAccount": "Account could not be deleted",
+    "errorDeleteAccount": "Couldn't delete the account",
     "photo": {
       "alt": "Avatar",
       "change": "Change photo",
       "uploading": "Uploading...",
       "updated": "📸 Photo updated",
-      "uploadError": "❌ Error uploading photo"
+      "uploadError": "❌ Error uploading the photo"
     },
     "labels": {
       "emailReadonly": "Email",
@@ -434,7 +435,7 @@
   },
   "profile": {
     "sectionTitle": "Profile",
-    "sectionSubtitle": "Manage your basic info and account photo.",
+    "sectionSubtitle": "Manage your basic information and account photo.",
     "labels": {
       "name": "Name",
       "instagramUser": "Instagram",
@@ -455,7 +456,7 @@
     "crop": {
       "title": "Crop photo",
       "zoom": "Zoom",
-      "confirm": "Crop & upload"
+      "confirm": "Crop and upload"
     }
   },
   "subscription": {
@@ -485,17 +486,17 @@
     "untitled": "Untitled"
   },
   "topbar": {
-    "mobileBanner": "🚀 Viralizalo.AI is much better on desktop for the best experience.",
+    "mobileBanner": "🚀 It's much better to use Viralizalo.AI on desktop for the best experience.",
     "trial": {
-      "banner": "You have trial credits available. Claim them to start using the platform for free.",
+      "banner": "You have trial credits available. Claim them to start using the platform at no cost.",
       "claim": "Claim credits",
       "claiming": "Claiming...",
       "activateFirst": "To claim credits first activate your free trial in Stripe.",
-      "claimError": "Could not claim the trial.",
-      "unexpectedError": "An unexpected error occurred while claiming credits."
+      "claimError": "Couldn't claim the trial.",
+      "unexpectedError": "An unexpected error occurred while claiming the credits."
     },
     "overdue": {
-      "banner": "⚠️ You have an outstanding balance of {credits} credits. Please regularize your payment to keep using the platform.",
+      "banner": "⚠️ You have an outstanding debt of {credits} credits. Please settle your payment to keep using the platform.",
       "payNow": "Pay now"
     },
     "badge": {
@@ -523,38 +524,38 @@
     "pricing": "Pricing",
     "howTo": "How to use Viralizalo.AI?",
     "trialDays": "{days} days trial",
-    "cancelAtPeriodEnd": "Canceled (period end)",
+    "cancelAtPeriodEnd": "Canceled (end of period)",
     "avatarAlt": "Avatar"
   },
   "viralIdeasPage": {
     "title": "Viral ideas",
     "toasts": {
       "enterNiche": "Type a niche before searching",
-      "mustLoginSearch": "You must sign in to search videos",
+      "mustLoginSearch": "You must log in to search for videos",
       "loading": "Searching viral videos...",
       "loaded": "Videos loaded successfully",
       "loadError": "Error loading videos",
-      "mustLoginFavorite": "You must sign in to save favorites",
-      "mustLoginReplicate": "You must sign in to replicate videos",
+      "mustLoginFavorite": "You must log in to save favorites",
+      "mustLoginReplicate": "You must log in to replicate videos",
       "noTranscript": "No transcript found",
       "replicateError": "Error replicating video"
     },
     "replicatedScriptDescription": "Script replicated from {title}",
     "empty": {
-      "noResultsForFilters": "There are no trending videos for “{query}” with the current filters. Try another term, language or range.",
+      "noResultsForFilters": "No trending videos for “{query}” with the current filters. Try another term, language or time range.",
       "noMatchesForFilter": "No matches for the current filter."
     },
     "viewsLabel": "views",
     "playHere": "Play here",
     "favoritesHeader": "Favorites",
-    "favoritesEmpty": "You don't have saved videos",
+    "favoritesEmpty": "You have no saved videos",
     "view": "View",
     "viewOnYoutube": "View on YouTube"
-    },
+  },
   "ideas": {
     "header": {
       "country": "Country",
-      "range": "Range",
+      "range": "Period",
       "language": "Language",
       "time": "Time",
       "countries": {
@@ -585,7 +586,7 @@
       "removeFavorite": "Remove from favorites",
       "loading": "Loading ideas...",
       "noItems": "No results to show.",
-      "noPreview": "Preview unavailable"
+      "noPreview": "Preview not available"
     },
     "favorites": {
       "title": "Your Favorite Ideas",
@@ -606,11 +607,11 @@
     },
     "empty": "You don't have scripts yet.",
     "toasts": {
-      "loadError": "Could not load scripts",
+      "loadError": "Couldn't load scripts",
       "deleteAllSuccess": "All scripts have been deleted ✅",
       "deleteOneSuccess": "Script deleted successfully ✅",
-      "deleteError": "Could not delete the script",
-      "rateError": "Could not update rating",
+      "deleteError": "Couldn't delete the script",
+      "rateError": "Couldn't update rating",
       "refreshError": "Error confirming scripts, refresh the page"
     },
     "deleteDialog": {
@@ -627,12 +628,19 @@
     "untitledReplicated": "Replicated video",
     "unrated": "Unrated",
     "noContent": "No content",
-    "noPreview": "Preview unavailable",
+    "noPreview": "Preview not available",
     "thumbnailAlt": "Video thumbnail",
     "view": "View",
     "delete": "Delete",
     "ariaView": "View script: {title}",
     "ariaDelete": "Delete script: {title}"
+  },
+  "scriptsCard": {
+    "unrated": "Unrated",
+    "view": "View",
+    "viewAria": "View script: {title}",
+    "deleteAria": "Delete script: {title}",
+    "deleteTitle": "Delete script"
   },
   "scriptsDeleteDialog": {
     "title": "Delete script",
@@ -648,7 +656,7 @@
       "ctaPrefix": "CTA:"
     },
     "ratingAria": "Rate with {stars} stars",
-    "previewUnavailable": "Preview unavailable",
+    "previewUnavailable": "Preview not available",
     "channel": "Channel",
     "published": "Published",
     "viewOriginal": "View original video",
@@ -656,22 +664,22 @@
   },
   "scriptsCreator": {
     "dialog": {
-      "generatedTitle": "Script generated"
+      "generatedTitle": "Generated script"
     },
     "buttons": {
       "regenerate": "Regenerate ({count}/2)",
       "accept": "Accept and save"
     },
     "toasts": {
-      "fillAll": "⚠️ Please complete all required fields.",
-      "mustLogin": "You must sign in to create scripts.",
-      "generateError": "Could not generate the script.",
+      "fillAll": "⚠️ Please fill in all required fields.",
+      "mustLogin": "You must log in to create scripts.",
+      "generateError": "Couldn't generate the script.",
       "regenerating": "🔄 Regenerating script...",
       "regenLimit": "⚠️ You have already regenerated the script 2 times.",
-      "regenError": "❌ Could not regenerate the script.",
+      "regenError": "❌ Couldn't regenerate the script.",
       "saving": "💾 Saving script...",
       "saved": "✅ Script saved successfully",
-      "saveError": "Could not save the script."
+      "saveError": "Couldn't save the script."
     },
     "regenDialog": {
       "title": "Modify before regenerating",
@@ -688,8 +696,16 @@
         "accept": "Accept and regenerate"
       }
     },
+    "form": {
+      "hints": {
+        "durationBudget": "Use 0–15, 15–30, 30–45 or 45–60. Max 60s."
+      },
+      "errors": {
+        "durationTooLong": "⏱️ Duration exceeds the maximum allowed ({max}s)."
+      }
+    },
     "checkout": {
-      "message": "You need an active subscription to generate scripts. Start your FREE 7-day trial."
+      "message": "You need an active subscription to generate scripts. Start your 7-day FREE trial."
     }
   },
   "scriptsForm": {
@@ -698,7 +714,7 @@
       "subtitle": "Fill in the fields to automatically create a new script."
     },
     "labels": {
-      "description": "Short description *",
+      "description": "Brief description *",
       "tone": "Tone *",
       "platform": "Platform *",
       "duration": "Duration *",
@@ -708,13 +724,13 @@
       "ctaText": "CTA text"
     },
     "placeholders": {
-      "description": "Eg: Motivational reel about productivity for entrepreneurs",
+      "description": "E.g., Motivational reel about productivity for entrepreneurs",
       "tone": "Select a tone",
       "platform": "Select a platform",
       "duration": "Select a duration",
       "language": "Select a language",
       "structure": "Select a structure",
-      "ctaText": "Eg: Follow me for more tips"
+      "ctaText": "E.g., Follow me for more tips"
     },
     "buttons": {
       "generate": "Generate script",
@@ -753,10 +769,10 @@
       "new": "New audio"
     },
     "toasts": {
-      "loadError": "❌ Could not load audios",
+      "loadError": "❌ Couldn't load audios",
       "deleteAllSuccess": "🗑️ All audios deleted",
       "deleteOneSuccess": "Audio deleted ✅",
-      "deleteError": "❌ Could not delete audio"
+      "deleteError": "❌ Couldn't delete the audio"
     },
     "deleteDialog": {
       "titleAll": "Delete all audios",
@@ -788,7 +804,7 @@
         "speakerBoost": "Use Speaker Boost"
       },
       "placeholders": {
-        "text": "Write the text to convert into audio",
+        "text": "Write the text to convert to audio",
         "voice": "Select a voice"
       },
       "actions": {
@@ -800,23 +816,23 @@
       "pause": "Pause audio"
     },
     "toasts": {
-      "durationExceeded": "⏱️ The audio lasts {duration} and the max allowed is {max}s. Shorten the text or increase speed.",
-      "enterText": "You must write the text to convert.",
-      "textTooLongEst": "⏱️ The text is too long (~{seconds}s). Max {max}s.",
+      "durationExceeded": "⏱️ The audio is {duration} and the maximum allowed is {max}s. Shorten the text or increase the speed.",
+      "enterText": "You must enter the text to convert.",
+      "textTooLongEst": "⏱️ The text is too long (~{seconds}s). Maximum {max}s.",
       "selectVoice": "You must select a voice.",
-      "mustLogin": "You must sign in to generate audios.",
+      "mustLogin": "You must log in to generate audios.",
       "generating": "🎙️ Generating audio...",
       "generated": "✅ Audio generated",
-      "generateError": "❌ Could not generate audio",
-      "noBaseAudio": "No base audio to regenerate.",
+      "generateError": "❌ Couldn't generate the audio",
+      "noBaseAudio": "There is no base audio to regenerate.",
       "regenLimit": "⚠️ Maximum 2 regenerations allowed.",
       "regenerating": "🔄 Regenerating audio...",
       "regenerated": "✅ Audio regenerated",
-      "regenError": "❌ Could not regenerate",
+      "regenError": "❌ Couldn't regenerate",
       "saved": "📂 Audio saved to your library",
-      "durationExceededBeforeSave": "⏱️ The audio lasts {duration} (> {max}s). Please shorten it before saving."
+      "durationExceededBeforeSave": "⏱️ The audio is {duration} (> {max}s). Please shorten it before saving."
     },
-    "paywall": "To clone your voice you need an active subscription. Start your FREE 7-day trial"
+    "paywall": "To clone your voice you need an active subscription—start your 7-day FREE trial"
   },
   "audioForm": {
     "title": "Audio generation",
@@ -832,7 +848,7 @@
       "speakerBoost": "Use Speaker Boost"
     },
     "placeholders": {
-      "name": "Eg: Landing video intro EN",
+      "name": "E.g., Landing intro ES",
       "text": "Write the text...",
       "voice": "Select a voice"
     },
@@ -840,7 +856,7 @@
       "stability": "Voice consistency.",
       "similarity": "Similarity to the base voice.",
       "style": "Expressiveness.",
-      "speed": "Speech rate."
+      "speed": "Narration speed."
     },
     "buttons": {
       "processing": "Processing...",
@@ -849,9 +865,9 @@
     },
     "toasts": {
       "fillAll": "⚠️ Complete text, voice and language.",
-      "noVoices": "You don't have voices yet, first create or clone one.",
+      "noVoices": "You don't have saved voices; create or clone a voice first.",
       "loadVoicesError": "Error loading voices from server.",
-      "loadedFromScript": "Text loaded from selected script ✨"
+      "loadedFromScript": "Text loaded from the selected script ✨"
     },
     "checkout": {
       "message": "You need an active subscription to generate audios."
@@ -873,8 +889,8 @@
       "delete": "Delete"
     },
     "toasts": {
-      "reloginToDownload": "You must sign in again to download.",
-      "downloadError": "Could not download audio."
+      "reloginToDownload": "You must log in again to download.",
+      "downloadError": "Couldn't download the audio."
     }
   },
   "video": {
@@ -885,7 +901,7 @@
     "select": {
       "label": "Select cloning video",
       "placeholder": "Choose a video",
-      "empty": "You don't have cloning videos",
+      "empty": "You have no cloning videos",
       "unnamed": "Untitled"
     },
     "uploadDialog": {
@@ -895,7 +911,7 @@
         "aspect": "Vertical format (9:16)",
         "size": "Max {mb}MB",
         "background": "Plain background and good lighting",
-        "clarity": "Speak facing the camera and clearly"
+        "clarity": "Face the camera and speak clearly"
       },
       "dropHint": "Drag your video here or click to select",
       "analyzing": "Analyzing video...",
@@ -903,7 +919,7 @@
       "upload": "Upload",
       "uploading": "Uploading...",
       "uploadedToast": "✅ Video uploaded successfully",
-      "uploadErrorToast": "❌ Error uploading video",
+      "uploadErrorToast": "❌ Error uploading the video",
       "progress": "{value}% uploaded"
     }
   },
@@ -914,10 +930,10 @@
       "create": "Create video"
     },
     "toasts": {
-      "loadError": "❌ Could not load videos",
+      "loadError": "❌ Couldn't load videos",
       "deleteAllSuccess": "All videos have been deleted ✅",
       "deleteOneSuccess": "Video deleted successfully ✅",
-      "deleteError": "Could not delete videos"
+      "deleteError": "Couldn't delete the videos"
     },
     "confirm": {
       "deleteAllTitle": "Delete all videos",
@@ -943,19 +959,19 @@
       "pending": "Pending"
     },
     "download": "Download",
-    "autoedit": "Auto-edit"
+    "autoedit": "Auto edit"
   },
   "lipsyncCreate": {
     "title": "Cloned videos",
     "errors": {
-      "auth": "You must sign in.",
+      "auth": "You must log in.",
       "selectAudio": "You must select a valid audio.",
       "selectVideo": "You must select a valid video.",
       "title": "You must enter a title for the video.",
-      "audioDuration": "⏱️ The audio lasts {sec}s and the max is {max}s.",
-      "videoDuration": "⏱️ The video lasts {sec}s and the max is {max}s.",
-      "readAudioDuration": "Could not read audio duration.",
-      "readVideoDuration": "Could not read video duration.",
+      "audioDuration": "⏱️ The audio is {sec}s and the maximum is {max}s.",
+      "videoDuration": "⏱️ The video is {sec}s and the maximum is {max}s.",
+      "readAudioDuration": "Couldn't read audio duration.",
+      "readVideoDuration": "Couldn't read video duration.",
       "validation": "Validation failed"
     },
     "buttons": {
@@ -970,15 +986,15 @@
       "creating": "Generating video: \"{title}\" with audio \"{audio}\" and video \"{video}\"",
       "created": "✅ Video in progress. We'll notify you when it's ready.",
       "loadMediaError": "Error loading audios/videos",
-      "durationAudioExceeded": "⏱️ The audio lasts {sec}s and the max is {max}s.",
-      "durationVideoExceeded": "⏱️ The video lasts {sec}s and the max is {max}s.",
-      "createError": "Could not create lipsync"
+      "durationAudioExceeded": "⏱️ The audio is {sec}s and the maximum is {max}s.",
+      "durationVideoExceeded": "⏱️ The video is {sec}s and the maximum is {max}s.",
+      "createError": "Couldn't create the lipsync"
     },
     "carousel": {
       "noAudio": "No audio"
     },
     "checkout": {
-      "message": "You need an active subscription to create lipsyncs. Start your FREE 7-day trial."
+      "message": "You need an active subscription to create lipsyncs. Start your 7-day FREE trial."
     }
   },
   "edit": {
@@ -994,7 +1010,7 @@
         "loadError": "Error loading videos",
         "deleteAllSuccess": "All videos have been deleted",
         "deleteOneSuccess": "Video deleted successfully",
-        "deleteError": "Could not delete videos"
+        "deleteError": "Couldn't delete the videos"
       },
       "deleteDialog": {
         "titleAll": "Delete all videos",
@@ -1016,7 +1032,7 @@
       "actions": {
         "deleteAria": "Delete video",
         "download": "Download",
-        "autoedit": "Auto-edit",
+        "autoedit": "Auto edit",
         "generateVideo": "Generate video"
       },
       "playHere": "▶ Play here",
@@ -1036,16 +1052,16 @@
         "template": "Template",
         "language": "Language",
         "describe": "Describe the video in 3–4 words",
-        "brollsPercentage": "B-rolls percentage: {value}%"
+        "brollsPercentage": "B-roll percentage: {value}%"
       },
       "placeholders": {
-        "title": "Eg: Product launch – vertical",
+        "title": "E.g., Product launch – vertical",
         "tags": "Type a tag and press Enter or comma...",
         "language": "Select a language"
       },
       "tooltips": {
-        "magicZooms": "Adds automatic zoom-ins for more dynamism.",
-        "magicBrolls": "Inserts relevant automatic B-rolls in your video."
+        "magicZooms": "Add automatic zoom-ins for more dynamism.",
+        "magicBrolls": "Insert relevant automatic B-rolls into your video."
       },
       "options": {
         "magicZooms": "Magic Zooms",
@@ -1056,8 +1072,8 @@
         "languages": "Loading languages..."
       },
       "buttons": {
-        "seeMore": "See more",
-        "seeLess": "See less",
+        "seeMore": "Show more",
+        "seeLess": "Show less",
         "create": "Create video",
         "generateEdit": "Generate video edit",
         "processing": "Processing...",
@@ -1070,27 +1086,27 @@
         "processing": "⚙️ Processing your video...",
         "created": "🎬 Video created successfully",
         "uploadOrProcessError": "❌ Error uploading or processing the video",
-        "analyzeError": "Could not analyze the video.",
-        "mustLogin": "⚠️ You must sign in",
+        "analyzeError": "Couldn't analyze the video.",
+        "mustLogin": "⚠️ You must log in",
         "mustSelectVideo": "⚠️ You must upload or select a video",
         "loadLangError": "❌ Error loading languages",
         "loadTplError": "❌ Error loading templates",
-        "durationExceeded": "⏱️ The video lasts {sec}s and the max is {max}s.",
+        "durationExceeded": "⏱️ The video is {sec}s and the maximum is {max}s.",
         "templateSelected": "📑 Template \"{name}\" selected"
       },
       "errors": {
-        "readVideoDuration": "Could not read video duration",
-        "noVideoUrl": "Could not obtain video URL"
+        "readVideoDuration": "Couldn't read the video duration",
+        "noVideoUrl": "Couldn't get the video URL"
       },
       "checkout": {
         "message": "You need an active subscription to generate video edits."
       },
-      "previewUnavailable": "Preview unavailable"
+      "previewUnavailable": "Preview not available"
     }
   },
   "voices": {
     "list": {
-      "title": "Audios for cloning",
+      "title": "Cloning audios",
       "empty": "You don't have voices yet.",
       "loading": "Loading voices...",
       "buttons": {
@@ -1105,7 +1121,7 @@
       "confirm": "Delete"
     },
     "card": {
-      "previewUnavailable": "🎧 Preview unavailable"
+      "previewUnavailable": "🎧 Preview not available"
     }
   },
   "clonacion": {
@@ -1114,11 +1130,11 @@
     "noVideos": "You don't have cloning videos yet.",
     "previewTitle": "Preview",
     "addVideoButton": "+ Add cloning video",
-    "mustLogin": "You must sign in",
+    "mustLogin": "You must log in",
     "uploadSuccess": "✅ Video uploaded successfully",
-    "uploadError": "❌ Error uploading video",
+    "uploadError": "❌ Error uploading the video",
     "deleteSuccess": "✅ Video deleted successfully",
-    "deleteError": "❌ Could not delete video",
+    "deleteError": "❌ Couldn't delete the video",
     "deleteDialog": {
       "title": "Delete video",
       "description": "Are you sure you want to delete this video? This action cannot be undone.",
@@ -1142,11 +1158,11 @@
       "sidebar": {
         "home": {
           "title": "🏠 Home",
-          "description": "See the overview of your account and deliveries."
+          "description": "Here you see the overall summary of your account and deliveries."
         },
         "viralIdeas": {
           "title": "✨ Viral ideas",
-          "description": "Discover trending reels and content to get inspired."
+          "description": "Discover trending reels and content for inspiration."
         },
         "scripts": {
           "title": "📜 Scripts",
@@ -1154,7 +1170,7 @@
         },
         "audio": {
           "title": "🎤 Audio",
-          "description": "Convert your script to realistic voice with AI."
+          "description": "Turn your script into realistic AI voice."
         },
         "lipsync": {
           "title": "🎭 Video",
@@ -1166,18 +1182,18 @@
         },
         "clones": {
           "title": "🧑‍🎤 Cloning",
-          "description": "Upload your reference videos to train your clone."
+          "description": "Upload reference videos to train your clone."
         }
       },
       "badges": {
         "consumo": {
           "title": "💳 Usage",
-          "description": "See your current usage, trial credits and operations."
+          "description": "Here you can see your current usage, trial credits and operations."
         }
       },
       "userMenu": {
         "title": "👤 User",
-        "description": "Manage your account, language and sign out here."
+        "description": "In this menu you can manage your account, language and log out."
       }
     }
   },

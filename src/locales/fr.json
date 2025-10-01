@@ -13,7 +13,8 @@
     "processing": "Traitement...",
     "back": "Retour",
     "regenerate": "Régénérer",
-    "acceptAndRegenerate": "Accepter et régénérer"
+    "acceptAndRegenerate": "Accepter et régénérer",
+    "counter": "{count}/{max}"
   },
   "layout": {
     "sidebar": {
@@ -29,20 +30,20 @@
     "lipsync": "Vidéo",
     "video": "Montage",
     "clones": "Clonage",
-    "noPlan": "Sans offre"
+    "noPlan": "Sans abonnement"
   },
   "dashboard": {
     "title": "Bienvenue sur votre tableau de bord",
     "subtitle": "Créez quelque chose de nouveau ou consultez vos dernières créations. Restez à jour !",
-    "loading": "Chargement du tableau de bord...",
+    "loading": "Chargement de votre tableau de bord...",
     "authError": {
       "title": "Non authentifié",
       "description": "Vous devez vous connecter pour voir votre tableau de bord."
     },
     "subscription": {
-      "unknownPlan": "Offre inconnue",
+      "unknownPlan": "Abonnement inconnu",
       "unknownRenewal": "Inconnu",
-      "loadError": "Impossible de charger l’abonnement",
+      "loadError": "Impossible de charger l'abonnement",
       "unknown": "Erreur inconnue",
       "none": "Inactive"
     },
@@ -55,12 +56,12 @@
       "legend": {
         "todo": "À faire",
         "inProgress": "En cours",
-        "done": "Fait"
+        "done": "Terminé"
       }
     },
     "quickActions": {
       "title": "Actions rapides",
-      "subtitle": "Démarrez en un clic",
+      "subtitle": "Commencez en un clic",
       "buttons": {
         "generateScript": "Générer un script",
         "newAudio": "Nouvel audio",
@@ -71,26 +72,26 @@
     "latestScript": {
       "title": "Dernier script",
       "viewAll": "Voir tous les scripts",
-      "emptyTitle": "Vous n’avez pas encore de scripts",
-      "emptySubtitle": "Lorsqu’ils seront générés, ils apparaîtront ici",
+      "emptyTitle": "Vous n'avez pas encore de scripts",
+      "emptySubtitle": "Lorsqu'ils seront générés, ils apparaîtront ici",
       "view": "Voir les scripts"
     },
     "latestVideo": {
       "title": "Dernière vidéo",
       "viewAll": "Voir toutes les vidéos",
-      "emptyTitle": "Vous n’avez pas encore de vidéos",
-      "emptySubtitle": "Lorsqu’elles seront prêtes, vous les verrez ici",
+      "emptyTitle": "Vous n'avez pas encore de vidéos",
+      "emptySubtitle": "Lorsqu'elles seront prêtes, vous les verrez ici",
       "view": "Voir les vidéos"
     },
     "errors": {
       "load": "Erreur lors du chargement du tableau de bord"
     },
     "toasts": {
-      "trialStarted": "🎉 Essai démarré avec succès"
+      "trialStarted": "🎉 Période d'essai démarrée avec succès"
     },
     "checkout": {
-      "message": "Vous avez besoin d’un abonnement actif pour continuer.",
-      "voiceCloneMessage": "Pour cloner votre voix, vous avez besoin d’un abonnement actif. Commencez votre essai GRATUIT de 7 jours."
+      "message": "Vous avez besoin d'un abonnement actif pour continuer.",
+      "voiceCloneMessage": "Pour cloner votre voix, vous avez besoin d'un abonnement actif — commencez votre essai GRATUIT de 7 jours"
     }
   },
   "wizard": {
@@ -119,7 +120,7 @@
         "success": "✅ Script régénéré",
         "error": "❌ Impossible de régénérer le script."
       },
-      "accepted": "📜 Script accepté. Passons à l’audio.",
+      "accepted": "📜 Script accepté. Passons à l'audio.",
       "modal": {
         "title": "Script généré",
         "accept": "Accepter le script"
@@ -127,23 +128,23 @@
     },
     "audio": {
       "generate": {
-        "loading": "🎙 Génération de l’audio...",
+        "loading": "🎙 Génération de l'audio...",
         "success": "✅ Audio généré avec succès",
-        "error": "❌ Impossible de générer l’audio."
+        "error": "❌ Impossible de générer l'audio."
       },
       "regen": {
         "noBase": "Aucun audio de base à régénérer.",
-        "limit": "⚠️ Vous avez déjà régénéré l’audio 2 fois.",
-        "loading": "🔄 Régénération de l’audio...",
-        "adjustSpeed": "⚙️ Nous ajusterons la vitesse à 0,7–1,2 (limite ElevenLabs).",
+        "limit": "⚠️ Vous avez déjà régénéré l'audio 2 fois.",
+        "loading": "🔄 Régénération de l'audio...",
+        "adjustSpeed": "⚙️ Nous ajustons la vitesse à 0,7–1,2 (limite ElevenLabs).",
         "success": "✅ Audio régénéré",
-        "error": "❌ Impossible de régénérer l’audio."
+        "error": "❌ Impossible de régénérer l'audio."
       },
-      "accepted": "🎧 Audio accepté. Passons à l’étape vidéo.",
+      "accepted": "🎧 Audio accepté. Passons à l'étape vidéo.",
       "modal": {
         "title": "Audio généré",
-        "empty": "Aucun audio généré.",
-        "accept": "Accepter l’audio"
+        "empty": "Aucun audio n'a été généré.",
+        "accept": "Accepter l'audio"
       }
     },
     "video": {
@@ -155,9 +156,9 @@
     "regenScript": {
       "title": "Modifier avant de régénérer",
       "toneLabel": "Ton",
-      "tonePlaceholder": "Sélectionner le ton",
+      "tonePlaceholder": "Sélectionner un ton",
       "structureLabel": "Structure",
-      "structurePlaceholder": "Sélectionner la structure"
+      "structurePlaceholder": "Sélectionner une structure"
     },
     "regenAudio": {
       "title": "Modifier les paramètres avant de régénérer",
@@ -197,48 +198,48 @@
       "create": "Créer un Reel",
       "creating": "Création...",
       "openWizard": "Créer un Reel",
-      "aria": "Ouvrir l’assistant pour créer un Reel"
+      "aria": "Ouvrir l'assistant pour créer un Reel"
     }
   },
   "billing": {
     "title": "Abonnement",
-    "subtitle": "Gérez votre offre, vos crédits et vos factures.",
+    "subtitle": "Gérez votre plan, vos crédits et vos factures.",
     "billingPeriod": "Période de facturation",
     "period": "{start} - {end}",
     "usage": {
       "totalCredits": "{value} crédits",
       "totalUsage": "Utilisation totale",
       "availableCredits": "{value} crédits",
-      "availableHint": "Crédits disponibles (inclut l’essai)",
+      "availableHint": "Crédits disponibles (inclut l'essai)",
       "creditsUnit": "crédits"
     },
     "pricePerMonth": "{price}/mois",
     "planBlurb": "Accès à la plateforme. Essai de 7 jours.",
     "summary": {
-      "plan": "Offre",
+      "plan": "Plan",
       "status": "Statut",
       "renewal": "Renouvellement",
       "unknown": "—"
     },
     "status": {
       "none": "Sans abonnement",
-      "trialing": "En essai",
-      "active": "Active",
+      "trialing": "En période d'essai",
+      "active": "Actif",
       "cancelAtPeriodEnd": "Annulation en fin de période",
-      "past_due": "En retard de paiement",
+      "past_due": "Paiement en retard",
       "unpaid": "Impayé",
-      "canceled": "Annulée"
+      "canceled": "Annulé"
     },
     "actions": {
-      "startTrial": "Commencer l’essai GRATUIT",
-      "manage": "Gérer l’abonnement",
+      "startTrial": "Commencer l'essai GRATUIT",
+      "manage": "Gérer l'abonnement",
       "openingPortal": "Ouverture de votre portail client"
     },
     "errors": {
       "notAuthenticated": "Non authentifié",
       "checkout": "Erreur de paiement",
-      "openCheckout": "❌ Impossible d’ouvrir le checkout",
-      "openPortal": "Erreur lors de l’ouverture du portail",
+      "openCheckout": "❌ Impossible d'ouvrir le checkout",
+      "openPortal": "Erreur lors de l'ouverture du portail",
       "mustLogin": "Vous devez vous connecter"
     },
     "filters": {
@@ -255,9 +256,9 @@
     },
     "table": {
       "type": "Type",
-      "jobId": "ID de tâche",
+      "jobId": "ID du job",
       "cost": "Coût",
-      "processedAt": "Traitée le",
+      "processedAt": "Traité le",
       "empty": "Aucune tâche enregistrée sur cette période."
     },
     "kinds": {
@@ -268,23 +269,23 @@
     },
     "toasts": {
       "portalOpened": "Portail ouvert",
-      "portalError": "Impossible d’ouvrir le portail"
+      "portalError": "Impossible d'ouvrir le portail"
     },
     "checkoutModal": {
       "title": "Commencez votre essai gratuit 🎉",
-      "description": "Vous avez besoin d’un abonnement actif pour utiliser cette fonctionnalité.",
+      "description": "Pour utiliser cette fonctionnalité, vous avez besoin d'un abonnement actif.",
       "cancel": "Annuler",
       "continue": "Continuer",
       "redirecting": "Redirection...",
       "activateTrialMessage": "Vous devez activer votre essai gratuit pour recevoir les crédits.",
       "errors": {
-        "mustLogin": "Vous devez d’abord vous connecter",
+        "mustLogin": "Vous devez d'abord vous connecter",
         "checkout": "Erreur de paiement"
       }
     },
     "renewModal": {
-      "title": "Votre offre est annulée",
-      "description": "Voulez-vous réactiver votre abonnement et retrouver tous les avantages ?",
+      "title": "Votre plan est annulé",
+      "description": "Souhaitez-vous réactiver votre abonnement et profiter à nouveau de tous les avantages ?",
       "actions": {
         "no": "Non",
         "yes": "Oui, réactiver",
@@ -292,61 +293,61 @@
       },
       "toasts": {
         "success": "Abonnement réactivé",
-        "error": "Erreur lors de la réactivation de l’abonnement"
+        "error": "Erreur lors de la réactivation de l'abonnement"
       }
     }
   },
   "pricing": {
-    "back": "Retour à l’accueil",
+    "back": "Retour à l'accueil",
     "title": "Tarifs",
     "plans": {
       "basic": {
         "name": "Basic",
-        "price": "19,99 €",
+        "price": "19,99€",
         "per": "/mois + usage",
         "cta": "Bientôt disponible",
         "features": [
           "1 voix/avatar",
           "Vidéos en 720p",
-          "File d’attente standard",
+          "File d'attente standard",
           "1 régénération Audio AI®",
           "1 régénération Script AI®",
-          "Vidéos jusqu’à 30 s",
-          "Paiement à l’usage",
+          "Vidéos jusqu'à 30 s",
+          "Paiement à l'usage",
           "Filigrane inclus"
         ]
       },
       "access": {
         "name": "Access",
-        "price": "29,99 €",
+        "price": "29,99€",
         "per": "/mois + usage",
-        "trialNote": "Inclut 7 jours d’essai + 200 crédits",
+        "trialNote": "Inclut 7 jours d'essai + 200 crédits",
         "cta": "Commencer GRATUITEMENT",
-        "goHome": "Aller à l’accueil",
+        "goHome": "Aller à l'accueil",
         "features": [
           "1 voix/avatar",
           "Vidéos en 1080p",
-          "File d’attente standard",
+          "File d'attente standard",
           "3 régénérations Audio AI®",
           "2 régénérations Script AI®",
-          "Vidéos jusqu’à 1 min",
-          "Paiement à l’usage",
+          "Vidéos jusqu'à 1 min",
+          "Paiement à l'usage",
           "Sans filigrane"
         ]
       },
       "pro": {
         "name": "Pro",
-        "price": "59,99 €",
+        "price": "59,99€",
         "per": "/mois + usage",
         "cta": "Bientôt disponible",
         "features": [
           "3 voix/avatars",
           "Vidéos en 4K",
-          "File d’attente prioritaire",
+          "File d'attente prioritaire",
           "Régénérations Audio AI® illimitées",
           "Régénérations Script AI® illimitées",
-          "Vidéos jusqu’à 5 min",
-          "Paiement à l’usage",
+          "Vidéos jusqu'à 5 min",
+          "Paiement à l'usage",
           "Sans filigrane"
         ]
       }
@@ -360,39 +361,39 @@
       "fullVideo": "Vidéo complète"
     },
     "faq": {
-      "title": "Foire aux questions",
+      "title": "Questions fréquentes",
       "items": [
         {
-          "q": "Y a-t-il des frais variables en plus de l’abonnement ?",
-          "a": "Oui. Vous ne payez que ce que vous générez selon la grille à l’usage (vidéo complète, Video Ai®, Edit AI®, Audio AI®, Script AI®, etc.)."
+          "q": "Y a-t-il des frais variables en plus de l'abonnement ?",
+          "a": "Oui. Vous ne payez que ce que vous générez selon la grille de tarifs à l'usage (vidéo complète, Video AI®, Edit AI®, Audio AI®, Script AI®, etc.)."
         },
         {
-          "q": "Comment et quand l’usage est-il facturé ?",
-          "a": "Nous regroupons votre consommation en un seul prélèvement quotidien à 23:59 dans le fuseau horaire de votre compte (par défaut, Europe/Madrid). Si vous ne générez rien, 0 € variables ce jour-là."
+          "q": "Comment et quand l'usage est-il facturé ?",
+          "a": "Nous regroupons votre consommation en un seul débit quotidien à 23:59 dans le fuseau horaire de votre compte (par défaut, Europe/Madrid). Si vous ne générez rien, le montant variable du jour est de 0 €."
         },
         {
-          "q": "Comment voir le montant dépensé aujourd’hui en euros ?",
-          "a": "En haut à droite, votre compteur de crédits. En cliquant, vous verrez un panneau avec le montant du jour en € (TVA incl.) et votre usage du mois."
+          "q": "Comment voir le montant dépensé aujourd'hui en euros ?",
+          "a": "En haut à droite, vous verrez votre compteur de crédits. En cliquant, un panneau s'ouvre avec le montant d'aujourd'hui en € (TVA incl.) et l'utilisation de ce mois."
         },
         {
-          "q": "Que comprend « vidéo complète » ?",
-          "a": "Video Ai® + Edit AI® + Audio AI® + Script AI® pour une vidéo jusqu’à 1 minute. Inclut 2 régénérations Script AI® et 3 Audio AI®."
+          "q": "Que comprend la « vidéo complète » ?",
+          "a": "Video AI® + Edit AI® + Audio AI® + Script AI® pour une vidéo jusqu'à 1 minute. Inclut 2 régénérations de Script AI® et 3 d'Audio AI®."
         },
         {
           "q": "Puis-je utiliser les modules séparément ?",
-          "a": "Oui. Vous pouvez générer uniquement Video Ai®, Edit AI®, Audio AI® ou Script AI® ; chaque module est facturé selon la grille. Si vous choisissez « vidéo complète », nous facturons la somme en une seule étape."
+          "a": "Oui. Vous pouvez générer uniquement Video AI®, Edit AI®, Audio AI® ou Script AI® ; chaque module est facturé selon la grille. Si vous choisissez « vidéo complète », nous facturons la somme des modules en une étape."
         },
         {
           "q": "Que se passe-t-il si un rendu échoue ?",
-          "a": "Vous n’êtes pas facturé. Nous rétablissons les montants dans votre relevé ou ajustons automatiquement la facturation quotidienne."
+          "a": "Vous n'êtes pas facturé. Nous rétablissons les montants dans votre relevé ou ajustons automatiquement le débit quotidien."
         },
         {
-          "q": "Comment fonctionne l’essai gratuit de 7 jours ?",
-          "a": "Pendant 7 jours, vous avez toutes les fonctionnalités sans payer la mensualité. Inclut 200 crédits ; si vous les dépassez, l’excédent est facturé à l’usage (prélèvement quotidien à 23:59). Si vous annulez avant la fin, pas de mensualité, mais l’usage consommé reste dû. Les crédits non utilisés expirent à la fin de l’essai."
+          "q": "Comment fonctionne l'essai gratuit de 7 jours ?",
+          "a": "Pendant les 7 jours d'essai, vous disposez de toutes les fonctionnalités et ne payez pas l'abonnement mensuel. Il inclut 200 crédits ; si vous les dépassez, l'usage supplémentaire est facturé au tarif normal (avec un débit quotidien unique à 23:59). Si vous annulez avant la fin de l'essai, l'abonnement n'est pas facturé, mais l'usage effectué reste dû. Les crédits non utilisés expirent à la fin de l'essai."
         },
         {
-          "q": "Comment activer et utiliser les 200 crédits d’essai ?",
-          "a": "Pendant l’essai, un bandeau « Activer 200 crédits ». Cliquez pour les recevoir ; avant cela, l’usage est facturé au tarif normal. Activés le jour même, ils s’appliquent d’abord à la consommation du jour (non rétroactif) ; au-delà, tarif normal. Ils expirent à la fin de l’essai."
+          "q": "Comment activer et utiliser les 200 crédits d'essai ?",
+          "a": "Pendant l'essai, vous verrez une bannière « Activer 200 crédits » — cliquez pour les recevoir ; jusqu'alors, l'usage est facturé au tarif normal. Si vous les activez le même jour, ils s'appliquent d'abord à la consommation du jour (non rétroactif) et, si vous les dépassez, le reste est facturé au tarif en vigueur ; ils expirent à la fin de l'essai."
         }
       ]
     }
@@ -404,14 +405,14 @@
     "save": "Enregistrer",
     "resetPassword": "Réinitialiser le mot de passe",
     "resetPasswordSent": "Un e-mail de réinitialisation a été envoyé",
-    "errorResetPassword": "Impossible d’envoyer l’e-mail de réinitialisation",
-    "savedProfile": "Profil mis à jour",
-    "errorProfile": "Impossible de mettre à jour le profil",
+    "errorResetPassword": "Impossible d'envoyer l'e-mail de réinitialisation",
+    "savedProfile": "Profil mis à jour avec succès",
+    "errorProfile": "Impossible de mettre à jour votre profil",
     "subscription": "Abonnement",
-    "subscriptionDesc": "Gérez votre offre et vos paiements via le portail sécurisé Stripe.",
-    "manageSubscription": "Gérer l’abonnement",
+    "subscriptionDesc": "Gérez votre plan et vos paiements depuis le portail sécurisé de Stripe.",
+    "manageSubscription": "Gérer l'abonnement",
     "deleteAccount": "Supprimer mon compte",
-    "confirmDelete": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.",
+    "confirmDelete": "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.",
     "accountDeleted": "Votre compte a été supprimé",
     "errorDeleteAccount": "Impossible de supprimer le compte",
     "photo": {
@@ -419,7 +420,7 @@
       "change": "Changer la photo",
       "uploading": "Téléversement...",
       "updated": "📸 Photo mise à jour",
-      "uploadError": "❌ Erreur lors du téléversement"
+      "uploadError": "❌ Erreur lors du téléversement de la photo"
     },
     "labels": {
       "emailReadonly": "E-mail",
@@ -428,13 +429,13 @@
     },
     "placeholders": {
       "name": "Votre nom",
-      "instagramUser": "@utilisateur",
-      "phone": "+33 6 00 00 00 00"
+      "instagramUser": "@nom_utilisateur",
+      "phone": "+34 600 000 000"
     }
   },
   "profile": {
     "sectionTitle": "Profil",
-    "sectionSubtitle": "Gérez vos informations de base et votre photo de compte.",
+    "sectionSubtitle": "Gérez vos informations de base et la photo de votre compte.",
     "labels": {
       "name": "Nom",
       "instagramUser": "Instagram",
@@ -443,8 +444,8 @@
     },
     "placeholders": {
       "name": "Votre nom",
-      "instagramUser": "@utilisateur",
-      "phone": "+33 6 00 00 00 00"
+      "instagramUser": "@nom_utilisateur",
+      "phone": "+34 600 000 000"
     },
     "actions": {
       "changePhoto": "Changer la photo",
@@ -462,20 +463,20 @@
     "sectionTitle": "Abonnement",
     "labels": {
       "status": "Statut",
-      "plan": "Offre",
+      "plan": "Plan",
       "renewal": "Renouvellement",
       "unknown": "Inconnu"
     },
     "status": {
-      "active": "Active",
-      "trialing": "En essai",
-      "incomplete": "Incomplète",
-      "canceled": "Annulée",
+      "active": "Actif",
+      "trialing": "En période d'essai",
+      "incomplete": "Incomplet",
+      "canceled": "Annulé",
       "none": "Sans abonnement",
       "unknown": "Inconnu"
     },
     "actions": {
-      "manage": "Gérer l’abonnement"
+      "manage": "Gérer l'abonnement"
     }
   },
   "scripts": {
@@ -485,17 +486,17 @@
     "untitled": "Sans titre"
   },
   "topbar": {
-    "mobileBanner": "🚀 Viralizalo.AI est bien meilleur sur ordinateur pour une meilleure expérience.",
+    "mobileBanner": "🚀 Il est bien mieux d'utiliser Viralizalo.AI sur PC pour une meilleure expérience.",
     "trial": {
-      "banner": "Vous avez des crédits d’essai disponibles. Réclamez-les pour commencer gratuitement.",
-      "claim": "Réclamer les crédits",
+      "banner": "Vous avez des crédits d'essai disponibles. Réclamez-les pour commencer à utiliser la plateforme gratuitement.",
+      "claim": "Réclamer des crédits",
       "claiming": "Réclamation...",
-      "activateFirst": "Pour les réclamer, activez d’abord votre essai gratuit sur Stripe.",
-      "claimError": "Impossible de réclamer l’essai.",
-      "unexpectedError": "Une erreur inattendue est survenue lors de la réclamation."
+      "activateFirst": "Pour réclamer des crédits, activez d'abord votre essai gratuit sur Stripe.",
+      "claimError": "Impossible de réclamer l'essai.",
+      "unexpectedError": "Une erreur inattendue est survenue lors de la réclamation des crédits."
     },
     "overdue": {
-      "banner": "⚠️ Vous avez une dette de {credits} crédits. Veuillez régulariser votre paiement pour continuer à utiliser la plateforme.",
+      "banner": "⚠️ Vous avez une dette en cours de {credits} crédits. Veuillez régulariser votre paiement pour continuer à utiliser la plateforme.",
       "payNow": "Payer maintenant"
     },
     "badge": {
@@ -504,9 +505,9 @@
     },
     "popover": {
       "monthUsage": "Utilisation totale du mois",
-      "available": "Crédits disponibles (inclut l’essai)",
-      "today": "Aujourd’hui",
-      "chargeAt": "Prélèvement aujourd’hui à 23:59 (Europe/Madrid)",
+      "available": "Crédits disponibles (inclut l'essai)",
+      "today": "Aujourd'hui",
+      "chargeAt": "Prélèvement aujourd'hui à 23:59 (Europe/Madrid)",
       "creditsUnit": "crédits"
     }
   },
@@ -522,14 +523,14 @@
     "language": "Langue",
     "pricing": "Tarifs",
     "howTo": "Comment utiliser Viralizalo.AI ?",
-    "trialDays": "{days} jours d’essai",
-    "cancelAtPeriodEnd": "Annulée (fin de période)",
+    "trialDays": "{days} jours d'essai",
+    "cancelAtPeriodEnd": "Annulé (fin de période)",
     "avatarAlt": "Avatar"
   },
   "viralIdeasPage": {
     "title": "Idées virales",
     "toasts": {
-      "enterNiche": "Saisissez une niche avant de rechercher",
+      "enterNiche": "Saisissez un créneau avant de chercher",
       "mustLoginSearch": "Vous devez vous connecter pour rechercher des vidéos",
       "loading": "Recherche de vidéos virales...",
       "loaded": "Vidéos chargées avec succès",
@@ -539,15 +540,15 @@
       "noTranscript": "Aucune transcription trouvée",
       "replicateError": "Erreur lors de la réplication de la vidéo"
     },
-    "replicatedScriptDescription": "Script répliqué depuis {title}",
+    "replicatedScriptDescription": "Script répliqué de {title}",
     "empty": {
-      "noResultsForFilters": "Aucune vidéo tendance pour « {query} » avec les filtres actuels. Essayez un autre terme, une autre langue ou période.",
+      "noResultsForFilters": "Aucune vidéo tendance pour « {query} » avec les filtres actuels. Essayez un autre terme, une autre langue ou une autre période.",
       "noMatchesForFilter": "Aucune correspondance avec le filtre actuel."
     },
     "viewsLabel": "vues",
-    "playHere": "Lire ici",
+    "playHere": "Regarder ici",
     "favoritesHeader": "Favoris",
-    "favoritesEmpty": "Vous n’avez pas de vidéos enregistrées",
+    "favoritesEmpty": "Vous n'avez pas de vidéos enregistrées",
     "view": "Voir",
     "viewOnYoutube": "Voir sur YouTube"
   },
@@ -565,17 +566,17 @@
         "FR": "Français"
       },
       "ranges": {
-        "day": "Aujourd’hui",
-        "today": "Aujourd’hui",
+        "day": "Aujourd'hui",
+        "today": "Aujourd'hui",
         "week": "Dernière semaine",
         "month": "Dernier mois",
         "year": "Dernière année"
       }
     },
     "search": {
-      "placeholder": "Saisissez une niche ou un sujet (ex. : fitness, recettes, marketing)",
+      "placeholder": "Saisissez un créneau ou un sujet (p. ex., fitness, recettes, marketing)",
       "button": "Rechercher",
-      "simplePlaceholder": "Recherchez votre niche"
+      "simplePlaceholder": "Recherchez votre créneau"
     },
     "list": {
       "viewOnYoutube": "Voir sur YouTube",
@@ -585,7 +586,7 @@
       "removeFavorite": "Retirer des favoris",
       "loading": "Chargement des idées...",
       "noItems": "Aucun résultat à afficher.",
-      "noPreview": "Aperçu indisponible"
+      "noPreview": "Aperçu non disponible"
     },
     "favorites": {
       "title": "Vos idées favorites",
@@ -604,20 +605,20 @@
       "ratingDesc": "Note ↓",
       "ratingAsc": "Note ↑"
     },
-    "empty": "Vous n’avez pas encore de scripts.",
+    "empty": "Vous n'avez pas encore de scripts.",
     "toasts": {
       "loadError": "Impossible de charger les scripts",
       "deleteAllSuccess": "Tous les scripts ont été supprimés ✅",
       "deleteOneSuccess": "Script supprimé avec succès ✅",
       "deleteError": "Impossible de supprimer le script",
       "rateError": "Impossible de mettre à jour la note",
-      "refreshError": "Erreur lors de la confirmation des scripts, rafraîchissez la page"
+      "refreshError": "Erreur lors de la confirmation des scripts, actualisez la page"
     },
     "deleteDialog": {
       "titleAll": "Supprimer tous les scripts",
       "titleOne": "Supprimer le script",
-      "bodyAll": "Voulez-vous vraiment supprimer TOUS les scripts ? Cette action est irréversible.",
-      "bodyOne": "Voulez-vous vraiment supprimer ce script ? Cette action est irréversible.",
+      "bodyAll": "Êtes-vous sûr de vouloir supprimer TOUS les scripts ? Cette action est irréversible.",
+      "bodyOne": "Êtes-vous sûr de vouloir supprimer ce script ? Cette action est irréversible.",
       "confirmAll": "Tout supprimer",
       "confirmOne": "Supprimer"
     }
@@ -627,16 +628,23 @@
     "untitledReplicated": "Vidéo répliquée",
     "unrated": "Non noté",
     "noContent": "Aucun contenu",
-    "noPreview": "Aperçu indisponible",
-    "thumbnailAlt": "Miniature de la vidéo",
+    "noPreview": "Aperçu non disponible",
+    "thumbnailAlt": "Vignette vidéo",
     "view": "Voir",
     "delete": "Supprimer",
     "ariaView": "Voir le script : {title}",
     "ariaDelete": "Supprimer le script : {title}"
   },
+  "scriptsCard": {
+    "unrated": "Non noté",
+    "view": "Voir",
+    "viewAria": "Voir le script : {title}",
+    "deleteAria": "Supprimer le script : {title}",
+    "deleteTitle": "Supprimer le script"
+  },
   "scriptsDeleteDialog": {
     "title": "Supprimer le script",
-    "description": "Voulez-vous vraiment supprimer « {title} » ? Cette action est irréversible.",
+    "description": "Êtes-vous sûr de vouloir supprimer « {title} » ? Cette action est irréversible.",
     "thisScript": "ce script",
     "cancel": "Annuler",
     "delete": "Supprimer",
@@ -648,7 +656,7 @@
       "ctaPrefix": "CTA :"
     },
     "ratingAria": "Noter avec {stars} étoiles",
-    "previewUnavailable": "Aperçu indisponible",
+    "previewUnavailable": "Aperçu non disponible",
     "channel": "Chaîne",
     "published": "Publié",
     "viewOriginal": "Voir la vidéo originale",
@@ -671,7 +679,7 @@
       "regenError": "❌ Impossible de régénérer le script.",
       "saving": "💾 Enregistrement du script...",
       "saved": "✅ Script enregistré avec succès",
-      "saveError": "Impossible d’enregistrer le script."
+      "saveError": "Impossible d'enregistrer le script."
     },
     "regenDialog": {
       "title": "Modifier avant de régénérer",
@@ -680,16 +688,24 @@
         "structure": "Structure"
       },
       "placeholders": {
-        "tone": "Sélectionner le ton",
-        "structure": "Sélectionner la structure"
+        "tone": "Sélectionner un ton",
+        "structure": "Sélectionner une structure"
       },
       "actions": {
         "cancel": "Annuler",
         "accept": "Accepter et régénérer"
       }
     },
+    "form": {
+      "hints": {
+        "durationBudget": "Utilisez 0–15, 15–30, 30–45 ou 45–60. Max 60 s."
+      },
+      "errors": {
+        "durationTooLong": "⏱️ La durée dépasse le maximum autorisé ({max}s)."
+      }
+    },
     "checkout": {
-      "message": "Vous avez besoin d’un abonnement actif pour générer des scripts. Commencez votre essai GRATUIT de 7 jours."
+      "message": "Vous avez besoin d'un abonnement actif pour générer des scripts. Commencez votre essai GRATUIT de 7 jours."
     }
   },
   "scriptsForm": {
@@ -704,7 +720,7 @@
       "duration": "Durée *",
       "language": "Langue *",
       "structure": "Structure *",
-      "addCTA": "Ajouter un appel à l’action (CTA)",
+      "addCTA": "Ajouter un appel à l'action (CTA)",
       "ctaText": "Texte du CTA"
     },
     "placeholders": {
@@ -717,7 +733,7 @@
       "ctaText": "Ex. : Suivez-moi pour plus de conseils"
     },
     "buttons": {
-      "generate": "Générer un script",
+      "generate": "Générer le script",
       "generating": "Génération..."
     },
     "options": {
@@ -756,13 +772,13 @@
       "loadError": "❌ Impossible de charger les audios",
       "deleteAllSuccess": "🗑️ Tous les audios supprimés",
       "deleteOneSuccess": "Audio supprimé ✅",
-      "deleteError": "❌ Impossible de supprimer l’audio"
+      "deleteError": "❌ Impossible de supprimer l'audio"
     },
     "deleteDialog": {
       "titleAll": "Supprimer tous les audios",
-      "titleOne": "Supprimer l’audio",
-      "descAll": "Voulez-vous vraiment supprimer TOUS les audios ? Cette action est irréversible.",
-      "descOne": "Voulez-vous vraiment supprimer cet audio ? Cette action est irréversible.",
+      "titleOne": "Supprimer l'audio",
+      "descAll": "Êtes-vous sûr de vouloir supprimer TOUS les audios ? Cette action est irréversible.",
+      "descOne": "Êtes-vous sûr de vouloir supprimer cet audio ? Cette action est irréversible.",
       "confirmAll": "Tout supprimer",
       "confirmOne": "Supprimer"
     }
@@ -788,40 +804,40 @@
         "speakerBoost": "Utiliser Speaker Boost"
       },
       "placeholders": {
-        "text": "Écrivez le texte à convertir en audio",
-        "voice": "Sélectionnez une voix"
+        "text": "Saisissez le texte à convertir en audio",
+        "voice": "Sélectionner une voix"
       },
       "actions": {
         "cancel": "Annuler"
       }
     },
     "player": {
-      "play": "Lire l’audio",
-      "pause": "Mettre en pause"
+      "play": "Lire l'audio",
+      "pause": "Mettre l'audio en pause"
     },
     "toasts": {
-      "durationExceeded": "⏱️ L’audio dure {duration} et le maximum autorisé est {max}s. Raccourcissez le texte ou augmentez la vitesse.",
-      "enterText": "Vous devez écrire le texte à convertir.",
+      "durationExceeded": "⏱️ L'audio dure {duration} et le maximum autorisé est {max}s. Raccourcissez le texte ou augmentez la vitesse.",
+      "enterText": "Vous devez saisir le texte à convertir.",
       "textTooLongEst": "⏱️ Le texte est trop long (~{seconds}s). Maximum {max}s.",
       "selectVoice": "Vous devez sélectionner une voix.",
       "mustLogin": "Vous devez vous connecter pour générer des audios.",
-      "generating": "🎙️ Génération de l’audio...",
+      "generating": "🎙️ Génération de l'audio...",
       "generated": "✅ Audio généré",
-      "generateError": "❌ Impossible de générer l’audio",
+      "generateError": "❌ Impossible de générer l'audio",
       "noBaseAudio": "Aucun audio de base à régénérer.",
       "regenLimit": "⚠️ 2 régénérations maximum autorisées.",
-      "regenerating": "🔄 Régénération de l’audio...",
+      "regenerating": "🔄 Régénération de l'audio...",
       "regenerated": "✅ Audio régénéré",
       "regenError": "❌ Impossible de régénérer",
       "saved": "📂 Audio enregistré dans votre bibliothèque",
-      "durationExceededBeforeSave": "⏱️ L’audio dure {duration} (> {max}s). Veuillez le raccourcir avant d’enregistrer."
+      "durationExceededBeforeSave": "⏱️ L'audio dure {duration} (> {max}s). Veuillez le raccourcir avant d'enregistrer."
     },
-    "paywall": "Pour cloner votre voix, vous avez besoin d’un abonnement actif. Commencez votre essai GRATUIT de 7 jours"
+    "paywall": "Pour cloner votre voix, vous avez besoin d'un abonnement actif — commencez votre essai GRATUIT de 7 jours"
   },
   "audioForm": {
-    "title": "Génération d’audio",
+    "title": "Génération d'audio",
     "labels": {
-      "nameOptional": "Nom (optionnel)",
+      "nameOptional": "Nom (facultatif)",
       "text": "Texte *",
       "voice": "Voix *",
       "language": "Langue *",
@@ -832,41 +848,41 @@
       "speakerBoost": "Utiliser Speaker Boost"
     },
     "placeholders": {
-      "name": "Ex. : Intro vidéo landing FR",
-      "text": "Écrivez le texte...",
-      "voice": "Sélectionnez une voix"
+      "name": "Ex. : Intro landing ES",
+      "text": "Saisissez le texte...",
+      "voice": "Sélectionner une voix"
     },
     "tooltips": {
       "stability": "Cohérence de la voix.",
-      "similarity": "Ressemblance avec la voix de base.",
+      "similarity": "Similarité avec la voix de base.",
       "style": "Expressivité.",
-      "speed": "Débit de parole."
+      "speed": "Vitesse de narration."
     },
     "buttons": {
       "processing": "Traitement...",
-      "generating": "Génération de l’audio...",
-      "generate": "Générer l’audio"
+      "generating": "Génération de l'audio...",
+      "generate": "Générer l'audio"
     },
     "toasts": {
-      "fillAll": "⚠️ Complétez texte, voix et langue.",
-      "noVoices": "Vous n’avez pas encore de voix, créez ou clonez-en une d’abord.",
+      "fillAll": "⚠️ Complétez le texte, la voix et la langue.",
+      "noVoices": "Vous n'avez pas encore de voix enregistrées ; créez ou clonez d'abord une voix.",
       "loadVoicesError": "Erreur lors du chargement des voix depuis le serveur.",
       "loadedFromScript": "Texte chargé depuis le script sélectionné ✨"
     },
     "checkout": {
-      "message": "Vous avez besoin d’un abonnement actif pour générer des audios."
+      "message": "Vous avez besoin d'un abonnement actif pour générer des audios."
     }
   },
   "audiosList": {
-    "empty": "Aucun audio pour le moment."
+    "empty": "Pas encore d'audios."
   },
   "audioCard": {
     "untitled": "Sans titre",
     "aria": {
-      "play": "Lire l’audio",
-      "pause": "Mettre l’audio en pause",
-      "download": "Télécharger l’audio",
-      "delete": "Supprimer l’audio"
+      "play": "Lire l'audio",
+      "pause": "Mettre l'audio en pause",
+      "download": "Télécharger l'audio",
+      "delete": "Supprimer l'audio"
     },
     "titles": {
       "download": "Télécharger",
@@ -874,7 +890,7 @@
     },
     "toasts": {
       "reloginToDownload": "Vous devez vous reconnecter pour télécharger.",
-      "downloadError": "Impossible de télécharger l’audio."
+      "downloadError": "Impossible de télécharger l'audio."
     }
   },
   "video": {
@@ -885,7 +901,7 @@
     "select": {
       "label": "Sélectionner une vidéo de clonage",
       "placeholder": "Choisissez une vidéo",
-      "empty": "Vous n’avez pas de vidéos de clonage",
+      "empty": "Vous n'avez pas de vidéos de clonage",
       "unnamed": "Sans titre"
     },
     "uploadDialog": {
@@ -893,17 +909,17 @@
       "requirementsTitle": "Exigences de la vidéo :",
       "requirements": {
         "aspect": "Format vertical (9:16)",
-        "size": "Maximum {mb} Mo",
+        "size": "Max {mb} Mo",
         "background": "Fond uni et bonne luminosité",
         "clarity": "Parler face caméra et clairement"
       },
-      "dropHint": "Glissez votre vidéo ici ou cliquez pour sélectionner",
+      "dropHint": "Glissez votre vidéo ici ou cliquez pour la sélectionner",
       "analyzing": "Analyse de la vidéo...",
       "replace": "Remplacer",
       "upload": "Téléverser",
       "uploading": "Téléversement...",
       "uploadedToast": "✅ Vidéo téléversée avec succès",
-      "uploadErrorToast": "❌ Erreur lors du téléversement",
+      "uploadErrorToast": "❌ Erreur lors du téléversement de la vidéo",
       "progress": "{value}% téléversé"
     }
   },
@@ -922,28 +938,28 @@
     "confirm": {
       "deleteAllTitle": "Supprimer toutes les vidéos",
       "deleteOneTitle": "Supprimer la vidéo Lipsync",
-      "deleteAllDesc": "Voulez-vous vraiment supprimer TOUTES les vidéos ? Cette action est irréversible.",
-      "deleteOneDesc": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "deleteAllDesc": "Êtes-vous sûr de vouloir supprimer TOUTES les vidéos ? Cette action est irréversible.",
+      "deleteOneDesc": "Êtes-vous sûr de vouloir supprimer cette vidéo ? Cette action est irréversible.",
       "confirmAll": "Tout supprimer",
       "confirmOne": "Supprimer"
     }
   },
   "lipsyncList": {
-    "empty": "Vous n’avez pas encore de vidéos."
+    "empty": "Vous n'avez pas encore de vidéos."
   },
   "lipsyncCard": {
     "untitled": "Sans titre",
     "ariaDelete": "Supprimer la vidéo",
     "titleDelete": "Supprimer la vidéo",
-    "playHere": "▶ Lire ici",
+    "playHere": "▶ Regarder ici",
     "ariaPlay": "Lire : {title}",
     "status": {
       "processing": "Traitement...",
-      "error": "Erreur lors de la génération",
+      "error": "Erreur de génération",
       "pending": "En attente"
     },
     "download": "Télécharger",
-    "autoedit": "Auto-monter"
+    "autoedit": "Auto-éditer"
   },
   "lipsyncCreate": {
     "title": "Vidéos clonées",
@@ -952,9 +968,9 @@
       "selectAudio": "Vous devez sélectionner un audio valide.",
       "selectVideo": "Vous devez sélectionner une vidéo valide.",
       "title": "Vous devez saisir un titre pour la vidéo.",
-      "audioDuration": "⏱️ L’audio dure {sec}s et le maximum est {max}s.",
+      "audioDuration": "⏱️ L'audio dure {sec}s et le maximum est {max}s.",
       "videoDuration": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
-      "readAudioDuration": "Impossible de lire la durée de l’audio.",
+      "readAudioDuration": "Impossible de lire la durée de l'audio.",
       "readVideoDuration": "Impossible de lire la durée de la vidéo.",
       "validation": "Échec de la validation"
     },
@@ -967,10 +983,10 @@
       "title": "Titre de la vidéo"
     },
     "toasts": {
-      "creating": "Génération de la vidéo : « {title} » avec l’audio « {audio} » et la vidéo « {video} »",
-      "created": "✅ Vidéo en cours. Nous vous préviendrons quand elle sera prête.",
+      "creating": "Génération de la vidéo : « {title} » avec l'audio « {audio} » et la vidéo « {video} »",
+      "created": "✅ Vidéo en cours. Nous vous avertirons lorsqu'elle sera prête.",
       "loadMediaError": "Erreur lors du chargement des audios/vidéos",
-      "durationAudioExceeded": "⏱️ L’audio dure {sec}s et le maximum est {max}s.",
+      "durationAudioExceeded": "⏱️ L'audio dure {sec}s et le maximum est {max}s.",
       "durationVideoExceeded": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
       "createError": "Impossible de créer le lipsync"
     },
@@ -978,13 +994,13 @@
       "noAudio": "Sans audio"
     },
     "checkout": {
-      "message": "Vous avez besoin d’un abonnement actif pour créer des lipsyncs. Commencez votre essai GRATUIT de 7 jours."
+      "message": "Vous avez besoin d'un abonnement actif pour créer des lipsyncs. Commencez votre essai GRATUIT de 7 jours."
     }
   },
   "edit": {
     "page": {
       "title": "Montages",
-      "empty": "Vous n’avez pas encore de vidéos.",
+      "empty": "Vous n'avez pas encore de vidéos.",
       "actions": {
         "create": "Créer une vidéo",
         "deleteAll": "Tout supprimer",
@@ -999,8 +1015,8 @@
       "deleteDialog": {
         "titleAll": "Supprimer toutes les vidéos",
         "titleOne": "Supprimer la vidéo",
-        "bodyAll": "Voulez-vous vraiment supprimer TOUTES les vidéos ? Cette action est irréversible.",
-        "bodyOne": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+        "bodyAll": "Êtes-vous sûr de vouloir supprimer TOUTES les vidéos ? Cette action est irréversible.",
+        "bodyOne": "Êtes-vous sûr de vouloir supprimer cette vidéo ? Cette action est irréversible.",
         "confirmAll": "Tout supprimer",
         "confirmOne": "Supprimer"
       }
@@ -1009,56 +1025,56 @@
       "untitled": "Sans titre",
       "status": {
         "processing": "Traitement...",
-        "error": "Erreur lors de la génération",
+        "error": "Erreur de génération",
         "pending": "En attente",
         "completed": "Terminé"
       },
       "actions": {
         "deleteAria": "Supprimer la vidéo",
         "download": "Télécharger",
-        "autoedit": "Auto-monter",
+        "autoedit": "Auto-éditer",
         "generateVideo": "Générer la vidéo"
       },
-      "playHere": "▶ Lire ici",
+      "playHere": "▶ Regarder ici",
       "ariaPlay": "Lire : {title}"
     },
     "create": {
       "title": "🎥 Montage vidéo IA",
-      "subtitle": "Téléversez ou sélectionnez une vidéo et appliquez des modèles automatiques avec l’IA.",
+      "subtitle": "Téléversez ou sélectionnez une vidéo et appliquez des templates automatiques avec l'IA.",
       "dropzone": {
         "active": "Déposez la vidéo ici...",
         "idle": "Glissez une vidéo ou cliquez",
-        "limit": "Jusqu’à {secs}s et {mb} Mo",
+        "limit": "Jusqu'à {secs}s et {mb} Mo",
         "fileTooLarge": "Fichier trop volumineux"
       },
       "labels": {
-        "title": "Titre (optionnel)",
-        "template": "Modèle",
+        "title": "Titre (facultatif)",
+        "template": "Template",
         "language": "Langue",
         "describe": "Décrivez la vidéo en 3–4 mots",
         "brollsPercentage": "Pourcentage de B-rolls : {value}%"
       },
       "placeholders": {
         "title": "Ex. : Lancement produit – vertical",
-        "tags": "Tapez un tag puis Entrée ou virgule...",
+        "tags": "Saisissez un tag et appuyez sur Entrée ou virgule...",
         "language": "Sélectionner une langue"
       },
       "tooltips": {
         "magicZooms": "Ajoute des zooms automatiques pour plus de dynamisme.",
-        "magicBrolls": "Insère des B-rolls automatiques pertinents dans votre vidéo."
+        "magicBrolls": "Insère des B-rolls pertinents automatiquement dans votre vidéo."
       },
       "options": {
         "magicZooms": "Magic Zooms",
         "magicBrolls": "Magic B-rolls"
       },
       "loading": {
-        "templates": "Chargement des modèles...",
+        "templates": "Chargement des templates...",
         "languages": "Chargement des langues..."
       },
       "buttons": {
         "seeMore": "Voir plus",
         "seeLess": "Voir moins",
-        "create": "Créer la vidéo",
+        "create": "Créer une vidéo",
         "generateEdit": "Générer le montage vidéo",
         "processing": "Traitement...",
         "generating": "Génération..."
@@ -1069,29 +1085,29 @@
         "uploading": "☁️ Téléversement de la vidéo dans le cloud...",
         "processing": "⚙️ Traitement de votre vidéo...",
         "created": "🎬 Vidéo créée avec succès",
-        "uploadOrProcessError": "❌ Erreur lors du téléversement ou du traitement",
-        "analyzeError": "Impossible d’analyser la vidéo.",
+        "uploadOrProcessError": "❌ Erreur lors du téléversement ou du traitement de la vidéo",
+        "analyzeError": "Impossible d'analyser la vidéo.",
         "mustLogin": "⚠️ Vous devez vous connecter",
         "mustSelectVideo": "⚠️ Vous devez téléverser ou sélectionner une vidéo",
         "loadLangError": "❌ Erreur lors du chargement des langues",
-        "loadTplError": "❌ Erreur lors du chargement des modèles",
+        "loadTplError": "❌ Erreur lors du chargement des templates",
         "durationExceeded": "⏱️ La vidéo dure {sec}s et le maximum est {max}s.",
-        "templateSelected": "📑 Modèle « {name} » sélectionné"
+        "templateSelected": "📑 Template « {name} » sélectionné"
       },
       "errors": {
         "readVideoDuration": "Impossible de lire la durée de la vidéo",
-        "noVideoUrl": "Impossible d’obtenir l’URL de la vidéo"
+        "noVideoUrl": "Impossible d'obtenir l'URL de la vidéo"
       },
       "checkout": {
-        "message": "Vous avez besoin d’un abonnement actif pour générer des montages vidéo."
+        "message": "Vous avez besoin d'un abonnement actif pour générer des montages vidéo."
       },
-      "previewUnavailable": "Aperçu indisponible"
+      "previewUnavailable": "Aperçu non disponible"
     }
   },
   "voices": {
     "list": {
       "title": "Audios pour le clonage",
-      "empty": "Vous n’avez pas encore de voix.",
+      "empty": "Vous n'avez pas encore de voix.",
       "loading": "Chargement des voix...",
       "buttons": {
         "new": "+ Nouvelle voix",
@@ -1100,34 +1116,34 @@
     },
     "deleteDialog": {
       "title": "Supprimer la voix",
-      "description": "Voulez-vous vraiment supprimer cette voix ? Cette action est irréversible.",
+      "description": "Êtes-vous sûr de vouloir supprimer cette voix ? Cette action est irréversible.",
       "cancel": "Annuler",
       "confirm": "Supprimer"
     },
     "card": {
-      "previewUnavailable": "🎧 Aperçu indisponible"
+      "previewUnavailable": "🎧 Aperçu non disponible"
     }
   },
   "clonacion": {
     "sectionTitle": "Vidéos de clonage",
     "sectionSubtitle": "Téléversez vos vidéos de référence pour entraîner votre clone.",
-    "noVideos": "Vous n’avez pas encore de vidéos de clonage.",
+    "noVideos": "Vous n'avez pas encore de vidéos de clonage.",
     "previewTitle": "Aperçu",
     "addVideoButton": "+ Ajouter une vidéo de clonage",
     "mustLogin": "Vous devez vous connecter",
     "uploadSuccess": "✅ Vidéo téléversée avec succès",
-    "uploadError": "❌ Erreur lors du téléversement",
+    "uploadError": "❌ Erreur lors du téléversement de la vidéo",
     "deleteSuccess": "✅ Vidéo supprimée avec succès",
     "deleteError": "❌ Impossible de supprimer la vidéo",
     "deleteDialog": {
       "title": "Supprimer la vidéo",
-      "description": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "description": "Êtes-vous sûr de vouloir supprimer cette vidéo ? Cette action est irréversible.",
       "cancel": "Annuler",
       "confirm": "Supprimer"
     },
     "deleteDialog?": {
       "title": "Supprimer la vidéo",
-      "description": "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible.",
+      "description": "Êtes-vous sûr de vouloir supprimer cette vidéo ? Cette action est irréversible.",
       "cancel": "Annuler",
       "confirm": "Supprimer"
     }
@@ -1142,19 +1158,19 @@
       "sidebar": {
         "home": {
           "title": "🏠 Accueil",
-          "description": "Aperçu général de votre compte et de vos livraisons."
+          "description": "Ici, vous voyez le résumé global de votre compte et de vos livraisons."
         },
         "viralIdeas": {
           "title": "✨ Idées virales",
-          "description": "Découvrez des tendances de reels et des contenus pour vous inspirer."
+          "description": "Découvrez des reels et contenus tendance pour vous inspirer."
         },
         "scripts": {
           "title": "📜 Scripts",
-          "description": "Gérez les scripts générés par l’IA et demandez des modifications."
+          "description": "Gérez les scripts générés par l'IA et demandez des modifications."
         },
         "audio": {
           "title": "🎤 Audio",
-          "description": "Convertissez votre script en voix réaliste grâce à l’IA."
+          "description": "Transformez votre script en voix réaliste grâce à l'IA."
         },
         "lipsync": {
           "title": "🎭 Vidéo",
@@ -1166,18 +1182,18 @@
         },
         "clones": {
           "title": "🧑‍🎤 Clonage",
-          "description": "Téléversez vos vidéos de référence pour entraîner votre clone."
+          "description": "Téléversez des vidéos de référence pour entraîner votre clone."
         }
       },
       "badges": {
         "consumo": {
           "title": "💳 Consommation",
-          "description": "Consultez votre consommation actuelle, vos crédits d’essai et vos opérations."
+          "description": "Ici, vous pouvez voir votre consommation actuelle, vos crédits d'essai et vos opérations."
         }
       },
       "userMenu": {
         "title": "👤 Utilisateur",
-        "description": "Gérez ici votre compte, la langue et la déconnexion."
+        "description": "Dans ce menu, gérez votre compte, la langue et la déconnexion."
       }
     }
   },
@@ -1221,8 +1237,8 @@
   "support": {
     "widget": {
       "label": "Aide",
-      "ariaOpen": "Ouvrir le support",
-      "ariaClose": "Fermer le support"
+      "ariaOpen": "Ouvrir l'assistance",
+      "ariaClose": "Fermer l'assistance"
     }
   }
 }
