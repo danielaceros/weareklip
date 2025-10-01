@@ -25,9 +25,36 @@ interface UserInfo {
   cancelAtPeriodEnd?: boolean;
 }
 
+/* ---- Helpers para activo (ignoran /es|/en|/fr y la barra final) ---- */
+const LOCALE_PREFIX = /^\/(es|en|fr)(?=\/|$)/;
+
+function stripLocale(path: string) {
+  return (path || "/").replace(LOCALE_PREFIX, "") || "/";
+}
+
+function normalizePath(path: string) {
+  let p = stripLocale(path);
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p || "/";
+}
+
+function useIsActive() {
+  const pathnameRaw = usePathname();
+  const pathname = normalizePath(pathnameRaw || "/");
+  return (href: string) => {
+    const cleanHref = normalizePath(href);
+    if (cleanHref === "/dashboard") {
+      // Inicio solo activo en la home exacta
+      return pathname === "/dashboard";
+    }
+    // Para el resto: exacto o subruta
+    return pathname === cleanHref || pathname.startsWith(cleanHref + "/");
+  };
+}
+
 export function Sidebar() {
   const t = useT();
-  const pathname = usePathname();
+  const isActive = useIsActive();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   useEffect(() => {
@@ -69,7 +96,7 @@ export function Sidebar() {
       >
         <nav className="flex flex-col items-center gap-6">
           {links.map(({ href, key, label, icon: Icon }) => {
-            const active = pathname.startsWith(href);
+            const active = isActive(href);
             return (
               <Link
                 key={href}
@@ -107,11 +134,7 @@ export function Sidebar() {
       {/* 📌 Bottom Navigation (solo mobile) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-neutral-800 bg-black py-2">
         {mobileLinks.map(({ href, key, label, icon: Icon }) => {
-          const isHome = href === "/dashboard";
-          const active = isHome
-            ? pathname === "/dashboard" || pathname === "/dashboard/"
-            : pathname.startsWith(href);
-
+          const active = isActive(href);
           return (
             <Link
               key={href}
